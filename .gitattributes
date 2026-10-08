@@ -1,0 +1,6 @@
+# Finales de línea LF en el repositorio y en la copia de trabajo (los scripts .sh del servidor Linux fallan con CRLF)
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary
+*.gz binary

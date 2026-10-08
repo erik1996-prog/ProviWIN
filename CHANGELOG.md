@@ -19,6 +19,12 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 ### Corregido
 - Al descargar un archivo, la pantalla ya no queda atenuada y bloqueada.
 
+### Base de datos y organización
+- `04_DATABASE/00_INSTALACION`: `01_crear_base.sql` y un script por tabla en orden de dependencias, con los catálogos. Lo genera `07_SCRIPTS/generar_instalacion.php`, que también reescribe `01_SCHEMA`.
+- Migración `002_INDICES_LIMPIEZA.sql` aplicada (respaldo previo); `07_SCRIPTS/auditar_bd.php` (solo lectura) y `crear_administrador.php`.
+- Eliminadas las copias repetidas `02_TABLES/` y `08_SEEDS/01_catalogos.sql`.
+- El proyecto queda en git (rama `main`).
+
 ## [0.9.2] — 2026-10-08 — Esquema de la base de datos
 
 ### Añadido
