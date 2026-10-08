@@ -67,6 +67,51 @@ try {
         exit;
     }
 
+    // Registro de técnico de apoyo (T2) desde la supervisión (2026-10-08). Los T2 son un grupo distinto de los
+    // T1: pertenecen a un partner, no llevan nomenclatura ("P n …") y rotan entre cuadrillas.
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'crear_apoyo') {
+        $user = Auth::getLoggedInUser();
+        if (!Auth::can(Auth::PERM_SUPERVISION_CREATE, $user) && !Auth::isAdministrative()) {
+            http_response_code(403);
+            throw new Exception('No tiene permiso para registrar técnicos.');
+        }
+        $partnerId = intval($_POST['partner_id'] ?? 0);
+        $nombre = mb_strtoupper(preg_replace('/\s+/u', ' ', trim((string)($_POST['nombre_tecnico'] ?? ''))), 'UTF-8');
+        $dni = trim((string)($_POST['dni'] ?? ''));
+        if ($partnerId <= 0) throw new Exception('Seleccione primero el partner de la supervisión.');
+        if (mb_strlen($nombre) < 5 || mb_strlen($nombre) > 120 || !preg_match('/^[\p{L} .\'-]+$/u', $nombre)) {
+            throw new Exception('Escriba los nombres y apellidos del técnico (solo letras, de 5 a 120 caracteres).');
+        }
+        if (!preg_match('/^\d{8}$/', $dni)) throw new Exception('El DNI debe tener 8 dígitos.');
+
+        $stmtPartner = $pdo->prepare('SELECT nombre_partner FROM partners WHERE id = :id AND estado = 1');
+        $stmtPartner->execute([':id' => $partnerId]);
+        $partnerNombre = $stmtPartner->fetchColumn();
+        if (!$partnerNombre) throw new Exception('El partner seleccionado no está activo.');
+
+        $stmtDni = $pdo->prepare('SELECT t.nombre_tecnico, t.tipo_tecnico, t.partner_id, p.nombre_partner FROM tecnicos t LEFT JOIN partners p ON p.id = t.partner_id WHERE t.dni = :dni LIMIT 1');
+        $stmtDni->execute([':dni' => $dni]);
+        if ($otro = $stmtDni->fetch()) {
+            $rol = (int)$otro['tipo_tecnico'] === 2 ? 'técnico de apoyo' : 'técnico líder';
+            throw new Exception("El DNI ya está registrado como {$rol}: {$otro['nombre_tecnico']}" . ($otro['nombre_partner'] ? " ({$otro['nombre_partner']})" : '') . '.');
+        }
+        $stmtNombre = $pdo->prepare('SELECT id FROM tecnicos WHERE nombre_tecnico = :nom LIMIT 1');
+        $stmtNombre->execute([':nom' => $nombre]);
+        if ($stmtNombre->fetch()) throw new Exception('Ya existe un técnico con ese nombre. Búsquelo en la lista.');
+
+        $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, dni, tipo_tecnico, estado_operativo, partner_id, fecha_registro) VALUES (:nom, :dni, 2, 'Habilitado', :partner, NOW())")
+            ->execute([':nom' => $nombre, ':dni' => $dni, ':partner' => $partnerId]);
+        $id = (int)$pdo->lastInsertId();
+        win_log_error('audit_technician_created', 'Técnico de apoyo (T2) registrado desde la supervisión', ['target_id' => $id, 'partner_id' => $partnerId]);
+        echo json_encode([
+            'status' => 'success',
+            'message' => "Técnico de apoyo registrado en {$partnerNombre}.",
+            'data' => ['id' => $id, 'nombre_tecnico' => $nombre, 'dni' => $dni, 'tipo_tecnico' => 2, 'celular' => null, 'observacion' => null,
+                'estado_operativo' => 'Habilitado', 'partner_id' => $partnerId, 'vehiculo_id' => null, 'unidad_placa' => null, 'unidad_tipo' => null],
+        ]);
+        exit;
+    }
+
     echo json_encode(['status' => 'error', 'message' => 'Acción no válida.']);
 } catch (Exception $e) {
     echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);

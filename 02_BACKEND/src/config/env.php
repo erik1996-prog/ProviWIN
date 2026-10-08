@@ -12,7 +12,7 @@ function sgs_load_env(string $file): void
         if (strlen($value) >= 2 && ($value[0] === '"' || $value[0] === "'") && $value[strlen($value) - 1] === $value[0]) {
             $value = substr($value, 1, -1);
         } else {
-            $value = trim(preg_replace('/\s+#.*$/', '', $value)); // comentario al final de la línea
+            $value = trim(preg_replace('/(^|\s+)#.*$/', '', $value)); // comentario al final de la línea (también si el valor está vacío)
         }
         if (getenv($key) === false) putenv("$key=$value");
     }

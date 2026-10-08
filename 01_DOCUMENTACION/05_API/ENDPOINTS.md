@@ -20,7 +20,7 @@ Base: `http://<servidor>/ProviWIN/api/`. Todas las respuestas son JSON (`{"statu
 | `supervisiones.php` | `pending_map` | GET | `supervision.map` | Pendientes en el mapa |
 | `supervisiones.php` | `indicadores_dashboard` | GET | `dashboard.view` | Indicadores del dashboard |
 | `cancelaciones_import.php` | — | POST | `supervision.import` | Importar cancelaciones desde Excel |
-| `tecnicos.php` | `list`, `search`, `update` | GET/POST | Sesión | Técnicos y vehículos de las cuadrillas |
+| `tecnicos.php` | `list`, `search`, `update`, `crear_apoyo` | GET/POST | Sesión (`crear_apoyo`: `supervision.create`) | Técnicos y vehículos de las cuadrillas; `crear_apoyo` registra un técnico de apoyo (T2) en un partner (`partner_id`, `nombre_tecnico`, `dni`) |
 | `ubigeo.php` | `departamentos`, `provincias`, `distritos` | GET | Público (solo lectura) | Selector geográfico |
 | `observaciones.php` | `catalogo` | GET | `observation.view` | Categorías y subopciones |
 | `observaciones.php` | `create` | POST | `observation.view` | Registrar observación |

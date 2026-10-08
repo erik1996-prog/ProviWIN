@@ -7,7 +7,6 @@ Flujo objetivo (guía, sección 8): **Frontend → Route → Controller → Serv
 |---|---|
 | `src/config/` | Configuración (`config.php`, `env.php`), registro de errores (`runtime.php`), conexión (`database.php`), sesión y permisos (`auth.php`), reglas compartidas |
 | `src/routes/api/` | Un archivo por endpoint con su lógica completa, traída del sistema de origen sin cambiar reglas de negocio |
-| `src/middlewares/` | `captcha.php` |
 | `controllers/ services/ repositories/ models/ validators/ utils/` | Vacías: se llenan en la fase 2 |
 
 ## Plan de la fase 2 (un módulo a la vez)

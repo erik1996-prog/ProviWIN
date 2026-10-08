@@ -5,11 +5,14 @@ DirectoryIndex index.php
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Fotos, firmas y avatares se comparten con el sistema de origen (misma BD).
+    # Fotos, firmas y avatares. En uploads/ nunca se ejecuta código.
+    RewriteRule ^uploads/.*\.(php\d?|phtml|phar|pl|py|cgi|sh|htaccess)$ - [F,L,NC]
+    # SGS solo en el servidor: se sirven desde ProviWIN/uploads/. Con el sistema de origen al lado, desde el suyo.
+    RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^uploads/(.*)$ /SISTEMA-WIN-PROVINCIA/uploads/$1 [L]
 
     # Carpetas internas de la estructura del proyecto.
-    RewriteRule ^(01_DOCUMENTACION|02_BACKEND|04_DATABASE|05_TEST|06_DEPLOY|07_SCRIPTS|08_LOGS|09_CONFIG)(/|$) - [F,L]
+    RewriteRule ^(01_DOCUMENTACION|02_BACKEND|04_DATABASE|05_TEST|07_SCRIPTS|08_LOGS|09_CONFIG|10_RESPALDOS)(/|$) - [F,L]
     RewriteRule ^03_FRONTEND/(?!src/assets/) - [F,L]
 
     # Archivos ocultos (.env, .gitignore...).

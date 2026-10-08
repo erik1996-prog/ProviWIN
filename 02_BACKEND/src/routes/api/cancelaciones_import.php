@@ -314,6 +314,18 @@ try {
             continue;
         }
 
+        // La tipificación del Excel debe existir en el catálogo (clave foránea): si es nueva se registra y se usa
+        // el texto exacto del catálogo (la comparación ignora mayúsculas y tildes por el cotejamiento de la tabla).
+        $reason = mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$reason)), 0, 200);
+        if ($reason === '') {
+            $reason = null;
+        } else {
+            $pdo->prepare('INSERT IGNORE INTO tipificaciones_cancelacion (descripcion, estado) VALUES (:d, 1)')->execute([':d' => $reason]);
+            $stmtTip = $pdo->prepare('SELECT descripcion FROM tipificaciones_cancelacion WHERE descripcion = :d LIMIT 1');
+            $stmtTip->execute([':d' => $reason]);
+            $reason = $stmtTip->fetchColumn() ?: $reason;
+        }
+
         $code = 'SUP-CAN-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)));
 
         $stmtInsert = $pdo->prepare("INSERT INTO supervisiones (

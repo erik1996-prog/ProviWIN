@@ -21,11 +21,10 @@
 6. Entrar a `http://localhost/ProviWIN/` con un usuario existente del sistema de origen.
 
 ## Entornos
-`06_DEPLOY/development`, `testing` y `production` guardan las notas y los `.env` de referencia de cada entorno (sin contraseñas). Antes de publicar una versión:
+Los valores de cada entorno (local, hosting) van en su propio `.env`, a partir de `.env.example` (sin contraseñas en el repositorio).
 - actualizar `VERSION` y `CHANGELOG.md`;
 - revisar `08_LOGS/errores` del entorno de pruebas.
 
 ## Respaldo y restauración
-SGS no tiene datos propios: se respalda `win_telecom_db` y `SISTEMA-WIN-PROVINCIA/uploads/`, como en el sistema de origen.
-- Respaldo: `C:\xampp\mysql\bin\mysqldump.exe -u <usuario> -p --single-transaction win_telecom_db > 04_DATABASE\10_BACKUPS\win_telecom_db_AAAAMMDD.sql`
-- Restauración: `C:\xampp\mysql\bin\mysql.exe -u <usuario> -p win_telecom_db < archivo.sql`. Detén antes los dos sistemas.
+El sistema respalda solo la base (cada 6 h) y el sistema completo con fotos (cada 24 h), y ambos apenas la base vuelve después de una caída. A mano: `C:
+mpp\php\php.exe 07_SCRIPTSespaldar.php`. Archivos e instrucciones para restaurar: `10_RESPALDOS/LEEME.md`.

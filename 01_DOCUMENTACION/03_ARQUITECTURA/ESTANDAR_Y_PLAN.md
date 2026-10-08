@@ -40,13 +40,13 @@ Modelo a copiar: el módulo de Usuarios.
 
 - **No se renombran ni se borran tablas o columnas existentes**: las usa el sistema de origen.
 - Columna nueva en tabla existente: `NULL` o con `DEFAULT`.
-- Tabla nueva: prefijo `SGS_`, InnoDB, `utf8mb4_unicode_ci`, nombres `PK_`/`FK_`/`UQ_`/`IX_`.
+- Tabla nueva: **todo en minúsculas** con prefijo `sgs_` (`sgs_auditoria`, `sgs_parametro`), InnoDB, `utf8mb4_unicode_ci`; restricciones `PK_`/`FK_`/`UQ_`/`IX_`. En Linux MySQL distingue mayúsculas en los nombres de tabla: `SGS_PERFIL` y `sgs_perfil` serían tablas distintas, por eso nunca mayúsculas en nombres de tabla.
   - Índice en cada clave foránea y `UNIQUE` en lo que no debe repetirse.
   - `FECHA_CREACION`, el usuario que la crea y `ACTIVO` en lugar de borrar.
-- Cambios solo con scripts en `04_DATABASE/09_MIGRATIONS` (`NNN_DESCRIPCION.sql`, plantilla `PLANTILLA_MIGRACION.sql`, reversión en `rollback/`).
+- Cambios solo con scripts en `04_DATABASE/02_CAMBIOS` (`NNN_DESCRIPCION.sql`, plantilla `PLANTILLA_MIGRACION.sql`, reversión en `rollback/`).
   - Se aplican con `php 07_SCRIPTS/migrar.php`, nunca desde la aplicación.
   - Antes de cada uno: respaldo y buscar los nombres tocados en `SISTEMA-WIN-PROVINCIA`.
-- **Todo cambio deja su script** (tabla nueva, columna, índice, datos de catálogo): migración numerada + su `rollback/`. Después de aplicarla, `php 07_SCRIPTS/generar_instalacion.php` actualiza `00_INSTALACION`.
+- **Todo cambio deja su script** (tabla nueva, columna, índice, datos de catálogo): migración numerada + su `rollback/`. Después de aplicarla, `php 07_SCRIPTS/generar_instalacion.php` actualiza `01_INSTALACION`.
 - Revisión: `php 07_SCRIPTS/auditar_bd.php` (solo lectura).
 
 ## 4. Publicar una actualización

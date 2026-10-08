@@ -16,10 +16,8 @@ $baseline = [ // valores al 2026-10-07; solo pueden bajar
     'guia_estilo.php' => ['hex' => 13, 'style' => 4],
     'login.php' => ['hex' => 1, 'style' => 1],
     'mi_informacion.php' => ['hex' => 1, 'style' => 1],
-    'observaciones_partner.php' => ['hex' => 0, 'style' => 3],
     'registro_observaciones.php' => ['hex' => 1, 'style' => 6],
     'supervision_lista.php' => ['hex' => 31, 'style' => 92],
-    'supervision_registro.php' => ['hex' => 0, 'style' => 13],
     'timeline_supervisores.php' => ['hex' => 0, 'style' => 7],
     'topbar.php' => ['hex' => 0, 'style' => 2],
 ];

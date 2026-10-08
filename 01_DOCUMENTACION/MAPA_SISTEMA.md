@@ -14,7 +14,7 @@
 | `05_API/` | `ENDPOINTS.md`: endpoints, acciones, método y permisos |
 | `06_SEGURIDAD/` | `SEGURIDAD.md`: controles aplicados y pendientes |
 | `07_PRUEBAS/` | Casos de prueba manuales |
-| `08_DESPLIEGUE/` | `INSTALACION.md` (instalación local) y `PUBLICAR_Y_ACTUALIZAR.md` (internet, actualizaciones, respaldos) |
+| `08_DESPLIEGUE/` | `SUBIR_A_HOSTING.md` (hosting compartido) ·  `INSTALACION.md` (instalación local) y `PUBLICAR_Y_ACTUALIZAR.md` (internet, actualizaciones, respaldos) |
 | `09_MANUALES/` | Manuales de usuario (pendiente) |
 
 ## Código

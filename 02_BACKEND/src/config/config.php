@@ -33,18 +33,27 @@ define('DB_PASS', getenv('DB_PASSWORD') !== false ? (string)getenv('DB_PASSWORD'
 define('DB_NAME', getenv('DB_NAME') ?: 'win_telecom_db');
 define('DB_CHARSET', getenv('DB_CHARSET') ?: 'utf8mb4');
 // SGS nunca modifica el esquema de la BD compartida.
-define('APP_AUTO_MIGRATE', false);
 
-// Archivos compartidos (fotos, firmas, avatares) viven en el sistema de origen.
-// Las URLs "uploads/..." se reescriben hacia allí en .htaccess.
-define('SHARED_FILES_PATH', rtrim(getenv('SHARED_FILES_PATH') ?: dirname(BASE_PATH) . '/SISTEMA-WIN-PROVINCIA', '/\\'));
+// Archivos compartidos (fotos, firmas, avatares). Si el sistema de origen está instalado al lado, se usan sus
+// uploads (las URLs "uploads/..." se reescriben hacia allí en .htaccess). Si SGS está solo en el servidor,
+// se guardan en ProviWIN/uploads/. SHARED_FILES_PATH en .env manda sobre ambos.
+$sgsOrigen = dirname(BASE_PATH) . '/SISTEMA-WIN-PROVINCIA';
+define('SHARED_FILES_PATH', rtrim(getenv('SHARED_FILES_PATH') ?: (is_dir($sgsOrigen . '/uploads') ? $sgsOrigen : BASE_PATH), '/\\'));
+unset($sgsOrigen);
 define('UPLOAD_DIR', SHARED_FILES_PATH . '/uploads/observaciones/');
 define('UPLOAD_URL', 'uploads/observaciones/');
+// Python para los PDF (requiere reportlab). PYTHON_BIN en .env manda; si no, python3 en Linux o el intérprete local en Windows.
+define('SGS_PYTHON_BIN', getenv('PYTHON_BIN') ?: (PHP_OS_FAMILY === 'Windows' ? 'C:\Users\ERIKJ\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' : 'python3'));
 
 date_default_timezone_set('America/Lima');
 
+// En producción nunca se muestran errores en pantalla (van a 08_LOGS con su código SGS-…)
+ini_set('display_errors', APP_ENV === 'production' ? '0' : '1');
+
 if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
-    $isHttps = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    // HTTPS directo o detrás de un proxy del hosting (Cloudflare, balanceador)
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
     // Nombre propio: la sesión de SGS no se mezcla con la del sistema de origen.
     session_name('SGS_SESSID');
     session_set_cookie_params([
@@ -61,5 +70,10 @@ if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
 foreach ([LOG_PATH . '/backend', LOG_PATH . '/frontend', LOG_PATH . '/database', LOG_PATH . '/errores', STORAGE_PATH] as $dir) {
     if (!is_dir($dir)) @mkdir($dir, 0750, true);
 }
+// Carpetas de fotos (en un servidor nuevo no existen todavía); 0755 porque el servidor web las sirve
+foreach ([UPLOAD_DIR, SHARED_FILES_PATH . '/uploads/avatars/'] as $dir) {
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+}
 
 require_once __DIR__ . '/runtime.php';
+require_once __DIR__ . '/respaldos.php';

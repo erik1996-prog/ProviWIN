@@ -8,12 +8,21 @@ function guardarPersonalSupervision(PDO $pdo, int $supervisionId, ?int $partnerI
         $tipo = $index + 1;
         $dni = trim((string)($tecnico['dni'] ?? ''));
         if (!preg_match('/^\d{8}$/', $dni)) throw new RuntimeException("Ingrese un DNI válido para el técnico {$tipo}.");
+        // T1 = técnico líder; T2 = técnico de apoyo (grupo distinto, sin nomenclatura, rota entre cuadrillas). Ambos del mismo partner.
         $stmt = $pdo->prepare('SELECT id,dni,usuario_id FROM tecnicos WHERE nombre_tecnico=:nombre AND COALESCE(tipo_tecnico,1)=:tipo AND partner_id=:partner FOR UPDATE');
         $stmt->execute([':nombre'=>$nombre, ':tipo'=>$tipo, ':partner'=>$partnerId]);
         $maestro = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$maestro) {
+            $otroTipo = $pdo->prepare('SELECT 1 FROM tecnicos WHERE nombre_tecnico=:nombre AND partner_id=:partner LIMIT 1');
+            $otroTipo->execute([':nombre'=>$nombre, ':partner'=>$partnerId]);
+            if ($otroTipo->fetchColumn()) {
+                throw new RuntimeException($tipo === 1 ? 'El T1 debe ser un técnico líder; el elegido es técnico de apoyo.' : 'El T2 debe ser un técnico de apoyo; el elegido es técnico líder.');
+            }
+        }
         if (!$maestro || (!empty($tecnico['id']) && (int)$tecnico['id'] !== (int)$maestro['id'])) {
             throw new RuntimeException("El técnico {$tipo} no pertenece al partner seleccionado. Selecciónelo nuevamente.");
         }
+        if ($tipo === 2 && $ids[0] === (int)$maestro['id']) throw new RuntimeException('El técnico de apoyo (T2) no puede ser el mismo técnico líder (T1).');
         $ids[$index] = (int)$maestro['id'];
         if ($maestro['dni'] !== $dni) {
             // Una cuenta futura conserva su identidad; una corrección vinculada requiere administración.

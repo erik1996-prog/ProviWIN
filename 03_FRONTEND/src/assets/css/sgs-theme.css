@@ -3511,3 +3511,34 @@ html.sgs-gps-bloqueado, html.sgs-gps-bloqueado body { overflow: hidden; }
     .sgs-visor-lienzo { height: auto; }
     .sgs-visor .modal-content { border-radius: 0; }
 }
+
+/* ============================== 27. CAMPO CON BÚSQUEDA (tipificación de observación) ============================== */
+/* Un input que filtra mientras se escribe y una lista para elegir; debajo, lo que se completó solo. */
+.sgs-combo { position: relative; }
+.sgs-combo-lista {
+    position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px);
+    max-height: 18rem; overflow-y: auto; margin: 0; padding: .25rem; list-style: none;
+    background: var(--sgs-surface); border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); box-shadow: var(--sgs-shadow);
+}
+.sgs-combo-lista li[data-i] { display: flex; flex-direction: column; gap: .125rem; padding: .5rem .625rem; border-radius: 8px; cursor: pointer; }
+.sgs-combo-lista li[data-i]:hover,
+.sgs-combo-lista li.is-activo { background: var(--sgs-orange-subtle); }
+.sgs-combo-texto { color: var(--sgs-ink); font-weight: 600; font-size: .875rem; line-height: 1.3; }
+.sgs-combo-meta { color: var(--sgs-muted); font-size: .75rem; }
+.sgs-combo-meta .badge { font-size: .6875rem; }
+.sgs-combo-vacio { padding: .75rem .625rem; color: var(--sgs-muted); font-size: .8125rem; }
+.sgs-combo-resumen { display: flex; flex-wrap: wrap; gap: .375rem 1rem; margin-top: .5rem; font-size: .8125rem; color: var(--sgs-brown); }
+/* Opción elegida: el campo queda fijo y solo el botón de quitar permite cambiarla (también en T1/T2) */
+.sgs-combo-campo { position: relative; }
+.sgs-combo-campo .form-control.is-elegido {
+    padding-right: 2.5rem; font-weight: 600; color: var(--sgs-ink);
+    background: var(--sgs-surface-alt); cursor: default; caret-color: transparent;
+}
+.sgs-combo-limpiar {
+    position: absolute; top: 50%; right: .375rem; transform: translateY(-50%);
+    width: 1.875rem; height: 1.875rem; display: inline-flex; align-items: center; justify-content: center;
+    border: 0; border-radius: 8px; background: transparent; color: var(--sgs-muted);
+}
+.sgs-combo-limpiar:hover { background: var(--sgs-danger-soft); color: var(--sgs-danger); }
+.sgs-combo-limpiar:focus-visible { outline: none; box-shadow: var(--sgs-ring); }
+.sgs-combo-campo > .list-group { top: 100%; }

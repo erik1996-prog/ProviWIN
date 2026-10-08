@@ -119,7 +119,7 @@ $token = bin2hex(random_bytes(10));
 $jsonPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sgs_obs_lista_' . $token . '.json';
 $pdfPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sgs_obs_lista_' . $token . '.pdf';
 file_put_contents($jsonPath, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-$python = getenv('PYTHON_BIN') ?: 'C:\\Users\\ERIKJ\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe';
+$python = SGS_PYTHON_BIN;
 $script = BASE_PATH . DIRECTORY_SEPARATOR . '07_SCRIPTS' . DIRECTORY_SEPARATOR . 'render_observaciones_lista.py';
 exec('"' . $python . '" "' . $script . '" "' . $jsonPath . '" "' . $pdfPath . '" 2>&1', $output, $code);
 @unlink($jsonPath);

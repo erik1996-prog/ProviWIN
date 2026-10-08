@@ -424,6 +424,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
     $tipificacionCorrecta = in_array($resultadoTipificacionRaw, ['0', '1'], true) ? intval($resultadoTipificacionRaw) : null;
     $tipificacionCorregida = $input['tipificacion_corregida_supervisor'] ?? null;
     $estadoCancelacion = trim((string)($input['estado_cancelacion'] ?? '')) ?: null;
+    // Las tipificaciones vienen del catálogo (clave foránea en la base): se valida antes para dar un mensaje claro.
+    // Devuelve el texto exacto del catálogo, null si viene vacía, o false si no existe.
+    $tipificacionDelCatalogo = static function ($valor) use ($pdo) {
+        $valor = trim((string)$valor);
+        if ($valor === '') return null;
+        $stmt = $pdo->prepare('SELECT descripcion FROM tipificaciones_cancelacion WHERE descripcion = :d LIMIT 1');
+        $stmt->execute([':d' => $valor]);
+        return $stmt->fetchColumn();
+    };
+    $tipificacionCancelacion = $tipificacionDelCatalogo($tipificacionCancelacion);
+    $tipificacionCorregida = $tipificacionDelCatalogo($tipificacionCorregida);
+    if ($tipificacionCancelacion === false || $tipificacionCorregida === false) {
+        echo json_encode(['status' => 'error', 'message' => 'La tipificación no existe en el catálogo. Elíjala de la lista.']);
+        exit;
+    }
 
     if ($isImportedCancellationEdit) {
         // La información de origen de la cancelación es solo informativa.

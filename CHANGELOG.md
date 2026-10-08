@@ -2,6 +2,39 @@
 
 Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
+## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
+
+### Respaldos automáticos
+- **Base de datos cada 6 horas y sistema completo (código, .env, fotos) cada 24 horas**, solos mientras el sistema se usa, sin depender de mysqldump (`02_BACKEND/src/config/respaldos.php`). **Apenas la base vuelve después de una caída**, se respaldan ambos al instante (motivo `tras-caida`).
+- Nueva carpeta `10_RESPALDOS/` (`base/` .sql.gz, `sistema/` .tar.gz), bloqueada por web y fuera de git; se conservan 30 días de la base (mínimo 5) y los 5 últimos del sistema. Guía de restauración en `10_RESPALDOS/LEEME.md`.
+- `07_SCRIPTS/respaldar.php [todo|base|sistema]` reemplaza a `respaldar_bd.php`. Probado: el respaldo de la base se restauró en una base temporal con las 23 tablas y los mismos registros; el simulacro de caída generó ambos respaldos.
+- Los scripts de cambios de la base no se crean hasta que el sistema esté subido: se quitaron `001` y `002` (la instalación ya los incluye) y se vació `sgs_migracion`.
+
+### Base de datos limpia
+- **Tipificaciones enlazadas**: migración `002_vincular_tipificaciones.sql`. Las pendientes importadas y la corrección del supervisor quedan vinculadas al catálogo `tipificaciones_cancelacion` (antes era texto suelto y la tabla no tenía relaciones). La importación registra sola las tipificaciones nuevas del Excel; renombrar en el catálogo actualiza las órdenes; la base rechaza tipificaciones que no estén en la lista. Nueva prueba `importar_tipificacion_test.php` (5/5).
+- Prueba `registrar_apoyo_test.php` (5/5): el T2 registrado desde la supervisión queda como técnico de apoyo del partner elegido en esa supervisión.
+- **Código sin uso eliminado**: páginas `supervision_registro.php` y `observaciones_partner.php` (ninguna ruta las abría) con `supervision.js` y `observaciones.js`, 4 logos sin uso, 8 carpetas vacías y `06_DEPLOY` (su script pasó a `07_SCRIPTS/actualizar_servidor.sh`).
+- **Base local limpia**: se vaciaron supervisiones, observaciones, checklists, historiales, notificaciones e inicios de turno de prueba; se conservan usuarios, permisos, partners, técnicos, vehículos, catálogos y penalidades (respaldo previo).
+- **Solo tablas en uso**: migración `001_eliminar_tablas_sin_uso.sql` quita 13 tablas del sistema original (exámenes, chat, flyers, recursos, tickets de error, catálogos de tipos…). Quedan 23, todas usadas por SGS. Reversión en `rollback/`.
+- **Carpeta `04_DATABASE` reorganizada**: `01_INSTALACION` (un script por tabla), `02_CAMBIOS` (cambios + rollback), `03_ESTRUCTURA` (esquema y diagrama), `04_RESPALDOS`. Se quitaron 6 carpetas vacías y el diagrama viejo de 36 tablas; `generar_diagrama.php` lo regenera. README reescrito.
+- Los `.sql` de instalación llevan datos reales: excluidos de git. Eliminado el código heredado que creaba tablas al conectar (~350 líneas).
+- **MySQL se caía** con consultas que unen tablas de `information_schema` (MariaDB 10.4): los scripts de mantenimiento ya no las usan. Se sacó de la carpeta de datos de MySQL una copia rota de septiembre (`repair-backup-20260907-1853`, movida a `C:
+mpp\mysqlespaldo-fuera-de-data`).
+
+### Corregido
+- **Nombres de tabla en minúsculas** (`sgs_perfil`, `sgs_usuario_perfil`, `sgs_migracion`): el código usaba `SGS_PERFIL`; en Linux MySQL distingue mayúsculas y Usuarios y roles habría fallado. Nueva prueba `05_TEST/api/nombres_tablas_test.php` que lo detecta. El estándar ahora exige minúsculas en nombres de tabla.
+- `.env`: un valor vacío seguido de un comentario (`CLAVE=   # nota`) se leía como "# nota".
+
+### Cambiado
+- **Fotos sin el sistema de origen**: si `../SISTEMA-WIN-PROVINCIA` no existe, se guardan y sirven desde `ProviWIN/uploads/` (se crean las carpetas solas). En `uploads/` nunca se ejecuta código (403).
+- Python para PDF centralizado (`SGS_PYTHON_BIN`): `python3` en Linux si no se define `PYTHON_BIN`.
+- HTTPS detectado también detrás de proxy (`X-Forwarded-Proto`); `display_errors` apagado en producción.
+- Scripts de instalación sin `USE`: se importan en la base seleccionada, con cualquier nombre.
+- Técnicos de apoyo (T2), campos fijos al elegir y tipificación con búsqueda (ver 0.10.0).
+
+### Añadido
+- `01_DOCUMENTACION/08_DESPLIEGUE/SUBIR_A_HOSTING.md`: lista de control para hosting compartido (cPanel/phpMyAdmin), cron de cierre de turnos y respaldo, limitaciones (PDF).
+
 ## [0.10.0] — 2026-10-08 — Bloqueo de ingreso, cierre de turnos y relación de observaciones
 
 ### Seguridad
@@ -13,6 +46,9 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 - **Cierre automático del turno a las 23:59** (`02_BACKEND/src/config/turnos.php`): el turno olvidado se cierra a las 23:59 de su día con "Fuera de turno", horas trabajadas, almuerzo y extras calculados igual que el cierre manual, pausas abiertas cerradas y una nota. Corre cada 5 min mientras se usa el sistema y desde `07_SCRIPTS/cerrar_turnos.php` (programable a las 23:59).
 - **Relación de observaciones en Excel y PDF** (`api/observaciones_export.php`): botón **Descargar** en Registro de observaciones con los filtros aplicados (por ejemplo, Estado = Penalizados). El Excel trae 19 columnas, encabezado fijo y autofiltro; el PDF es A4 horizontal con los filtros aplicados y totales por resultado. El PDF de checklist con evidencias sigue en el mismo menú.
 - `02_BACKEND/src/utils/XlsxWriter.php`: genera .xlsx sin la extensión zip de PHP.
+- **Tipificación de observación en un solo campo con búsqueda**: se escribe (sin importar tildes), se elige de la lista y la categoría y la gravedad se completan solas desde el catálogo; si es Muy Grave avisa que pasa directo a penalidad. Reemplaza los 3 combos en cascada (registro y edición de supervisión). El servidor ya tomaba la gravedad del catálogo; no cambia la BD.
+- **Opción elegida = campo fijo**: en Tipificación, T1 y T2, una vez elegida la opción no se puede escribir encima; un botón de quitar la libera para buscar otra.
+- **Técnicos de apoyo (T2)**: son un grupo distinto de los T1 (sin nomenclatura "P n …"), pertenecen a un partner y rotan entre cuadrillas. La lista del T2 muestra solo técnicos de apoyo del partner y nunca al mismo T1. Si el técnico no aparece, desde el mismo campo se registra con nombre y DNI (`api/tecnicos.php?action=crear_apoyo`, valida DNI y nombre únicos; queda en auditoría). El servidor rechaza un líder como T2 o un apoyo como T1 con un mensaje claro. "Sin técnico de apoyo (T2)" reemplaza a "La cuadrilla no cuenta con T2".
 - **Visor de fotos con zoom** (`window.sgsVerFoto` en `main.js`, sección 26 del tema): la foto se ve completa sin cortes, con acercar y alejar, porcentaje, Ajustar, rueda del mouse, doble clic, pellizco y arrastre. Lo usan Supervisiones y Registro de observaciones; reemplaza el visor oscuro anterior.
 - Pruebas: `login_bloqueo_test.php` (7), `cierre_turnos_test.php` (8), `observaciones_export_test.php` (9).
 
@@ -20,7 +56,7 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 - Al descargar un archivo, la pantalla ya no queda atenuada y bloqueada.
 
 ### Base de datos y organización
-- `04_DATABASE/00_INSTALACION`: `01_crear_base.sql` y un script por tabla en orden de dependencias, con los catálogos. Lo genera `07_SCRIPTS/generar_instalacion.php`, que también reescribe `01_SCHEMA`.
+- `04_DATABASE/01_INSTALACION`: `01_crear_base.sql` y un script por tabla en orden de dependencias, con los catálogos. Lo genera `07_SCRIPTS/generar_instalacion.php`, que también reescribe `03_ESTRUCTURA`.
 - Migración `002_INDICES_LIMPIEZA.sql` aplicada (respaldo previo); `07_SCRIPTS/auditar_bd.php` (solo lectura) y `crear_administrador.php`.
 - Eliminadas las copias repetidas `02_TABLES/` y `08_SEEDS/01_catalogos.sql`.
 - El proyecto queda en git (rama `main`).
@@ -28,7 +64,7 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 ## [0.9.2] — 2026-10-08 — Esquema de la base de datos
 
 ### Añadido
-- `04_DATABASE/01_SCHEMA/win_telecom_db_esquema.sql`: esquema completo de `win_telecom_db`, solo estructura (36 tablas, 44 relaciones, sin datos ni `DROP`). Verificado cargándolo en una base temporal que luego se eliminó.
+- `04_DATABASE/03_ESTRUCTURA/esquema_completo.sql`: esquema completo de `win_telecom_db`, solo estructura (36 tablas, 44 relaciones, sin datos ni `DROP`). Verificado cargándolo en una base temporal que luego se eliminó.
 - `04_DATABASE/02_TABLES/`: un archivo `.sql` por tabla.
 
 ## [0.9.1] — 2026-10-08 — Filtro general del Dashboard
@@ -149,7 +185,7 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 - Prueba `05_TEST/integration/foto_perfil_test.php` (subir, servir, reemplazar, rechazar no-imagen, CSRF, quitar): 6/6.
 
 ### Eliminado
-- Usuarios inactivos `supervisor.comfica.prueba` (id 52) y `codex_audit` (id 53), con respaldo JSON en `04_DATABASE/10_BACKUPS/`.
+- Usuarios inactivos `supervisor.comfica.prueba` (id 52) y `codex_audit` (id 53), con respaldo JSON en `10_RESPALDOS/base/`.
 
 ## [0.6.1] — 2026-10-06
 
@@ -158,7 +194,7 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 - **Zonas = departamentos de Supervisiones.** La lista sale de la tabla `ubigeo` (la misma del formulario de supervisión): ÁNCASH, AREQUIPA, CUSCO, JUNÍN, LA LIBERTAD, LAMBAYEQUE, PIURA. Se quitaron CAJAMARCA, ICA y TACNA, que no se usan. El formulario de supervisión ya no muestra "HUANCAYO" como departamento (era un duplicado de JUNÍN → HUANCAYO).
 
 ### Eliminado
-- Usuario partner de prueba `supervisor.mallausa.prueba` (id 51), respaldo en `04_DATABASE/10_BACKUPS/`.
+- Usuario partner de prueba `supervisor.mallausa.prueba` (id 51), respaldo en `10_RESPALDOS/base/`.
 
 ### Pruebas
 - `usuarios_service_test.php` cubre zonas y "Todas las zonas" (20/20). `permission_matrix.php` omite con aviso un tipo de usuario que no exista (hoy no hay partners).
@@ -179,7 +215,7 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 ### Añadido
 - Guía `01_DOCUMENTACION/08_DESPLIEGUE/PUBLICAR_Y_ACTUALIZAR.md`: publicar en internet y actualizar el código (Git) y la base de datos (migraciones) sin perder datos.
 - `06_DEPLOY/production/actualizar.sh`: actualización en el servidor (respaldo → git pull → migraciones → comprobación).
-- `07_SCRIPTS/respaldar_bd.php`: respaldo comprimido de la BD (Windows y Linux) con retención de 30 días.
+- `07_SCRIPTS/respaldar.php`: respaldo comprimido de la BD (Windows y Linux) con retención de 30 días.
 
 ### Cambiado
 - `08_LOGS/errores` registra solo fallos vividos por usuarios; lo ejecutado por consola queda en `backend/` con `origin=cli`.
@@ -230,12 +266,12 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
   - Protecciones: el sistema nunca queda sin administrador activo, nadie puede desactivarse a sí mismo y el personal de partner no puede ser Administrador, Gerente ni Coordinador.
   - Auditoría en `08_LOGS` (`audit_*`) de cada alta, edición, cambio de estado y restablecimiento de contraseña.
 - **Cambiar contraseña** en *Mi información*: pide la contraseña actual.
-- Migraciones: `04_DATABASE/09_MIGRATIONS/001_SGS_PERFIL.sql` (tablas nuevas `SGS_PERFIL` y `SGS_USUARIO_PERFIL`, sin modificar las existentes) y el ejecutor `07_SCRIPTS/migrar.php`.
+- Migraciones: `04_DATABASE/02_CAMBIOS/001_SGS_PERFIL.sql` (tablas nuevas `SGS_PERFIL` y `SGS_USUARIO_PERFIL`, sin modificar las existentes) y el ejecutor `07_SCRIPTS/migrar.php`.
 - `07_SCRIPTS/restablecer_contrasena.php`: recuperación de acceso desde el servidor.
 - `05_TEST/integration/usuarios_service_test.php`: 19 pruebas del módulo, que limpian sus datos al terminar.
 
 ### Datos
-- Se eliminaron todas las supervisiones (66) y sus notificaciones (66) a pedido del usuario. Hay respaldo completo en `04_DATABASE/10_BACKUPS/win_telecom_db_completo_*.sql`.
+- Se eliminaron todas las supervisiones (66) y sus notificaciones (66) a pedido del usuario. Hay respaldo completo en `10_RESPALDOS/base/win_telecom_db_completo_*.sql`.
 
 ### Corregido
 - Supervisiones: en pantallas medianas los filtros se montaban sobre las fechas.

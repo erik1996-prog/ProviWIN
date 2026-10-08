@@ -16,7 +16,7 @@ $jsonPath=sys_get_temp_dir().DIRECTORY_SEPARATOR.'win_obs_'.$token.'.json';
 $pdfPath=sys_get_temp_dir().DIRECTORY_SEPARATOR.'win_obs_'.$token.'.pdf';
 file_put_contents($jsonPath,json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
 // Intérprete de Python configurable (PYTHON_BIN en .env); se mantiene la ruta usada hasta ahora como respaldo.
-$python=getenv('PYTHON_BIN') ?: 'C:\\Users\\ERIKJ\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe';
+$python=SGS_PYTHON_BIN;
 $script=SHARED_FILES_PATH.DIRECTORY_SEPARATOR.'scripts'.DIRECTORY_SEPARATOR.'render_observations_pdf.py';
 $command='"'.$python.'" "'.$script.'" "'.$jsonPath.'" "'.$pdfPath.'" 2>&1';
 exec($command,$output,$code);

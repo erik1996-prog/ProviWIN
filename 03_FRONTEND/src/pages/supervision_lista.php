@@ -1056,7 +1056,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
             <div class="field-bitacora cancelacion-extra">
               <label for="new_tec2_nom">Técnico de apoyo (T2) — Opcional</label>
               <select id="new_tec2_nom" name="tecnico2_nombre" style="font-size:13.5px;">
-                <option value="">La cuadrilla no cuenta con T2</option>
+                <option value="">Sin técnico de apoyo (T2)</option>
               </select>
             </div>
             <div class="field-bitacora cancelacion-extra">
@@ -1378,6 +1378,36 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
   </div>
 </div>
 
+<!-- Registro de técnico de apoyo (T2): grupo distinto de los T1, sin nomenclatura, pertenece al partner de la supervisión -->
+<div class="modal fade" id="modalNuevoApoyo" tabindex="-1" aria-labelledby="modalNuevoApoyoTitulo" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form id="form-nuevo-apoyo" novalidate>
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalNuevoApoyoTitulo"><i class="bi bi-person-plus me-2 text-primary"></i>Registrar técnico de apoyo (T2)</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small mb-3">Queda registrado en el partner <strong id="nuevo_apoyo_partner">—</strong> y aparecerá en la lista de T2 para las siguientes supervisiones.</p>
+          <div class="mb-3">
+            <label for="nuevo_apoyo_nombre" class="form-label">Nombres y apellidos</label>
+            <input type="text" class="form-control" id="nuevo_apoyo_nombre" maxlength="120" autocomplete="off" required>
+          </div>
+          <div>
+            <label for="nuevo_apoyo_dni" class="form-label">DNI</label>
+            <input type="text" class="form-control" id="nuevo_apoyo_dni" maxlength="8" inputmode="numeric" pattern="[0-9]{8}" autocomplete="off" required>
+          </div>
+          <div class="alert alert-danger small mt-3 mb-0 d-none" id="nuevo_apoyo_error" role="alert"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-win" id="btn-nuevo-apoyo"><i class="bi bi-check2 me-1"></i>Registrar técnico</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <div class="toast-bitacora" id="toast"></div>
 
 <script class="spa-dynamic-script">
@@ -1638,9 +1668,9 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     if (!select || select.dataset.searchable === '1') return;
     select.dataset.searchable = '1';
     const wrapper = document.createElement('div');
-    wrapper.className = 'position-relative';
+    wrapper.className = 'position-relative sgs-combo-campo';
     const search = document.createElement('input');
-    search.type = 'search';
+    search.type = 'text';
     search.className = 'form-control';
     search.placeholder = tipo === 1 ? 'Escriba para buscar al técnico líder...' : 'Escriba para buscar al técnico de apoyo...';
     search.autocomplete = 'off';
@@ -1652,12 +1682,26 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     results.style.zIndex = '1080';
     results.style.maxHeight = '230px';
     results.style.overflowY = 'auto';
+    // Elegido el técnico, el campo queda fijo (no se escribe encima); el botón de quitar lo libera para buscar otro.
+    const limpiar = document.createElement('button');
+    limpiar.type = 'button';
+    limpiar.className = 'sgs-combo-limpiar d-none';
+    limpiar.setAttribute('aria-label', tipo === 1 ? 'Cambiar técnico líder' : 'Cambiar técnico de apoyo');
+    limpiar.title = 'Cambiar';
+    limpiar.innerHTML = '<i class="bi bi-x-lg"></i>';
     select.before(wrapper);
-    wrapper.append(search, results);
+    wrapper.append(search, limpiar, results);
     select.classList.add('d-none');
+    const bloquear = () => {
+      const elegido = Boolean(select.value);
+      search.readOnly = elegido;
+      search.classList.toggle('is-elegido', elegido);
+      limpiar.classList.toggle('d-none', !elegido || select.disabled);
+    };
     search.value = select.value || '';
-    select.addEventListener('change', () => { search.value = select.value || ''; });
-    const syncDisabled = () => { search.disabled = select.disabled; if(select.disabled) results.classList.add('d-none'); };
+    bloquear();
+    select.addEventListener('change', () => { search.value = select.value || ''; bloquear(); });
+    const syncDisabled = () => { search.disabled = select.disabled; if(select.disabled) results.classList.add('d-none'); bloquear(); };
     new MutationObserver(syncDisabled).observe(select, {attributes:true, attributeFilter:['disabled']});
     syncDisabled();
 
@@ -1673,16 +1717,17 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     };
     const renderResults = () => {
       const term = search.value.trim().toLocaleLowerCase('es');
+      const otroTecnico = document.getElementById(select.id.replace(tipo === 1 ? 'tec1' : 'tec2', tipo === 1 ? 'tec2' : 'tec1'))?.value || '';
       const technicians = listaTecnicos.filter(item => {
         const itemType = Number(item.tipo_tecnico || 1);
-        return !select.disabled && Array.from(select.options).some(option => option.value === item.nombre_tecnico) && itemType === tipo && (!term || String(item.nombre_tecnico || '').toLocaleLowerCase('es').includes(term));
+        return !select.disabled && Array.from(select.options).some(option => option.value === item.nombre_tecnico) && itemType === tipo && item.nombre_tecnico !== otroTecnico && (!term || String(item.nombre_tecnico || '').toLocaleLowerCase('es').includes(term));
       });
       results.innerHTML = '';
       if (tipo === 2 && !term) {
         const withoutT2 = document.createElement('button');
         withoutT2.type = 'button';
         withoutT2.className = 'list-group-item list-group-item-action text-muted';
-        withoutT2.textContent = 'La cuadrilla no cuenta con T2';
+        withoutT2.textContent = 'Sin técnico de apoyo (T2)';
         withoutT2.addEventListener('click', () => chooseTechnician(''));
         results.append(withoutT2);
       }
@@ -1694,6 +1739,17 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
         option.addEventListener('click', () => chooseTechnician(item.nombre_tecnico));
         results.append(option);
       });
+      // T2 que todavía no está registrado: se registra aquí mismo en el partner de la supervisión
+      const exacto = technicians.some(item => String(item.nombre_tecnico).toLocaleLowerCase('es') === term);
+      if (tipo === 2 && term.length >= 3 && !exacto) {
+        const registrar = document.createElement('button');
+        registrar.type = 'button';
+        registrar.className = 'list-group-item list-group-item-action py-2 text-primary fw-semibold';
+        registrar.innerHTML = '<i class="bi bi-person-plus me-2"></i>';
+        registrar.append(`Registrar "${search.value.trim()}" como técnico de apoyo`);
+        registrar.addEventListener('click', () => { closeResults(); abrirRegistroApoyo(select, search.value.trim()); });
+        results.append(registrar);
+      }
       if (!results.children.length) {
         const empty = document.createElement('div');
         empty.className = 'list-group-item text-muted small';
@@ -1704,19 +1760,74 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       search.setAttribute('aria-expanded', 'true');
     };
 
-    search.addEventListener('focus', renderResults);
+    search.addEventListener('focus', () => { if (!search.readOnly) renderResults(); });
     search.addEventListener('input', () => {
-      if (search.value !== select.value) {
+      if (select.value && search.value !== select.value) {
+        const escrito = search.value;
         select.value = '';
         select.dispatchEvent(new Event('change', { bubbles: true }));
+        search.value = escrito; // el change vacía el texto; se conserva lo que se está escribiendo
       }
       renderResults();
     });
-    search.addEventListener('search', renderResults);
+    limpiar.addEventListener('click', () => {
+      select.value = '';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      search.focus();
+      renderResults();
+    });
     document.addEventListener('click', event => {
       if (!wrapper.contains(event.target)) closeResults();
     });
   }
+
+  // Registro de un técnico de apoyo (T2) en el partner de la supervisión; al guardarlo queda elegido en el campo.
+  let apoyoDestino = null;
+  function abrirRegistroApoyo(select, nombre) {
+    const prefix = select.id.startsWith('edit_') ? 'edit' : 'new';
+    const partner = document.getElementById(prefix + '_partner');
+    if (!partner?.value) { showToast('Seleccione primero el partner de la supervisión.'); partner?.focus(); return; }
+    apoyoDestino = { select, partnerId: partner.value };
+    document.getElementById('nuevo_apoyo_partner').textContent = partner.selectedOptions[0]?.text || '—';
+    document.getElementById('nuevo_apoyo_nombre').value = nombre.toLocaleUpperCase('es');
+    document.getElementById('nuevo_apoyo_dni').value = '';
+    document.getElementById('nuevo_apoyo_error').classList.add('d-none');
+    const modal = document.getElementById('modalNuevoApoyo');
+    modal.addEventListener('shown.bs.modal', () => document.getElementById('nuevo_apoyo_dni').focus(), { once: true });
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+  }
+  document.getElementById('form-nuevo-apoyo')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!apoyoDestino) return;
+    const error = document.getElementById('nuevo_apoyo_error');
+    const boton = document.getElementById('btn-nuevo-apoyo');
+    const nombre = document.getElementById('nuevo_apoyo_nombre').value.trim();
+    const dni = document.getElementById('nuevo_apoyo_dni').value.trim();
+    const mostrarError = (msg) => { error.textContent = msg; error.classList.remove('d-none'); };
+    if (nombre.length < 5) return mostrarError('Escriba los nombres y apellidos del técnico.');
+    if (!/^\d{8}$/.test(dni)) return mostrarError('El DNI debe tener 8 dígitos.');
+    const datos = new FormData();
+    datos.append('partner_id', apoyoDestino.partnerId);
+    datos.append('nombre_tecnico', nombre);
+    datos.append('dni', dni);
+    boton.disabled = true;
+    try {
+      const res = await fetch('api/tecnicos.php?action=crear_apoyo', { method: 'POST', headers: { 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '' }, body: datos });
+      const r = await res.json();
+      if (r.status !== 'success') return mostrarError(r.message || 'No se pudo registrar el técnico.');
+      listaTecnicos.push(r.data);
+      const { select } = apoyoDestino;
+      select.add(new Option(r.data.nombre_tecnico, r.data.nombre_tecnico));
+      select.value = r.data.nombre_tecnico;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalNuevoApoyo')).hide();
+      showToast(r.message);
+    } catch (e) {
+      mostrarError('No se pudo registrar el técnico. Revise la conexión e intente de nuevo.');
+    } finally {
+      boton.disabled = false;
+    }
+  });
 
   function activarBuscadorSelect(select, placeholderText) {
     if (!select || select.dataset.searchableSelect === '1') return;
@@ -1862,8 +1973,8 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     // TÉCNICO APOYO (T2): opcional, sin ingreso libre ni creación automática.
     if (newTec2Nom) {
       const currentVal2 = newTec2Nom.value;
-      newTec2Nom.innerHTML = '<option value="">La cuadrilla no cuenta con T2</option>';
-      const t2List = listaTecnicos.filter(t => String(t.partner_id) === newPartner.value && t.tipo_tecnico == 2);
+      newTec2Nom.innerHTML = '<option value="">Sin técnico de apoyo (T2)</option>';
+      const t2List = listaTecnicos.filter(t => String(t.partner_id) === newPartner.value && t.tipo_tecnico == 2); // T2: técnicos de apoyo del partner (rotan entre cuadrillas)
       t2List.forEach(t => {
         const isSel = (t.nombre_tecnico === currentVal2) ? 'selected' : '';
         newTec2Nom.innerHTML += `<option value="${escapeHtml(t.nombre_tecnico)}" data-id="${t.id}" ${isSel}>${escapeHtml(t.nombre_tecnico)}</option>`;
@@ -2223,101 +2334,109 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     return catalogoRequest;
   }
 
+  // Tipificación de la observación: UN solo campo con búsqueda. Al elegir la tipificación se completan solas
+  // su categoría y su gravedad (vienen del catálogo). Los <select> originales se mantienen ocultos porque
+  // el formulario y el servidor siguen recibiendo obs_gravedad / obs_categoria_id / obs_subopcion_id.
   function setupSmartObservationCascade(cboGrav, cboCat, cboSub) {
-    if (!cboCat || !cboSub) return;
+    if (!cboCat || !cboSub || cboSub.dataset.obsCombo) return;
+    cboSub.dataset.obsCombo = '1';
+    const normalizar = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const categoriaDe = new Map(catalogoCategorias.map(c => [String(c.id), c.nombre_categoria]));
+    const items = catalogoSubopciones.map(s => ({
+      id: String(s.id), categoriaId: String(s.categoria_id), texto: s.descripcion_subopcion,
+      categoria: categoriaDe.get(String(s.categoria_id)) || '', gravedad: String(s.gravedad || '').trim(),
+    }));
+    items.forEach(it => { it.clave = normalizar(`${it.texto} ${it.categoria} ${it.gravedad}`); });
 
-    function getGravFilter() {
-      return (cboGrav && cboGrav.value) ? cboGrav.value.trim().toLowerCase() : '';
-    }
-
-    function renderCategorias() {
-      const currentCatVal = cboCat.value;
-      const gravFilter = getGravFilter();
-      cboCat.innerHTML = '<option value="">Seleccione primero la gravedad</option>';
-      cboCat.disabled = !gravFilter;
-      if (!gravFilter) {
-        cboSub.innerHTML = '<option value="">Seleccione primero una categoría</option>';
-        cboSub.disabled = true;
-        return;
-      }
-      let cats = [...catalogoCategorias];
-      if (gravFilter) {
-        const catIds = new Set(
-          catalogoSubopciones
-            .filter(s => s.gravedad && s.gravedad.toString().trim().toLowerCase() === gravFilter)
-            .map(s => parseInt(s.categoria_id, 10))
-        );
-        cats = cats.filter(c => catIds.has(parseInt(c.id, 10)));
-      }
-      cats.forEach(cat => {
-        const isSel = (cat.id == currentCatVal) ? 'selected' : '';
-        cboCat.innerHTML += `<option value="${cat.id}" ${isSel}>${escapeHtml(cat.nombre_categoria)}</option>`;
-      });
-    }
-
-    function renderSubmotivos() {
-      const selectedCat = parseInt(cboCat.value, 10) || 0;
-      const selectedGrav = getGravFilter();
-      const currentSubVal = cboSub.value;
-
-      cboSub.innerHTML = '<option value="">Seleccione primero una categoría</option>';
-      cboSub.disabled = selectedCat <= 0;
-      if (selectedCat <= 0) return;
-      cboSub.innerHTML = '<option value="">Seleccione subopción o tipificación</option>';
-
-      let subs = [...catalogoSubopciones];
-      if (selectedCat > 0) {
-        subs = subs.filter(s => parseInt(s.categoria_id, 10) === selectedCat);
-      }
-      if (selectedGrav) {
-        subs = subs.filter(s => s.gravedad && s.gravedad.toString().trim().toLowerCase() === selectedGrav);
-      }
-
-      subs.forEach(sub => {
-        const isSel = (sub.id == currentSubVal) ? 'selected' : '';
-        cboSub.innerHTML += `<option value="${sub.id}" ${isSel}>${escapeHtml(sub.descripcion_subopcion)}</option>`;
-      });
-    }
-
-    renderCategorias();
-    renderSubmotivos();
-
-    if (cboGrav) {
-      cboGrav.addEventListener('change', () => {
-        cboCat.value = '';
-        cboSub.value = '';
-        renderCategorias();
-        renderSubmotivos();
-      });
-    }
-
-    cboCat.addEventListener('change', () => {
-      cboSub.value = '';
-      renderSubmotivos();
+    // Selects ocultos con TODO el catálogo (sin cascada)
+    cboSub.innerHTML = '<option value=""></option>' + items.map(it => `<option value="${it.id}">${escapeHtml(it.texto)}</option>`).join('');
+    cboCat.innerHTML = '<option value=""></option>' + catalogoCategorias.map(c => `<option value="${c.id}">${escapeHtml(c.nombre_categoria)}</option>`).join('');
+    cboCat.disabled = false; cboSub.disabled = false;
+    if (cboGrav) [...new Set(items.map(it => it.gravedad))].forEach(g => {
+      if (g && ![...cboGrav.options].some(o => o.value === g)) cboGrav.add(new Option(g, g));
     });
+    [cboGrav, cboCat].forEach(el => el?.closest('.field-bitacora')?.classList.add('d-none'));
+    cboSub.classList.add('d-none');
 
-    cboSub.addEventListener('change', () => {
-      const subId = parseInt(cboSub.value, 10) || 0;
-      if (!subId) return;
+    const campo = cboSub.closest('.field-bitacora');
+    campo?.classList.add('full');
+    const uid = cboSub.id + '_buscar';
+    const etiqueta = campo?.querySelector('label');
+    if (etiqueta) { etiqueta.textContent = 'Tipificación de la observación *'; etiqueta.htmlFor = uid; }
+    const caja = document.createElement('div');
+    caja.className = 'sgs-combo';
+    caja.dataset.obsComboBox = '1';
+    caja.innerHTML = `
+      <div class="sgs-combo-campo">
+        <input type="text" id="${uid}" class="form-control" autocomplete="off" role="combobox" aria-autocomplete="list"
+          aria-expanded="false" aria-controls="${uid}_lista" placeholder="Escriba para buscar, por ejemplo: inasistencia, cable, EPP">
+        <button type="button" class="sgs-combo-limpiar d-none" aria-label="Cambiar tipificación" title="Cambiar"><i class="bi bi-x-lg"></i></button>
+        <ul class="sgs-combo-lista d-none" id="${uid}_lista" role="listbox"></ul>
+      </div>
+      <div class="sgs-combo-resumen d-none" aria-live="polite"></div>`;
+    cboSub.after(caja);
+    const input = caja.querySelector('input'), lista = caja.querySelector('ul'), resumen = caja.querySelector('.sgs-combo-resumen');
+    const limpiar = caja.querySelector('.sgs-combo-limpiar');
+    // Elegida la tipificación, el campo queda fijo (no se escribe encima); el botón de quitar lo libera
+    const bloquear = (elegido) => { input.readOnly = elegido; input.classList.toggle('is-elegido', elegido); limpiar.classList.toggle('d-none', !elegido); };
+    [cboGrav, cboCat, cboSub].forEach(el => { if (el) el._comboInput = input; });
+    let visibles = [], activo = -1;
 
-      const subObj = catalogoSubopciones.find(s => parseInt(s.id, 10) === subId);
-      if (subObj) {
-        if (subObj.categoria_id && cboCat.value != subObj.categoria_id) {
-          cboCat.value = subObj.categoria_id;
-          renderSubmotivos();
-          cboSub.value = subId;
-        }
-        if (subObj.gravedad && cboGrav) {
-          const offGrav = subObj.gravedad.toString().trim();
-          for (let i = 0; i < cboGrav.options.length; i++) {
-            if (cboGrav.options[i].value.toLowerCase() === offGrav.toLowerCase()) {
-              cboGrav.selectedIndex = i;
-              break;
-            }
-          }
-        }
+    const claseGravedad = (g) => g === 'Media' ? 'bg-warning' : (g === 'Leve' ? 'bg-secondary' : 'bg-danger');
+    function abrir(abierto) { lista.classList.toggle('d-none', !abierto); input.setAttribute('aria-expanded', abierto ? 'true' : 'false'); }
+    function pintar() {
+      const palabras = normalizar(input.value).split(/\s+/).filter(Boolean);
+      visibles = items.filter(it => palabras.every(p => it.clave.includes(p))).slice(0, 60);
+      activo = visibles.length ? 0 : -1;
+      lista.innerHTML = visibles.length
+        ? visibles.map((it, i) => `<li role="option" id="${uid}_op${i}" data-i="${i}" class="${i === activo ? 'is-activo' : ''}">
+            <span class="sgs-combo-texto">${escapeHtml(it.texto)}</span>
+            <span class="sgs-combo-meta">${escapeHtml(it.categoria)} · <span class="badge ${claseGravedad(it.gravedad)}">${escapeHtml(it.gravedad)}</span></span></li>`).join('')
+        : '<li class="sgs-combo-vacio">Sin coincidencias. Pruebe con otra palabra.</li>';
+      input.setAttribute('aria-activedescendant', activo >= 0 ? `${uid}_op${activo}` : '');
+      abrir(true);
+    }
+    function marcarActivo(i) {
+      if (!visibles.length) return;
+      activo = Math.max(0, Math.min(visibles.length - 1, i));
+      lista.querySelectorAll('li[data-i]').forEach(li => li.classList.toggle('is-activo', Number(li.dataset.i) === activo));
+      lista.querySelector('.is-activo')?.scrollIntoView({ block: 'nearest' });
+      input.setAttribute('aria-activedescendant', `${uid}_op${activo}`);
+    }
+    function asignar(it) {
+      cboSub.value = it ? it.id : '';
+      cboCat.value = it ? it.categoriaId : '';
+      if (cboGrav) cboGrav.value = it ? it.gravedad : '';
+      [cboSub, cboCat, cboGrav].forEach(el => el?.dispatchEvent(new Event('change', { bubbles: true })));
+      resumen.classList.toggle('d-none', !it);
+      bloquear(Boolean(it));
+      resumen.innerHTML = it ? `<span><span class="text-muted">Categoría:</span> ${escapeHtml(it.categoria)}</span>
+        <span><span class="text-muted">Gravedad:</span> <span class="badge ${claseGravedad(it.gravedad)}">${escapeHtml(it.gravedad)}</span></span>
+        ${it.gravedad === 'Muy Grave' ? '<span class="text-danger"><i class="bi bi-exclamation-triangle me-1"></i>Pasa directo a penalidad</span>' : ''}` : '';
+    }
+    function elegir(it) { input.value = it.texto; asignar(it); abrir(false); }
+
+    input.addEventListener('focus', () => { if (!input.readOnly) pintar(); });
+    limpiar.addEventListener('click', () => { input.value = ''; asignar(null); input.focus(); pintar(); });
+    input.addEventListener('input', () => { if (cboSub.value) asignar(null); pintar(); });
+    input.addEventListener('keydown', (e) => {
+      if (input.readOnly) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); if (lista.classList.contains('d-none')) pintar(); else marcarActivo(activo + 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); marcarActivo(activo - 1); }
+      else if (e.key === 'Enter') { if (!lista.classList.contains('d-none') && visibles[activo]) { e.preventDefault(); elegir(visibles[activo]); } }
+      else if (e.key === 'Escape') abrir(false);
+    });
+    // mousedown (no click) para elegir antes de que el campo pierda el foco
+    lista.addEventListener('mousedown', (e) => { const li = e.target.closest('li[data-i]'); if (!li) return; e.preventDefault(); elegir(visibles[Number(li.dataset.i)]); });
+    input.addEventListener('blur', () => {
+      abrir(false);
+      if (!cboSub.value && input.value.trim()) {
+        // Si lo escrito coincide exactamente con una tipificación, se toma; si no, se limpia (no se guarda texto libre)
+        const exacta = items.find(it => normalizar(it.texto) === normalizar(input.value.trim()));
+        if (exacta) elegir(exacta); else input.value = '';
       }
     });
+    caja._reset = () => { input.value = ''; asignar(null); abrir(false); };
   }
 
   if (newChkObs) {
@@ -2329,6 +2448,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
           else if (field.tagName === 'SELECT') field.selectedIndex = 0;
           else field.value = '';
         });
+        newBoxObs.querySelectorAll('[data-obs-combo-box]').forEach(caja => caja._reset?.());
         ['new_preview_foto1','new_preview_foto2','new_preview_foto3'].forEach(id => {
           const preview = document.getElementById(id);
           if (preview) { preview.innerHTML = ''; preview.style.display = 'none'; }
@@ -3083,7 +3203,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       const sel = (t.nombre_tecnico === rec.tecnico1_nombre) ? 'selected' : '';
       tec1OptionsHtml += `<option value="${escapeHtml(t.nombre_tecnico)}" ${sel}>${escapeHtml(t.nombre_tecnico)}</option>`;
     });
-    let tec2OptionsHtml = '<option value="">La cuadrilla no cuenta con T2</option>';
+    let tec2OptionsHtml = '<option value="">Sin técnico de apoyo (T2)</option>';
     listaTecnicos.filter(t => String(t.partner_id) === String(rec.partner_id) && t.tipo_tecnico == 2).forEach(t => {
       const sel = (t.nombre_tecnico === rec.tecnico2_nombre) ? 'selected' : '';
       tec2OptionsHtml += `<option value="${escapeHtml(t.nombre_tecnico)}" ${sel}>${escapeHtml(t.nombre_tecnico)}</option>`;
@@ -3921,7 +4041,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     if (chkObs?.checked) {
       const camposObs = ['edit_obs_gravedad','edit_obs_cat','edit_obs_sub','edit_obs_det'].map(id => document.getElementById(id));
       const faltanteObs = camposObs.find(el => !String(el?.value || '').trim());
-      if (faltanteObs) return marcarFaltante(faltanteObs, 'Complete todos los campos de la observación seleccionada.');
+      if (faltanteObs) return marcarFaltante(faltanteObs._comboInput || faltanteObs, 'Complete todos los campos de la observación seleccionada.');
       for (let i = 1; i <= 3; i++) {
         const foto = document.getElementById(`edit_foto${i}`);
         if (!foto?.files?.length) return marcarFaltante(foto, 'Adjunte las 3 fotos de evidencia de la observación.');

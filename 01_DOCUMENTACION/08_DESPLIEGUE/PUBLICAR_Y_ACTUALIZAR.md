@@ -7,7 +7,7 @@
  Tu PC (XAMPP)                 GitHub (privado)                Servidor (producción)
  ─────────────                 ────────────────                ─────────────────────
  programas y pruebas  ──push──▶ historial del código ──pull──▶ código nuevo
- 04_DATABASE/09_MIGRATIONS ─────────────────────────────────▶ migrar.php aplica solo lo nuevo
+ 04_DATABASE/02_CAMBIOS ─────────────────────────────────▶ migrar.php aplica solo lo nuevo
  BD de pruebas (local)                                          BD REAL (turnos, supervisiones)
                                                                 └─ respaldo automático antes de cada cambio
 ```
@@ -15,7 +15,7 @@
 | Qué | Cómo se actualiza | Qué NO se hace nunca |
 |---|---|---|
 | Código (PHP, CSS, JS) | `git push` en tu PC → `actualizar.sh` en el servidor | Editar archivos directamente en el servidor |
-| Estructura de la BD (tablas, columnas) | Nuevo archivo `04_DATABASE/09_MIGRATIONS/00N_descripcion.sql` → se aplica solo | Copiar la BD local encima de la de producción |
+| Estructura de la BD (tablas, columnas) | Nuevo archivo `04_DATABASE/02_CAMBIOS/00N_descripcion.sql` → se aplica solo | Copiar la BD local encima de la de producción |
 | Datos (usuarios, turnos, supervisiones) | Los usuarios trabajan en producción | Borrarlos o sobrescribirlos |
 | Fotos y firmas (`uploads/`) | Viven en el servidor | Subirlas a Git |
 | Contraseñas (`.env`) | Se crean a mano una vez en cada lugar | Subirlas a Git (ya están en `.gitignore`) |
@@ -41,7 +41,7 @@
    ```
    `.gitignore` ya excluye `.env`, logs, respaldos y credenciales locales.
 2. **Respaldar la BD local** (será la base inicial de producción):
-   `C:\xampp\php\php.exe 07_SCRIPTS\respaldar_bd.php publicacion-inicial`
+   `C:\xampp\php\php.exe 07_SCRIPTS\respaldar.php publicacion-inicial`
 3. **En el servidor**:
    ```
    cd /var/www
@@ -70,7 +70,7 @@
    ```
 3. **En el servidor** (un solo comando):
    ```
-   bash 06_DEPLOY/production/actualizar.sh
+   bash 07_SCRIPTS/actualizar_servidor.sh
    ```
    Hace, en orden: respaldo de la BD → `git pull` → migraciones pendientes → comprobación de salud.
    Los usuarios siguen trabajando; los navegadores toman los estilos nuevos solos (la versión va en la URL de CSS/JS).
@@ -78,7 +78,7 @@
 ### Cuando un cambio necesita tocar la base de datos
 Nunca se edita la BD de producción a mano. Se crea un archivo nuevo numerado:
 ```
-04_DATABASE/09_MIGRATIONS/002_agregar_motivo_bloqueo.sql
+04_DATABASE/02_CAMBIOS/002_agregar_motivo_bloqueo.sql
 ```
 con sentencias que **agregan** sin borrar (por ejemplo `ALTER TABLE ... ADD COLUMN ...`). `migrar.php` lo aplica una sola vez en tu PC y una sola vez en el servidor (lleva la cuenta en `SGS_MIGRACION`). Los datos existentes se conservan.
 
@@ -88,14 +88,14 @@ con sentencias que **agregan** sin borrar (por ejemplo `ALTER TABLE ... ADD COLU
 - **Código**: `git reset --hard <commit-anterior>` (el script lo muestra si la comprobación falla).
 - **Base de datos**: restaurar el respaldo que el script creó justo antes:
   ```
-  gunzip -c 04_DATABASE/10_BACKUPS/win_telecom_db_<fecha>_antes-de-actualizar.sql.gz | mysql -u root -p win_telecom_db
+  gunzip -c 10_RESPALDOS/base/win_telecom_db_<fecha>_antes-de-actualizar.sql.gz | mysql -u root -p win_telecom_db
   ```
   Ojo: se pierde lo registrado después de ese respaldo. Por eso las actualizaciones se hacen fuera del horario de operación.
 
 ## Respaldos periódicos (recomendado)
 Programar en el servidor un respaldo diario (`crontab -e`):
 ```
-30 2 * * * cd /var/www/sgs && php 07_SCRIPTS/respaldar_bd.php diario
+30 2 * * * cd /var/www/sgs && php 07_SCRIPTS/respaldar.php diario
 ```
 Conserva 30 días. Copiar periódicamente esos archivos fuera del servidor (otro disco o la nube).
 

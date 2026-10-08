@@ -9,7 +9,8 @@ require BACKEND_PATH . '/config/database.php';
 $pdo = Database::getConnection();
 $db = $pdo->query('SELECT DATABASE()')->fetchColumn();
 $conSql = in_array('--sql', $argv, true);
-$q = function (string $sql) use ($pdo, $db): array { $st = $pdo->prepare($sql); $st->execute([':db' => $db]); return $st->fetchAll(PDO::FETCH_ASSOC); };
+// Siempre filtrar por esta base: recorrer information_schema de todas las bases puede tumbar MariaDB 10.4
+$q = function (string $sql) use ($pdo, $db): array { $st = $pdo->prepare($sql); $st->execute(array_filter([':db' => $db, ':db2' => str_contains($sql, ':db2') ? $db : null])); return $st->fetchAll(PDO::FETCH_ASSOC); };
 
 $hallazgos = []; $sugerido = [];
 $add = function (string $nivel, string $regla, string $objeto, string $detalle) use (&$hallazgos) { $hallazgos[] = compact('nivel', 'regla', 'objeto', 'detalle'); };
@@ -24,11 +25,10 @@ foreach ($q("SELECT TABLE_NAME t, TABLE_COLLATION c FROM information_schema.TABL
 foreach ($q("SELECT TABLE_NAME t, COLUMN_NAME c, CHARACTER_SET_NAME s FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=:db AND CHARACTER_SET_NAME IS NOT NULL AND CHARACTER_SET_NAME<>'utf8mb4'") as $r)
     $add('MEDIO', 'R2 utf8mb4', "{$r['t']}.{$r['c']}", "columna en {$r['s']}");
 
-// R3. Toda tabla con clave primaria
-foreach ($q("SELECT t.TABLE_NAME t FROM information_schema.TABLES t LEFT JOIN information_schema.TABLE_CONSTRAINTS c
-    ON c.TABLE_SCHEMA=t.TABLE_SCHEMA AND c.TABLE_NAME=t.TABLE_NAME AND c.CONSTRAINT_TYPE='PRIMARY KEY'
-    WHERE t.TABLE_SCHEMA=:db AND t.TABLE_TYPE='BASE TABLE' AND c.CONSTRAINT_NAME IS NULL") as $r)
-    $add('ALTO', 'R3 clave primaria', $r['t'], 'no tiene PRIMARY KEY');
+// R3. Toda tabla con clave primaria (sin JOIN entre tablas de information_schema: en MariaDB 10.4 eso tumba el servidor)
+$conPk = array_column($q("SELECT DISTINCT TABLE_NAME t FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=:db AND INDEX_NAME='PRIMARY'"), 't');
+foreach ($q("SELECT TABLE_NAME t FROM information_schema.TABLES WHERE TABLE_SCHEMA=:db AND TABLE_TYPE='BASE TABLE'") as $r)
+    if (!in_array($r['t'], $conPk, true)) $add('ALTO', 'R3 clave primaria', $r['t'], 'no tiene PRIMARY KEY');
 
 // R4. Columnas *_id sin clave foránea (relación no garantizada por la BD)
 $fk = [];
@@ -59,7 +59,7 @@ foreach ($idx as $t => $lista) foreach ($lista as $i => $cols) foreach ($lista a
 
 // R7. Columnas de auditoría en tablas de negocio
 foreach ($tablas as $t) {
-    if (preg_match('/^(sgs_migracion|schema_migrations|login_attempts|ubigeo)$/i', $t)) continue;
+    if (preg_match('/^(sgs_migracion|login_attempts|ubigeo)$/i', $t)) continue;
     $cols = array_column($q("SELECT COLUMN_NAME c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=:db AND TABLE_NAME='" . str_replace("'", '', $t) . "'"), 'c');
     if (!array_intersect(array_map('strtolower', $cols), ['fecha_registro', 'created_at', 'fecha_creacion', 'fecha_aplicacion']))
         $add('BAJO', 'R7 auditoría', $t, 'no guarda la fecha de creación del registro');
@@ -83,6 +83,6 @@ foreach ($hallazgos as $h) {
     echo '  - ' . str_pad($h['objeto'], 48) . " {$h['detalle']}\n";
 }
 if ($conSql && $sugerido) {
-    echo "\n-- SQL sugerido (REVISAR y respaldar antes; aplicar como migración en 04_DATABASE/09_MIGRATIONS):\n" . implode("\n", array_unique($sugerido)) . "\n";
+    echo "\n-- SQL sugerido (REVISAR y respaldar antes; aplicar como migración en 04_DATABASE/02_CAMBIOS):\n" . implode("\n", array_unique($sugerido)) . "\n";
 }
 exit(0);

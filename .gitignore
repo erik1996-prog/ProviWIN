@@ -6,8 +6,9 @@
 08_LOGS/runtime/
 
 # Respaldos de base de datos
-04_DATABASE/10_BACKUPS/*
-!04_DATABASE/10_BACKUPS/.gitkeep
+10_RESPALDOS/base/*
+10_RESPALDOS/sistema/*
+
 
 # Sistema / editor
 Thumbs.db
@@ -15,3 +16,9 @@ Thumbs.db
 .vscode/
 .idea/
 09_CONFIG/*.local.txt
+
+# Fotos, firmas y avatares (cuando SGS se instala solo, sin el sistema de origen)
+uploads/
+
+# Scripts de instalación: llevan datos reales (usuarios, DNI). Se regeneran con 07_SCRIPTS/generar_instalacion.php
+04_DATABASE/01_INSTALACION/*.sql

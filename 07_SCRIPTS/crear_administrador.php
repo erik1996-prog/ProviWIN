@@ -16,7 +16,7 @@ if ((int)$pdo->query("SELECT COUNT(*) FROM usuarios WHERE rol = 'Administrador' 
     exit("Ya existe un administrador activo. Cree los usuarios desde Usuarios y roles, o use restablecer_contrasena.php.\n");
 }
 if (!(int)$pdo->query("SELECT COUNT(*) FROM partners WHERE nombre_partner = 'WIN DIRECTO'")->fetchColumn()) {
-    exit("Falta el partner WIN DIRECTO: ejecute antes los scripts de 04_DATABASE/00_INSTALACION.\n");
+    exit("Falta el partner WIN DIRECTO: ejecute antes los scripts de 04_DATABASE/01_INSTALACION.\n");
 }
 
 [, $dni, $usuario, $email, $nombres, $apellidos] = $argv;

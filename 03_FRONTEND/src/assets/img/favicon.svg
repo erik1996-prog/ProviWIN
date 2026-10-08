@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="WIN">
   <!-- Favicon SGS: cuadrado naranja WIN con el wordmark "win" en blanco, trazado con líneas redondeadas.
-       (El trazo de la "w" de win-logo-orange.svg del sistema de origen está deformado; aquí se redibuja.) -->
+       (La "w" se redibuja aquí: el logo del sistema de origen estaba deformado.) -->
   <rect width="256" height="256" rx="56" fill="#FF5A0A"/>
   <g transform="translate(128 132) scale(1.12) translate(-120 -64)" fill="none" stroke="#FFFFFF" stroke-width="17" stroke-linecap="round" stroke-linejoin="round">
     <!-- w: tres trazos verticales unidos por curvas en la base -->

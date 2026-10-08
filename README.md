@@ -40,11 +40,10 @@ ProviWIN/
 ├── index.php                 Enrutador de pantallas (único PHP público junto con api/)
 ├── api/                      Entradas públicas mínimas -> 02_BACKEND/src/routes/api/
 ├── 01_DOCUMENTACION/         Requerimientos, arquitectura, BD, API, seguridad, despliegue
-├── 02_BACKEND/src/           config/, routes/api/, middlewares/ (captcha retirado), controllers/ services/ repositories/ (fase 2)
+├── 02_BACKEND/src/           config/, routes/api/, controllers/, services/, repositories/, validators/, utils/
 ├── 03_FRONTEND/src/          pages/, layouts/, assets/ (css, js, img, templates)
-├── 04_DATABASE/              Esquema, vistas, migraciones (documentación de la BD compartida)
+├── 04_DATABASE/              Instalación por tabla, cambios (migraciones), estructura y respaldos
 ├── 05_TEST/                  Pruebas (frontend/smoke_pages.php)
-├── 06_DEPLOY/                Notas por entorno
 ├── 07_SCRIPTS/               Scripts de mantenimiento (solo CLI)
 ├── 08_LOGS/                  backend/ frontend/ database/ errores/
 ├── 09_CONFIG/                Plantillas de configuración de servidor
