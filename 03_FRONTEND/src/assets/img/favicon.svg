@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="WIN">
+  <!-- Favicon SGS: cuadrado naranja WIN con el wordmark "win" en blanco, trazado con líneas redondeadas.
+       (El trazo de la "w" de win-logo-orange.svg del sistema de origen está deformado; aquí se redibuja.) -->
+  <rect width="256" height="256" rx="56" fill="#FF5A0A"/>
+  <g transform="translate(128 132) scale(1.12) translate(-120 -64)" fill="none" stroke="#FFFFFF" stroke-width="17" stroke-linecap="round" stroke-linejoin="round">
+    <!-- w: tres trazos verticales unidos por curvas en la base -->
+    <path d="M32 44 V70 Q32 90 50 90 Q68 90 68 70 V44 M68 70 Q68 90 86 90 Q104 90 104 70 V44"/>
+    <!-- i -->
+    <path d="M130 58 V90"/>
+    <!-- n -->
+    <path d="M156 90 V58 M156 70 Q156 52 176 52 Q196 52 196 70 V90"/>
+  </g>
+  <!-- punto de la i -->
+  <circle cx="139" cy="72" r="11" fill="#FFFFFF"/>
+</svg>

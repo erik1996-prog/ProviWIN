@@ -1,0 +1,23 @@
+# 09_CONFIG/mysql-produccion.cnf - Ajustes de MySQL/MariaDB para producción (servidor de 2-4 GB de RAM).
+# Copiar a /etc/mysql/conf.d/sgs.cnf y reiniciar el servicio.
+
+[mysqld]
+# Memoria para datos e índices: lo más importante. XAMPP trae 16 MB; con datos reales MySQL leería del disco
+# en cada consulta. Regla: ~50% de la RAM si el servidor es solo para SGS (512M en 2 GB, 1G en 4 GB).
+innodb_buffer_pool_size = 512M
+innodb_log_file_size     = 128M
+innodb_flush_method      = O_DIRECT
+
+# Conexiones: cada petición web usa una conexión breve. 200 da margen sobre los 100 usuarios.
+max_connections    = 200
+thread_cache_size  = 50
+wait_timeout       = 300
+interactive_timeout = 300
+
+# Consultas lentas: se registran para detectarlas antes de que molesten a los usuarios.
+slow_query_log       = 1
+slow_query_log_file  = /var/log/mysql/slow.log
+long_query_time      = 1
+
+character-set-server = utf8mb4
+collation-server     = utf8mb4_unicode_ci

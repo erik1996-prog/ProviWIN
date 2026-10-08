@@ -1,0 +1,53 @@
+# 09_CONFIG/apache-sgs.conf.example - Sitio SGS en Apache 2.4 (Linux, producción).
+# Copiar a /etc/apache2/sites-available/sgs.conf, ajustar dominio y rutas, y: a2ensite sgs && systemctl reload apache2
+# Requiere: a2enmod rewrite headers ssl http2 proxy_fcgi setenvif expires deflate ; a2enconf php8.x-fpm ; a2dismod mpm_prefork ; a2enmod mpm_event
+
+<VirtualHost *:80>
+    ServerName sgs.ejemplo.com
+    # Todo el tráfico va por HTTPS
+    Redirect permanent / https://sgs.ejemplo.com/
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName sgs.ejemplo.com
+    DocumentRoot /var/www/sgs
+    Protocols h2 http/1.1
+
+    SSLEngine on
+    SSLCertificateFile    /etc/letsencrypt/live/sgs.ejemplo.com/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/sgs.ejemplo.com/privkey.pem
+
+    <Directory "/var/www/sgs">
+        AllowOverride All
+        Require all granted
+        # Variables de entorno (alternativa al archivo .env)
+        SetEnv APP_ENV production
+        # SetEnv DB_PASSWORD ...   (definir aquí, nunca en el repositorio)
+    </Directory>
+
+    # PHP por FastCGI (PHP-FPM): procesos aparte, mejor rendimiento que mod_php
+    <FilesMatch "\.php$">
+        SetHandler "proxy:unix:/run/php/php8.2-fpm.sock|fcgi://localhost"
+    </FilesMatch>
+
+    Header always set Strict-Transport-Security "max-age=31536000"
+    ErrorLog  ${APACHE_LOG_DIR}/sgs_error.log
+    CustomLog ${APACHE_LOG_DIR}/sgs_access.log combined
+</VirtualHost>
+
+# Capacidad (mpm_event): XAMPP en Windows atiende 150 peticiones a la vez y pone en fila al resto.
+# Con mpm_event + PHP-FPM, las conexiones en espera no ocupan un proceso.
+<IfModule mpm_event_module>
+    ServerLimit           16
+    ThreadsPerChild       25
+    MaxRequestWorkers    400
+</IfModule>
+KeepAliveTimeout 3
+
+# PHP-FPM (/etc/php/8.2/fpm/pool.d/www.conf), para 2-4 GB de RAM:
+#   pm = dynamic
+#   pm.max_children = 40
+#   pm.start_servers = 8
+#   pm.min_spare_servers = 6
+#   pm.max_spare_servers = 16
+#   pm.max_requests = 1000

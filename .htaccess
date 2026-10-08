@@ -1,0 +1,34 @@
+# SGS - Reglas de acceso. Solo son públicos: index.php, api/*.php y 03_FRONTEND/src/assets/
+Options -Indexes
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Fotos, firmas y avatares se comparten con el sistema de origen (misma BD).
+    RewriteRule ^uploads/(.*)$ /SISTEMA-WIN-PROVINCIA/uploads/$1 [L]
+
+    # Carpetas internas de la estructura del proyecto.
+    RewriteRule ^(01_DOCUMENTACION|02_BACKEND|04_DATABASE|05_TEST|06_DEPLOY|07_SCRIPTS|08_LOGS|09_CONFIG)(/|$) - [F,L]
+    RewriteRule ^03_FRONTEND/(?!src/assets/) - [F,L]
+
+    # Archivos ocultos (.env, .gitignore...).
+    RewriteRule (^|/)\. - [F,L]
+</IfModule>
+
+<FilesMatch "(?i)\.(md|sql|bak|env|log|ini|ps1|json|lock|txt|example)$|^(VERSION|CHANGELOG|README)">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "same-origin"
+    Header always set Permissions-Policy "camera=(self), geolocation=(self), microphone=()"
+    <FilesMatch "\.(css|js|png|jpg|jpeg|gif|webp|svg|woff2?)$">
+        Header set Cache-Control "public, max-age=604800"
+    </FilesMatch>
+</IfModule>
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json image/svg+xml
+</IfModule>

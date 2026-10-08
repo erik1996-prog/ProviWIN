@@ -1,0 +1,51 @@
+<?php
+// Proceso hijo de smoke_pages.php: un proceso por pantalla para aislar errores fatales.
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+[, $root, $role, $page] = $argv;
+$printHtml = in_array('--html', $argv, true); // usado por check_inline_js.php
+
+$_SERVER['SCRIPT_NAME'] = '/ProviWIN/index.php';
+$_SERVER['REQUEST_URI'] = '/ProviWIN/index.php?page=' . $page;
+$_SERVER['REQUEST_METHOD'] = 'GET';
+$_GET['page'] = $page;
+$_SESSION = [];
+
+require $root . '/02_BACKEND/src/config/config.php';
+require $root . '/02_BACKEND/src/config/auth.php';
+
+// Rol "Supervisor:directo" o "Supervisor:partner" elige el tipo de supervisor.
+[$roleName, $kind] = array_pad(explode(':', $role, 2), 2, '');
+$extra = $kind === 'directo' ? ' AND ' . sgsDirectStaffSql() : ($kind === 'partner' ? ' AND NOT ' . sgsDirectStaffSql() : '');
+$stmt = Database::getConnection()->prepare("SELECT u.*, p.nombre_partner FROM usuarios u LEFT JOIN partners p ON p.id=u.partner_id WHERE u.rol=:r AND u.activo=1{$extra} ORDER BY u.id LIMIT 1");
+$stmt->execute([':r' => $roleName]);
+$u = $stmt->fetch();
+if (!$u) { echo "SKIP sin usuario activo con rol $role\n"; exit; }
+
+$_SESSION += [
+    'user_id' => $u['id'], 'user_dni' => $u['dni'], 'user_nombres' => $u['nombres'] ?? '', 'user_apellidos' => $u['apellidos'] ?? '',
+    'user_usuario' => $u['usuario'] ?? '', 'user_nombre' => $u['nombre_completo'] ?? '', 'user_email' => $u['email'] ?? '',
+    'user_rol' => $u['rol'], 'user_partner_id' => $u['partner_id'], 'user_partner_nombre' => $u['nombre_partner'] ?? '',
+    'user_zona' => $u['zona'] ?? 'Provincias', 'user_departamento' => $u['departamento'] ?? '', 'user_avatar' => $u['avatar'] ?? '',
+];
+
+$warnings = [];
+set_error_handler(static function ($sev, $msg, $file, $line) use (&$warnings) {
+    $warnings[] = basename($file) . ":$line $msg";
+    return true;
+});
+register_shutdown_function(static function () use (&$warnings) {
+    $html = ob_get_level() ? ob_get_clean() : '';
+    if ($GLOBALS['printHtml'] ?? false) { echo $html; return; }
+    $e = error_get_last();
+    if ($e && in_array($e['type'], [E_ERROR, E_PARSE, E_COMPILE_ERROR], true)) {
+        echo 'FATAL ' . basename($e['file']) . ':' . $e['line'] . ' ' . $e['message'] . "\n";
+        return;
+    }
+    $size = strlen($html);
+    $closed = str_contains($html, '</html>');
+    echo ($closed && !$warnings ? 'OK' : 'WARN') . " {$size} bytes" . ($closed ? '' : ' (HTML incompleto)')
+        . ($warnings ? ' | ' . implode(' | ', array_slice(array_unique($warnings), 0, 5)) : '') . "\n";
+});
+
+ob_start();
+require $root . '/index.php';

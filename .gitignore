@@ -1,0 +1,17 @@
+# Secretos y configuración local
+.env
+
+# Logs y estado de ejecución
+08_LOGS/**/*.log
+08_LOGS/runtime/
+
+# Respaldos de base de datos
+04_DATABASE/10_BACKUPS/*
+!04_DATABASE/10_BACKUPS/.gitkeep
+
+# Sistema / editor
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
+09_CONFIG/*.local.txt

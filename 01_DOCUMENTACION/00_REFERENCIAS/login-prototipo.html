@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProviWIN · Iniciar sesión</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;700;800&family=Montserrat:wght@800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --win-orange:#FF5A0A; --win-orange-dark:#D8450B; --win-orange-soft:#FFEFE6;
+    --win-yellow:#FFC200; --win-green:#1BD741;
+    --bg-1:#0d0b0a; --bg-2:#1a1210;
+    --card:#262626; --card-border:#3a3a3a;
+    --text:#ffffff; --text-2:#cfcfcf; --text-3:#9a9a9a;
+    --input-border:#8a8a8a;
+    --font:'MADETommySoft','Nunito',sans-serif;
+    --font-display:'Panton','Montserrat',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:var(--font); font-size:15px; line-height:1.5; color:var(--text);
+    background:var(--bg-1); display:flex; flex-direction:column; min-height:100vh; overflow-x:hidden;
+  }
+
+  /* Fondo con formas curvas tipo "pliegues" en tonos naranja */
+  .bg{position:fixed; inset:0; z-index:0; overflow:hidden;
+      background:radial-gradient(120% 90% at 80% 10%, #2a1610 0%, var(--bg-1) 55%) ,var(--bg-1);}
+  .bg span{position:absolute; border-radius:48% 52% 40% 60%; filter:blur(.5px); opacity:.55}
+  .bg .s1{width:900px;height:900px;left:-300px;top:260px;transform:rotate(-25deg);
+          background:linear-gradient(140deg, rgba(255,90,10,.22), rgba(255,90,10,0) 60%);
+          border:1px solid rgba(255,120,50,.18)}
+  .bg .s2{width:1000px;height:700px;right:-380px;top:-260px;transform:rotate(18deg);
+          background:linear-gradient(200deg, rgba(255,90,10,.28), rgba(216,69,11,0) 65%);
+          border:1px solid rgba(255,140,80,.2)}
+  .bg .s3{width:700px;height:700px;right:-200px;bottom:-420px;transform:rotate(40deg);
+          background:linear-gradient(10deg, rgba(255,194,0,.10), rgba(255,194,0,0) 60%);
+          border:1px solid rgba(255,194,0,.12)}
+  .bg i{position:absolute;width:2px;height:2px;border-radius:50%;background:#fff;opacity:.35}
+
+  main{position:relative; z-index:1; flex:1; display:flex; align-items:center; justify-content:center; padding:56px 16px}
+
+  .card{
+    width:100%; max-width:440px; background:var(--card); border:1px solid var(--card-border);
+    border-radius:20px; padding:44px 40px 40px; box-shadow:0 18px 50px rgba(0,0,0,.55);
+    position:relative; overflow:hidden;
+  }
+  .card::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;background:var(--win-orange)}
+
+  .brand{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:22px}
+  .brand-mark{width:38px;height:38px;border-radius:10px;background:var(--win-orange);
+              display:grid;place-items:center;font-family:var(--font-display);font-weight:900;font-size:20px;color:#fff}
+  .brand-name{font-family:var(--font-display);font-weight:900;font-size:24px;letter-spacing:.3px}
+  .brand-name b{color:var(--win-orange)}
+
+  h1{font-size:26px;font-weight:800;text-align:center;margin-bottom:4px}
+  .sub{text-align:center;color:var(--text-2);font-size:15px;margin-bottom:28px}
+
+  .who{display:flex;align-items:center;gap:10px;background:#1e1e1e;border:1px solid var(--card-border);
+       border-radius:30px;padding:6px 14px 6px 6px;margin:0 auto 22px;width:max-content;max-width:100%;cursor:pointer}
+  .who .back{width:28px;height:28px;border-radius:50%;background:var(--win-orange);display:grid;place-items:center;color:#fff;font-weight:900;flex:none}
+  .who span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2)}
+
+  .field{position:relative;margin-bottom:14px}
+  .field input{
+    width:100%; height:48px; background:transparent; color:var(--text);
+    border:1px solid var(--input-border); border-radius:10px; padding:0 14px;
+    font:inherit; font-size:16px; outline:none; transition:border-color .15s, box-shadow .15s;
+  }
+  .field input::placeholder{color:var(--text-3)}
+  .field input:focus{border-color:var(--win-orange);box-shadow:0 0 0 3px rgba(255,90,10,.25)}
+  .field.error input{border-color:#ff6b6b}
+  .toggle-pass{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--text-3);cursor:pointer;font:inherit;font-size:13px;font-weight:700;padding:6px}
+  .toggle-pass:hover{color:var(--win-orange)}
+
+  .msg{color:#ff8080;font-size:13px;min-height:20px;margin:-6px 0 6px}
+
+  a{color:var(--win-orange);text-decoration:none;font-weight:700}
+  a:hover{text-decoration:underline}
+  .link-row{margin:2px 0 24px;font-size:15px}
+
+  /* Captcha */
+  .captcha-label{font-size:13px;color:var(--text-2);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:.6px}
+  .captcha{display:flex;gap:10px;align-items:stretch;margin-bottom:10px}
+  .captcha canvas{flex:1;height:58px;width:100%;border-radius:10px;border:1px solid var(--card-border);background:#fff;display:block}
+  .captcha-btns{display:flex;flex-direction:column;gap:6px}
+  .icon-btn{width:44px;flex:1;border-radius:10px;border:1px solid var(--card-border);background:#1e1e1e;color:var(--text);
+            cursor:pointer;display:grid;place-items:center;transition:background .15s,border-color .15s}
+  .icon-btn:hover{border-color:var(--win-orange);background:#2d1d15}
+  .icon-btn svg{width:18px;height:18px}
+
+  .btn{
+    width:100%; height:48px; border:0; border-radius:10px; cursor:pointer;
+    background:var(--win-orange); color:#fff; font-family:var(--font-display); font-weight:900; font-size:17px;
+    margin-top:8px; transition:background .15s, transform .1s;
+  }
+  .btn:hover{background:var(--win-orange-dark)}
+  .btn:active{transform:scale(.98)}
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+
+  .remember{display:flex;align-items:center;gap:8px;margin:4px 0 6px;color:var(--text-2);font-size:14px;cursor:pointer}
+  .remember input{accent-color:var(--win-orange);width:16px;height:16px}
+
+  .foot-note{text-align:center;margin-top:26px;color:var(--text-2)}
+
+  .step{display:none;animation:fade .25s ease}
+  .step.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
+  .shake{animation:shake .35s}
+  @keyframes shake{0%,100%{transform:none}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+
+  .success{text-align:center}
+  .success .ok{width:64px;height:64px;border-radius:50%;background:var(--win-green);display:grid;place-items:center;margin:4px auto 16px}
+  .success .ok svg{width:34px;height:34px;color:#fff}
+
+  footer{position:relative;z-index:1;background:rgba(0,0,0,.6);text-align:center;padding:12px 16px 10px;font-size:13px}
+  footer nav{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 24px;margin-bottom:4px}
+  footer nav a{color:#e6e6e6;font-weight:400}
+  footer small{color:#b5b5b5;font-size:11px}
+  footer small a{font-weight:400}
+
+  @media (max-width:480px){ .card{padding:36px 22px 30px} h1{font-size:23px} }
+</style>
+</head>
+<body>
+  <div class="bg" aria-hidden="true"><span class="s1"></span><span class="s2"></span><span class="s3"></span></div>
+
+  <main>
+    <div class="card" id="card">
+      <div class="brand">
+        <div class="brand-mark">P</div>
+        <div class="brand-name">Provi<b>WIN</b></div>
+      </div>
+
+      <!-- Paso 1: usuario -->
+      <section class="step active" id="step1">
+        <h1>Iniciar sesión</h1>
+        <p class="sub">Usa tu cuenta del sistema ProviWIN.</p>
+        <form id="f1" novalidate>
+          <div class="field" id="fUser">
+            <input id="user" type="text" autocomplete="username" placeholder="Usuario o correo electrónico">
+          </div>
+          <div class="msg" id="m1"></div>
+          <div class="link-row"><a href="#">¿Olvidaste tu usuario?</a></div>
+          <button class="btn" type="submit">Siguiente</button>
+        </form>
+        <p class="foot-note">¿No tienes acceso? <a href="#">Solicitar cuenta</a></p>
+      </section>
+
+      <!-- Paso 2: contraseña + captcha -->
+      <section class="step" id="step2">
+        <div class="who" id="back" title="Cambiar usuario">
+          <div class="back">‹</div><span id="whoName"></span>
+        </div>
+        <h1>Escribe tu contraseña</h1>
+        <p class="sub">Y confirma que no eres un robot.</p>
+        <form id="f2" novalidate>
+          <div class="field" id="fPass">
+            <input id="pass" type="password" autocomplete="current-password" placeholder="Contraseña">
+            <button type="button" class="toggle-pass" id="tp">Ver</button>
+          </div>
+
+          <div class="captcha-label">Código de seguridad</div>
+          <div class="captcha">
+            <canvas id="cap" width="300" height="58" aria-label="Imagen captcha"></canvas>
+            <div class="captcha-btns">
+              <button type="button" class="icon-btn" id="refresh" title="Nuevo código" aria-label="Nuevo código">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+              </button>
+              <button type="button" class="icon-btn" id="speak" title="Escuchar código" aria-label="Escuchar código">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="field" id="fCap">
+            <input id="capIn" type="text" maxlength="6" autocomplete="off" placeholder="Escribe los caracteres de la imagen">
+          </div>
+          <div class="msg" id="m2"></div>
+
+          <label class="remember"><input type="checkbox" id="rem"> Mantener la sesión iniciada</label>
+          <div class="link-row" style="margin-bottom:16px"><a href="#">¿Olvidaste tu contraseña?</a></div>
+          <button class="btn" type="submit" id="btnIn">Iniciar sesión</button>
+        </form>
+      </section>
+
+      <!-- Paso 3: éxito (demo) -->
+      <section class="step success" id="step3">
+        <div class="ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17 19 7"/></svg></div>
+        <h1>¡Bienvenido!</h1>
+        <p class="sub" id="welcome">Validación correcta (vista de demostración).</p>
+        <button class="btn" type="button" id="again">Volver al inicio</button>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <nav><a href="#">Ayuda y comentarios</a><a href="#">Términos de uso</a><a href="#">Privacidad y cookies</a></nav>
+    <small>Usa la navegación privada si este no es tu dispositivo. <a href="#">Más información</a></small>
+  </footer>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const card = $('card');
+
+  // Estrellas de fondo
+  const bg = document.querySelector('.bg');
+  for (let i = 0; i < 40; i++) {
+    const s = document.createElement('i');
+    s.style.left = Math.random()*100 + '%'; s.style.top = Math.random()*100 + '%';
+    s.style.opacity = (.15 + Math.random()*.4).toFixed(2);
+    bg.appendChild(s);
+  }
+
+  const show = n => {
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    $('step' + n).classList.add('active');
+  };
+  const shake = () => { card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake'); };
+  const setErr = (fieldId, msgId, text) => { $(fieldId).classList.toggle('error', !!text); $(msgId).textContent = text || ''; };
+
+  // ---------- CAPTCHA (canvas) ----------
+  // NOTA: esto es solo visual. En producción el código debe generarse y validarse en el servidor (sesión PHP).
+  const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  const rnd = (a, b) => a + Math.random()*(b - a);
+
+  function drawCaptcha() {
+    const c = $('cap'), ctx = c.getContext('2d');
+    const dpr = window.devicePixelRatio || 1, w = c.clientWidth || 300, h = c.clientHeight || 58;
+    c.width = w*dpr; c.height = h*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+    code = Array.from({length:5}, () => CHARS[Math.floor(Math.random()*CHARS.length)]).join('');
+
+    const g = ctx.createLinearGradient(0,0,w,h);
+    g.addColorStop(0,'#FFEFE6'); g.addColorStop(1,'#FFF8F2');
+    ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+
+    for (let i = 0; i < 60; i++) {           // puntos de ruido
+      ctx.fillStyle = `rgba(${rnd(120,255)|0},${rnd(60,140)|0},${rnd(0,60)|0},.35)`;
+      ctx.beginPath(); ctx.arc(rnd(0,w), rnd(0,h), rnd(.5,2), 0, Math.PI*2); ctx.fill();
+    }
+    const colors = ['#FF5A0A','#D8450B','#301D19','#141414','#B23A00'];
+    const step = w / (code.length + 1);
+    [...code].forEach((ch, i) => {
+      ctx.save();
+      ctx.translate(step*(i+.75) + rnd(-4,4), h/2 + rnd(-5,5));
+      ctx.rotate(rnd(-.45,.45));
+      ctx.font = `900 ${rnd(26,32)|0}px Montserrat, Arial, sans-serif`;
+      ctx.fillStyle = colors[i % colors.length];
+      ctx.textBaseline = 'middle'; ctx.fillText(ch, 0, 0);
+      ctx.restore();
+    });
+    for (let i = 0; i < 4; i++) {             // líneas que cruzan
+      ctx.strokeStyle = `rgba(255,90,10,${rnd(.35,.7)})`; ctx.lineWidth = rnd(1,2.2);
+      ctx.beginPath(); ctx.moveTo(rnd(0,w*.2), rnd(0,h));
+      ctx.bezierCurveTo(rnd(w*.2,w*.5), rnd(0,h), rnd(w*.5,w*.8), rnd(0,h), rnd(w*.8,w), rnd(0,h));
+      ctx.stroke();
+    }
+    $('capIn').value = '';
+  }
+
+  $('refresh').onclick = () => { drawCaptcha(); $('capIn').focus(); };
+  $('speak').onclick = () => {
+    if (!('speechSynthesis' in window)) return;
+    const u = new SpeechSynthesisUtterance(code.split('').join(', '));
+    u.lang = 'es-PE'; u.rate = .7; speechSynthesis.cancel(); speechSynthesis.speak(u);
+  };
+
+  // ---------- Paso 1 ----------
+  $('f1').onsubmit = e => {
+    e.preventDefault();
+    const u = $('user').value.trim();
+    if (u.length < 3) { setErr('fUser','m1','Escribe un usuario o correo válido.'); shake(); return; }
+    setErr('fUser','m1','');
+    $('whoName').textContent = u;
+    show(2); drawCaptcha(); setTimeout(() => $('pass').focus(), 50);
+  };
+  $('back').onclick = () => { show(1); $('user').focus(); };
+
+  // ---------- Paso 2 ----------
+  $('tp').onclick = () => {
+    const p = $('pass'); const vis = p.type === 'password';
+    p.type = vis ? 'text' : 'password'; $('tp').textContent = vis ? 'Ocultar' : 'Ver';
+  };
+  $('f2').onsubmit = e => {
+    e.preventDefault();
+    ['fPass','fCap'].forEach(f => $(f).classList.remove('error'));
+    if (!$('pass').value) { $('fPass').classList.add('error'); $('m2').textContent = 'Escribe tu contraseña.'; shake(); return; }
+    if ($('capIn').value.trim().toUpperCase() !== code) {
+      $('fCap').classList.add('error'); $('m2').textContent = 'El código de seguridad no coincide. Inténtalo de nuevo.';
+      shake(); drawCaptcha(); return;
+    }
+    $('m2').textContent = '';
+    const b = $('btnIn'); b.disabled = true; b.textContent = 'Verificando…';
+    setTimeout(() => {
+      b.disabled = false; b.textContent = 'Iniciar sesión';
+      $('welcome').textContent = `Hola ${$('whoName').textContent}, validación correcta (vista de demostración).`;
+      show(3);
+    }, 900);
+  };
+  $('again').onclick = () => { $('f1').reset(); $('f2').reset(); show(1); };
+
+  window.addEventListener('resize', () => { if ($('step2').classList.contains('active')) drawCaptcha(); });
+})();
+</script>
+</body>
+</html>

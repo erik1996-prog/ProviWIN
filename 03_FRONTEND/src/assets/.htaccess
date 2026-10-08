@@ -1,0 +1,4 @@
+# Solo archivos estáticos: no se ejecuta PHP aquí.
+<FilesMatch "(?i)\.(php|phtml|phar)$">
+    Require all denied
+</FilesMatch>
