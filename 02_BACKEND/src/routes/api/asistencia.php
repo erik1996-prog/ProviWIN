@@ -112,6 +112,7 @@ if ($action === 'status') {
     $eventoActivo = null;
     $minutosAlmuerzo = 0;
     $minutosReunion = 0;
+    $minutosRemoto = 0;
 
     foreach ($eventos as $e) {
         $inicioE = new DateTime($e['inicio_evento']);
@@ -122,6 +123,8 @@ if ($action === 'status') {
             $minutosAlmuerzo += $duracion;
         } elseif ($e['tipo_evento'] === 'reunion') {
             $minutosReunion += $duracion;
+        } elseif ($e['tipo_evento'] === 'remoto') {
+            $minutosRemoto += $duracion;
         }
 
         if ($e['fin_evento'] === null) {
@@ -160,6 +163,7 @@ if ($action === 'status') {
         'tipos_registrados' => $tiposRegistrados,
         'minutos_almuerzo' => $minutosAlmuerzo,
         'minutos_reunion' => $minutosReunion,
+        'minutos_remoto' => $minutosRemoto,
         'horas_ordinarias' => round($horasOrdinarias, 2),
         'horas_extras' => round($horasExtras, 2),
         'total_horas' => $totalHorasShift
@@ -290,7 +294,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'end') {
 }
 
 // -------------------------------------------------------------
-// 4. REGISTRAR PAUSA DE TURNO (Almuerzo / Reunión / Capacitación)
+// 4. REGISTRAR ACTIVIDAD DEL TURNO (Almuerzo / Reunión / Capacitación / Trabajo remoto)
 // -------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'start_event') {
     $data = getRequestData();
@@ -299,7 +303,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'start_event') {
     $lat = !empty($data['latitud']) ? trim($data['latitud']) : null;
     $lng = !empty($data['longitud']) ? trim($data['longitud']) : null;
 
-    $tiposPermitidos = ['almuerzo', 'reunion', 'capacitacion', 'campo'];
+    $tiposPermitidos = ['almuerzo', 'reunion', 'capacitacion', 'campo', 'remoto'];
     if (!in_array($tipo, $tiposPermitidos)) {
         echo json_encode(['status' => 'error', 'message' => 'Tipo de actividad no válido.']);
         exit;
@@ -363,6 +367,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'start_event') {
         'almuerzo' => 'En almuerzo',
         'reunion' => 'En reunión',
         'capacitacion' => 'En capacitación',
+        'remoto' => 'En remoto',
         'campo' => 'En turno'
     ];
     $nuevoEstado = $mapEstado[$tipo] ?? 'En turno';
@@ -484,9 +489,16 @@ if ($action === 'admin_summary') {
         'en_almuerzo' => 0,
         'en_reunion' => 0,
         'en_capacitacion' => 0,
+        'en_remoto' => 0,
         'turno_finalizado' => 0,
         'sin_iniciar' => 0
     ];
+
+    // Inicio de las supervisiones del día de cada supervisor (para la primera acción del turno)
+    $iniciosSupBySup = [];
+    $stmtIniSup = $pdo->prepare("SELECT supervisor_id, fecha_registro FROM supervisiones WHERE fecha_registro >= :desde AND fecha_registro < DATE_ADD(:hasta, INTERVAL 1 DAY)");
+    $stmtIniSup->execute([':desde' => $fechaFiltro, ':hasta' => $fechaFiltro]);
+    foreach ($stmtIniSup->fetchAll() as $row) $iniciosSupBySup[(int)$row['supervisor_id']][] = strtotime($row['fecha_registro']);
 
     foreach ($listaSupervisores as $sup) {
         $supId = $sup['id'];
@@ -526,6 +538,7 @@ if ($action === 'admin_summary') {
         elseif ($estadoActual === 'En almuerzo') $kpis['en_almuerzo']++;
         elseif ($estadoActual === 'En reunión') $kpis['en_reunion']++;
         elseif ($estadoActual === 'En capacitación') $kpis['en_capacitacion']++;
+        elseif ($estadoActual === 'En remoto') $kpis['en_remoto']++;
         elseif ($estadoActual === 'Fuera de turno') $kpis['turno_finalizado']++;
         else $kpis['sin_iniciar']++;
 
@@ -544,6 +557,7 @@ if ($action === 'admin_summary') {
             'evento_activo' => $eventoActivo,
             'minutos_almuerzo' => $minAlmuerzo,
             'minutos_reunion' => $minReunion,
+            'primera_accion' => $asist ? sgsPrimeraAccion($asist['inicio_turno'], $eventos, $iniciosSupBySup[(int)$supId] ?? []) : null,
             'eventos' => $eventos
         ];
     }
@@ -569,10 +583,17 @@ if ($action === 'list_filters') {
         ORDER BY u.nombre_completo ASC
     ");
     $supervisores = $stmtSups->fetchAll();
+    // Zonas de cada supervisor (null = todas) para filtrar la lista por departamento en pantalla
+    foreach ($supervisores as &$s) $s['zonas'] = sgsUserZones((int)$s['id']);
+    unset($s);
+    // Partners (2026-10-11: no se enviaban y el filtro del Dashboard quedaba vacío)
+    $partners = $pdo->query("SELECT id, nombre_partner FROM partners WHERE estado = 1 AND UPPER(TRIM(nombre_partner)) NOT IN ('WIN', 'WIN DIRECTO') ORDER BY nombre_partner")->fetchAll();
 
     echo json_encode([
         'status' => 'success',
-        'supervisores' => $supervisores
+        'supervisores' => $supervisores,
+        'partners' => $partners,
+        'departamentos' => sgsOperationalDepartments()
     ]);
     exit;
 }
@@ -1007,15 +1028,31 @@ if ($action === 'timeline_diaria') {
             $hEvIni = date('H:i', $tEvIni);
             $hEvFin = $ev['fin_evento'] ? date('H:i', strtotime($ev['fin_evento'])) : 'En curso';
             $durEv = $ev['duracion_minutos'] ?: 60;
-            $tipoEvText = ucfirst($ev['tipo_evento']);
+            $nombresEv = ['almuerzo' => 'Almuerzo', 'reunion' => 'Reunión', 'capacitacion' => 'Capacitación', 'campo' => 'Trabajo de campo', 'remoto' => 'Trabajo remoto'];
+            $tipoEvText = $nombresEv[$ev['tipo_evento']] ?? ucfirst($ev['tipo_evento']);
+
+            // El trabajo remoto es trabajo (no una pausa): bloque propio en la línea de tiempo
+            if ($ev['tipo_evento'] === 'remoto') {
+                $timelineBlocks[] = [
+                    'type' => 'remote',
+                    'title' => 'Trabajo remoto',
+                    'nota' => (string)($ev['nota'] ?? ''),
+                    'hora_inicio' => $hEvIni,
+                    'hora_fin' => $hEvFin,
+                    'duracion_minutos' => $ev['fin_evento'] ? (int)$ev['duracion_minutos'] : max(0, (int)round((time() - $tEvIni) / 60)),
+                    'color_class' => 'sgs-tl-remoto',
+                    'timestamp' => $tEvIni
+                ];
+                continue;
+            }
 
             $timelineBlocks[] = [
                 'type' => 'pause',
-                'title' => "Pausa: {$tipoEvText}",
+                'title' => $ev['tipo_evento'] === 'almuerzo' ? 'Almuerzo' : $tipoEvText,
                 'hora_inicio' => $hEvIni,
                 'hora_fin' => $hEvFin,
                 'duracion_minutos' => $durEv,
-                'color_class' => 'bg-purple text-white',
+                'color_class' => 'bg-pausa text-white', // mismo color que la leyenda (antes bg-purple, que no existe: el bloque salía invisible)
                 'timestamp' => $tEvIni
             ];
         }
@@ -1050,7 +1087,8 @@ if ($action === 'timeline_diaria') {
             'eventos' => $eventos,
             'supervisiones' => $listItems,
             'timeline_blocks' => $timelineBlocks,
-            'total_supervisiones' => $totalSupsCount
+            'total_supervisiones' => $totalSupsCount,
+            'primera_accion' => $asistencia && !$esLicencia ? sgsPrimeraAccion($asistencia['inicio_turno'], $eventos, array_map(fn($x) => strtotime($x['fecha_registro']), $supervisiones)) : null
         ];
     }
 

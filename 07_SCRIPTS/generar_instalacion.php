@@ -15,33 +15,34 @@ $dir = BASE_PATH . '/04_DATABASE/01_INSTALACION';
 $hoy = date('Y-m-d');
 
 // Tablas de SGS (2026-10-08). 'datos' = se instala con su contenido; 'vacia' = solo estructura.
+// La descripción de cada tabla es su comentario en la base (ALTER TABLE … COMMENT='…'): toda tabla debe tenerlo.
 $tablasSgs = [
     // Seguridad y usuarios
-    'usuarios' => ['datos', 'usuarios del sistema'],
-    'usuario_permisos' => ['datos', 'permisos personalizados por usuario'],
-    'usuario_departamentos_acceso' => ['datos', 'zonas adicionales de cada usuario'],
-    'sgs_perfil' => ['datos', 'perfiles de acceso'],
-    'sgs_usuario_perfil' => ['datos', 'perfil asignado a cada usuario'],
-    'login_attempts' => ['vacia', 'intentos de ingreso (bloqueo a los 3 intentos)'],
+    'usuarios' => 'datos',
+    'usuario_permisos' => 'datos',
+    'usuario_departamentos_acceso' => 'datos',
+    'sgs_perfil' => 'datos',
+    'sgs_usuario_perfil' => 'datos',
+    'login_attempts' => 'vacia',
     // Catálogos y maestros
-    'partners' => ['datos', 'contratas (incluye WIN DIRECTO, necesario para el personal propio)'],
-    'ubigeo' => ['datos', 'departamentos, provincias y distritos de operación'],
-    'categorias_observacion' => ['datos', 'categorías de observación'],
-    'subopciones_observacion' => ['datos', 'tipificaciones con gravedad y penalidad'],
-    'tipificaciones_cancelacion' => ['datos', 'motivos de cancelación'],
-    'vehiculos' => ['datos', 'vehículos de las cuadrillas'],
-    'tecnicos' => ['datos', 'técnicos líderes (T1) y de apoyo (T2) por partner'],
+    'partners' => 'datos',
+    'ubigeo' => 'datos',
+    'categorias_observacion' => 'datos',
+    'subopciones_observacion' => 'datos',
+    'tipificaciones_cancelacion' => 'datos',
+    'vehiculos' => 'datos',
+    'tecnicos' => 'datos',
     // Ingresos de la operación: se instalan vacíos
-    'supervisiones' => ['vacia', 'supervisiones'],
-    'supervision_estado_historial' => ['vacia', 'cambios de estado de cada supervisión'],
-    'supervision_coordenadas_historial' => ['vacia', 'ubicaciones GPS registradas'],
-    'observaciones_supervision' => ['vacia', 'observaciones en campo'],
-    'checklists_tecnicos' => ['vacia', 'checklists de cuadrilla'],
-    'checklist_respuestas' => ['vacia', 'criterios de cada checklist'],
-    'notificaciones' => ['vacia', 'notificaciones a usuarios'],
-    'asistencia_supervisores' => ['vacia', 'inicios y cierres de turno'],
-    'asistencia_eventos' => ['vacia', 'pausas del turno (almuerzo, reunión)'],
-    'sgs_migracion' => ['vacia', 'migraciones aplicadas (empieza vacía: la instalación ya trae la estructura al día)'],
+    'supervisiones' => 'vacia',
+    'supervision_estado_historial' => 'vacia',
+    'supervision_coordenadas_historial' => 'vacia',
+    'observaciones_supervision' => 'vacia',
+    'checklists_tecnicos' => 'vacia',
+    'checklist_respuestas' => 'vacia',
+    'notificaciones' => 'vacia',
+    'asistencia_supervisores' => 'vacia',
+    'asistencia_eventos' => 'vacia',
+    'sgs_migracion' => 'vacia',
 ];
 // Filas de prueba que no viajan aunque la tabla lleve datos
 $filtroFilas = [
@@ -49,9 +50,13 @@ $filtroFilas = [
     'usuarios' => "dni NOT LIKE '999999%'",
 ];
 
-$st = $pdo->prepare("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = :db AND TABLE_TYPE = 'BASE TABLE'");
+$st = $pdo->prepare("SELECT TABLE_NAME, TABLE_COMMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = :db AND TABLE_TYPE = 'BASE TABLE'");
 $st->execute([':db' => $db]);
-$enBase = $st->fetchAll(PDO::FETCH_COLUMN);
+$comentarioDe = $st->fetchAll(PDO::FETCH_KEY_PAIR);
+$enBase = array_keys($comentarioDe);
+$sinDescripcion = array_filter(array_keys($tablasSgs), fn($t) => isset($comentarioDe[$t]) && trim($comentarioDe[$t]) === '');
+if ($sinDescripcion) exit('Tablas sin descripción (agregar con ALTER TABLE … COMMENT=' . chr(39) . '…' . chr(39) . '): ' . implode(', ', $sinDescripcion) . "
+");
 $faltan = array_diff(array_keys($tablasSgs), $enBase);
 if ($faltan) exit('Estas tablas de SGS no existen en la base: ' . implode(', ', $faltan) . "\n");
 $tablas = array_keys($tablasSgs);
@@ -89,7 +94,8 @@ file_put_contents("$dir/01_crear_base.sql", $cab('01_crear_base.sql', 'crear la 
 
 $n = 2; $lista = []; $esquema = [];
 foreach ($orden as $t) {
-    [$tipo, $descripcion] = $tablasSgs[$t];
+    $tipo = $tablasSgs[$t];
+    $descripcion = $comentarioDe[$t];
     $create = $pdo->query("SHOW CREATE TABLE `$t`")->fetch(PDO::FETCH_NUM)[1];
     $create = preg_replace('/ AUTO_INCREMENT=\d+/', '', $create);
     $create = preg_replace('/^CREATE TABLE/', 'CREATE TABLE IF NOT EXISTS', $create);
@@ -115,6 +121,51 @@ foreach ($orden as $t) {
     $n++;
 }
 
+// Instalación completa en UN solo archivo: todas las tablas en orden + sus datos (para subir la base de una vez)
+$completa = "-- 00_instalacion_completa.sql\n-- Base de SGS completa en un solo archivo: " . count($lista) . " tablas en orden de dependencias, con los datos actuales\n"
+    . "-- de usuarios, permisos, partners, técnicos, vehículos, catálogos y penalidades; vacías las de ingresos (supervisiones, turnos…).\n"
+    . "-- Generado por 07_SCRIPTS/generar_instalacion.php el $hoy desde $db.\n"
+    . "-- Uso: crear la base vacía (en el hosting, desde el panel), seleccionarla en phpMyAdmin → Importar este archivo.\n"
+    . "--      Consola: mysql -u usuario -p NOMBRE_BASE < 00_instalacion_completa.sql\n"
+    . "-- Solo para una base NUEVA. Después, cada cambio se aplica con los scripts de 04_DATABASE/02_CAMBIOS.\n--\n"
+    . "-- CONTENIDO (en orden de creación: cada tabla va después de las que necesita)\n"
+    . implode('', array_map(fn($k, $l) => sprintf("-- %2d. %-34s %s %s\n", $k + 1, $l[1], $l[2] . str_repeat(' ', max(0, 14 - mb_strlen($l[2]))), $l[3]), array_keys($lista), $lista))
+    . "\nSET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS = 0;\n\n";
+foreach ($lista as $l) {
+    $cuerpo = preg_replace('/^(--[^\n]*\n)+\n?/', '', file_get_contents("$dir/{$l[0]}")); // sin la cabecera de cada archivo
+    $completa .= "-- ============ {$l[1]}: {$l[3]} ============\n" . str_replace("SET NAMES utf8mb4;\n\n", '', $cuerpo) . "\n";
+}
+$completa .= "SET FOREIGN_KEY_CHECKS = 1;\n-- Fin de la instalación\n";
+file_put_contents("$dir/00_instalacion_completa.sql", $completa);
+
+// Diccionario de datos (documentación): cada tabla con su descripción, columnas y relaciones, tomado de la base
+$st = $pdo->prepare("SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_KEY, COLUMN_DEFAULT, COLUMN_COMMENT
+    FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = :db ORDER BY TABLE_NAME, ORDINAL_POSITION");
+$st->execute([':db' => $db]);
+$columnasDe = [];
+foreach ($st->fetchAll() as $c) $columnasDe[$c['TABLE_NAME']][] = $c;
+$st = $pdo->prepare("SELECT TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME FROM information_schema.KEY_COLUMN_USAGE
+    WHERE TABLE_SCHEMA = :db AND REFERENCED_TABLE_NAME IS NOT NULL");
+$st->execute([':db' => $db]);
+$apuntaA = [];
+foreach ($st->fetchAll() as $r) $apuntaA[$r['TABLE_NAME']][$r['COLUMN_NAME']] = $r['REFERENCED_TABLE_NAME'];
+$md = "# Diccionario de datos — SGS\n\n"
+    . "Generado por `07_SCRIPTS/generar_instalacion.php` el $hoy desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.\n"
+    . "Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.\n\n"
+    . "| # | Tabla | Para qué sirve | En la instalación |\n|---|---|---|---|\n";
+foreach ($lista as $k => $l) $md .= '| ' . ($k + 1) . " | [`{$l[1]}`](#{$l[1]}) | {$l[3]} | {$l[2]} |\n";
+foreach ($lista as $l) {
+    $t = $l[1];
+    $md .= "\n### `$t`\n{$l[3]}" . ($depende[$t] ? ' · Depende de: ' . implode(', ', array_map(fn($x) => "`$x`", array_unique($depende[$t]))) : '') . "\n\n"
+        . "| Columna | Tipo | Nulo | Clave | Descripción |\n|---|---|---|---|---|\n";
+    foreach ($columnasDe[$t] ?? [] as $c) {
+        $clave = $c['COLUMN_KEY'] === 'PRI' ? 'PK' : (isset($apuntaA[$t][$c['COLUMN_NAME']]) ? 'FK → `' . $apuntaA[$t][$c['COLUMN_NAME']] . '`' : ($c['COLUMN_KEY'] === 'UNI' ? 'Única' : ''));
+        $md .= "| `{$c['COLUMN_NAME']}` | {$c['COLUMN_TYPE']} | " . ($c['IS_NULLABLE'] === 'YES' ? 'sí' : 'no') . " | $clave | "
+            . str_replace('|', '/', (string)$c['COLUMN_COMMENT']) . " |\n";
+    }
+}
+file_put_contents(BASE_PATH . '/01_DOCUMENTACION/04_BASE_DATOS/DICCIONARIO_DATOS.md', $md);
+
 // Esquema completo en un solo archivo (para revisar o importar de una vez; mismo orden, sin datos)
 file_put_contents(BASE_PATH . '/04_DATABASE/03_ESTRUCTURA/esquema_completo.sql',
     "-- 04_DATABASE/03_ESTRUCTURA/esquema_completo.sql\n-- Estructura de SGS: " . count($tablas) . " tablas en orden de dependencias, sin datos ni DROP.\n"
@@ -124,7 +175,10 @@ file_put_contents(BASE_PATH . '/04_DATABASE/03_ESTRUCTURA/esquema_completo.sql',
 // LEEME con el orden
 $filasMd = implode("\n", array_map(fn($l) => "| `{$l[0]}` | `{$l[1]}`: {$l[3]} | {$l[2]} |", $lista));
 file_put_contents("$dir/LEEME.md", "# Instalación de la base de datos desde cero\n\n"
-    . "Ejecutar **en orden de número**, uno por uno: phpMyAdmin → seleccionar la base → pestaña **Importar**, o por consola:\n"
+    . "**Lo más simple: `00_instalacion_completa.sql`** trae todas las tablas y sus datos en un solo archivo: seleccionar la base en phpMyAdmin → Importar ese archivo, y listo.
+
+"
+    . "O, si se prefiere por partes, ejecutar **en orden de número**, uno por uno: phpMyAdmin → seleccionar la base → pestaña **Importar**, o por consola:\n"
     . "`mysql -u usuario -p NOMBRE_BASE < 02_tabla_xxx.sql`\n\n"
     . "Los scripts **no fijan el nombre de la base**. `01_crear_base.sql` solo hace falta si la base no existe; en un hosting la base se crea desde el panel y ese paso se omite.\n"
     . "Cada tabla va después de las tablas de las que depende, por eso el orden importa. Cada archivo indica en su cabecera de cuáles depende.\n\n"

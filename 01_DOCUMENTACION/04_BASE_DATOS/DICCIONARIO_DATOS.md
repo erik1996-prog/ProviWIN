@@ -1,406 +1,434 @@
 # Diccionario de datos — SGS
 
-SGS usa la base **`win_telecom_db`**, compartida con el sistema de origen. Los nombres actuales de las tablas **no se cambian** mientras ambos sistemas convivan. La columna "Nombre SGS" es el nombre que tendrán según la guía de nomenclatura (`SGS_NOMBRE`, en singular) cuando se migre (ver `04_DATABASE/README.md`).
+Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-10-08 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
+Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 
-Generado desde `information_schema` el 2026-10-04. Las descripciones vacías quedan pendientes de documentar.
+| # | Tabla | Para qué sirve | En la instalación |
+|---|---|---|---|
+| 1 | [`categorias_observacion`](#categorias_observacion) | Categorías de observación | 6 registros |
+| 2 | [`login_attempts`](#login_attempts) | Intentos de ingreso (bloqueo a los 3 fallidos) | vacía |
+| 3 | [`partners`](#partners) | Contratas; WIN DIRECTO = personal propio | 12 registros |
+| 4 | [`sgs_migracion`](#sgs_migracion) | Cambios de base de datos ya aplicados (los registra 07_SCRIPTS/migrar.php) | vacía |
+| 5 | [`tipificaciones_cancelacion`](#tipificaciones_cancelacion) | Motivos de cancelación (los del Excel de pendientes se agregan solos) | 3 registros |
+| 6 | [`ubigeo`](#ubigeo) | Departamentos, provincias y distritos de operación | 47 registros |
+| 7 | [`vehiculos`](#vehiculos) | Vehículos de las cuadrillas | 2 registros |
+| 8 | [`subopciones_observacion`](#subopciones_observacion) | Tipificaciones de observación con gravedad y penalidad | 83 registros |
+| 9 | [`usuarios`](#usuarios) | Usuarios del sistema (personal WIN y de partners) | 10 registros |
+| 10 | [`asistencia_supervisores`](#asistencia_supervisores) | Turnos de los supervisores: inicio, fin y horas | vacía |
+| 11 | [`sgs_perfil`](#sgs_perfil) | Perfiles de acceso: roles personalizados con sus permisos | 0 registros |
+| 12 | [`tecnicos`](#tecnicos) | Técnicos por partner: líderes (T1) y de apoyo (T2) | 196 registros |
+| 13 | [`usuario_departamentos_acceso`](#usuario_departamentos_acceso) | Zonas adicionales que puede ver cada usuario | 0 registros |
+| 14 | [`usuario_permisos`](#usuario_permisos) | Permisos personalizados por usuario (además de los de su rol) | 0 registros |
+| 15 | [`asistencia_eventos`](#asistencia_eventos) | Pausas dentro del turno (almuerzo, reunión, capacitación) | vacía |
+| 16 | [`sgs_usuario_perfil`](#sgs_usuario_perfil) | Perfil de acceso asignado a cada usuario (uno por usuario) | 0 registros |
+| 17 | [`supervisiones`](#supervisiones) | Supervisiones de campo y órdenes pendientes asignadas | vacía |
+| 18 | [`checklists_tecnicos`](#checklists_tecnicos) | Checklist de cuadrilla por supervisión | vacía |
+| 19 | [`observaciones_supervision`](#observaciones_supervision) | Observaciones en campo, descargos del partner y plazos | vacía |
+| 20 | [`supervision_coordenadas_historial`](#supervision_coordenadas_historial) | Cambios de ubicación GPS de cada supervisión | vacía |
+| 21 | [`supervision_estado_historial`](#supervision_estado_historial) | Cambios de estado de cada supervisión (horas reales de inicio y fin) | vacía |
+| 22 | [`checklist_respuestas`](#checklist_respuestas) | Criterios evaluados en cada checklist | vacía |
+| 23 | [`notificaciones`](#notificaciones) | Avisos a los usuarios | vacía |
 
-| Tabla actual | Nombre SGS | Uso en SGS |
-|---|---|---|
-| `supervisiones` | `SGS_SUPERVISION` | Lectura y escritura |
-| `checklists_tecnicos` | `SGS_CHECKLIST` | Lectura y escritura |
-| `checklist_respuestas` | `SGS_CHECKLIST_RESPUESTA` | Lectura y escritura |
-| `observaciones_supervision` | `SGS_OBSERVACION` | Lectura y escritura |
-| `supervision_coordenadas_historial` | `SGS_SUPERVISION_COORDENADA` | Escritura |
-| `tecnicos` | `SGS_TECNICO` | Lectura y escritura |
-| `vehiculos` | `SGS_VEHICULO` | Lectura y escritura |
-| `notificaciones` | `SGS_NOTIFICACION` | Lectura y escritura |
-| `login_attempts` | `SGS_LOGIN_INTENTO` | Lectura y escritura |
-| `usuarios` | `SGS_USUARIO` | Lectura |
-| `partners` | `SGS_PARTNER` | Lectura |
-| `usuario_permisos` | `SGS_USUARIO_PERMISO` | Lectura |
-| `usuario_departamentos_acceso` | `SGS_USUARIO_DEPARTAMENTO` | Lectura |
-| `categorias_observacion` | `SGS_CATEGORIA_OBSERVACION` | Lectura |
-| `subopciones_observacion` | `SGS_SUBOPCION_OBSERVACION` | Lectura |
-| `tipificaciones_cancelacion` | `SGS_TIPIFICACION_CANCELACION` | Lectura |
-| `ubigeo` | `SGS_UBIGEO` | Lectura |
-| `asistencia_supervisores` | `SGS_ASISTENCIA` | Lectura |
-| `asistencia_eventos` | `SGS_ASISTENCIA_EVENTO` | Lectura |
+### `categorias_observacion`
+Categorías de observación
 
-## Detalle por tabla
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `nombre_categoria` | varchar(100) | no |  |  |
 
-### `usuarios` → `SGS_USUARIO`
+### `login_attempts`
+Intentos de ingreso (bloqueo a los 3 fallidos)
 
-Usuarios del sistema (supervisores, administradores, partners)
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `fingerprint` | char(64) | no | PK |  |
+| `attempts` | smallint(5) unsigned | no |  |  |
+| `first_attempt_at` | datetime | no |  |  |
+| `last_attempt_at` | datetime | no |  |  |
+| `blocked_until` | datetime | sí |  |  |
 
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `int(11)` | Sí | No | Sí | Identificador |
-| dni | `varchar(8)` | No | No | Sí |  |
-| nombres | `varchar(100)` | No | No | No |  |
-| apellidos | `varchar(100)` | No | No | No |  |
-| usuario | `varchar(50)` | No | No | No |  |
-| nombre_completo | `varchar(200)` | No | No | Sí |  |
-| email | `varchar(150)` | No | No | Sí |  |
-| telefono_personal | `varchar(20)` | No | No | No |  |
-| telefono_corporativo | `varchar(20)` | No | No | No |  |
-| turno | `varchar(30)` | No | No | No |  |
-| modalidad | `varchar(30)` | No | No | No |  |
-| sede | `varchar(100)` | No | No | No |  |
-| password_hash | `varchar(255)` | No | No | Sí |  |
-| password_admin_encrypted | `text` | No | No | No |  |
-| rol | `enum('Administrador','Gerente','Coordinador','Supervisor','SGA','SGI','Partner')` | No | No | Sí |  |
-| area_trabajo | `varchar(100)` | No | No | No |  |
-| zona | `varchar(100)` | No | No | No |  |
-| procesos_copiados | `text` | No | No | No |  |
-| observacion | `text` | No | No | No |  |
-| partner_id | `int(11)` | No | Sí | No | Relación con `partners` (SGS_PARTNER) |
-| activo | `tinyint(1)` | No | No | No |  |
-| fecha_creacion | `datetime` | No | No | No |  |
-| avatar | `varchar(255)` | No | No | No |  |
+### `partners`
+Contratas; WIN DIRECTO = personal propio
 
-### `partners` → `SGS_PARTNER`
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `nombre_partner` | varchar(150) | no |  |  |
+| `ruc` | varchar(11) | sí |  |  |
+| `estado` | tinyint(1) | sí |  |  |
+| `fecha_registro` | datetime | sí |  |  |
 
-Empresas contratistas (partners)
+### `sgs_migracion`
+Cambios de base de datos ya aplicados (los registra 07_SCRIPTS/migrar.php)
 
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `int(11)` | Sí | No | Sí | Identificador |
-| nombre_partner | `varchar(150)` | No | No | Sí |  |
-| ruc | `varchar(11)` | No | No | No |  |
-| estado | `tinyint(1)` | No | No | No |  |
-| fecha_registro | `datetime` | No | No | No |  |
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `archivo` | varchar(120) | no | PK | Carpeta del cambio en 04_DATABASE/02_CAMBIOS |
+| `fecha_aplicacion` | datetime | no |  |  |
 
-### `usuario_permisos` → `SGS_USUARIO_PERMISO`
+### `tipificaciones_cancelacion`
+Motivos de cancelación (los del Excel de pendientes se agregan solos)
 
-Permisos individuales por usuario
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `descripcion` | varchar(200) | no | Única |  |
+| `estado` | tinyint(1) | no |  |  |
+| `fecha_registro` | datetime | no |  |  |
 
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `bigint(20) unsigned` | Sí | No | Sí | Identificador |
-| usuario_id | `int(11)` | No | Sí | Sí | Relación con `usuarios` (SGS_USUARIO) |
-| permiso | `varchar(100)` | No | No | Sí |  |
-| permitido | `tinyint(1)` | No | No | Sí |  |
-| otorgado_por | `int(11)` | No | Sí | No | Relación con `usuarios` (SGS_USUARIO) |
-| fecha_registro | `datetime` | No | No | Sí |  |
-| fecha_actualizacion | `datetime` | No | No | Sí |  |
+### `ubigeo`
+Departamentos, provincias y distritos de operación
 
-### `usuario_departamentos_acceso` → `SGS_USUARIO_DEPARTAMENTO`
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `departamento` | varchar(100) | no |  |  |
+| `provincia` | varchar(100) | no |  |  |
+| `distrito` | varchar(100) | no |  |  |
 
-Departamentos que puede ver cada usuario
+### `vehiculos`
+Vehículos de las cuadrillas
 
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `int(10) unsigned` | Sí | No | Sí | Identificador |
-| usuario_id | `int(11)` | No | Sí | Sí | Relación con `usuarios` (SGS_USUARIO) |
-| departamento | `varchar(100)` | No | No | Sí |  |
-| activo | `tinyint(1)` | No | No | Sí |  |
-| otorgado_por | `int(11)` | No | Sí | No | Relación con `usuarios` (SGS_USUARIO) |
-| fecha_registro | `datetime` | No | No | Sí |  |
-| fecha_actualizacion | `datetime` | No | No | Sí |  |
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `placa` | varchar(10) | no | Única |  |
+| `tipo` | enum('Minivan','Auto','Moto','Otro') | sí |  |  |
+| `marca` | varchar(100) | sí |  |  |
+| `modelo` | varchar(100) | sí |  |  |
+| `anio` | smallint(5) unsigned | sí |  |  |
+| `soat` | enum('Vigente','No vigente') | sí |  |  |
+| `soat_vencimiento` | date | sí |  |  |
+| `revision_tecnica` | enum('Vigente','No vigente') | sí |  |  |
+| `revision_tecnica_vencimiento` | date | sí |  |  |
+| `extintor_vencimiento` | date | sí |  |  |
+| `fecha_registro` | datetime | no |  |  |
+| `fecha_actualizacion` | datetime | sí |  |  |
 
-### `login_attempts` → `SGS_LOGIN_INTENTO`
+### `subopciones_observacion`
+Tipificaciones de observación con gravedad y penalidad · Depende de: `categorias_observacion`
 
-Control de intentos fallidos de inicio de sesión
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `categoria_id` | int(11) | no | FK → `categorias_observacion` |  |
+| `descripcion_subopcion` | varchar(200) | no |  |  |
+| `gravedad` | enum('Media','Grave','Muy Grave') | no |  |  |
+| `penalidad_monto` | decimal(10,2) | no |  |  |
+| `accion_adicional` | varchar(255) | sí |  |  |
 
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| fingerprint | `char(64)` | Sí | No | Sí | Identificador |
-| attempts | `smallint(5) unsigned` | No | No | Sí |  |
-| first_attempt_at | `datetime` | No | No | Sí |  |
-| last_attempt_at | `datetime` | No | No | Sí |  |
-| blocked_until | `datetime` | No | No | No |  |
+### `usuarios`
+Usuarios del sistema (personal WIN y de partners) · Depende de: `partners`
 
-### `supervisiones` → `SGS_SUPERVISION`
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `dni` | varchar(8) | no | Única |  |
+| `nombres` | varchar(100) | sí |  |  |
+| `apellidos` | varchar(100) | sí |  |  |
+| `usuario` | varchar(50) | sí | Única |  |
+| `nombre_completo` | varchar(200) | no |  |  |
+| `email` | varchar(150) | no | Única |  |
+| `telefono_personal` | varchar(20) | sí |  |  |
+| `telefono_corporativo` | varchar(20) | sí |  |  |
+| `turno` | varchar(30) | sí |  |  |
+| `modalidad` | varchar(30) | sí |  |  |
+| `sede` | varchar(100) | sí |  |  |
+| `password_hash` | varchar(255) | no |  |  |
+| `password_admin_encrypted` | text | sí |  |  |
+| `rol` | enum('Administrador','Gerente','Coordinador','Supervisor','SGA','SGI','Partner') | no |  |  |
+| `area_trabajo` | varchar(100) | sí |  |  |
+| `zona` | varchar(100) | sí |  |  |
+| `procesos_copiados` | text | sí |  |  |
+| `observacion` | text | sí |  |  |
+| `partner_id` | int(11) | sí | FK → `partners` |  |
+| `activo` | tinyint(1) | sí |  |  |
+| `fecha_creacion` | datetime | sí |  |  |
+| `avatar` | varchar(255) | sí |  |  |
 
-Supervisión de campo (tabla principal)
+### `asistencia_supervisores`
+Turnos de los supervisores: inicio, fin y horas · Depende de: `usuarios`
 
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `int(11)` | Sí | No | Sí | Identificador |
-| codigo_supervision | `varchar(30)` | No | No | Sí |  |
-| fecha_registro | `datetime` | No | No | No |  |
-| supervisor_id | `int(11)` | No | Sí | Sí | Relación con `usuarios` (SGS_USUARIO) |
-| asignado_por | `int(11)` | No | Sí | No | Relación con `usuarios` (SGS_USUARIO) |
-| fecha_asignacion | `datetime` | No | No | No |  |
-| estado_atencion_partner | `enum('Pendiente','Atendida')` | No | No | Sí |  |
-| observacion_atencion_partner | `text` | No | No | No |  |
-| fecha_atencion_partner | `datetime` | No | No | No |  |
-| zona_asignacion | `varchar(100)` | No | No | No |  |
-| derivacion_orden | `enum('Autogestión','Mesa de supervisión','Líder','Coordinador','Gerente')` | No | No | Sí |  |
-| tipo_servicio | `enum('Regular','ZAV')` | No | No | Sí |  |
-| departamento | `varchar(100)` | No | No | Sí |  |
-| provincia | `varchar(100)` | No | No | Sí |  |
-| distrito | `varchar(100)` | No | No | Sí |  |
-| cliente_nombre | `varchar(200)` | No | No | No |  |
-| cliente_dni | `varchar(12)` | No | No | No |  |
-| ticket_codigo | `varchar(50)` | No | No | No |  |
-| fecha_cancelacion | `date` | No | No | No |  |
-| tipo_supervision_inicial | `enum('En caliente','En frío')` | No | No | Sí |  |
-| partner_id | `int(11)` | No | Sí | No | Relación con `partners` (SGS_PARTNER) |
-| tecnico1_nombre | `varchar(200)` | No | No | No |  |
-| tecnico1_dni | `varchar(8)` | No | No | No |  |
-| tecnico2_nombre | `varchar(200)` | No | No | No |  |
-| tecnico2_dni | `varchar(8)` | No | No | No |  |
-| brevete_poseedor | `enum('Tecnico 1','Tecnico 2','Ninguno')` | No | No | No |  |
-| unidad_tipo | `enum('Minivan','Auto','Moto','Otro')` | No | No | No |  |
-| unidad_placa | `varchar(10)` | No | No | No |  |
-| unidad_soat | `enum('Vigente','No vigente')` | No | No | No |  |
-| unidad_revision_tecnica | `enum('Vigente','No vigente')` | No | No | No |  |
-| unidad_estado_conservacion | `enum('Mal estado','Regular','Buen estado')` | No | No | No |  |
-| clasificacion_supervision | `varchar(100)` | No | No | Sí |  |
-| area_servicio | `varchar(100)` | No | No | Sí |  |
-| sub_tipo_atencion | `varchar(150)` | No | No | No |  |
-| observacion_servicio | `text` | No | No | No |  |
-| estado_servicio_caliente | `enum('Finalizada','Cancelada')` | No | No | No |  |
-| es_cancelacion | `tinyint(1)` | No | No | No |  |
-| origen_importacion | `tinyint(1)` | No | No | Sí |  |
-| observacion_previa | `text` | No | No | No |  |
-| estado_cancelacion | `varchar(60)` | No | No | No |  |
-| tipificacion_cancelacion | `varchar(200)` | No | No | No |  |
-| tipificacion_tecnico_correcta | `tinyint(1)` | No | No | No |  |
-| tipificacion_corregida_supervisor | `varchar(200)` | No | No | No |  |
-| estado_supervision | `enum('Pendiente','Iniciada','En proceso','Finalizada')` | No | No | Sí |  |
-| latitud | `varchar(50)` | No | No | No |  |
-| longitud | `varchar(50)` | No | No | No |  |
-| foto_servicio_1 | `varchar(255)` | No | No | No |  |
-| foto_servicio_comentario_1 | `varchar(500)` | No | No | No |  |
-| foto_servicio_2 | `varchar(255)` | No | No | No |  |
-| foto_servicio_comentario_2 | `varchar(500)` | No | No | No |  |
-| foto_servicio_3 | `varchar(255)` | No | No | No |  |
-| foto_servicio_comentario_3 | `varchar(500)` | No | No | No |  |
-| tecnico1_id | `int(11)` | No | Sí | No | Relación con `tecnicos` (SGS_TECNICO) |
-| tecnico2_id | `int(11)` | No | Sí | No | Relación con `tecnicos` (SGS_TECNICO) |
-| vehiculo_id | `int(11)` | No | Sí | No | Relación con `vehiculos` (SGS_VEHICULO) |
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `supervisor_id` | int(11) | no | FK → `usuarios` |  |
+| `fecha` | date | no |  |  |
+| `inicio_turno` | datetime | no |  |  |
+| `fin_turno` | datetime | sí |  |  |
+| `horas_trabajadas` | decimal(5,2) | sí |  |  |
+| `horas_almuerzo` | decimal(4,2) | sí |  |  |
+| `horas_extras` | decimal(5,2) | sí |  |  |
+| `en_capacitacion` | tinyint(1) | sí |  |  |
+| `estado_turno` | enum('En turno','Fuera de turno','En break','En capacitación','En almuerzo','En reunión','Vacaciones','Descanso Médico','Licencia Paternidad','Permiso Fallecimiento','En remoto') | sí |  |  |
+| `fecha_registro` | datetime | sí |  |  |
+| `latitud_inicio` | varchar(50) | sí |  |  |
+| `longitud_inicio` | varchar(50) | sí |  |  |
+| `latitud_fin` | varchar(50) | sí |  |  |
+| `longitud_fin` | varchar(50) | sí |  |  |
+| `observaciones` | text | sí |  |  |
 
-### `supervision_coordenadas_historial` → `SGS_SUPERVISION_COORDENADA`
+### `sgs_perfil`
+Perfiles de acceso: roles personalizados con sus permisos · Depende de: `usuarios`
 
-Historial de coordenadas GPS de una supervisión
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(10) unsigned | no | PK |  |
+| `nombre` | varchar(80) | no | Única |  |
+| `descripcion` | varchar(255) | sí |  |  |
+| `rol_base` | varchar(30) | no |  | Rol del sistema sobre el que se arma el perfil |
+| `permisos` | text | no |  | JSON: lista de claves de permiso habilitadas |
+| `activo` | tinyint(1) | no |  |  |
+| `creado_por` | int(11) | sí | FK → `usuarios` |  |
+| `fecha_registro` | datetime | no |  |  |
+| `fecha_actualizacion` | datetime | no |  |  |
 
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `bigint(20) unsigned` | Sí | No | Sí | Identificador |
-| supervision_id | `int(11)` | No | Sí | Sí | Relación con `supervisiones` (SGS_SUPERVISION) |
-| latitud_anterior | `varchar(50)` | No | No | No |  |
-| longitud_anterior | `varchar(50)` | No | No | No |  |
-| latitud_nueva | `varchar(50)` | No | No | No |  |
-| longitud_nueva | `varchar(50)` | No | No | No |  |
-| cambiado_por | `int(11)` | No | Sí | No | Relación con `usuarios` (SGS_USUARIO) |
-| fecha_registro | `datetime` | No | No | Sí |  |
+### `tecnicos`
+Técnicos por partner: líderes (T1) y de apoyo (T2) · Depende de: `partners`, `usuarios`, `vehiculos`
 
-### `checklists_tecnicos` → `SGS_CHECKLIST`
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `nombre_tecnico` | varchar(255) | no | Única |  |
+| `dni` | varchar(20) | sí | Única |  |
+| `tipo_tecnico` | tinyint(1) | sí |  |  |
+| `celular` | varchar(15) | sí |  |  |
+| `observacion` | text | sí |  |  |
+| `estado_operativo` | enum('Habilitado','Inhabilitado','Blacklist') | no |  |  |
+| `fecha_registro` | datetime | sí |  |  |
+| `fecha_actualizacion` | datetime | sí |  |  |
+| `partner_id` | int(11) | sí | FK → `partners` |  |
+| `usuario_id` | int(11) | sí | FK → `usuarios` |  |
+| `vehiculo_id` | int(11) | sí | FK → `vehiculos` |  |
 
-Checklist aplicado a un técnico en una supervisión
+### `usuario_departamentos_acceso`
+Zonas adicionales que puede ver cada usuario · Depende de: `usuarios`
 
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `int(11)` | Sí | No | Sí | Identificador |
-| supervision_id | `int(11)` | No | Sí | No | Relación con `supervisiones` (SGS_SUPERVISION) |
-| supervisor_id | `int(11)` | No | Sí | Sí | Relación con `usuarios` (SGS_USUARIO) |
-| tecnico_nombre | `varchar(200)` | No | No | Sí |  |
-| tecnico_dni | `varchar(12)` | No | No | Sí |  |
-| unidad_tipo | `varchar(30)` | No | No | Sí |  |
-| unidad_placa | `varchar(15)` | No | No | Sí |  |
-| brevete_poseedor | `varchar(200)` | No | No | No |  |
-| observacion_general | `text` | No | No | No |  |
-| firma_supervisor | `varchar(255)` | No | No | No |  |
-| respuesta_general_partner | `text` | No | No | No |  |
-| fecha_respuesta_partner | `datetime` | No | No | No |  |
-| respondido_por_partner | `int(11)` | No | No | No |  |
-| estado_respuesta | `enum('Pendiente','En revisión','Validado','Penalizado','Reabierto')` | No | No | Sí |  |
-| sustentacion_evaluacion | `text` | No | No | No |  |
-| fecha_evaluacion | `datetime` | No | No | No |  |
-| evaluado_por | `int(11)` | No | No | No |  |
-| fecha_registro | `datetime` | No | No | No |  |
-| fecha_limite_respuesta | `datetime` | No | No | No |  |
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(10) unsigned | no | PK |  |
+| `usuario_id` | int(11) | no | FK → `usuarios` |  |
+| `departamento` | varchar(100) | no |  |  |
+| `activo` | tinyint(1) | no |  |  |
+| `otorgado_por` | int(11) | sí | FK → `usuarios` |  |
+| `fecha_registro` | datetime | no |  |  |
+| `fecha_actualizacion` | datetime | no |  |  |
 
-### `checklist_respuestas` → `SGS_CHECKLIST_RESPUESTA`
+### `usuario_permisos`
+Permisos personalizados por usuario (además de los de su rol) · Depende de: `usuarios`
 
-Respuestas de cada ítem del checklist
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | bigint(20) unsigned | no | PK |  |
+| `usuario_id` | int(11) | no | FK → `usuarios` |  |
+| `permiso` | varchar(100) | no |  |  |
+| `permitido` | tinyint(1) | no |  |  |
+| `otorgado_por` | int(11) | sí | FK → `usuarios` |  |
+| `fecha_registro` | datetime | no |  |  |
+| `fecha_actualizacion` | datetime | no |  |  |
 
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `int(11)` | Sí | No | Sí | Identificador |
-| checklist_id | `int(11)` | No | Sí | Sí | Relación con `checklists_tecnicos` (SGS_CHECKLIST) |
-| criterio | `varchar(255)` | No | No | Sí |  |
-| estado | `enum('Bueno','Regular','Malo','No tiene','S├¡','No','Para cambio','No revisado','Mal estado')` | No | No | Sí |  |
-| observacion | `varchar(500)` | No | No | No |  |
-| foto_evidencia | `varchar(255)` | No | No | No |  |
-| descargo_foto | `varchar(255)` | No | No | No |  |
-| descargo_comentario | `varchar(500)` | No | No | No |  |
+### `asistencia_eventos`
+Pausas dentro del turno (almuerzo, reunión, capacitación) · Depende de: `asistencia_supervisores`
 
-### `observaciones_supervision` → `SGS_OBSERVACION`
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `asistencia_id` | int(11) | no | FK → `asistencia_supervisores` |  |
+| `tipo_evento` | enum('almuerzo','reunion','capacitacion','campo','remoto') | no |  |  |
+| `inicio_evento` | datetime | no |  |  |
+| `fin_evento` | datetime | sí |  |  |
+| `duracion_minutos` | int(11) | sí |  |  |
+| `nota` | varchar(255) | sí |  |  |
+| `latitud` | varchar(50) | sí |  |  |
+| `longitud` | varchar(50) | sí |  |  |
+| `created_at` | datetime | sí |  |  |
 
-Observaciones (hallazgos) y descargos del partner
+### `sgs_usuario_perfil`
+Perfil de acceso asignado a cada usuario (uno por usuario) · Depende de: `usuarios`, `sgs_perfil`
 
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `int(11)` | Sí | No | Sí | Identificador |
-| supervision_id | `int(11)` | No | Sí | Sí | Relación con `supervisiones` (SGS_SUPERVISION) |
-| creado_por | `int(11)` | No | Sí | No | Relación con `usuarios` (SGS_USUARIO) |
-| gravedad | `enum('Leve','Media','Grave','Muy Grave')` | No | No | Sí |  |
-| categoria_id | `int(11)` | No | Sí | Sí | Relación con `categorias_observacion` (SGS_CATEGORIA_OBSERVACION) |
-| subopcion_id | `int(11)` | No | Sí | Sí | Relación con `subopciones_observacion` (SGS_SUBOPCION_OBSERVACION) |
-| detalle_observacion | `text` | No | No | Sí |  |
-| foto_1 | `varchar(255)` | No | No | No |  |
-| foto_comentario_1 | `varchar(500)` | No | No | No |  |
-| foto_2 | `varchar(255)` | No | No | No |  |
-| foto_comentario_2 | `varchar(500)` | No | No | No |  |
-| foto_3 | `varchar(255)` | No | No | No |  |
-| foto_comentario_3 | `varchar(500)` | No | No | No |  |
-| fecha_registro | `datetime` | No | No | No |  |
-| fecha_limite_respuesta | `datetime` | No | No | Sí |  |
-| plazo_subsanacion_dias | `tinyint(3) unsigned` | No | No | Sí |  |
-| subsanacion_inmediata | `tinyint(1)` | No | No | Sí |  |
-| estado_respuesta | `enum('Pendiente','Respondido','En revisión','Penalidad Directa','Apelación Aprobada','Apelación Rechazada','Levantamiento validado','Levantamiento rechazado')` | No | No | No |  |
-| respuesta_partner | `text` | No | No | No |  |
-| descargo_foto_1 | `varchar(255)` | No | No | No |  |
-| descargo_comentario_1 | `varchar(500)` | No | No | No |  |
-| descargo_foto_2 | `varchar(255)` | No | No | No |  |
-| descargo_comentario_2 | `varchar(500)` | No | No | No |  |
-| descargo_foto_3 | `varchar(255)` | No | No | No |  |
-| descargo_comentario_3 | `varchar(500)` | No | No | No |  |
-| fecha_respuesta_partner | `datetime` | No | No | No |  |
-| respondido_por_partner | `int(11)` | No | No | No |  |
-| evaluacion_supervisor | `varchar(50)` | No | No | No |  |
-| sustentacion_evaluacion | `text` | No | No | No |  |
-| fecha_evaluacion | `datetime` | No | No | No |  |
-| evaluado_por | `int(11)` | No | No | No |  |
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `usuario_id` | int(11) | no | PK |  |
+| `perfil_id` | int(10) unsigned | no | FK → `sgs_perfil` |  |
+| `asignado_por` | int(11) | sí | FK → `usuarios` |  |
+| `fecha_asignacion` | datetime | no |  |  |
 
-### `categorias_observacion` → `SGS_CATEGORIA_OBSERVACION`
+### `supervisiones`
+Supervisiones de campo y órdenes pendientes asignadas · Depende de: `usuarios`, `partners`, `tecnicos`, `tipificaciones_cancelacion`, `vehiculos`
 
-Catálogo de categorías de observación
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `codigo_supervision` | varchar(30) | no | Única |  |
+| `fecha_registro` | datetime | sí |  |  |
+| `supervisor_id` | int(11) | no | FK → `usuarios` |  |
+| `asignado_por` | int(11) | sí | FK → `usuarios` |  |
+| `fecha_asignacion` | datetime | sí |  |  |
+| `estado_atencion_partner` | enum('Pendiente','Atendida') | no |  |  |
+| `observacion_atencion_partner` | text | sí |  |  |
+| `fecha_atencion_partner` | datetime | sí |  |  |
+| `zona_asignacion` | varchar(100) | sí |  |  |
+| `derivacion_orden` | enum('Autogestión','Mesa de supervisión','Líder','Coordinador','Gerente') | no |  |  |
+| `tipo_servicio` | enum('Regular','ZAV') | no |  |  |
+| `departamento` | varchar(100) | no |  |  |
+| `provincia` | varchar(100) | no |  |  |
+| `distrito` | varchar(100) | no |  |  |
+| `cliente_nombre` | varchar(200) | sí |  |  |
+| `cliente_dni` | varchar(12) | sí |  |  |
+| `ticket_codigo` | varchar(50) | sí |  |  |
+| `fecha_cancelacion` | date | sí |  |  |
+| `tipo_supervision_inicial` | enum('En caliente','En frío') | no |  |  |
+| `partner_id` | int(11) | sí | FK → `partners` |  |
+| `tecnico1_nombre` | varchar(200) | sí |  |  |
+| `tecnico1_dni` | varchar(8) | sí |  |  |
+| `tecnico2_nombre` | varchar(200) | sí |  |  |
+| `tecnico2_dni` | varchar(8) | sí |  |  |
+| `brevete_poseedor` | enum('Tecnico 1','Tecnico 2','Ninguno') | sí |  |  |
+| `unidad_tipo` | enum('Minivan','Auto','Moto','Otro') | sí |  |  |
+| `unidad_placa` | varchar(10) | sí |  |  |
+| `unidad_soat` | enum('Vigente','No vigente') | sí |  |  |
+| `unidad_revision_tecnica` | enum('Vigente','No vigente') | sí |  |  |
+| `unidad_estado_conservacion` | enum('Mal estado','Regular','Buen estado') | sí |  |  |
+| `clasificacion_supervision` | varchar(100) | no |  |  |
+| `area_servicio` | varchar(100) | no |  |  |
+| `sub_tipo_atencion` | varchar(150) | sí |  |  |
+| `observacion_servicio` | text | sí |  |  |
+| `estado_servicio_caliente` | enum('Finalizada','Cancelada') | sí |  |  |
+| `es_cancelacion` | tinyint(1) | sí |  |  |
+| `origen_importacion` | tinyint(1) | no |  |  |
+| `observacion_previa` | text | sí |  |  |
+| `estado_cancelacion` | varchar(60) | sí |  |  |
+| `tipificacion_cancelacion` | varchar(200) | sí | FK → `tipificaciones_cancelacion` |  |
+| `tipificacion_tecnico_correcta` | tinyint(1) | sí |  |  |
+| `tipificacion_corregida_supervisor` | varchar(200) | sí | FK → `tipificaciones_cancelacion` |  |
+| `estado_supervision` | enum('Pendiente','Iniciada','En proceso','Finalizada') | no |  |  |
+| `latitud` | varchar(50) | sí |  |  |
+| `longitud` | varchar(50) | sí |  |  |
+| `foto_servicio_1` | varchar(255) | sí |  |  |
+| `foto_servicio_comentario_1` | varchar(500) | sí |  |  |
+| `foto_servicio_2` | varchar(255) | sí |  |  |
+| `foto_servicio_comentario_2` | varchar(500) | sí |  |  |
+| `foto_servicio_3` | varchar(255) | sí |  |  |
+| `foto_servicio_comentario_3` | varchar(500) | sí |  |  |
+| `tecnico1_id` | int(11) | sí | FK → `tecnicos` |  |
+| `tecnico2_id` | int(11) | sí | FK → `tecnicos` |  |
+| `vehiculo_id` | int(11) | sí | FK → `vehiculos` |  |
 
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `int(11)` | Sí | No | Sí | Identificador |
-| nombre_categoria | `varchar(100)` | No | No | Sí |  |
+### `checklists_tecnicos`
+Checklist de cuadrilla por supervisión · Depende de: `supervisiones`, `usuarios`
 
-### `subopciones_observacion` → `SGS_SUBOPCION_OBSERVACION`
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `supervision_id` | int(11) | sí | FK → `supervisiones` |  |
+| `supervisor_id` | int(11) | no | FK → `usuarios` |  |
+| `tecnico_nombre` | varchar(200) | no |  |  |
+| `tecnico_dni` | varchar(12) | no |  |  |
+| `unidad_tipo` | varchar(30) | no |  |  |
+| `unidad_placa` | varchar(15) | no |  |  |
+| `brevete_poseedor` | varchar(200) | sí |  |  |
+| `observacion_general` | text | sí |  |  |
+| `firma_supervisor` | varchar(255) | sí |  |  |
+| `respuesta_general_partner` | text | sí |  |  |
+| `fecha_respuesta_partner` | datetime | sí |  |  |
+| `respondido_por_partner` | int(11) | sí |  |  |
+| `estado_respuesta` | enum('Pendiente','En revisión','Validado','Penalizado','Reabierto') | no |  |  |
+| `sustentacion_evaluacion` | text | sí |  |  |
+| `fecha_evaluacion` | datetime | sí |  |  |
+| `evaluado_por` | int(11) | sí |  |  |
+| `fecha_registro` | datetime | sí |  |  |
+| `fecha_limite_respuesta` | datetime | sí |  |  |
 
-Catálogo de subopciones por categoría
+### `observaciones_supervision`
+Observaciones en campo, descargos del partner y plazos · Depende de: `categorias_observacion`, `usuarios`, `subopciones_observacion`, `supervisiones`
 
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `int(11)` | Sí | No | Sí | Identificador |
-| categoria_id | `int(11)` | No | Sí | Sí | Relación con `categorias_observacion` (SGS_CATEGORIA_OBSERVACION) |
-| descripcion_subopcion | `varchar(200)` | No | No | Sí |  |
-| gravedad | `enum('Media','Grave','Muy Grave')` | No | No | Sí |  |
-| penalidad_monto | `decimal(10,2)` | No | No | Sí |  |
-| accion_adicional | `varchar(255)` | No | No | No |  |
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `supervision_id` | int(11) | no | FK → `supervisiones` |  |
+| `creado_por` | int(11) | sí | FK → `usuarios` |  |
+| `gravedad` | enum('Leve','Media','Grave','Muy Grave') | no |  |  |
+| `categoria_id` | int(11) | no | FK → `categorias_observacion` |  |
+| `subopcion_id` | int(11) | no | FK → `subopciones_observacion` |  |
+| `detalle_observacion` | text | no |  |  |
+| `foto_1` | varchar(255) | sí |  |  |
+| `foto_comentario_1` | varchar(500) | sí |  |  |
+| `foto_2` | varchar(255) | sí |  |  |
+| `foto_comentario_2` | varchar(500) | sí |  |  |
+| `foto_3` | varchar(255) | sí |  |  |
+| `foto_comentario_3` | varchar(500) | sí |  |  |
+| `fecha_registro` | datetime | sí |  |  |
+| `fecha_limite_respuesta` | datetime | no |  |  |
+| `plazo_subsanacion_dias` | tinyint(3) unsigned | no |  |  |
+| `subsanacion_inmediata` | tinyint(1) | no |  |  |
+| `estado_respuesta` | enum('Pendiente','Respondido','En revisión','Penalidad Directa','Apelación Aprobada','Apelación Rechazada','Levantamiento validado','Levantamiento rechazado') | sí |  |  |
+| `respuesta_partner` | text | sí |  |  |
+| `descargo_foto_1` | varchar(255) | sí |  |  |
+| `descargo_comentario_1` | varchar(500) | sí |  |  |
+| `descargo_foto_2` | varchar(255) | sí |  |  |
+| `descargo_comentario_2` | varchar(500) | sí |  |  |
+| `descargo_foto_3` | varchar(255) | sí |  |  |
+| `descargo_comentario_3` | varchar(500) | sí |  |  |
+| `fecha_respuesta_partner` | datetime | sí |  |  |
+| `respondido_por_partner` | int(11) | sí |  |  |
+| `evaluacion_supervisor` | varchar(50) | sí |  |  |
+| `sustentacion_evaluacion` | text | sí |  |  |
+| `fecha_evaluacion` | datetime | sí |  |  |
+| `evaluado_por` | int(11) | sí |  |  |
 
-### `tipificaciones_cancelacion` → `SGS_TIPIFICACION_CANCELACION`
+### `supervision_coordenadas_historial`
+Cambios de ubicación GPS de cada supervisión · Depende de: `usuarios`, `supervisiones`
 
-Catálogo de motivos de cancelación
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | bigint(20) unsigned | no | PK |  |
+| `supervision_id` | int(11) | no | FK → `supervisiones` |  |
+| `latitud_anterior` | varchar(50) | sí |  |  |
+| `longitud_anterior` | varchar(50) | sí |  |  |
+| `latitud_nueva` | varchar(50) | sí |  |  |
+| `longitud_nueva` | varchar(50) | sí |  |  |
+| `cambiado_por` | int(11) | sí | FK → `usuarios` |  |
+| `fecha_registro` | datetime | no |  |  |
 
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `int(11)` | Sí | No | Sí | Identificador |
-| descripcion | `varchar(200)` | No | No | Sí |  |
-| estado | `tinyint(1)` | No | No | Sí |  |
-| fecha_registro | `datetime` | No | No | Sí |  |
+### `supervision_estado_historial`
+Cambios de estado de cada supervisión (horas reales de inicio y fin) · Depende de: `usuarios`, `supervisiones`
 
-### `tecnicos` → `SGS_TECNICO`
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | bigint(20) unsigned | no | PK |  |
+| `supervision_id` | int(11) | no | FK → `supervisiones` |  |
+| `estado_anterior` | varchar(40) | sí |  |  |
+| `estado_nuevo` | varchar(40) | no |  |  |
+| `cambiado_por` | int(11) | sí | FK → `usuarios` |  |
+| `comentario` | varchar(500) | sí |  |  |
+| `fecha_cambio` | datetime | no |  |  |
 
-Técnicos de las cuadrillas
+### `checklist_respuestas`
+Criterios evaluados en cada checklist · Depende de: `checklists_tecnicos`
 
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `int(11)` | Sí | No | Sí | Identificador |
-| nombre_tecnico | `varchar(255)` | No | No | Sí |  |
-| dni | `varchar(20)` | No | No | No |  |
-| tipo_tecnico | `tinyint(1)` | No | No | No |  |
-| celular | `varchar(15)` | No | No | No |  |
-| observacion | `text` | No | No | No |  |
-| estado_operativo | `enum('Habilitado','Inhabilitado','Blacklist')` | No | No | Sí |  |
-| fecha_registro | `datetime` | No | No | No |  |
-| fecha_actualizacion | `datetime` | No | No | No |  |
-| partner_id | `int(11)` | No | Sí | No | Relación con `partners` (SGS_PARTNER) |
-| usuario_id | `int(11)` | No | Sí | No | Relación con `usuarios` (SGS_USUARIO) |
-| vehiculo_id | `int(11)` | No | Sí | No | Relación con `vehiculos` (SGS_VEHICULO) |
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `checklist_id` | int(11) | no | FK → `checklists_tecnicos` |  |
+| `criterio` | varchar(255) | no |  |  |
+| `estado` | enum('Bueno','Regular','Malo','No tiene','S├¡','No','Para cambio','No revisado','Mal estado') | no |  |  |
+| `observacion` | varchar(500) | sí |  |  |
+| `foto_evidencia` | varchar(255) | sí |  |  |
+| `descargo_foto` | varchar(255) | sí |  |  |
+| `descargo_comentario` | varchar(500) | sí |  |  |
 
-### `vehiculos` → `SGS_VEHICULO`
+### `notificaciones`
+Avisos a los usuarios · Depende de: `observaciones_supervision`, `usuarios`
 
-Unidades vehiculares de las cuadrillas
-
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `int(11)` | Sí | No | Sí | Identificador |
-| placa | `varchar(10)` | No | No | Sí |  |
-| tipo | `enum('Minivan','Auto','Moto','Otro')` | No | No | No |  |
-| marca | `varchar(100)` | No | No | No |  |
-| modelo | `varchar(100)` | No | No | No |  |
-| anio | `smallint(5) unsigned` | No | No | No |  |
-| soat | `enum('Vigente','No vigente')` | No | No | No |  |
-| soat_vencimiento | `date` | No | No | No |  |
-| revision_tecnica | `enum('Vigente','No vigente')` | No | No | No |  |
-| revision_tecnica_vencimiento | `date` | No | No | No |  |
-| extintor_vencimiento | `date` | No | No | No |  |
-| fecha_registro | `datetime` | No | No | Sí |  |
-| fecha_actualizacion | `datetime` | No | No | No |  |
-
-### `ubigeo` → `SGS_UBIGEO`
-
-Departamento / provincia / distrito
-
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `int(11)` | Sí | No | Sí | Identificador |
-| departamento | `varchar(100)` | No | No | Sí |  |
-| provincia | `varchar(100)` | No | No | Sí |  |
-| distrito | `varchar(100)` | No | No | Sí |  |
-
-### `asistencia_supervisores` → `SGS_ASISTENCIA`
-
-Turno diario del supervisor (lo usa la línea de tiempo)
-
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `int(11)` | Sí | No | Sí | Identificador |
-| supervisor_id | `int(11)` | No | Sí | Sí | Relación con `usuarios` (SGS_USUARIO) |
-| fecha | `date` | No | No | Sí |  |
-| inicio_turno | `datetime` | No | No | Sí |  |
-| fin_turno | `datetime` | No | No | No |  |
-| horas_trabajadas | `decimal(5,2)` | No | No | No |  |
-| horas_almuerzo | `decimal(4,2)` | No | No | No |  |
-| horas_extras | `decimal(5,2)` | No | No | No |  |
-| en_capacitacion | `tinyint(1)` | No | No | No |  |
-| estado_turno | `enum('En turno','Fuera de turno','En break','En capacitación','En almuerzo','En reunión','Vacaciones','Descanso Médico','Licencia Paternidad','Permiso Fallecimiento')` | No | No | No |  |
-| fecha_registro | `datetime` | No | No | No |  |
-| latitud_inicio | `varchar(50)` | No | No | No |  |
-| longitud_inicio | `varchar(50)` | No | No | No |  |
-| latitud_fin | `varchar(50)` | No | No | No |  |
-| longitud_fin | `varchar(50)` | No | No | No |  |
-| observaciones | `text` | No | No | No |  |
-
-### `asistencia_eventos` → `SGS_ASISTENCIA_EVENTO`
-
-Eventos del turno (pausas, reuniones...)
-
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `int(11)` | Sí | No | Sí | Identificador |
-| asistencia_id | `int(11)` | No | Sí | Sí | Relación con `asistencia_supervisores` (SGS_ASISTENCIA) |
-| tipo_evento | `enum('almuerzo','reunion','capacitacion','campo')` | No | No | Sí |  |
-| inicio_evento | `datetime` | No | No | Sí |  |
-| fin_evento | `datetime` | No | No | No |  |
-| duracion_minutos | `int(11)` | No | No | No |  |
-| nota | `varchar(255)` | No | No | No |  |
-| latitud | `varchar(50)` | No | No | No |  |
-| longitud | `varchar(50)` | No | No | No |  |
-| created_at | `datetime` | No | No | No |  |
-
-### `notificaciones` → `SGS_NOTIFICACION`
-
-Notificaciones a usuarios
-
-| Campo | Tipo | PK | FK | Oblig. | Descripción |
-|---|---|---|---|---|---|
-| id | `int(11)` | Sí | No | Sí | Identificador |
-| usuario_id | `int(11)` | No | Sí | Sí | Relación con `usuarios` (SGS_USUARIO) |
-| observacion_id | `int(11)` | No | Sí | No | Relación con `observaciones_supervision` (SGS_OBSERVACION) |
-| titulo | `varchar(160)` | No | No | Sí |  |
-| mensaje | `varchar(500)` | No | No | Sí |  |
-| url_destino | `varchar(255)` | No | No | No |  |
-| leida | `tinyint(1)` | No | No | Sí |  |
-| fecha_registro | `datetime` | No | No | Sí |  |
-| fecha_lectura | `datetime` | No | No | No |  |
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `usuario_id` | int(11) | no | FK → `usuarios` |  |
+| `observacion_id` | int(11) | sí | FK → `observaciones_supervision` |  |
+| `titulo` | varchar(160) | no |  |  |
+| `mensaje` | varchar(500) | no |  |  |
+| `url_destino` | varchar(255) | sí |  |  |
+| `leida` | tinyint(1) | no |  |  |
+| `fecha_registro` | datetime | no |  |  |
+| `fecha_lectura` | datetime | sí |  |  |

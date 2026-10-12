@@ -34,8 +34,8 @@ $user = Auth::getLoggedInUser();
         </div>
         <div class="col-6 col-lg-3">
             <div class="sgs-kpi p-3 h-100 sgs-kpi--info">
-                <span class="sgs-kpi-icon" aria-hidden="true"><i class="bi bi-journal-check"></i></span>
-                <small class="sgs-kpi-label">Capacitación / reunión</small>
+                <span class="sgs-kpi-icon" aria-hidden="true"><i class="bi bi-laptop"></i></span>
+                <small class="sgs-kpi-label">Reunión, capacitación o remoto</small>
                 <h3 class="mb-0 sgs-kpi-value" id="stat-en-capacitacion">0</h3>
             </div>
         </div>
@@ -67,6 +67,7 @@ $user = Auth::getLoggedInUser();
             <span class="badge sgs-tl-legend-fin"><i class="bi bi-check2-circle me-1"></i>Supervisión finalizada</span>
             <span class="badge bg-warning text-dark fw-bold"><i class="bi bi-car-front-fill me-1"></i> Traslado (min)</span>
             <span class="badge bg-pausa text-white"><i class="bi bi-cup-hot-fill me-1"></i> Pausa / almuerzo</span>
+            <span class="badge sgs-tl-legend-remoto"><i class="bi bi-laptop me-1"></i>Trabajo remoto</span>
             <span class="badge bg-danger text-white"><i class="bi bi-arrow-left-circle-fill me-1"></i> Fin</span>
         </div>
 
@@ -234,7 +235,18 @@ async function cargarTimelineSupervisores() {
                                 <i class="bi bi-cup-hot-fill me-1"></i>
                                 <div>
                                     <strong class="d-block"><i class="bi bi-cup-hot me-1"></i>${escapeHtml(b.title)}</strong>
-                                    <small class="text-white-50 text-xs">${b.hora_inicio} - ${b.hora_fin}</small>
+                                    <small class="sgs-tl-time">${b.hora_inicio} - ${b.hora_fin}</small>
+                                </div>
+                            </div>
+                        `;
+                    } else if (b.type === 'remote') {
+                        const durRem = b.duracion_minutos ? ` · ${b.duracion_minutos} min` : '';
+                        horizontalBlocksHtml += `
+                            <div class="timeline-block-item ${b.color_class}" title="${escapeHtml(b.nota || 'Trabajo remoto')}">
+                                <i class="bi bi-laptop me-1"></i>
+                                <div>
+                                    <strong class="d-block">Trabajo remoto</strong>
+                                    <small class="sgs-tl-time">${b.hora_inicio} - ${b.hora_fin}${durRem}</small>
                                 </div>
                             </div>
                         `;
@@ -264,6 +276,9 @@ async function cargarTimelineSupervisores() {
                                 <span class="badge ${badgeClass} text-xs">${escapeHtml(s.estado_general)}</span>
                                 <span class="badge bg-secondary text-white text-xs">${s.total_supervisiones} sup</span>
                             </div>
+                            ${s.primera_accion
+                                ? `<small class="sgs-tl-primera" title="Primera actividad después de iniciar el turno">1.ª acción: ${escapeHtml(s.primera_accion.tipo)} ${s.primera_accion.hora} · ${s.primera_accion.minutos} min</small>`
+                                : (s.asistencia && !s.es_licencia ? '<small class="sgs-tl-primera is-pendiente">Sin acciones aún</small>' : '')}
                         </div>
                     </div>
 

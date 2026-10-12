@@ -62,6 +62,16 @@ function pendingTerritorialCondition(string $alias, string $scope, int $userId, 
     return "({$alias}.estado_supervision = 'Pendiente' AND (" . implode(' OR ', $scopeParts) . '))';
 }
 
+/** Mensaje al negar la edición: si otro supervisor ya tomó la pendiente de la bolsa común, se explica así. */
+function mensajeSinAccesoSupervision(array $user, $supervision, string $porDefecto): string {
+    $tomadaPorOtro = is_array($supervision) && ($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR
+        && (int)($supervision['supervisor_id'] ?? 0) !== (int)($user['id'] ?? 0)
+        && ($supervision['estado_supervision'] ?? '') !== 'Pendiente';
+    return $tomadaPorOtro
+        ? 'Esta orden ya fue tomada por otro supervisor y salió de la lista de pendientes. Actualice la lista.'
+        : $porDefecto;
+}
+
 function canAccessSupervision(array $user, array $supervision, bool $allowPending = false): bool {
     if (Auth::can(Auth::PERM_SUPERVISION_VIEW_ALL, $user)) return true;
     $isPendingPoolItem = $allowPending && ($supervision['estado_supervision'] ?? '') === 'Pendiente';
@@ -243,7 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
         $targetQuery->execute([':id'=>$requestedEditId]);
         $targetRecord = $targetQuery->fetch();
         if (!$targetRecord || !canAccessSupervision($user, $targetRecord, true)) {
-            http_response_code(403); echo json_encode(['status'=>'error','message'=>'No puede editar esta supervisión.']); exit;
+            http_response_code(403); echo json_encode(['status'=>'error','message'=>mensajeSinAccesoSupervision($user, $targetRecord, 'No puede editar esta supervisión.')]); exit;
         }
     }
 
@@ -554,7 +564,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
             if (!$existingSupervision || !canAccessSupervision($user, $existingSupervision, $allowPendingPool)) {
                 $pdo->rollBack();
                 http_response_code(403);
-                echo json_encode(['status' => 'error', 'message' => 'No tiene permisos para editar esta supervisión.']);
+                // Si otro supervisor la tomó un momento antes, se explica en lugar de un error de permisos.
+                echo json_encode(['status' => 'error', 'message' => mensajeSinAccesoSupervision($user, $existingSupervision, 'No tiene permisos para editar esta supervisión.')]);
                 exit;
             }
             $adminEnVistaNormal = Auth::isAdministrative();
@@ -607,6 +618,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
                     ]);
                     exit;
                 }
+                $supervisorActualizacionId = (int)$user['id'];
+            }
+            // Bolsa común (2026-10-11): quien saca la orden de Pendiente, en cualquier estado, se queda con ella
+            // y desaparece de la lista de pendientes de los demás supervisores de la zona.
+            if (($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR
+                && $existingSupervision['estado_supervision'] === 'Pendiente'
+                && $estadoSupervision !== 'Pendiente') {
                 $supervisorActualizacionId = (int)$user['id'];
             }
             if (($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR) {

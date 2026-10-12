@@ -9,7 +9,9 @@ Lista de control para la primera subida de prueba. Para un servidor propio (VPS)
 - [ ] Base de datos creada desde cPanel y un usuario con todos los permisos sobre ella.
 
 ## 2. Base de datos
-En phpMyAdmin seleccionar la base y, en la pestaña **Importar**, cargar en orden los archivos de `04_DATABASE/01_INSTALACION/`, del `02_…` al `24_…`. El `01_crear_base.sql` se omite porque la base ya existe. Detalle en su `LEEME.md`.
+En phpMyAdmin seleccionar la base y, en la pestaña **Importar**, importar **`04_DATABASE/01_INSTALACION/00_instalacion_completa.sql`** (todas las tablas y datos en un solo archivo). La base se crea antes desde el panel. Si phpMyAdmin pusiera límite de tamaño, están también por partes (`02_…` a `24_…`, en orden). Detalle en su `LEEME.md`.
+
+Después de subir, cada cambio de la base llega como carpeta con fecha en `04_DATABASE/02_CAMBIOS/` y se aplica con `php 07_SCRIPTS/migrar.php` (o importando su `cambio.sql`).
 
 ## 3. Archivos
 - Subir la carpeta completa del sistema (por el Administrador de archivos o FTP), **excepto**: `.env`, `.git/`, `08_LOGS/` (solo la estructura vacía), `10_RESPALDOS/base/`, `09_CONFIG/*.local.txt`.

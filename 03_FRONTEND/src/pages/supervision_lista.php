@@ -4176,7 +4176,13 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
 
   function resetNewWorkflowForm() {
     formInicio?.reset();
+    // reset() no dispara eventos: sin esto quedaban datos de la supervisión anterior a la vista (sección de
+    // observación abierta con sus fotos, tipificación marcada como elegida, buscadores de T1/T2 bloqueados).
+    if (newChkObs) newChkObs.dispatchEvent(new Event('change'));
+    formInicio?.querySelectorAll('[data-obs-combo-box]').forEach(caja => caja._reset?.());
+    formInicio?.querySelectorAll('[id^="new_preview_"]').forEach(preview => { preview.innerHTML = ''; preview.style.display = 'none'; });
     if (newPartner) newPartner.value = '';
+    [newTec1Nom, newTec2Nom].forEach(select => select?.dispatchEvent(new Event('change')));
     newSectionOneIds.map(id => document.getElementById(id)).forEach(field => { if (field) field.disabled = false; });
     newWorkflowState = 'draft';
     newHasSavedEvidence = false;

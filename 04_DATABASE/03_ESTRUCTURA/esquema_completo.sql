@@ -4,14 +4,14 @@
 
 SET NAMES utf8mb4;
 
--- Tabla `categorias_observacion`: categorías de observación
+-- Tabla `categorias_observacion`: Categorías de observación
 CREATE TABLE IF NOT EXISTS `categorias_observacion` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nombre_categoria` varchar(100) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Categorías de observación';
 
--- Tabla `login_attempts`: intentos de ingreso (bloqueo a los 3 intentos)
+-- Tabla `login_attempts`: Intentos de ingreso (bloqueo a los 3 fallidos)
 CREATE TABLE IF NOT EXISTS `login_attempts` (
   `fingerprint` char(64) NOT NULL,
   `attempts` smallint(5) unsigned NOT NULL DEFAULT 1,
@@ -19,10 +19,10 @@ CREATE TABLE IF NOT EXISTS `login_attempts` (
   `last_attempt_at` datetime NOT NULL DEFAULT current_timestamp(),
   `blocked_until` datetime DEFAULT NULL,
   PRIMARY KEY (`fingerprint`),
-  KEY `idx_login_attempt_expiry` (`last_attempt_at`,`blocked_until`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `idx_login_attempts_last_attempt_at_blocked_until` (`last_attempt_at`,`blocked_until`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Intentos de ingreso (bloqueo a los 3 fallidos)';
 
--- Tabla `partners`: contratas (incluye WIN DIRECTO, necesario para el personal propio)
+-- Tabla `partners`: Contratas; WIN DIRECTO = personal propio
 CREATE TABLE IF NOT EXISTS `partners` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nombre_partner` varchar(150) NOT NULL,
@@ -30,26 +30,26 @@ CREATE TABLE IF NOT EXISTS `partners` (
   `estado` tinyint(1) DEFAULT 1,
   `fecha_registro` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Contratas; WIN DIRECTO = personal propio';
 
--- Tabla `sgs_migracion`: migraciones aplicadas (empieza vacía: la instalación ya trae la estructura al día)
+-- Tabla `sgs_migracion`: Cambios de base de datos ya aplicados (los registra 07_SCRIPTS/migrar.php)
 CREATE TABLE IF NOT EXISTS `sgs_migracion` (
-  `ARCHIVO` varchar(120) NOT NULL,
-  `FECHA_APLICACION` datetime NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`ARCHIVO`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `archivo` varchar(120) NOT NULL COMMENT 'Carpeta del cambio en 04_DATABASE/02_CAMBIOS',
+  `fecha_aplicacion` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`archivo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Cambios de base de datos ya aplicados (los registra 07_SCRIPTS/migrar.php)';
 
--- Tabla `tipificaciones_cancelacion`: motivos de cancelación
+-- Tabla `tipificaciones_cancelacion`: Motivos de cancelación (los del Excel de pendientes se agregan solos)
 CREATE TABLE IF NOT EXISTS `tipificaciones_cancelacion` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `descripcion` varchar(200) NOT NULL,
   `estado` tinyint(1) NOT NULL DEFAULT 1,
   `fecha_registro` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `descripcion` (`descripcion`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `uq_tipificaciones_cancelacion_descripcion` (`descripcion`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Motivos de cancelación (los del Excel de pendientes se agregan solos)';
 
--- Tabla `ubigeo`: departamentos, provincias y distritos de operación
+-- Tabla `ubigeo`: Departamentos, provincias y distritos de operación
 CREATE TABLE IF NOT EXISTS `ubigeo` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `departamento` varchar(100) NOT NULL,
@@ -57,9 +57,9 @@ CREATE TABLE IF NOT EXISTS `ubigeo` (
   `distrito` varchar(100) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_ubigeo_departamento_provincia_distrito` (`departamento`,`provincia`,`distrito`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Departamentos, provincias y distritos de operación';
 
--- Tabla `vehiculos`: vehículos de las cuadrillas
+-- Tabla `vehiculos`: Vehículos de las cuadrillas
 CREATE TABLE IF NOT EXISTS `vehiculos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `placa` varchar(10) NOT NULL,
@@ -75,10 +75,10 @@ CREATE TABLE IF NOT EXISTS `vehiculos` (
   `fecha_registro` datetime NOT NULL DEFAULT current_timestamp(),
   `fecha_actualizacion` datetime DEFAULT NULL ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `placa` (`placa`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `uq_vehiculos_placa` (`placa`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Vehículos de las cuadrillas';
 
--- Tabla `subopciones_observacion`: tipificaciones con gravedad y penalidad (depende de: categorias_observacion)
+-- Tabla `subopciones_observacion`: Tipificaciones de observación con gravedad y penalidad (depende de: categorias_observacion)
 CREATE TABLE IF NOT EXISTS `subopciones_observacion` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `categoria_id` int(11) NOT NULL,
@@ -87,11 +87,11 @@ CREATE TABLE IF NOT EXISTS `subopciones_observacion` (
   `penalidad_monto` decimal(10,2) NOT NULL DEFAULT 0.00,
   `accion_adicional` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `categoria_id` (`categoria_id`),
-  CONSTRAINT `subopciones_observacion_ibfk_1` FOREIGN KEY (`categoria_id`) REFERENCES `categorias_observacion` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `idx_subopciones_observacion_categoria_id` (`categoria_id`),
+  CONSTRAINT `fk_subopciones_observacion_categoria_id` FOREIGN KEY (`categoria_id`) REFERENCES `categorias_observacion` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Tipificaciones de observación con gravedad y penalidad';
 
--- Tabla `usuarios`: usuarios del sistema (depende de: partners)
+-- Tabla `usuarios`: Usuarios del sistema (personal WIN y de partners) (depende de: partners)
 CREATE TABLE IF NOT EXISTS `usuarios` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `dni` varchar(8) NOT NULL,
@@ -117,14 +117,14 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
   `fecha_creacion` datetime DEFAULT current_timestamp(),
   `avatar` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `dni` (`dni`),
-  UNIQUE KEY `email` (`email`),
-  UNIQUE KEY `uq_usuario` (`usuario`),
-  KEY `partner_id` (`partner_id`),
-  CONSTRAINT `usuarios_ibfk_1` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `uq_usuarios_dni` (`dni`),
+  UNIQUE KEY `uq_usuarios_email` (`email`),
+  UNIQUE KEY `uq_usuarios_usuario` (`usuario`),
+  KEY `idx_usuarios_partner_id` (`partner_id`),
+  CONSTRAINT `fk_usuarios_partner_id` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Usuarios del sistema (personal WIN y de partners)';
 
--- Tabla `asistencia_supervisores`: inicios y cierres de turno (depende de: usuarios)
+-- Tabla `asistencia_supervisores`: Turnos de los supervisores: inicio, fin y horas (depende de: usuarios)
 CREATE TABLE IF NOT EXISTS `asistencia_supervisores` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `supervisor_id` int(11) NOT NULL,
@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS `asistencia_supervisores` (
   `horas_almuerzo` decimal(4,2) DEFAULT 1.00,
   `horas_extras` decimal(5,2) DEFAULT 0.00,
   `en_capacitacion` tinyint(1) DEFAULT 0,
-  `estado_turno` enum('En turno','Fuera de turno','En break','En capacitación','En almuerzo','En reunión','Vacaciones','Descanso Médico','Licencia Paternidad','Permiso Fallecimiento') DEFAULT 'En turno',
+  `estado_turno` enum('En turno','Fuera de turno','En break','En capacitación','En almuerzo','En reunión','Vacaciones','Descanso Médico','Licencia Paternidad','Permiso Fallecimiento','En remoto') DEFAULT 'En turno',
   `fecha_registro` datetime DEFAULT current_timestamp(),
   `latitud_inicio` varchar(50) DEFAULT NULL,
   `longitud_inicio` varchar(50) DEFAULT NULL,
@@ -143,29 +143,29 @@ CREATE TABLE IF NOT EXISTS `asistencia_supervisores` (
   `longitud_fin` varchar(50) DEFAULT NULL,
   `observaciones` text DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_asistencia_supervisor_fecha` (`supervisor_id`,`fecha`),
-  KEY `IX_ASISTENCIA_FECHA` (`fecha`),
-  CONSTRAINT `asistencia_supervisores_ibfk_1` FOREIGN KEY (`supervisor_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `uq_asistencia_supervisores_supervisor_id_fecha` (`supervisor_id`,`fecha`),
+  KEY `idx_asistencia_supervisores_fecha` (`fecha`),
+  CONSTRAINT `fk_asistencia_supervisores_supervisor_id` FOREIGN KEY (`supervisor_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Turnos de los supervisores: inicio, fin y horas';
 
--- Tabla `sgs_perfil`: perfiles de acceso (depende de: usuarios)
+-- Tabla `sgs_perfil`: Perfiles de acceso: roles personalizados con sus permisos (depende de: usuarios)
 CREATE TABLE IF NOT EXISTS `sgs_perfil` (
-  `PERFIL_ID` int(10) unsigned NOT NULL AUTO_INCREMENT,
-  `NOMBRE` varchar(80) NOT NULL,
-  `DESCRIPCION` varchar(255) DEFAULT NULL,
-  `ROL_BASE` varchar(30) NOT NULL,
-  `PERMISOS` text NOT NULL COMMENT 'JSON: lista de claves de permiso habilitadas',
-  `ACTIVO` tinyint(1) NOT NULL DEFAULT 1,
-  `CREADO_POR` int(11) DEFAULT NULL,
-  `FECHA_CREACION` datetime NOT NULL DEFAULT current_timestamp(),
-  `FECHA_ACTUALIZACION` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`PERFIL_ID`),
-  UNIQUE KEY `UQ_SGS_PERFIL_NOMBRE` (`NOMBRE`),
-  KEY `FK_SGS_PERFIL_CREADO_POR` (`CREADO_POR`),
-  CONSTRAINT `FK_SGS_PERFIL_CREADO_POR` FOREIGN KEY (`CREADO_POR`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(80) NOT NULL,
+  `descripcion` varchar(255) DEFAULT NULL,
+  `rol_base` varchar(30) NOT NULL COMMENT 'Rol del sistema sobre el que se arma el perfil',
+  `permisos` text NOT NULL COMMENT 'JSON: lista de claves de permiso habilitadas',
+  `activo` tinyint(1) NOT NULL DEFAULT 1,
+  `creado_por` int(11) DEFAULT NULL,
+  `fecha_registro` datetime NOT NULL DEFAULT current_timestamp(),
+  `fecha_actualizacion` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_sgs_perfil_nombre` (`nombre`),
+  KEY `idx_sgs_perfil_creado_por` (`creado_por`),
+  CONSTRAINT `fk_sgs_perfil_creado_por` FOREIGN KEY (`creado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Perfiles de acceso: roles personalizados con sus permisos';
 
--- Tabla `tecnicos`: técnicos líderes (T1) y de apoyo (T2) por partner (depende de: partners, usuarios, vehiculos)
+-- Tabla `tecnicos`: Técnicos por partner: líderes (T1) y de apoyo (T2) (depende de: partners, usuarios, vehiculos)
 CREATE TABLE IF NOT EXISTS `tecnicos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nombre_tecnico` varchar(255) NOT NULL,
@@ -180,18 +180,18 @@ CREATE TABLE IF NOT EXISTS `tecnicos` (
   `usuario_id` int(11) DEFAULT NULL,
   `vehiculo_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `nombre_tecnico` (`nombre_tecnico`),
+  UNIQUE KEY `uq_tecnicos_nombre_tecnico` (`nombre_tecnico`),
   UNIQUE KEY `uq_tecnicos_dni` (`dni`),
-  UNIQUE KEY `uq_tecnico_usuario` (`usuario_id`),
-  KEY `idx_tecnicos_estado_tipo` (`estado_operativo`,`tipo_tecnico`),
-  KEY `fk_tecnico_partner` (`partner_id`),
-  KEY `fk_tecnico_vehiculo` (`vehiculo_id`),
-  CONSTRAINT `fk_tecnico_partner` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`),
-  CONSTRAINT `fk_tecnico_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_tecnico_vehiculo` FOREIGN KEY (`vehiculo_id`) REFERENCES `vehiculos` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `uq_tecnicos_usuario_id` (`usuario_id`),
+  KEY `idx_tecnicos_estado_operativo_tipo_tecnico` (`estado_operativo`,`tipo_tecnico`),
+  KEY `idx_tecnicos_partner_id` (`partner_id`),
+  KEY `idx_tecnicos_vehiculo_id` (`vehiculo_id`),
+  CONSTRAINT `fk_tecnicos_partner_id` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`),
+  CONSTRAINT `fk_tecnicos_usuario_id` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_tecnicos_vehiculo_id` FOREIGN KEY (`vehiculo_id`) REFERENCES `vehiculos` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Técnicos por partner: líderes (T1) y de apoyo (T2)';
 
--- Tabla `usuario_departamentos_acceso`: zonas adicionales de cada usuario (depende de: usuarios)
+-- Tabla `usuario_departamentos_acceso`: Zonas adicionales que puede ver cada usuario (depende de: usuarios)
 CREATE TABLE IF NOT EXISTS `usuario_departamentos_acceso` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `usuario_id` int(11) NOT NULL,
@@ -201,14 +201,14 @@ CREATE TABLE IF NOT EXISTS `usuario_departamentos_acceso` (
   `fecha_registro` datetime NOT NULL DEFAULT current_timestamp(),
   `fecha_actualizacion` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_usuario_departamento_acceso` (`usuario_id`,`departamento`),
-  KEY `idx_acceso_departamento_activo` (`departamento`,`activo`),
-  KEY `fk_acceso_departamento_otorgante` (`otorgado_por`),
-  CONSTRAINT `fk_acceso_departamento_otorgante` FOREIGN KEY (`otorgado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_acceso_departamento_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `uq_usuario_departamentos_acceso_usuario_id_departamento` (`usuario_id`,`departamento`),
+  KEY `idx_usuario_departamentos_acceso_departamento_activo` (`departamento`,`activo`),
+  KEY `idx_usuario_departamentos_acceso_otorgado_por` (`otorgado_por`),
+  CONSTRAINT `fk_usuario_departamentos_acceso_otorgado_por` FOREIGN KEY (`otorgado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_usuario_departamentos_acceso_usuario_id` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Zonas adicionales que puede ver cada usuario';
 
--- Tabla `usuario_permisos`: permisos personalizados por usuario (depende de: usuarios)
+-- Tabla `usuario_permisos`: Permisos personalizados por usuario (además de los de su rol) (depende de: usuarios)
 CREATE TABLE IF NOT EXISTS `usuario_permisos` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `usuario_id` int(11) NOT NULL,
@@ -218,18 +218,18 @@ CREATE TABLE IF NOT EXISTS `usuario_permisos` (
   `fecha_registro` datetime NOT NULL DEFAULT current_timestamp(),
   `fecha_actualizacion` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_usuario_permiso` (`usuario_id`,`permiso`),
-  KEY `idx_usuario_permisos_consulta` (`usuario_id`,`permitido`),
-  KEY `fk_usuario_permisos_otorgante` (`otorgado_por`),
-  CONSTRAINT `fk_usuario_permisos_otorgante` FOREIGN KEY (`otorgado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_usuario_permisos_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `uq_usuario_permisos_usuario_id_permiso` (`usuario_id`,`permiso`),
+  KEY `idx_usuario_permisos_usuario_id_permitido` (`usuario_id`,`permitido`),
+  KEY `idx_usuario_permisos_otorgado_por` (`otorgado_por`),
+  CONSTRAINT `fk_usuario_permisos_otorgado_por` FOREIGN KEY (`otorgado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_usuario_permisos_usuario_id` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Permisos personalizados por usuario (además de los de su rol)';
 
--- Tabla `asistencia_eventos`: pausas del turno (almuerzo, reunión) (depende de: asistencia_supervisores)
+-- Tabla `asistencia_eventos`: Pausas dentro del turno (almuerzo, reunión, capacitación) (depende de: asistencia_supervisores)
 CREATE TABLE IF NOT EXISTS `asistencia_eventos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `asistencia_id` int(11) NOT NULL,
-  `tipo_evento` enum('almuerzo','reunion','capacitacion','campo') NOT NULL,
+  `tipo_evento` enum('almuerzo','reunion','capacitacion','campo','remoto') NOT NULL,
   `inicio_evento` datetime NOT NULL,
   `fin_evento` datetime DEFAULT NULL,
   `duracion_minutos` int(11) DEFAULT 0,
@@ -238,26 +238,26 @@ CREATE TABLE IF NOT EXISTS `asistencia_eventos` (
   `longitud` varchar(50) DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
-  KEY `asistencia_id` (`asistencia_id`),
-  KEY `idx_evento_asistencia_inicio` (`asistencia_id`,`inicio_evento`),
-  CONSTRAINT `asistencia_eventos_ibfk_1` FOREIGN KEY (`asistencia_id`) REFERENCES `asistencia_supervisores` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `idx_asistencia_eventos_asistencia_id` (`asistencia_id`),
+  KEY `idx_asistencia_eventos_asistencia_id_inicio_evento` (`asistencia_id`,`inicio_evento`),
+  CONSTRAINT `fk_asistencia_eventos_asistencia_id` FOREIGN KEY (`asistencia_id`) REFERENCES `asistencia_supervisores` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Pausas dentro del turno (almuerzo, reunión, capacitación)';
 
--- Tabla `sgs_usuario_perfil`: perfil asignado a cada usuario (depende de: usuarios, sgs_perfil)
+-- Tabla `sgs_usuario_perfil`: Perfil de acceso asignado a cada usuario (uno por usuario) (depende de: usuarios, sgs_perfil)
 CREATE TABLE IF NOT EXISTS `sgs_usuario_perfil` (
-  `USUARIO_ID` int(11) NOT NULL,
-  `PERFIL_ID` int(10) unsigned NOT NULL,
-  `ASIGNADO_POR` int(11) DEFAULT NULL,
-  `FECHA_ASIGNACION` datetime NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`USUARIO_ID`),
-  KEY `FK_SGS_USUARIO_PERFIL_ASIGNADO` (`ASIGNADO_POR`),
-  KEY `IX_SGS_USUARIO_PERFIL_PERFIL_001` (`PERFIL_ID`),
-  CONSTRAINT `FK_SGS_USUARIO_PERFIL_ASIGNADO` FOREIGN KEY (`ASIGNADO_POR`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `FK_SGS_USUARIO_PERFIL_PERFIL` FOREIGN KEY (`PERFIL_ID`) REFERENCES `sgs_perfil` (`PERFIL_ID`) ON DELETE CASCADE,
-  CONSTRAINT `FK_SGS_USUARIO_PERFIL_USUARIO` FOREIGN KEY (`USUARIO_ID`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `usuario_id` int(11) NOT NULL,
+  `perfil_id` int(10) unsigned NOT NULL,
+  `asignado_por` int(11) DEFAULT NULL,
+  `fecha_asignacion` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`usuario_id`),
+  KEY `idx_sgs_usuario_perfil_perfil_id` (`perfil_id`),
+  KEY `idx_sgs_usuario_perfil_asignado_por` (`asignado_por`),
+  CONSTRAINT `fk_sgs_usuario_perfil_asignado_por` FOREIGN KEY (`asignado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_sgs_usuario_perfil_perfil_id` FOREIGN KEY (`perfil_id`) REFERENCES `sgs_perfil` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_sgs_usuario_perfil_usuario_id` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Perfil de acceso asignado a cada usuario (uno por usuario)';
 
--- Tabla `supervisiones`: supervisiones (depende de: tipificaciones_cancelacion, usuarios, tecnicos, vehiculos, partners)
+-- Tabla `supervisiones`: Supervisiones de campo y órdenes pendientes asignadas (depende de: usuarios, partners, tecnicos, tipificaciones_cancelacion, vehiculos)
 CREATE TABLE IF NOT EXISTS `supervisiones` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `codigo_supervision` varchar(30) NOT NULL,
@@ -315,35 +315,35 @@ CREATE TABLE IF NOT EXISTS `supervisiones` (
   `tecnico2_id` int(11) DEFAULT NULL,
   `vehiculo_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `codigo_supervision` (`codigo_supervision`),
-  KEY `partner_id` (`partner_id`),
-  KEY `idx_filtro_sup_fecha` (`supervisor_id`,`fecha_registro`),
-  KEY `idx_supervision_asignador` (`asignado_por`),
-  KEY `idx_supervision_zona_pendiente` (`zona_asignacion`,`partner_id`,`estado_supervision`),
-  KEY `idx_supervisiones_ticket` (`ticket_codigo`),
-  KEY `idx_supervisiones_estado_fecha` (`estado_supervision`,`fecha_registro`),
-  KEY `idx_supervisiones_partner_estado_fecha` (`partner_id`,`estado_supervision`,`fecha_registro`),
-  KEY `idx_supervisiones_ubicacion` (`departamento`,`provincia`,`distrito`),
-  KEY `fk_supervision_tecnico1` (`tecnico1_id`),
-  KEY `fk_supervision_tecnico2` (`tecnico2_id`),
-  KEY `fk_supervision_vehiculo` (`vehiculo_id`),
-  KEY `idx_supervision_estado_cancelacion` (`es_cancelacion`,`estado_cancelacion`,`estado_supervision`),
-  KEY `idx_sup_fecha_estado` (`fecha_registro`,`estado_supervision`),
-  KEY `idx_sup_partner_fecha` (`partner_id`,`fecha_registro`),
-  KEY `idx_atencion_partner_plazo` (`supervisor_id`,`estado_atencion_partner`,`fecha_asignacion`),
-  KEY `FK_SUPERVISION_TIPIFICACION` (`tipificacion_cancelacion`),
-  KEY `FK_SUPERVISION_TIPIFICACION_CORREGIDA` (`tipificacion_corregida_supervisor`),
-  CONSTRAINT `FK_SUPERVISION_TIPIFICACION` FOREIGN KEY (`tipificacion_cancelacion`) REFERENCES `tipificaciones_cancelacion` (`descripcion`) ON DELETE SET NULL ON UPDATE CASCADE,
-  CONSTRAINT `FK_SUPERVISION_TIPIFICACION_CORREGIDA` FOREIGN KEY (`tipificacion_corregida_supervisor`) REFERENCES `tipificaciones_cancelacion` (`descripcion`) ON DELETE SET NULL ON UPDATE CASCADE,
-  CONSTRAINT `fk_supervision_asignador` FOREIGN KEY (`asignado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_supervision_tecnico1` FOREIGN KEY (`tecnico1_id`) REFERENCES `tecnicos` (`id`),
-  CONSTRAINT `fk_supervision_tecnico2` FOREIGN KEY (`tecnico2_id`) REFERENCES `tecnicos` (`id`),
-  CONSTRAINT `fk_supervision_vehiculo` FOREIGN KEY (`vehiculo_id`) REFERENCES `vehiculos` (`id`),
-  CONSTRAINT `supervisiones_ibfk_1` FOREIGN KEY (`supervisor_id`) REFERENCES `usuarios` (`id`),
-  CONSTRAINT `supervisiones_ibfk_2` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  UNIQUE KEY `uq_supervisiones_codigo_supervision` (`codigo_supervision`),
+  KEY `idx_supervisiones_partner_id` (`partner_id`),
+  KEY `idx_supervisiones_supervisor_id_fecha_registro` (`supervisor_id`,`fecha_registro`),
+  KEY `idx_supervisiones_asignado_por` (`asignado_por`),
+  KEY `idx_supervisiones_zona_asignacion_partner_id_estado_supervision` (`zona_asignacion`,`partner_id`,`estado_supervision`),
+  KEY `idx_supervisiones_ticket_codigo` (`ticket_codigo`),
+  KEY `idx_supervisiones_estado_supervision_fecha_registro` (`estado_supervision`,`fecha_registro`),
+  KEY `idx_supervisiones_partner_id_estado_supervision_fecha_registro` (`partner_id`,`estado_supervision`,`fecha_registro`),
+  KEY `idx_supervisiones_departamento_provincia_distrito` (`departamento`,`provincia`,`distrito`),
+  KEY `idx_supervisiones_tecnico1_id` (`tecnico1_id`),
+  KEY `idx_supervisiones_tecnico2_id` (`tecnico2_id`),
+  KEY `idx_supervisiones_vehiculo_id` (`vehiculo_id`),
+  KEY `idx_supervi_es_cancelacion_estado_cancelacion_estado_supervision` (`es_cancelacion`,`estado_cancelacion`,`estado_supervision`),
+  KEY `idx_supervisiones_fecha_registro_estado_supervision` (`fecha_registro`,`estado_supervision`),
+  KEY `idx_supervisiones_partner_id_fecha_registro` (`partner_id`,`fecha_registro`),
+  KEY `idx_super_supervisor_id_estado_atencion_partner_fecha_asignacion` (`supervisor_id`,`estado_atencion_partner`,`fecha_asignacion`),
+  KEY `idx_supervisiones_tipificacion_cancelacion` (`tipificacion_cancelacion`),
+  KEY `idx_supervisiones_tipificacion_corregida_supervisor` (`tipificacion_corregida_supervisor`),
+  CONSTRAINT `fk_supervisiones_asignado_por` FOREIGN KEY (`asignado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_supervisiones_partner_id` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`),
+  CONSTRAINT `fk_supervisiones_supervisor_id` FOREIGN KEY (`supervisor_id`) REFERENCES `usuarios` (`id`),
+  CONSTRAINT `fk_supervisiones_tecnico1_id` FOREIGN KEY (`tecnico1_id`) REFERENCES `tecnicos` (`id`),
+  CONSTRAINT `fk_supervisiones_tecnico2_id` FOREIGN KEY (`tecnico2_id`) REFERENCES `tecnicos` (`id`),
+  CONSTRAINT `fk_supervisiones_tipificacion_cancelacion` FOREIGN KEY (`tipificacion_cancelacion`) REFERENCES `tipificaciones_cancelacion` (`descripcion`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_supervisiones_tipificacion_corregida_supervisor` FOREIGN KEY (`tipificacion_corregida_supervisor`) REFERENCES `tipificaciones_cancelacion` (`descripcion`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_supervisiones_vehiculo_id` FOREIGN KEY (`vehiculo_id`) REFERENCES `vehiculos` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Supervisiones de campo y órdenes pendientes asignadas';
 
--- Tabla `checklists_tecnicos`: checklists de cuadrilla (depende de: supervisiones, usuarios)
+-- Tabla `checklists_tecnicos`: Checklist de cuadrilla por supervisión (depende de: supervisiones, usuarios)
 CREATE TABLE IF NOT EXISTS `checklists_tecnicos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `supervision_id` int(11) DEFAULT NULL,
@@ -365,14 +365,14 @@ CREATE TABLE IF NOT EXISTS `checklists_tecnicos` (
   `fecha_registro` datetime DEFAULT current_timestamp(),
   `fecha_limite_respuesta` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `supervision_id` (`supervision_id`),
-  KEY `supervisor_id` (`supervisor_id`),
-  KEY `idx_checklist_fecha` (`fecha_registro`),
-  CONSTRAINT `checklists_tecnicos_ibfk_1` FOREIGN KEY (`supervision_id`) REFERENCES `supervisiones` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `checklists_tecnicos_ibfk_2` FOREIGN KEY (`supervisor_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `idx_checklists_tecnicos_supervision_id` (`supervision_id`),
+  KEY `idx_checklists_tecnicos_supervisor_id` (`supervisor_id`),
+  KEY `idx_checklists_tecnicos_fecha_registro` (`fecha_registro`),
+  CONSTRAINT `fk_checklists_tecnicos_supervision_id` FOREIGN KEY (`supervision_id`) REFERENCES `supervisiones` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_checklists_tecnicos_supervisor_id` FOREIGN KEY (`supervisor_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Checklist de cuadrilla por supervisión';
 
--- Tabla `observaciones_supervision`: observaciones en campo (depende de: usuarios, supervisiones, categorias_observacion, subopciones_observacion)
+-- Tabla `observaciones_supervision`: Observaciones en campo, descargos del partner y plazos (depende de: categorias_observacion, usuarios, subopciones_observacion, supervisiones)
 CREATE TABLE IF NOT EXISTS `observaciones_supervision` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `supervision_id` int(11) NOT NULL,
@@ -406,19 +406,19 @@ CREATE TABLE IF NOT EXISTS `observaciones_supervision` (
   `fecha_evaluacion` datetime DEFAULT NULL,
   `evaluado_por` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `supervision_id` (`supervision_id`),
-  KEY `categoria_id` (`categoria_id`),
-  KEY `subopcion_id` (`subopcion_id`),
-  KEY `idx_obs_sla` (`estado_respuesta`,`fecha_limite_respuesta`),
-  KEY `idx_observaciones_creador_fecha` (`creado_por`,`fecha_registro`),
-  KEY `idx_observaciones_supervision_estado` (`supervision_id`,`estado_respuesta`),
-  CONSTRAINT `fk_observacion_creador` FOREIGN KEY (`creado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `observaciones_supervision_ibfk_1` FOREIGN KEY (`supervision_id`) REFERENCES `supervisiones` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `observaciones_supervision_ibfk_2` FOREIGN KEY (`categoria_id`) REFERENCES `categorias_observacion` (`id`),
-  CONSTRAINT `observaciones_supervision_ibfk_3` FOREIGN KEY (`subopcion_id`) REFERENCES `subopciones_observacion` (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `idx_observaciones_supervision_supervision_id` (`supervision_id`),
+  KEY `idx_observaciones_supervision_categoria_id` (`categoria_id`),
+  KEY `idx_observaciones_supervision_subopcion_id` (`subopcion_id`),
+  KEY `idx_observaciones_superv_estado_respuesta_fecha_limite_respuesta` (`estado_respuesta`,`fecha_limite_respuesta`),
+  KEY `idx_observaciones_supervision_creado_por_fecha_registro` (`creado_por`,`fecha_registro`),
+  KEY `idx_observaciones_supervision_supervision_id_estado_respuesta` (`supervision_id`,`estado_respuesta`),
+  CONSTRAINT `fk_observaciones_supervision_categoria_id` FOREIGN KEY (`categoria_id`) REFERENCES `categorias_observacion` (`id`),
+  CONSTRAINT `fk_observaciones_supervision_creado_por` FOREIGN KEY (`creado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_observaciones_supervision_subopcion_id` FOREIGN KEY (`subopcion_id`) REFERENCES `subopciones_observacion` (`id`),
+  CONSTRAINT `fk_observaciones_supervision_supervision_id` FOREIGN KEY (`supervision_id`) REFERENCES `supervisiones` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Observaciones en campo, descargos del partner y plazos';
 
--- Tabla `supervision_coordenadas_historial`: ubicaciones GPS registradas (depende de: supervisiones, usuarios)
+-- Tabla `supervision_coordenadas_historial`: Cambios de ubicación GPS de cada supervisión (depende de: usuarios, supervisiones)
 CREATE TABLE IF NOT EXISTS `supervision_coordenadas_historial` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `supervision_id` int(11) NOT NULL,
@@ -429,13 +429,13 @@ CREATE TABLE IF NOT EXISTS `supervision_coordenadas_historial` (
   `cambiado_por` int(11) DEFAULT NULL,
   `fecha_registro` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
-  KEY `fk_coord_hist_usuario` (`cambiado_por`),
-  KEY `idx_coord_hist_supervision_fecha` (`supervision_id`,`fecha_registro`),
-  CONSTRAINT `fk_coord_hist_supervision` FOREIGN KEY (`supervision_id`) REFERENCES `supervisiones` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_coord_hist_usuario` FOREIGN KEY (`cambiado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `idx_supervision_coordenadas_historial_cambiado_por` (`cambiado_por`),
+  KEY `idx_supervision_coordenadas_histor_supervision_id_fecha_registro` (`supervision_id`,`fecha_registro`),
+  CONSTRAINT `fk_supervision_coordenadas_historial_cambiado_por` FOREIGN KEY (`cambiado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_supervision_coordenadas_historial_supervision_id` FOREIGN KEY (`supervision_id`) REFERENCES `supervisiones` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Cambios de ubicación GPS de cada supervisión';
 
--- Tabla `supervision_estado_historial`: cambios de estado de cada supervisión (depende de: supervisiones, usuarios)
+-- Tabla `supervision_estado_historial`: Cambios de estado de cada supervisión (horas reales de inicio y fin) (depende de: usuarios, supervisiones)
 CREATE TABLE IF NOT EXISTS `supervision_estado_historial` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `supervision_id` int(11) NOT NULL,
@@ -445,13 +445,13 @@ CREATE TABLE IF NOT EXISTS `supervision_estado_historial` (
   `comentario` varchar(500) DEFAULT NULL,
   `fecha_cambio` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
-  KEY `idx_historial_supervision_fecha` (`supervision_id`,`fecha_cambio`),
-  KEY `idx_historial_usuario_fecha` (`cambiado_por`,`fecha_cambio`),
-  CONSTRAINT `fk_historial_supervision` FOREIGN KEY (`supervision_id`) REFERENCES `supervisiones` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_historial_usuario` FOREIGN KEY (`cambiado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `idx_supervision_estado_historial_supervision_id_fecha_cambio` (`supervision_id`,`fecha_cambio`),
+  KEY `idx_supervision_estado_historial_cambiado_por_fecha_cambio` (`cambiado_por`,`fecha_cambio`),
+  CONSTRAINT `fk_supervision_estado_historial_cambiado_por` FOREIGN KEY (`cambiado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_supervision_estado_historial_supervision_id` FOREIGN KEY (`supervision_id`) REFERENCES `supervisiones` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Cambios de estado de cada supervisión (horas reales de inicio y fin)';
 
--- Tabla `checklist_respuestas`: criterios de cada checklist (depende de: checklists_tecnicos)
+-- Tabla `checklist_respuestas`: Criterios evaluados en cada checklist (depende de: checklists_tecnicos)
 CREATE TABLE IF NOT EXISTS `checklist_respuestas` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `checklist_id` int(11) NOT NULL,
@@ -462,11 +462,11 @@ CREATE TABLE IF NOT EXISTS `checklist_respuestas` (
   `descargo_foto` varchar(255) DEFAULT NULL,
   `descargo_comentario` varchar(500) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `idx_checklist_respuesta_estado` (`checklist_id`,`estado`),
-  CONSTRAINT `checklist_respuestas_ibfk_1` FOREIGN KEY (`checklist_id`) REFERENCES `checklists_tecnicos` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `idx_checklist_respuestas_checklist_id_estado` (`checklist_id`,`estado`),
+  CONSTRAINT `fk_checklist_respuestas_checklist_id` FOREIGN KEY (`checklist_id`) REFERENCES `checklists_tecnicos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Criterios evaluados en cada checklist';
 
--- Tabla `notificaciones`: notificaciones a usuarios (depende de: usuarios, observaciones_supervision)
+-- Tabla `notificaciones`: Avisos a los usuarios (depende de: observaciones_supervision, usuarios)
 CREATE TABLE IF NOT EXISTS `notificaciones` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `usuario_id` int(11) NOT NULL,
@@ -478,8 +478,8 @@ CREATE TABLE IF NOT EXISTS `notificaciones` (
   `fecha_registro` datetime NOT NULL DEFAULT current_timestamp(),
   `fecha_lectura` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `observacion_id` (`observacion_id`),
-  KEY `idx_notificacion_usuario` (`usuario_id`,`leida`,`fecha_registro`),
-  CONSTRAINT `notificaciones_ibfk_1` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `notificaciones_ibfk_2` FOREIGN KEY (`observacion_id`) REFERENCES `observaciones_supervision` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  KEY `idx_notificaciones_observacion_id` (`observacion_id`),
+  KEY `idx_notificaciones_usuario_id_leida_fecha_registro` (`usuario_id`,`leida`,`fecha_registro`),
+  CONSTRAINT `fk_notificaciones_observacion_id` FOREIGN KEY (`observacion_id`) REFERENCES `observaciones_supervision` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_notificaciones_usuario_id` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Avisos a los usuarios';

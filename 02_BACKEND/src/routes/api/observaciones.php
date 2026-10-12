@@ -323,9 +323,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'actualizar_plazo') {
     $stmt=$pdo->prepare('SELECT s.supervisor_id,s.asignado_por,o.estado_respuesta FROM observaciones_supervision o JOIN supervisiones s ON s.id=o.supervision_id WHERE o.id=:id LIMIT 1');
     $stmt->execute([':id'=>$obsId]);$owner=$stmt->fetch();
     if(!$owner||(!Auth::isAdministrative()&&(int)$owner['supervisor_id']!==(int)$user['id']&&(int)$owner['asignado_por']!==(int)$user['id'])){http_response_code(403);echo json_encode(['status'=>'error','message'=>'No puede modificar el plazo de una observación ajena.']);exit;}
-    if(in_array($owner['estado_respuesta'],['Levantamiento validado','Penalidad Directa'],true)){http_response_code(422);echo json_encode(['status'=>'error','message'=>'La observación ya está cerrada.']);exit;}
-    $pdo->prepare('UPDATE observaciones_supervision SET fecha_limite_respuesta=:fecha WHERE id=:id')->execute([':fecha'=>$date->format('Y-m-d H:i:s'),':id'=>$obsId]);
-    echo json_encode(['status'=>'success','message'=>'Fecha de levantamiento actualizada.']);exit;
+    // El administrador puede ampliar el plazo aunque ya haya pasado a "Penalidad Directa" (2026-10-11):
+    // si la nueva fecha es futura, la observación vuelve a "Pendiente" para que el partner pueda responder.
+    $esAdmin = Auth::hasRole([Auth::ROLE_ADMINISTRADOR]);
+    $cerrada = in_array($owner['estado_respuesta'],['Levantamiento validado','Penalidad Directa'],true);
+    if($owner['estado_respuesta']==='Levantamiento validado' || ($cerrada && !$esAdmin)){http_response_code(422);echo json_encode(['status'=>'error','message'=>'La observación ya está cerrada.']);exit;}
+    $reabre = $esAdmin && $owner['estado_respuesta']==='Penalidad Directa' && $date > new DateTime();
+    $pdo->prepare('UPDATE observaciones_supervision SET fecha_limite_respuesta=:fecha' . ($reabre ? ", estado_respuesta='Pendiente'" : '') . ' WHERE id=:id')
+        ->execute([':fecha'=>$date->format('Y-m-d H:i:s'),':id'=>$obsId]);
+    win_log_error('audit_observation_deadline', 'Plazo de observación actualizado', ['observacion_id'=>$obsId, 'nuevo_plazo'=>$date->format('Y-m-d H:i'), 'estado_anterior'=>$owner['estado_respuesta'], 'reabierta'=>$reabre]);
+    echo json_encode(['status'=>'success','message'=>$reabre ? 'Plazo ampliado. La observación volvió a Pendiente para que el partner responda.' : 'Fecha de levantamiento actualizada.']);exit;
+}
+
+// Eliminar una observación (solo administrador, 2026-10-11). Antes de borrarla se guarda una copia completa
+// en el registro de auditoría (08_LOGS) para poder recuperarla si fuera necesario.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'eliminar') {
+    if (!Auth::hasRole([Auth::ROLE_ADMINISTRADOR])) {
+        http_response_code(403); echo json_encode(['status'=>'error','message'=>'Solo el administrador puede eliminar observaciones.']); exit;
+    }
+    $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+    $obsId = (int)($input['observacion_id'] ?? 0);
+    $motivo = trim((string)($input['motivo'] ?? ''));
+    if ($obsId <= 0 || mb_strlen($motivo) < 5) {
+        http_response_code(422); echo json_encode(['status'=>'error','message'=>'Indique el motivo de la eliminación (al menos 5 caracteres).']); exit;
+    }
+    $stmt = $pdo->prepare('SELECT * FROM observaciones_supervision WHERE id = :id');
+    $stmt->execute([':id' => $obsId]);
+    $copia = $stmt->fetch();
+    if (!$copia) { http_response_code(404); echo json_encode(['status'=>'error','message'=>'La observación ya no existe.']); exit; }
+    $pdo->prepare('DELETE FROM observaciones_supervision WHERE id = :id')->execute([':id' => $obsId]); // sus notificaciones se borran solas (ON DELETE CASCADE)
+    win_log_error('audit_observation_deleted', 'Observación eliminada por el administrador', ['observacion_id' => $obsId, 'motivo' => $motivo, 'copia' => $copia]);
+    echo json_encode(['status'=>'success','message'=>'Observación eliminada. Quedó una copia en el registro de auditoría.']);
+    exit;
 }
 
 // 5. Evaluación del Supervisor sobre la Apelación del Partner

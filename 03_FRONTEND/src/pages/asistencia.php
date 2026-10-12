@@ -65,8 +65,9 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
                         </div>
 
                         <div class="attendance-metrics row g-2 mb-4" aria-label="Resumen de la jornada">
-                            <div class="col-6"><div class="attendance-metric"><i class="bi bi-cup-hot"></i><span>Almuerzo</span><strong id="txt-total-almuerzo">0 min</strong></div></div>
-                            <div class="col-6"><div class="attendance-metric"><i class="bi bi-people"></i><span>Reuniones</span><strong id="txt-total-reunion">0 min</strong></div></div>
+                            <div class="col-4"><div class="attendance-metric"><i class="bi bi-cup-hot"></i><span>Almuerzo</span><strong id="txt-total-almuerzo">0 min</strong></div></div>
+                            <div class="col-4"><div class="attendance-metric"><i class="bi bi-people"></i><span>Reuniones</span><strong id="txt-total-reunion">0 min</strong></div></div>
+                            <div class="col-4"><div class="attendance-metric"><i class="bi bi-laptop"></i><span>Remoto</span><strong id="txt-total-remoto">0 min</strong></div></div>
                         </div>
 
                         <!-- Botones de Acción de Turno -->
@@ -103,21 +104,26 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
                             </div>
 
                             <!-- Sub-Estados / Pausas durante el turno -->
-                            <p class="sgs-kpi-label mt-4 mb-2">Pausas</p>
+                            <p class="sgs-kpi-label mt-4 mb-2">Actividades</p>
                             <div class="row g-2 attendance-pause-actions">
-                                <div class="col-6 col-md-4">
+                                <div class="col-6 col-md-3">
                                     <button type="button" id="btn-start-almuerzo" class="btn btn-outline-secondary w-100 py-2" disabled>
                                         <i class="bi bi-cup-hot me-1"></i> Almuerzo
                                     </button>
                                 </div>
-                                <div class="col-6 col-md-4">
+                                <div class="col-6 col-md-3">
                                     <button type="button" id="btn-start-reunion" class="btn btn-outline-secondary w-100 py-2" disabled>
                                         <i class="bi bi-people me-1"></i> Reunión
                                     </button>
                                 </div>
-                                <div class="col-12 col-md-4">
+                                <div class="col-6 col-md-3">
                                     <button type="button" id="btn-start-capacitacion" class="btn btn-outline-secondary w-100 py-2" disabled>
                                         <i class="bi bi-mortarboard me-1"></i> Capacitación
+                                    </button>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <button type="button" id="btn-start-remoto" class="btn btn-outline-secondary w-100 py-2" disabled>
+                                        <i class="bi bi-laptop me-1"></i> Trabajo remoto
                                     </button>
                                 </div>
                             </div>
@@ -135,37 +141,43 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
             <div class="tab-pane fade" id="content-vista-admin" role="tabpanel">
                 <!-- Tarjetas KPI Administrador -->
                 <div class="row g-2 g-md-3 mb-4">
-                    <div class="col-6 col-sm-4 col-md-2">
+                    <div class="col-6 col-sm-4 col-lg">
                         <div class="sgs-kpi attendance-kpi p-3 h-100">
                             <small class="sgs-kpi-label">Total de personal</small>
                             <h3 class="mb-0 sgs-kpi-value" id="kpi-admin-total">0</h3>
                         </div>
                     </div>
-                    <div class="col-6 col-sm-4 col-md-2">
+                    <div class="col-6 col-sm-4 col-lg">
                         <div class="sgs-kpi attendance-kpi p-3 h-100 sgs-kpi--success">
                             <small class="sgs-kpi-label">En turno</small>
                             <h3 class="mb-0 sgs-kpi-value" id="kpi-admin-turno">0</h3>
                         </div>
                     </div>
-                    <div class="col-6 col-sm-4 col-md-2">
+                    <div class="col-6 col-sm-4 col-lg">
                         <div class="sgs-kpi attendance-kpi p-3 h-100 sgs-kpi--warning">
                             <small class="sgs-kpi-label">En almuerzo</small>
                             <h3 class="mb-0 sgs-kpi-value" id="kpi-admin-almuerzo">0</h3>
                         </div>
                     </div>
-                    <div class="col-6 col-sm-4 col-md-2">
+                    <div class="col-6 col-sm-4 col-lg">
                         <div class="sgs-kpi attendance-kpi p-3 h-100 sgs-kpi--info">
                             <small class="sgs-kpi-label">En reunión</small>
                             <h3 class="mb-0 sgs-kpi-value" id="kpi-admin-reunion">0</h3>
                         </div>
                     </div>
-                    <div class="col-6 col-sm-4 col-md-2">
+                    <div class="col-6 col-sm-4 col-lg">
                         <div class="sgs-kpi attendance-kpi p-3 h-100 sgs-kpi--info">
                             <small class="sgs-kpi-label">Capacitación</small>
                             <h3 class="mb-0 sgs-kpi-value" id="kpi-admin-capacitacion">0</h3>
                         </div>
                     </div>
-                    <div class="col-6 col-sm-4 col-md-2">
+                    <div class="col-6 col-sm-4 col-lg">
+                        <div class="sgs-kpi attendance-kpi p-3 h-100 sgs-kpi--info">
+                            <small class="sgs-kpi-label">En remoto</small>
+                            <h3 class="mb-0 sgs-kpi-value" id="kpi-admin-remoto">0</h3>
+                        </div>
+                    </div>
+                    <div class="col-6 col-sm-4 col-lg">
                         <div class="sgs-kpi attendance-kpi p-3 h-100">
                             <small class="sgs-kpi-label">Finalizado</small>
                             <h3 class="mb-0 sgs-kpi-value" id="kpi-admin-finalizado">0</h3>
@@ -188,6 +200,7 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
                                 <option value="En almuerzo">En Almuerzo</option>
                                 <option value="En reunión">En Reunión</option>
                                 <option value="En capacitación">En Capacitación</option>
+                                <option value="En remoto">En Remoto</option>
                                 <option value="Fuera de turno">Turno Finalizado</option>
                                 <option value="Sin iniciar">Sin Iniciar / Ausente</option>
                             </select>
@@ -234,6 +247,27 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
                 </div>
             </div>
         <?php endif; ?>
+    </div>
+</div>
+
+<!-- MODAL PARA REGISTRAR TRABAJO REMOTO -->
+<div class="modal fade" id="modalRemoto" tabindex="-1" aria-labelledby="modalRemotoTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalRemotoTitulo"><i class="bi bi-laptop me-2 text-primary"></i>Trabajo remoto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <label for="txt-nota-remoto" class="form-label">¿En qué vas a trabajar? <span class="text-muted">(opcional)</span></label>
+                <input type="text" id="txt-nota-remoto" class="form-control" maxlength="250" placeholder="Por ejemplo: reporte de observaciones">
+                <p class="text-muted small mt-2 mb-0">Aparecerá en la línea de tiempo. Para terminar, usa "Reanudar turno".</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" id="btn-confirm-remoto" class="btn btn-win"><i class="bi bi-laptop me-1"></i>Iniciar trabajo remoto</button>
+            </div>
+        </div>
     </div>
 </div>
 

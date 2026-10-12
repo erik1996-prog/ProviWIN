@@ -20,12 +20,15 @@ $action = $_GET['action'] ?? '';
 if ($action === 'monitoreo_realtime') {
     // La interfaz consume solo los contadores. Una agregación evita enviar toda
     // la plantilla y elimina el conteo correlacionado por supervisor en cada poll.
+    // Estados reales del turno abierto de hoy (2026-10-08: antes se contaba "En break", que no se usa, y quien
+    // estaba en almuerzo, reunión o capacitación salía como "Fuera de turno").
+    $abierto = "a.id IS NOT NULL AND a.fin_turno IS NULL";
     $summaryRow = $pdo->query("
         SELECT COUNT(*) total_supervisores,
-               SUM(CASE WHEN COALESCE(a.en_capacitacion,0)=1 THEN 1 ELSE 0 END) en_capacitacion,
-               SUM(CASE WHEN COALESCE(a.en_capacitacion,0)<>1 AND a.estado_turno='En turno' THEN 1 ELSE 0 END) en_turno,
-               SUM(CASE WHEN COALESCE(a.en_capacitacion,0)<>1 AND a.estado_turno='En break' THEN 1 ELSE 0 END) en_break,
-               SUM(CASE WHEN COALESCE(a.en_capacitacion,0)<>1 AND COALESCE(a.estado_turno,'Fuera de turno') NOT IN ('En turno','En break') THEN 1 ELSE 0 END) fuera_turno
+               SUM(CASE WHEN $abierto AND a.estado_turno = 'En turno' THEN 1 ELSE 0 END) en_turno,
+               SUM(CASE WHEN $abierto AND a.estado_turno IN ('En almuerzo', 'En break') THEN 1 ELSE 0 END) en_break,
+               SUM(CASE WHEN $abierto AND a.estado_turno IN ('En reunión', 'En capacitación', 'En remoto') THEN 1 ELSE 0 END) en_capacitacion,
+               SUM(CASE WHEN NOT ($abierto) OR a.estado_turno NOT IN ('En turno', 'En almuerzo', 'En break', 'En reunión', 'En capacitación', 'En remoto') THEN 1 ELSE 0 END) fuera_turno
         FROM usuarios u
         LEFT JOIN partners p ON p.id=u.partner_id
         LEFT JOIN asistencia_supervisores a ON u.id=a.supervisor_id AND a.fecha=CURRENT_DATE()
@@ -63,6 +66,20 @@ function sgsDashboardPeriodo(): array {
 }
 
 // 2. Matriz de supervisiones finalizadas por día y supervisor (período del filtro general, máx. 62 días)
+/** Departamento del filtro general (2026-10-11): solo se aceptan departamentos de operación; vacío = todos. */
+function sgsDashboardDepartamento(): string {
+    $dep = mb_strtoupper(trim((string)($_GET['departamento'] ?? '')), 'UTF-8');
+    return in_array($dep, sgsOperationalDepartments(), true) ? $dep : '';
+}
+/** Deja solo a los supervisores que trabajan ese departamento (zona base o adicional; "todas las zonas" siempre entra). */
+function sgsSupervisoresDelDepartamento(array $supervisores, string $dep): array {
+    if ($dep === '') return $supervisores;
+    return array_values(array_filter($supervisores, static function ($s) use ($dep) {
+        $zonas = sgsUserZones((int)$s['id']);
+        return $zonas === null || in_array($dep, $zonas, true);
+    }));
+}
+
 if ($action === 'matriz_mensual') {
     [$ini, $fin] = sgsDashboardPeriodo();
     if ($ini->diff($fin)->days + 1 > 62) {
@@ -80,12 +97,13 @@ if ($action === 'matriz_mensual') {
         WHERE u.rol = 'Supervisor' AND u.activo = 1 AND " . sgsDirectStaffSql() . ($supervisorFiltro ? ' AND u.id = :sid' : '') . " ORDER BY u.nombre_completo ASC";
     $stmtSups = $pdo->prepare($sqlSup);
     $stmtSups->execute($supervisorFiltro ? [':sid' => $supervisorFiltro] : []);
-    $supervisores = $stmtSups->fetchAll();
+    $depFiltro = sgsDashboardDepartamento();
+    $supervisores = sgsSupervisoresDelDepartamento($stmtSups->fetchAll(), $depFiltro);
 
     $stmtCounts = $pdo->prepare("SELECT supervisor_id, DATE(fecha_registro) AS dia, COUNT(*) AS total FROM supervisiones
-        WHERE estado_supervision = 'Finalizada' AND fecha_registro >= :inicio AND fecha_registro < :fin
+        WHERE estado_supervision = 'Finalizada' AND fecha_registro >= :inicio AND fecha_registro < :fin" . ($depFiltro !== '' ? ' AND departamento = :dep' : '') . "
         GROUP BY supervisor_id, DATE(fecha_registro)");
-    $stmtCounts->execute([':inicio' => $ini->format('Y-m-d'), ':fin' => $fin->modify('+1 day')->format('Y-m-d')]);
+    $stmtCounts->execute([':inicio' => $ini->format('Y-m-d'), ':fin' => $fin->modify('+1 day')->format('Y-m-d')] + ($depFiltro !== '' ? [':dep' => $depFiltro] : []));
     $matrizData = [];
     foreach ($stmtCounts->fetchAll() as $row) $matrizData[$row['supervisor_id']][$row['dia']] = (int)$row['total'];
 
@@ -122,11 +140,12 @@ if ($action === 'productividad_mensual') {
     $stmtLista = $pdo->prepare("SELECT u.id, u.nombre_completo FROM usuarios u LEFT JOIN partners p ON p.id = u.partner_id
         WHERE u.rol = 'Supervisor' AND u.activo = 1 AND " . sgsDirectStaffSql() . ($supervisorFiltro ? ' AND u.id = :sid' : '') . " ORDER BY u.nombre_completo");
     $stmtLista->execute($supervisorFiltro ? [':sid' => $supervisorFiltro] : []);
-    $supervisores = $stmtLista->fetchAll();
+    $depFiltro = sgsDashboardDepartamento();
+    $supervisores = sgsSupervisoresDelDepartamento($stmtLista->fetchAll(), $depFiltro);
     $rango = [':ini' => $inicio->format('Y-m-d'), ':fin' => $finMes->modify('+1 day')->format('Y-m-d')];
     $stmtSup = $pdo->prepare("SELECT supervisor_id, COUNT(*) total FROM supervisiones
-        WHERE estado_supervision = 'Finalizada' AND fecha_registro >= :ini AND fecha_registro < :fin GROUP BY supervisor_id");
-    $stmtSup->execute($rango);
+        WHERE estado_supervision = 'Finalizada' AND fecha_registro >= :ini AND fecha_registro < :fin" . ($depFiltro !== '' ? ' AND departamento = :dep' : '') . " GROUP BY supervisor_id");
+    $stmtSup->execute($rango + ($depFiltro !== '' ? [':dep' => $depFiltro] : []));
     $finalizadas = $stmtSup->fetchAll(PDO::FETCH_KEY_PAIR);
     $stmtDias = $pdo->prepare("SELECT supervisor_id, COUNT(DISTINCT fecha) dias, COUNT(DISTINCT CASE WHEN DAYOFWEEK(fecha) = 1 THEN fecha END) domingos
         FROM asistencia_supervisores WHERE fecha >= :ini AND fecha < :fin AND inicio_turno IS NOT NULL GROUP BY supervisor_id");
@@ -173,6 +192,8 @@ if ($action === 'cumplimiento_partners') {
         AND UPPER(TRIM(p.nombre_partner)) NOT IN ('WIN','WIN DIRECTO')";
     $params = [':inicio' => $inicio, ':fin' => $fin];
     if ($partnerId > 0) { $where .= ' AND p.id = :partner'; $params[':partner'] = $partnerId; }
+    $depFiltro = sgsDashboardDepartamento();
+    if ($depFiltro !== '') { $where .= ' AND s.departamento = :dep'; $params[':dep'] = $depFiltro; }
 
     $limite = 'DATE_ADD(s.fecha_asignacion, INTERVAL 24 HOUR)';
     $metricas = "COUNT(*) AS asignadas,

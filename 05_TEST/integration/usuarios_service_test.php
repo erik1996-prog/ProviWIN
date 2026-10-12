@@ -21,7 +21,7 @@ $expectError = function (callable $fn, string $contains) {
 };
 $cleanup = function () use ($pdo) {
     $pdo->exec("DELETE FROM usuarios WHERE dni IN ('99999902','99999903')");
-    $pdo->exec("DELETE FROM SGS_PERFIL WHERE NOMBRE LIKE 'ZZ Prueba SGS%'");
+    $pdo->exec("DELETE FROM sgs_perfil WHERE nombre LIKE 'ZZ Prueba SGS%'");
 };
 $cleanup();
 $partner = (int)$pdo->query("SELECT id FROM partners WHERE estado=1 AND UPPER(nombre_partner) NOT IN ('WIN','WIN DIRECTO') ORDER BY id LIMIT 1")->fetchColumn();

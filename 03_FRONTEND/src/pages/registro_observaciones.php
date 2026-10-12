@@ -15,6 +15,7 @@ win_run_periodic_task('checklist-sla', 60, static function () use ($pdo): void {
     $pdo->exec("UPDATE checklists_tecnicos SET estado_respuesta='Penalizado' WHERE estado_respuesta IN ('Pendiente','Reabierto') AND COALESCE(fecha_limite_respuesta,CASE WEEKDAY(fecha_registro) WHEN 0 THEN DATE_ADD(fecha_registro,INTERVAL 3 DAY) WHEN 1 THEN DATE_ADD(fecha_registro,INTERVAL 3 DAY) WHEN 2 THEN DATE_ADD(fecha_registro,INTERVAL 3 DAY) WHEN 3 THEN DATE_ADD(fecha_registro,INTERVAL 4 DAY) WHEN 4 THEN DATE_ADD(fecha_registro,INTERVAL 4 DAY) WHEN 5 THEN DATE_ADD(fecha_registro,INTERVAL 4 DAY) ELSE DATE_ADD(fecha_registro,INTERVAL 3 DAY) END)<NOW()");
 });
 $isAdmin = Auth::isAdministrative();
+$esAdministrador = ($user['rol'] ?? '') === Auth::ROLE_ADMINISTRADOR; // eliminar observaciones y ampliar plazos vencidos
 $isDirectSupervisor = ($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($user['is_win_directo']);
 $isPartner = empty($user['is_win_directo']) && !empty($user['partner_id']);
 $canObservationFilterDate = Auth::can(Auth::PERM_OBSERVATION_FILTER_DATE, $user);
@@ -166,7 +167,10 @@ function observationPhotoUrl(?string $path): string {
                     <?php elseif($isPartner): ?>
                     <?php $detailPayload=['codigo'=>$r['ticket_codigo']?:$r['codigo_supervision'],'cuadrilla'=>$r['cuadrilla']?:'Sin cuadrilla','ubicacion'=>implode(' · ',array_filter([$r['departamento'],$r['provincia'],$r['distrito']])),'supervisor'=>$r['supervisor_nombre']?:'Sin asignar','titulo'=>$r['titulo'],'comentario'=>$r['comentario'],'fecha'=>date('d/m/Y H:i',strtotime($r['fecha_registro'])),'plazo'=>$r['fecha_limite_respuesta']?date('d/m/Y H:i',strtotime($r['fecha_limite_respuesta'])):'No aplica','fotos'=>$photoEntries]; ?>
                     <tr class="<?= $r['observacion_id']?'field-record-row':'' ?>" tabindex="<?= $r['observacion_id']?'0':'-1' ?>" <?= $r['observacion_id']?'role="button" title="Abrir pendiente"':'' ?>><td><div><strong><?= htmlspecialchars($r['ticket_codigo']?:$r['codigo_supervision']) ?></strong><small class="obs-mobile-context"><?= htmlspecialchars($detailPayload['ubicacion']?:'Ubicación no registrada') ?><br>Supervisor: <?= htmlspecialchars($detailPayload['supervisor']) ?></small></div></td><td class="text-nowrap"><?= htmlspecialchars(date('d/m/Y H:i',strtotime($r['fecha_registro']))) ?></td><td><strong><?= htmlspecialchars($r['cuadrilla']?:'Sin cuadrilla') ?></strong></td><td><?= $r['fecha_limite_respuesta']?htmlspecialchars(date('d/m/Y H:i',strtotime($r['fecha_limite_respuesta']))):'No aplica' ?></td><td><span class="badge bg-warning text-dark"><?= htmlspecialchars($r['estado_respuesta']?:'Pendiente') ?></span></td><td><?php if($r['observacion_id']): ?><button class="btn btn-sm btn-win btn-descargo" data-id="<?= (int)$r['observacion_id'] ?>" data-title="<?= htmlspecialchars($r['titulo'],ENT_QUOTES,'UTF-8') ?>" data-detail="<?= htmlspecialchars(json_encode($detailPayload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),ENT_QUOTES,'UTF-8') ?>"><i class="bi bi-eye me-1"></i>Ver y responder</button><?php endif; ?></td></tr>
-                    <?php else: ?><tr class="<?= $r['observacion_id']?'field-record-row':'' ?>">
+                    <?php else: ?>
+                    <?php $descargosFlujo=[];for($di=1;$di<=3;$di++){if(!empty($r['descargo_foto_'.$di]))$descargosFlujo[]=['url'=>observationPhotoUrl($r['descargo_foto_'.$di]),'comment'=>$r['descargo_comentario_'.$di]??''];}
+                    $flowPayload=['id'=>(int)$r['observacion_id'],'codigo'=>trim((string)$r['ticket_codigo'])!==''?$r['ticket_codigo']:$r['codigo_supervision'],'codigo_supervision'=>$r['codigo_supervision'],'fecha'=>date('d/m/Y H:i',strtotime($r['fecha_registro'])),'plazo'=>$r['fecha_limite_respuesta']?date('d/m/Y H:i',strtotime($r['fecha_limite_respuesta'])):'','plazo_iso'=>$r['fecha_limite_respuesta']?date('Y-m-d\TH:i',strtotime($r['fecha_limite_respuesta'])):'','estado'=>$r['estado_respuesta']?:'Pendiente','partner'=>$r['nombre_partner']?:'Sin partner','cuadrilla'=>$r['cuadrilla']?:'Sin cuadrilla','departamento'=>$r['departamento']?:'','zona'=>implode(' · ',array_filter([$r['provincia'],$r['distrito']])),'supervisor'=>$r['supervisor_nombre']?:'Sin asignar','titulo'=>$r['titulo']?:'Observación registrada','observacion'=>$r['comentario']??'','gravedad'=>$r['estado_item']??'','fotos'=>$photoEntries,'respondido_por'=>$r['respondido_por_nombre']??'','fecha_respuesta'=>!empty($r['fecha_respuesta_partner'])?date('d/m/Y H:i',strtotime($r['fecha_respuesta_partner'])):'','respuesta'=>$r['respuesta_partner']??'','descargos'=>$descargosFlujo,'evaluacion'=>$r['sustentacion_evaluacion']??'','fecha_evaluacion'=>!empty($r['fecha_evaluacion'])?date('d/m/Y H:i',strtotime($r['fecha_evaluacion'])):'','puede_eliminar'=>$esAdministrador,'puede_ampliar'=>$esAdministrador&&($r['estado_respuesta']??'')!=='Levantamiento validado']; ?>
+                    <tr class="<?= $r['observacion_id']?'field-record-row':'' ?>">
                         <td class="text-nowrap"><strong><?= htmlspecialchars(date('d/m/Y', strtotime($r['fecha_registro']))) ?></strong><small class="d-block text-muted"><?= htmlspecialchars(date('H:i', strtotime($r['fecha_registro']))) ?></small></td>
                         <td><span class="badge obs-type <?= $r['tipo_registro']==='Checklist' ? 'bg-primary' : ($r['tipo_registro']==='Hallazgo' ? 'bg-danger' : 'bg-secondary') ?>"><?= htmlspecialchars($r['tipo_registro']) ?></span><?php if($r['estado_item']): ?><small class="d-block mt-1 fw-bold text-muted"><?= htmlspecialchars($r['estado_item']) ?></small><?php endif; ?></td>
                         <td><strong class="text-dark"><?= htmlspecialchars(trim((string)$r['ticket_codigo']) !== '' ? $r['ticket_codigo'] : 'No aplica') ?></strong><small class="d-block text-muted"><?= htmlspecialchars($r['codigo_supervision']) ?></small></td>
@@ -176,11 +180,11 @@ function observationPhotoUrl(?string $path): string {
                         <td style="min-width:190px"><?php if($photoEntries): ?><?php foreach($photoEntries as $i=>$entry): ?><div class="d-flex gap-2 align-items-start mb-2"><button type="button" class="btn p-0 border-0 bg-transparent obs-photo-link flex-shrink-0" data-photo="<?= htmlspecialchars($entry['url'],ENT_QUOTES,'UTF-8') ?>" data-title="Evidencia <?= $i+1 ?> · <?= htmlspecialchars($r['codigo_supervision'],ENT_QUOTES,'UTF-8') ?>"><img class="obs-photo" src="<?= htmlspecialchars($entry['url']) ?>" alt="Evidencia <?= $i+1 ?>" loading="lazy"></button><small class="text-muted text-wrap"><?= htmlspecialchars($entry['comment'] ?: 'Sin comentario') ?></small></div><?php endforeach; ?><?php else: ?><span class="text-muted small">Sin fotos</span><?php endif; ?></td>
                         <td class="obs-comment"><strong class="d-block mb-1" style="color:#d95112"><?= htmlspecialchars($r['titulo']) ?></strong><?= nl2br(htmlspecialchars($r['comentario'])) ?></td>
                         <td><?= htmlspecialchars($r['supervisor_nombre'] ?: 'Sin asignar') ?></td>
-                        <td class="text-nowrap"><?php if($r['observacion_id']): ?><span class="badge <?= in_array($r['estado_respuesta'],['Levantamiento validado','Apelación Aprobada'],true)?'bg-success':(in_array($r['estado_respuesta'],['Levantamiento rechazado','Penalidad Directa','Apelación Rechazada'],true)?'bg-danger':($r['estado_respuesta']==='En revisión'?'bg-info text-dark':'bg-warning text-dark')) ?>"><?= htmlspecialchars($r['estado_respuesta']) ?></span><small class="d-block mt-2 text-muted">Regularizar hasta</small><strong><?= htmlspecialchars(date('d/m/Y H:i',strtotime($r['fecha_limite_respuesta']))) ?></strong><?php if($isDirectSupervisor&&!in_array($r['estado_respuesta'],['Levantamiento validado','Penalidad Directa'],true)): ?><button type="button" class="btn btn-link btn-sm p-0 d-block btn-editar-plazo" data-id="<?= (int)$r['observacion_id'] ?>" data-fecha="<?= htmlspecialchars(date('Y-m-d\TH:i',strtotime($r['fecha_limite_respuesta'])),ENT_QUOTES,'UTF-8') ?>"><i class="bi bi-calendar-event me-1"></i>Editar fecha</button><?php endif; ?><?php elseif($r['tipo_registro']==='Checklist' && $r['fecha_limite_respuesta']): ?><span class="badge bg-warning text-dark">Pendiente</span><small class="d-block mt-2 text-muted">Regularizar hasta</small><strong><?= htmlspecialchars(date('d/m/Y H:i',strtotime($r['fecha_limite_respuesta']))) ?></strong><?php else: ?><span class="text-muted">No aplica</span><?php endif; ?></td>
+                        <td class="text-nowrap"><?php if($r['observacion_id']): ?><span class="badge <?= in_array($r['estado_respuesta'],['Levantamiento validado','Apelación Aprobada'],true)?'bg-success':(in_array($r['estado_respuesta'],['Levantamiento rechazado','Penalidad Directa','Apelación Rechazada'],true)?'bg-danger':($r['estado_respuesta']==='En revisión'?'bg-info text-dark':'bg-warning text-dark')) ?>"><?= htmlspecialchars($r['estado_respuesta']) ?></span><small class="d-block mt-2 text-muted">Regularizar hasta</small><strong><?= htmlspecialchars(date('d/m/Y H:i',strtotime($r['fecha_limite_respuesta']))) ?></strong><?php if(($isDirectSupervisor&&!in_array($r['estado_respuesta'],['Levantamiento validado','Penalidad Directa'],true))||($esAdministrador&&$r['estado_respuesta']!=='Levantamiento validado')): ?><button type="button" class="btn btn-link btn-sm p-0 d-block btn-editar-plazo" data-id="<?= (int)$r['observacion_id'] ?>" data-fecha="<?= htmlspecialchars(date('Y-m-d\TH:i',strtotime($r['fecha_limite_respuesta'])),ENT_QUOTES,'UTF-8') ?>"><i class="bi bi-calendar-event me-1"></i>Editar fecha</button><?php endif; ?><?php elseif($r['tipo_registro']==='Checklist' && $r['fecha_limite_respuesta']): ?><span class="badge bg-warning text-dark">Pendiente</span><small class="d-block mt-2 text-muted">Regularizar hasta</small><strong><?= htmlspecialchars(date('d/m/Y H:i',strtotime($r['fecha_limite_respuesta']))) ?></strong><?php else: ?><span class="text-muted">No aplica</span><?php endif; ?></td>
                         <td><?php if($r['observacion_id']): ?>
                             <?php if($isPartner && in_array($r['estado_respuesta'],['Pendiente','Levantamiento rechazado','Apelación Rechazada'],true)): ?><button class="btn btn-sm btn-win btn-descargo text-nowrap" data-id="<?= (int)$r['observacion_id'] ?>" data-title="<?= htmlspecialchars($r['titulo'],ENT_QUOTES,'UTF-8') ?>"><i class="bi bi-box-arrow-in-right me-1"></i>Ingresar levantamiento</button>
                             <?php elseif(!$isPartner && $r['estado_respuesta']==='En revisión'): ?><?php $descargoFotos=[];for($di=1;$di<=3;$di++){if(!empty($r['descargo_foto_'.$di]))$descargoFotos[]=['url'=>$r['descargo_foto_'.$di],'comentario'=>$r['descargo_comentario_'.$di]??''];} ?><button class="btn btn-sm btn-dark btn-revision" data-id="<?= (int)$r['observacion_id'] ?>" data-title="<?= htmlspecialchars($r['titulo'],ENT_QUOTES,'UTF-8') ?>" data-respuesta="<?= htmlspecialchars($r['respuesta_partner'] ?? '',ENT_QUOTES,'UTF-8') ?>" data-respondido-por="<?= htmlspecialchars($r['respondido_por_nombre'] ?? '',ENT_QUOTES,'UTF-8') ?>" data-fotos='<?= htmlspecialchars(json_encode($descargoFotos,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),ENT_QUOTES,'UTF-8') ?>'><i class="bi bi-search me-1"></i>Revisar descargo</button>
-                            <?php else: ?><button class="btn btn-sm btn-outline-secondary btn-detalle-flujo" data-titulo="<?= htmlspecialchars($r['titulo'] ?? '',ENT_QUOTES,'UTF-8') ?>" data-observacion="<?= htmlspecialchars($r['comentario'] ?? '',ENT_QUOTES,'UTF-8') ?>" data-gravedad="<?= htmlspecialchars($r['estado_item'] ?? '',ENT_QUOTES,'UTF-8') ?>" data-evidencias="<?= htmlspecialchars(json_encode($photoEntries,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),ENT_QUOTES,'UTF-8') ?>" data-respuesta="<?= htmlspecialchars($r['respuesta_partner'] ?? '',ENT_QUOTES,'UTF-8') ?>" data-respondido-por="<?= htmlspecialchars($r['respondido_por_nombre'] ?? '',ENT_QUOTES,'UTF-8') ?>" data-evaluacion="<?= htmlspecialchars($r['sustentacion_evaluacion'] ?? '',ENT_QUOTES,'UTF-8') ?>"><i class="bi bi-eye me-1"></i>Ver detalle</button><?php endif; ?>
+                            <?php else: ?><button class="btn btn-sm btn-outline-secondary btn-detalle-flujo" data-detail="<?= htmlspecialchars(json_encode($flowPayload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),ENT_QUOTES,'UTF-8') ?>" data-titulo="<?= htmlspecialchars($r['titulo'] ?? '',ENT_QUOTES,'UTF-8') ?>" data-observacion="<?= htmlspecialchars($r['comentario'] ?? '',ENT_QUOTES,'UTF-8') ?>" data-gravedad="<?= htmlspecialchars($r['estado_item'] ?? '',ENT_QUOTES,'UTF-8') ?>" data-evidencias="<?= htmlspecialchars(json_encode($photoEntries,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),ENT_QUOTES,'UTF-8') ?>" data-respuesta="<?= htmlspecialchars($r['respuesta_partner'] ?? '',ENT_QUOTES,'UTF-8') ?>" data-respondido-por="<?= htmlspecialchars($r['respondido_por_nombre'] ?? '',ENT_QUOTES,'UTF-8') ?>" data-evaluacion="<?= htmlspecialchars($r['sustentacion_evaluacion'] ?? '',ENT_QUOTES,'UTF-8') ?>"><i class="bi bi-eye me-1"></i>Ver detalle</button><?php endif; ?>
                         <?php elseif($r['tipo_registro']==='Checklist'): ?><?php $pdfChecklistQuery=http_build_query(['tipo_registro'=>'Checklist','supervision_id'=>(int)$r['supervision_id']]); ?><a class="btn btn-sm btn-outline-danger text-nowrap" href="api/observaciones_pdf.php?<?= htmlspecialchars($pdfChecklistQuery,ENT_QUOTES,'UTF-8') ?>"><i class="bi bi-file-earmark-pdf-fill me-1"></i>PDF observado</a><?php endif; ?></td>
                     </tr><?php endif; ?>
                 <?php endforeach; ?>
@@ -212,7 +216,62 @@ function observationPhotoUrl(?string $path): string {
 
 <div class="modal fade" id="modalRevision" tabindex="-1" aria-labelledby="revisionModalTitle" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered"><form id="formRevision" class="modal-content"><div class="modal-header bg-dark text-white"><h5 class="modal-title" id="revisionModalTitle"><i class="bi bi-shield-check me-2 text-warning"></i>Validación del descargo del partner</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button></div><div class="modal-body"><input type="hidden" id="revisionObsId"><p id="revisionTitle" class="fw-bold mb-1"></p><p id="revisionRespondidoPor" class="small text-muted mb-3"></p><div class="p-3 rounded border bg-light mb-3"><small class="fw-bold text-muted d-block mb-1">Comentario general del partner</small><div id="revisionRespuesta"></div></div><div id="revisionFotos" class="d-flex flex-wrap gap-2 mb-3"></div><label for="revisionComentario" class="form-label fw-bold">Comentario de la validación *</label><textarea id="revisionComentario" class="form-control" rows="3" maxlength="2000" required placeholder="Indique por qué valida o rechaza el descargo..."></textarea></div><div class="modal-footer"><button type="submit" data-aprobar="0" class="btn btn-outline-danger revision-submit"><i class="bi bi-x-circle me-1"></i>Descargo no válido</button><button type="submit" data-aprobar="1" class="btn btn-success revision-submit"><i class="bi bi-check-circle me-1"></i>Validar y cerrar</button></div></form></div></div>
 
-<div class="modal fade" id="modalFlowDetail" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content"><div class="modal-header bg-dark text-white"><h5 class="modal-title">Detalle de la observación</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body"><small class="fw-bold text-muted">HALLAZGO REGISTRADO</small><h6 id="flowTitulo" class="mt-2 mb-1"></h6><p id="flowObservacion" class="mb-2"></p><span id="flowGravedad" class="badge bg-danger mb-3"></span><div id="flowEvidencias" class="d-flex flex-wrap gap-2 mb-3"></div><hr><small class="fw-bold text-muted">RESPONDIDO POR (PARTNER)</small><p id="flowRespondidoPor" class="mt-1"></p><hr><small class="fw-bold text-muted">COMENTARIO DEL PARTNER</small><p id="flowRespuesta" class="mt-1"></p><hr><small class="fw-bold text-muted">EVALUACIÓN WIN</small><p id="flowEvaluacion" class="mt-1 mb-0"></p></div></div></div></div>
+<div class="modal fade" id="modalFlowDetail" tabindex="-1" aria-labelledby="flowTituloVentana" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title" id="flowTituloVentana"><i class="bi bi-clipboard2-pulse me-2 text-primary"></i>Detalle de la observación</h5>
+          <small class="text-muted" id="flowCodigoVentana"></small>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body sgs-obs-detalle">
+        <div class="sgs-obs-estado" id="flowEstado"></div>
+        <section class="sgs-obs-seccion">
+          <h6 class="sgs-obs-seccion-titulo">Datos de la orden</h6>
+          <dl class="sgs-obs-datos" id="flowDatos"></dl>
+        </section>
+        <section class="sgs-obs-seccion">
+          <h6 class="sgs-obs-seccion-titulo">Hallazgo registrado</h6>
+          <div class="d-flex align-items-start justify-content-between gap-2 flex-wrap">
+            <strong class="sgs-obs-hallazgo" id="flowTitulo"></strong>
+            <span class="badge" id="flowGravedad"></span>
+          </div>
+          <p class="mb-3 mt-2" id="flowObservacion"></p>
+          <div class="sgs-obs-fotos" id="flowEvidencias"></div>
+        </section>
+        <section class="sgs-obs-seccion">
+          <h6 class="sgs-obs-seccion-titulo">Seguimiento</h6>
+          <ol class="sgs-obs-seguimiento" id="flowSeguimiento"></ol>
+        </section>
+      </div>
+      <div class="modal-footer d-none" id="flowAcciones">
+        <button type="button" class="btn btn-outline-danger me-auto d-none" id="flowEliminar"><i class="bi bi-trash3 me-1"></i>Eliminar observación</button>
+        <button type="button" class="btn btn-outline-secondary d-none" id="flowAmpliar"><i class="bi bi-calendar-plus me-1"></i>Ampliar plazo</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal fade" id="modalEliminarObs" tabindex="-1" aria-labelledby="eliminarObsTitulo" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" id="formEliminarObs">
+      <div class="modal-header">
+        <h5 class="modal-title" id="eliminarObsTitulo"><i class="bi bi-trash3 me-2 text-danger"></i>Eliminar observación</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-danger small mb-3">Se borrará la observación del pedido <strong id="eliminarObsCodigo"></strong> y dejará de contar en reportes y penalidades. Queda una copia en el registro de auditoría.</div>
+        <label for="eliminarObsMotivo" class="form-label">Motivo de la eliminación</label>
+        <textarea class="form-control" id="eliminarObsMotivo" rows="3" minlength="5" maxlength="500" required placeholder="Por ejemplo: registrada por error en otra orden"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-danger" id="eliminarObsConfirmar"><i class="bi bi-trash3 me-1"></i>Eliminar</button>
+      </div>
+    </form>
+  </div>
+</div>
 <div class="modal fade" id="modalPlazo" tabindex="-1" aria-labelledby="plazoModalTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><form id="formPlazo" class="modal-content"><div class="modal-header bg-dark text-white"><h5 class="modal-title" id="plazoModalTitle">Editar fecha de levantamiento</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Cerrar"></button></div><div class="modal-body"><input type="hidden" id="plazoObsId"><label for="plazoFecha" class="form-label fw-bold">Fecha y hora máxima para regularizar</label><input type="datetime-local" id="plazoFecha" class="form-control" required></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-win" type="submit">Guardar fecha</button></div></form></div></div></div>
 </div>
 <script id="observationViewScript">
@@ -295,7 +354,71 @@ document.getElementById('formRevision')?.addEventListener('submit',async event=>
     const payload={observacion_id:Number(document.getElementById('revisionObsId').value),aprobar_apelacion:event.currentTarget.dataset.aprobar==='1',sustentacion_evaluacion:comment};
     const response=await fetch('api/observaciones.php?action=evaluar_supervisor',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},body:JSON.stringify(payload)});const result=await response.json();window.showToast(result.message||'Revisión procesada.',result.status==='success'?'success':'error');if(result.status==='success')location.reload();
 });
-document.querySelectorAll('.btn-detalle-flujo').forEach(button=>button.addEventListener('click',()=>{let evidencias=[];try{evidencias=JSON.parse(button.dataset.evidencias||'[]')}catch(error){}document.getElementById('flowTitulo').textContent=button.dataset.titulo||'Observación registrada';document.getElementById('flowObservacion').textContent=button.dataset.observacion||'Sin descripción';const gravedad=document.getElementById('flowGravedad');gravedad.textContent=button.dataset.gravedad||'Sin gravedad';document.getElementById('flowEvidencias').innerHTML=evidencias.length?evidencias.map((item,index)=>`<button type="button" class="btn p-0 border-0 bg-transparent flow-original-photo" data-photo="${obsEscape(item.url)}" data-title="Evidencia original ${index+1}"><img src="${obsEscape(item.url)}" class="checklist-detail-photo" alt="Evidencia original"><small class="d-block text-muted mt-1">${obsEscape(item.comment||'Sin comentario')}</small></button>`).join(''):'<span class="text-muted small">Sin evidencias fotográficas</span>';document.getElementById('flowRespondidoPor').textContent=button.dataset.respondidoPor||'No registrado';document.getElementById('flowRespuesta').textContent=button.dataset.respuesta||'Todavía no existe un descargo.';document.getElementById('flowEvaluacion').textContent=button.dataset.evaluacion||'Todavía no existe una evaluación.';bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFlowDetail')).show();}));
+// Detalle de la observación: datos de la orden, hallazgo con fotos y seguimiento (respuesta del partner y evaluación WIN)
+let flowActual = null;
+const flowEstadoClase = estado => ['Levantamiento validado','Apelación Aprobada'].includes(estado) ? 'bg-success' : (['Levantamiento rechazado','Penalidad Directa','Apelación Rechazada'].includes(estado) ? 'bg-danger' : (estado === 'En revisión' ? 'bg-info text-dark' : 'bg-warning text-dark'));
+const flowFotos = (fotos, prefijo) => fotos.length
+  ? fotos.map((f, i) => `<button type="button" class="sgs-obs-foto flow-original-photo" data-photo="${obsEscape(f.url)}" data-title="${prefijo} ${i + 1}"><img src="${obsEscape(f.url)}" alt="${prefijo} ${i + 1}" loading="lazy"><span>${obsEscape(f.comment || 'Sin comentario')}</span></button>`).join('')
+  : '<p class="text-muted small mb-0">Sin fotos.</p>';
+document.querySelectorAll('.btn-detalle-flujo').forEach(button => button.addEventListener('click', () => {
+  let d = {};
+  try { d = JSON.parse(button.dataset.detail || '{}'); } catch (error) { return; }
+  flowActual = d;
+  document.getElementById('flowCodigoVentana').textContent = `Pedido ${d.codigo || '—'}`;
+  const vencido = d.estado === 'Pendiente' && d.plazo_iso && new Date(d.plazo_iso) < new Date();
+  document.getElementById('flowEstado').innerHTML = `<span class="badge ${flowEstadoClase(d.estado)}">${obsEscape(d.estado)}</span>`
+    + (d.plazo ? `<span class="${vencido ? 'text-danger fw-semibold' : 'text-muted'}"><i class="bi bi-alarm me-1"></i>Plazo para regularizar: <strong>${obsEscape(d.plazo)}</strong></span>` : '');
+  const dato = (etiqueta, valor) => `<div><dt>${etiqueta}</dt><dd>${obsEscape(valor || '—')}</dd></div>`;
+  document.getElementById('flowDatos').innerHTML = dato('Código de pedido', d.codigo) + dato('Fecha de ingreso', d.fecha) + dato('Plazo para regularizar', d.plazo || 'No aplica')
+    + dato('Partner', d.partner) + dato('Cuadrilla', d.cuadrilla) + dato('Departamento', [d.departamento, d.zona].filter(Boolean).join(' · ')) + dato('Supervisor', d.supervisor);
+  document.getElementById('flowTitulo').textContent = d.titulo || 'Observación registrada';
+  const grav = document.getElementById('flowGravedad');
+  grav.textContent = d.gravedad || 'Sin gravedad';
+  grav.className = 'badge ' + (d.gravedad === 'Media' ? 'bg-warning text-dark' : (d.gravedad ? 'bg-danger' : 'bg-secondary'));
+  document.getElementById('flowObservacion').textContent = d.observacion || 'Sin descripción';
+  document.getElementById('flowEvidencias').innerHTML = flowFotos(d.fotos || [], 'Evidencia');
+  const paso = (icono, titulo, cuando, cuerpo, hecho) => `<li class="${hecho ? 'is-hecho' : ''}"><i class="bi ${icono}"></i><div><strong>${titulo}</strong>${cuando ? `<small class="text-muted ms-2">${obsEscape(cuando)}</small>` : ''}<div class="mt-1">${cuerpo}</div></div></li>`;
+  document.getElementById('flowSeguimiento').innerHTML =
+    paso('bi-flag', 'Observación registrada', d.fecha, `Por ${obsEscape(d.supervisor)}`, true)
+    + paso('bi-chat-left-text', 'Respuesta del partner', d.fecha_respuesta,
+        d.respuesta || (d.descargos || []).length
+          ? `${d.respondido_por ? `<small class="d-block text-muted mb-1">Respondió: ${obsEscape(d.respondido_por)}</small>` : ''}<p class="mb-2">${obsEscape(d.respuesta || 'Sin comentario')}</p><div class="sgs-obs-fotos">${flowFotos(d.descargos || [], 'Levantamiento')}</div>`
+          : '<span class="text-muted">Todavía no existe un descargo.</span>', Boolean(d.respuesta))
+    + paso('bi-shield-check', 'Evaluación WIN', d.fecha_evaluacion, obsEscape(d.evaluacion || 'Todavía no existe una evaluación.'), Boolean(d.evaluacion));
+  document.getElementById('flowEliminar').classList.toggle('d-none', !d.puede_eliminar);
+  document.getElementById('flowAmpliar').classList.toggle('d-none', !d.puede_ampliar);
+  document.getElementById('flowAcciones').classList.toggle('d-none', !d.puede_eliminar && !d.puede_ampliar);
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFlowDetail')).show();
+}));
+document.getElementById('flowAmpliar')?.addEventListener('click', () => {
+  if (!flowActual) return;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFlowDetail')).hide();
+  document.getElementById('plazoObsId').value = flowActual.id;
+  document.getElementById('plazoFecha').value = flowActual.plazo_iso;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPlazo')).show();
+});
+document.getElementById('flowEliminar')?.addEventListener('click', () => {
+  if (!flowActual) return;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFlowDetail')).hide();
+  document.getElementById('eliminarObsCodigo').textContent = flowActual.codigo || '';
+  document.getElementById('eliminarObsMotivo').value = '';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEliminarObs')).show();
+});
+document.getElementById('formEliminarObs')?.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (!flowActual) return;
+  const motivo = document.getElementById('eliminarObsMotivo').value.trim();
+  if (motivo.length < 5) { window.showToast('Escribe un motivo de al menos 5 caracteres.', 'error'); return; }
+  const boton = document.getElementById('eliminarObsConfirmar');
+  boton.disabled = true;
+  try {
+    const response = await fetch('api/observaciones.php?action=eliminar', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken }, body: JSON.stringify({ observacion_id: flowActual.id, motivo }) });
+    const result = await response.json();
+    window.showToast(result.message || 'Listo.', result.status === 'success' ? 'success' : 'error');
+    if (result.status === 'success') location.reload();
+  } catch (error) { window.showToast('No se pudo eliminar la observación.', 'error'); }
+  finally { boton.disabled = false; }
+});
 document.getElementById('flowEvidencias')?.addEventListener('click',event=>{const button=event.target.closest('.flow-original-photo');if(!button)return;document.getElementById('observationPhotoImage').src=button.dataset.photo;document.getElementById('observationPhotoTitle').textContent=button.dataset.title||'Evidencia original';bootstrap.Modal.getOrCreateInstance(document.getElementById('modalObservationPhoto')).show();});
 document.querySelectorAll('.btn-editar-plazo').forEach(button=>button.addEventListener('click',()=>{document.getElementById('plazoObsId').value=button.dataset.id;document.getElementById('plazoFecha').value=button.dataset.fecha;bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPlazo')).show();}));
 document.getElementById('formPlazo')?.addEventListener('submit',async event=>{event.preventDefault();try{const response=await fetch('api/observaciones.php?action=actualizar_plazo',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken},body:JSON.stringify({observacion_id:Number(document.getElementById('plazoObsId').value),fecha_limite_respuesta:document.getElementById('plazoFecha').value})});const result=await response.json();window.showToast(result.message||'Fecha procesada.',result.status==='success'?'success':'error');if(result.status==='success')location.reload()}catch(error){window.showToast('No se pudo actualizar la fecha de levantamiento.','error')}});

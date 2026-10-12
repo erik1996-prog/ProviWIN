@@ -1,0 +1,14 @@
+-- 04_DATABASE/02_CAMBIOS/{{CARPETA}}/cambio.sql
+-- Fecha: {{FECHA}}
+-- Qué cambia y por qué: {{DESCRIPCION}}
+-- Tablas afectadas: ...
+-- Cómo deshacerlo: reversion.sql (misma carpeta) o: php 07_SCRIPTS/migrar.php --revertir {{CARPETA}}
+-- Aplicar: respaldar antes (php 07_SCRIPTS/respaldar.php base antes-de-cambio) y luego php 07_SCRIPTS/migrar.php
+--          En el hosting también se puede importar este archivo en phpMyAdmin (y anotar la carpeta en sgs_migracion).
+--
+-- Reglas: nombres de tabla en minúsculas (sgs_…); idempotente (IF NOT EXISTS / IF EXISTS); columnas nuevas NULL o con DEFAULT;
+-- tabla nueva = InnoDB + utf8mb4_unicode_ci + PK + FK con índice + fecha de creación; una sentencia por línea terminada en ';'.
+-- Si es una tabla nueva: agregarla a $tablasSgs en 07_SCRIPTS/generar_instalacion.php.
+
+-- Ejemplo (borrar y escribir el cambio real):
+-- ALTER TABLE supervisiones ADD COLUMN IF NOT EXISTS nueva_columna VARCHAR(50) NULL;

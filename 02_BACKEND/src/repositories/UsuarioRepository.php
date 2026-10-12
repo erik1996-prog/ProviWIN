@@ -10,11 +10,11 @@ final class UsuarioRepository
     {
         $sql = "SELECT u.id, u.dni, u.nombres, u.apellidos, u.nombre_completo, u.usuario, u.email, u.telefono_personal,
                        u.telefono_corporativo, u.rol, u.partner_id, p.nombre_partner, u.sede, u.zona, u.area_trabajo, u.activo,
-                       u.fecha_creacion, up.PERFIL_ID AS perfil_id, pf.NOMBRE AS perfil_nombre
+                       u.fecha_creacion, up.perfil_id, pf.nombre AS perfil_nombre
                 FROM usuarios u
                 LEFT JOIN partners p ON p.id = u.partner_id
-                LEFT JOIN sgs_usuario_perfil up ON up.USUARIO_ID = u.id
-                LEFT JOIN sgs_perfil pf ON pf.PERFIL_ID = up.PERFIL_ID
+                LEFT JOIN sgs_usuario_perfil up ON up.usuario_id = u.id
+                LEFT JOIN sgs_perfil pf ON pf.id = up.perfil_id
                 WHERE 1=1";
         $params = [];
         if ($f['q'] !== '') {
@@ -43,9 +43,9 @@ final class UsuarioRepository
 
     public function obtener(int $id): ?array
     {
-        $st = $this->pdo->prepare("SELECT u.*, p.nombre_partner, up.PERFIL_ID AS perfil_id
+        $st = $this->pdo->prepare("SELECT u.*, p.nombre_partner, up.perfil_id
             FROM usuarios u LEFT JOIN partners p ON p.id = u.partner_id
-            LEFT JOIN sgs_usuario_perfil up ON up.USUARIO_ID = u.id WHERE u.id = :id LIMIT 1");
+            LEFT JOIN sgs_usuario_perfil up ON up.usuario_id = u.id WHERE u.id = :id LIMIT 1");
         $st->execute([':id' => $id]);
         $u = $st->fetch();
         return $u ?: null;
@@ -178,18 +178,18 @@ final class UsuarioRepository
 
     public function asignarPerfil(int $userId, int $perfilId, int $asignadoPor): void
     {
-        $this->pdo->prepare('REPLACE INTO sgs_usuario_perfil (USUARIO_ID, PERFIL_ID, ASIGNADO_POR, FECHA_ASIGNACION) VALUES (:u, :p, :by, NOW())')
+        $this->pdo->prepare('REPLACE INTO sgs_usuario_perfil (usuario_id, perfil_id, asignado_por, fecha_asignacion) VALUES (:u, :p, :by, NOW())')
             ->execute([':u' => $userId, ':p' => $perfilId, ':by' => $asignadoPor]);
     }
 
     public function quitarPerfil(int $userId): void
     {
-        $this->pdo->prepare('DELETE FROM sgs_usuario_perfil WHERE USUARIO_ID = :u')->execute([':u' => $userId]);
+        $this->pdo->prepare('DELETE FROM sgs_usuario_perfil WHERE usuario_id = :u')->execute([':u' => $userId]);
     }
 
     public function usuariosConPerfil(int $perfilId): array
     {
-        $st = $this->pdo->prepare('SELECT USUARIO_ID FROM sgs_usuario_perfil WHERE PERFIL_ID = :p');
+        $st = $this->pdo->prepare('SELECT usuario_id FROM sgs_usuario_perfil WHERE perfil_id = :p');
         $st->execute([':p' => $perfilId]);
         return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
     }

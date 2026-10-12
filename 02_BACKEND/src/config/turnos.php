@@ -42,3 +42,27 @@ function sgsCerrarTurnosVencidos(PDO $pdo): int
     }
     return $cerrados;
 }
+
+/**
+ * Primera acción del turno (2026-10-08): la primera supervisión, reunión, capacitación, trabajo remoto o trabajo de
+ * campo que el supervisor registra después de iniciar el turno. El almuerzo no cuenta como acción.
+ * $eventos: filas de asistencia_eventos; $iniciosSupervision: timestamps de inicio de sus supervisiones del día.
+ * Devuelve ['tipo' => 'Supervisión', 'hora' => '08:42', 'minutos' => 27] o null si todavía no hay ninguna.
+ */
+function sgsPrimeraAccion(string $inicioTurno, array $eventos, array $iniciosSupervision): ?array
+{
+    $tInicio = strtotime($inicioTurno);
+    $nombres = ['reunion' => 'Reunión', 'capacitacion' => 'Capacitación', 'remoto' => 'Trabajo remoto', 'campo' => 'Trabajo de campo'];
+    $candidatas = [];
+    foreach ($iniciosSupervision as $t) {
+        if ($t && $t >= $tInicio) $candidatas[] = [(int)$t, 'Supervisión'];
+    }
+    foreach ($eventos as $e) {
+        $t = strtotime((string)($e['inicio_evento'] ?? ''));
+        if ($t && $t >= $tInicio && isset($nombres[$e['tipo_evento'] ?? ''])) $candidatas[] = [$t, $nombres[$e['tipo_evento']]];
+    }
+    if (!$candidatas) return null;
+    usort($candidatas, fn($a, $b) => $a[0] <=> $b[0]);
+    [$t, $tipo] = $candidatas[0];
+    return ['tipo' => $tipo, 'hora' => date('H:i', $t), 'minutos' => (int)floor(($t - $tInicio) / 60)];
+}

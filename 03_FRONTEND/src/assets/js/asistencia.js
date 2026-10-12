@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnStartAlmuerzo = document.getElementById('btn-start-almuerzo');
     const btnStartReunion = document.getElementById('btn-start-reunion');
     const btnStartCapacitacion = document.getElementById('btn-start-capacitacion');
+    const btnStartRemoto = document.getElementById('btn-start-remoto');
     const btnEndEvent = document.getElementById('btn-end-event');
 
     const boxActiveEventAlert = document.getElementById('box-active-event-alert');
@@ -33,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const txtHorasExtras = document.getElementById('txt-horas-extras');
     const txtTotalAlmuerzo = document.getElementById('txt-total-almuerzo');
     const txtTotalReunion = document.getElementById('txt-total-reunion');
+    const txtTotalRemoto = document.getElementById('txt-total-remoto');
     const containerTimelineToday = document.getElementById('container-timeline-today');
 
     // Elementos DOM Admin
@@ -89,6 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (txtHorasExtras) txtHorasExtras.textContent = Number(data.horas_extras || 0).toFixed(2) + ' h';
             if (txtTotalAlmuerzo) txtTotalAlmuerzo.textContent = (data.minutos_almuerzo || 0) + ' min';
             if (txtTotalReunion) txtTotalReunion.textContent = (data.minutos_reunion || 0) + ' min';
+            if (txtTotalRemoto) txtTotalRemoto.textContent = (data.minutos_remoto || 0) + ' min';
 
             // Eventos / Timeline
             renderTimelineToday(data.eventos || [], data.asistencia);
@@ -127,7 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // BADGES Y BOTONES
     // -------------------------------------------------------------
     function updateBadgeStatus(status) {
-        const esActivo = ['En turno', 'En almuerzo', 'En reunión', 'En capacitación'].includes(status);
+        const esActivo = ['En turno', 'En almuerzo', 'En reunión', 'En capacitación', 'En remoto'].includes(status);
 
         if (badgeShiftStatus) {
             badgeShiftStatus.className = 'badge badge-status py-2 px-3 fs-6 ';
@@ -136,6 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 'En almuerzo': 'badge-en-almuerzo',
                 'En reunión': 'badge-en-reunion',
                 'En capacitación': 'badge-en-capacitacion',
+                'En remoto': 'badge-en-remoto',
                 'Fuera de turno': 'badge-fuera-turno'
             };
             badgeShiftStatus.classList.add(statusClasses[status] || 'badge-fuera-turno');
@@ -163,12 +167,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btnStartAlmuerzo) btnStartAlmuerzo.disabled = true;
             if (btnStartReunion) btnStartReunion.disabled = true;
             if (btnStartCapacitacion) btnStartCapacitacion.disabled = true;
+            if (btnStartRemoto) btnStartRemoto.disabled = true;
         } else {
             if (btnStartShift) btnStartShift.disabled = true;
             if (btnEndShift) btnEndShift.disabled = false;
 
             // Las reuniones vuelven a habilitarse después de reanudar el turno.
-            const enPausa = ['En almuerzo', 'En reunión', 'En capacitación'].includes(subState);
+            const enPausa = ['En almuerzo', 'En reunión', 'En capacitación', 'En remoto'].includes(subState);
             const yaAlmuerzo = tiposRegistrados.includes('almuerzo');
             const yaCapacitacion = tiposRegistrados.includes('capacitacion');
 
@@ -186,6 +191,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnStartReunion.disabled = enPausa;
                 btnStartReunion.innerHTML = '<i class="bi bi-people me-1"></i> Reunión';
                 btnStartReunion.title = enPausa ? 'Reanuda el turno antes de iniciar otra reunión' : 'Iniciar una nueva reunión';
+            }
+
+            // El trabajo remoto puede registrarse varias veces en el turno, como las reuniones
+            if (btnStartRemoto) {
+                btnStartRemoto.disabled = enPausa;
+                btnStartRemoto.title = enPausa ? 'Reanuda el turno antes de iniciar trabajo remoto' : 'Registrar trabajo remoto';
             }
 
             if (btnStartCapacitacion) {
@@ -208,7 +219,8 @@ document.addEventListener('DOMContentLoaded', () => {
             'almuerzo': '<i class="bi bi-cup-hot-fill me-2"></i> En Almuerzo',
             'reunion': '<i class="bi bi-people-fill me-2"></i> En Reunión (' + escapeHtml(evento.nota || 'Coordinación') + ')',
             'capacitacion': '<i class="bi bi-mortarboard-fill me-2"></i> En Capacitación',
-            'campo': '<i class="bi bi-briefcase-fill me-2"></i> En Trabajo de Campo'
+            'campo': '<i class="bi bi-briefcase-fill me-2"></i> En Trabajo de Campo',
+            'remoto': '<i class="bi bi-laptop me-2"></i> En trabajo remoto' + (evento.nota ? ' (' + escapeHtml(evento.nota) + ')' : '')
         };
 
         if (txtActiveEventTitle) txtActiveEventTitle.innerHTML = mapTitle[evento.tipo_evento] || 'En Pausa';
@@ -289,6 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (ev.tipo_evento === 'almuerzo') { badgeClass = 'bg-warning text-dark'; label = 'ALMUERZO'; }
             else if (ev.tipo_evento === 'reunion') { badgeClass = 'bg-info text-dark'; label = 'REUNIÓN'; }
             else if (ev.tipo_evento === 'capacitacion') { badgeClass = 'bg-primary text-white'; label = 'CAPACITACIÓN'; }
+            else if (ev.tipo_evento === 'remoto') { badgeClass = 'badge-en-remoto'; label = 'TRABAJO REMOTO'; }
 
             html += `
                 <div class="timeline-item">
@@ -439,6 +452,39 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    if (btnStartRemoto) {
+        // Trabajo remoto: ventana con una nota opcional (como el motivo de la reunión)
+        const modalRemotoEl = document.getElementById('modalRemoto');
+        const modalRemoto = modalRemotoEl ? new bootstrap.Modal(modalRemotoEl) : null;
+        const txtNotaRemoto = document.getElementById('txt-nota-remoto');
+        btnStartRemoto.addEventListener('click', () => {
+            if (txtNotaRemoto) txtNotaRemoto.value = '';
+            if (modalRemoto) modalRemoto.show();
+        });
+        document.getElementById('btn-confirm-remoto')?.addEventListener('click', async () => {
+            const nota = txtNotaRemoto ? txtNotaRemoto.value : '';
+            if (modalRemoto) modalRemoto.hide();
+
+            try {
+                const resp = await fetch('api/asistencia.php?action=start_event', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tipo_evento: 'remoto',
+                        nota: nota.trim(),
+                        latitud: userCoords.lat,
+                        longitud: userCoords.lng
+                    })
+                });
+                const res = await resp.json();
+                alert(res.message);
+                loadSupervisorStatus();
+            } catch (e) {
+                alert('Error al registrar trabajo remoto.');
+            }
+        });
+    }
+
     if (btnEndEvent) {
         btnEndEvent.addEventListener('click', async () => {
             try {
@@ -480,6 +526,8 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('kpi-admin-almuerzo').textContent = k.en_almuerzo || 0;
             document.getElementById('kpi-admin-reunion').textContent = k.en_reunion || 0;
             document.getElementById('kpi-admin-capacitacion').textContent = k.en_capacitacion || 0;
+            const kpiRemoto = document.getElementById('kpi-admin-remoto');
+            if (kpiRemoto) kpiRemoto.textContent = k.en_remoto || 0;
             document.getElementById('kpi-admin-finalizado').textContent = k.turno_finalizado || 0;
 
             // Renderear Tabla
@@ -509,9 +557,15 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (estado === 'En almuerzo') badgeClass = 'bg-warning text-dark';
             else if (estado === 'En reunión') badgeClass = 'bg-info text-dark';
             else if (estado === 'En capacitación') badgeClass = 'bg-primary text-white';
+            else if (estado === 'En remoto') badgeClass = 'badge-en-remoto';
             else if (estado === 'Fuera de turno') badgeClass = 'bg-dark text-white';
 
             const iniStr = asist ? asist.inicio_turno.substring(11, 16) : '--:--';
+            // Primera acción del turno (supervisión, reunión, capacitación o remoto) y cuánto tardó desde el inicio
+            const pa = item.primera_accion;
+            const primeraAccion = !asist ? '' : (pa
+                ? `<small class="d-block text-muted fw-normal">1.ª acción: ${escapeHtml(pa.tipo)} ${pa.hora} · ${pa.minutos} min</small>`
+                : '<small class="d-block text-muted fw-normal">Sin acciones aún</small>');
             const finStr = (asist && asist.fin_turno) ? asist.fin_turno.substring(11, 16) : '--:--';
             const hTrab = asist ? (asist.horas_trabajadas || 0) + 'h' : '0.00h';
             const minAlm = (item.minutos_almuerzo || 0) + ' min';
@@ -534,7 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </td>
                     <td><span class="badge bg-light text-dark border">${escapeHtml(sup.partner)}</span></td>
                     <td><span class="badge ${badgeClass} px-2 py-1.5 fw-bold">${escapeHtml(estado)}</span></td>
-                    <td class="fw-semibold">${iniStr}</td>
+                    <td class="fw-semibold">${iniStr}${primeraAccion}</td>
                     <td class="fw-semibold">${finStr}</td>
                     <td><span class="fw-bold text-dark">${hTrab}</span></td>
                     <td><span class="text-muted">${minAlm}</span></td>

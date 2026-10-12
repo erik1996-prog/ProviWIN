@@ -187,6 +187,7 @@ try {
     $user = Auth::getLoggedInUser();
     $errors = [];
     $created = 0;
+    $avisosZona = [];
 
     $pdo->beginTransaction();
 
@@ -373,8 +374,11 @@ try {
 
         $newId = (int)$pdo->lastInsertId();
         $pdo->prepare('UPDATE supervisiones SET fecha_asignacion=NOW() WHERE id=:id')->execute([':id'=>$newId]);
-        $pdo->prepare("INSERT INTO notificaciones(usuario_id,titulo,mensaje,url_destino) VALUES(:uid,'Cancelación pendiente de revisión',:mensaje,:url)")
-            ->execute([':uid'=>$assignedSupervisor['id'], ':mensaje'=>"Pedido {$ticket} asignado para revisión en {$zone}.", ':url'=>'index.php?page=supervision_lista&highlight='.$newId]);
+        // Bolsa común (2026-10-11): la pendiente no se reparte; se avisa a todos los supervisores de la zona
+        // y el primero que la inicia se queda con ella.
+        foreach (supervisoresZonaCancelacion($pdo, $department) as $supZona) {
+            $avisosZona[(int)$supZona['id']][$zone] = ($avisosZona[(int)$supZona['id']][$zone] ?? 0) + 1;
+        }
         $created++;
     }
 
@@ -387,6 +391,13 @@ try {
             'observadas' => $errors
         ], JSON_UNESCAPED_UNICODE);
         exit;
+    }
+
+    $avisoZona = $pdo->prepare("INSERT INTO notificaciones (usuario_id, titulo, mensaje, url_destino) VALUES (:usuario, 'Nuevas cancelaciones pendientes en tu zona', :mensaje, 'index.php?page=supervision_lista')");
+    foreach ($avisosZona as $supId => $porZona) {
+        $partes = [];
+        foreach ($porZona as $z => $total) $partes[] = "{$total} en {$z}";
+        $avisoZona->execute([':usuario' => $supId, ':mensaje' => 'Se cargaron cancelaciones pendientes: ' . implode(', ', $partes) . '. Están visibles para todos los supervisores de la zona; la primera persona que la inicia se queda con la orden.']);
     }
 
     $notify = $pdo->prepare("INSERT INTO notificaciones (usuario_id, titulo, mensaje, url_destino) VALUES (:usuario, 'Supervisiones pendientes cargadas', :mensaje, 'index.php?page=supervision_lista')");

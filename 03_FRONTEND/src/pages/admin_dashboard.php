@@ -27,8 +27,9 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
             <div class="col-6 col-lg-2 dash-modo-mes"><label class="form-label" for="dash-anio">Año</label><select class="form-select" id="dash-anio"></select></div>
             <div class="col-6 col-lg-2 dash-modo-rango d-none"><label class="form-label" for="ind-filter-f-ini">Desde</label><input type="date" class="form-control" id="ind-filter-f-ini" value="<?= date('Y-m-01') ?>"></div>
             <div class="col-6 col-lg-2 dash-modo-rango d-none"><label class="form-label" for="ind-filter-f-fin">Hasta</label><input type="date" class="form-control" id="ind-filter-f-fin" value="<?= date('Y-m-d') ?>"></div>
-            <div class="col-sm-6 col-lg-3"><label class="form-label" for="ind-filter-partner">Partner</label><select id="ind-filter-partner" class="form-select"><option value="0">Todos los partners</option></select></div>
-            <div class="col-sm-6 col-lg-3"><label class="form-label" for="ind-filter-supervisor">Supervisor</label><select id="ind-filter-supervisor" class="form-select"><option value="0">Todos los supervisores</option></select></div>
+            <div class="col-sm-6 col-lg-2"><label class="form-label" for="ind-filter-partner">Partner</label><select id="ind-filter-partner" class="form-select"><option value="0">Todos los partners</option></select></div>
+            <div class="col-sm-6 col-lg-2"><label class="form-label" for="ind-filter-departamento">Departamento</label><select id="ind-filter-departamento" class="form-select"><option value="">Todos los departamentos</option></select></div>
+            <div class="col-sm-6 col-lg-2"><label class="form-label" for="ind-filter-supervisor">Supervisor</label><select id="ind-filter-supervisor" class="form-select"><option value="0">Todos los supervisores</option></select></div>
             <div class="col-6 col-lg-auto"><button type="button" id="btn-filtrar-indicadores" class="btn btn-win w-100"><i class="bi bi-funnel me-1"></i>Filtrar</button></div>
             <div class="col-6 col-lg-auto"><button type="button" id="btn-limpiar-dash" class="btn btn-outline-secondary w-100"><i class="bi bi-x-lg me-1"></i>Limpiar</button></div>
         </div>
@@ -492,6 +493,7 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
         const params = new URLSearchParams({
             action: 'cumplimiento_partners',
             partner_id: document.getElementById('ind-filter-partner')?.value || 0,
+            departamento: document.getElementById('ind-filter-departamento')?.value || '',
             fecha_inicio: document.getElementById('ind-filter-f-ini')?.value || '',
             fecha_fin: document.getElementById('ind-filter-f-fin')?.value || '',
         });
@@ -534,6 +536,18 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
         }
     }
 
+    // Supervisores del departamento elegido: los que lo tienen como zona base o adicional (o trabajan todas las zonas)
+    function sgsFiltrarSupervisoresPorDepartamento() {
+        const selS = document.getElementById('ind-filter-supervisor');
+        const dep = document.getElementById('ind-filter-departamento')?.value || '';
+        if (!selS) return;
+        const actual = selS.value;
+        const lista = (window.sgsDashSupervisores || []).filter(s => !dep || s.zonas === null || (s.zonas || []).includes(dep));
+        selS.innerHTML = '<option value="0">' + (dep ? `Todos los supervisores de ${escapeHtml(dep)}` : 'Todos los supervisores') + '</option>'
+            + lista.map(s => `<option value="${s.id}">${escapeHtml(s.nombre_completo)}</option>`).join('');
+        selS.value = lista.some(s => String(s.id) === actual) ? actual : '0';
+    }
+
     async function cargarFiltrosIndicadores() {
         try {
             const resp = await fetch('api/asistencia.php?action=list_filters');
@@ -550,12 +564,14 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
                 });
             }
 
-            if (selS && data.supervisores) {
-                selS.innerHTML = '<option value="0">Todos los supervisores</option>';
-                data.supervisores.forEach(s => {
-                    selS.innerHTML += `<option value="${s.id}">${escapeHtml(s.nombre_completo)}</option>`;
-                });
+            const selD = document.getElementById('ind-filter-departamento');
+            if (selD && data.departamentos) {
+                selD.innerHTML = '<option value="">Todos los departamentos</option>'
+                    + data.departamentos.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
+                selD.addEventListener('change', sgsFiltrarSupervisoresPorDepartamento);
             }
+            window.sgsDashSupervisores = data.supervisores || [];
+            sgsFiltrarSupervisoresPorDepartamento();
         } catch (e) {
             console.error('Error al cargar filtros de indicadores:', e);
         }
@@ -567,7 +583,8 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
         const fFin = document.getElementById('ind-filter-f-fin')?.value || '';
         const sId = document.getElementById('ind-filter-supervisor')?.value || 0;
 
-        const url = `api/supervisiones.php?action=indicadores_dashboard&partner_id=${pId}&fecha_inicio=${fIni}&fecha_fin=${fFin}&supervisor_id=${sId}`;
+        const dep = encodeURIComponent(document.getElementById('ind-filter-departamento')?.value || '');
+        const url = `api/supervisiones.php?action=indicadores_dashboard&partner_id=${pId}&fecha_inicio=${fIni}&fecha_fin=${fFin}&supervisor_id=${sId}&departamento=${dep}`;
 
         try {
             const resp = await fetch(url);
@@ -757,6 +774,7 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
         fecha_fin: document.getElementById('ind-filter-f-fin').value,
         partner_id: document.getElementById('ind-filter-partner').value || 0,
         supervisor_id: document.getElementById('ind-filter-supervisor').value || 0,
+        departamento: document.getElementById('ind-filter-departamento')?.value || '',
     });
 
     function aplicarFiltroGeneral() {
@@ -785,6 +803,8 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
             document.querySelector('#dash-modo .filter-tab-btn[data-modo="mes"]').click();
             selMes.value = hoy.getMonth() + 1; selAnio.value = hoy.getFullYear();
             document.getElementById('ind-filter-partner').value = '0';
+            const selDep = document.getElementById('ind-filter-departamento');
+            if (selDep) { selDep.value = ''; sgsFiltrarSupervisoresPorDepartamento(); }
             document.getElementById('ind-filter-supervisor').value = '0';
             aplicarFiltroGeneral();
         });

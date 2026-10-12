@@ -4,6 +4,35 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Observaciones, Dashboard y pendientes (2026-10-11)
+- **Detalle de la observación rediseñado** (vista del partner y de todos): fecha de ingreso, fecha plazo (en rojo si venció), código de pedido, cuadrilla, partner, departamento, hallazgo con gravedad y fotos, y seguimiento por pasos.
+- **Administrador**: puede ampliar el plazo (también en penalidad directa; si la nueva fecha es futura vuelve a Pendiente) y **eliminar** la observación con motivo obligatorio; se guarda una copia completa en el registro (`audit_observation_deleted`).
+- **Dashboard**: el filtro de partners no cargaba (la lista no se enviaba). Nuevo filtro por **departamento**; la lista de supervisores se ajusta al departamento elegido (zona base o adicional) y la matriz, la productividad y el cumplimiento se filtran por él.
+- **Pendientes como bolsa común de la zona**: las ve cada supervisor directo de esa zona (base o adicional); quien la inicia se queda con ella (también si la finaliza directamente) y desaparece de la lista de los demás. Si otro intenta iniciarla después, se le avisa que "ya fue tomada". Al importar se avisa a todos los supervisores de la zona con un resumen, en lugar de a uno solo.
+- Prueba nueva `pendientes_bolsa_zona_test.php` (9/9).
+
+### Corregido (2026-10-11)
+- Menú "Columnas" de Supervisiones cortado: la tarjeta de la barra recortaba lo que sobresalía (overflow heredado). Ahora el menú se ve completo y por encima de la tabla.
+- Al abrir otra supervisión quedaban restos de la anterior en el formulario: sección de observación abierta con sus fotos, tipificación marcada como elegida y buscadores de T1/T2 bloqueados. El formulario ahora queda en blanco.
+
+### Trabajo remoto y primera acción del turno
+- **Trabajo remoto**: botón nuevo en Mi turno (con nota opcional), estado "En remoto", bloque propio en la línea de tiempo (borde punteado), tarjeta y filtro en el monitor. Cuenta como tiempo trabajado y puede repetirse en el turno.
+- **Primera acción del turno**: la línea de tiempo y el monitor muestran la primera supervisión, reunión, capacitación o trabajo remoto y cuántos minutos después del inicio ocurrió ("Sin acciones aún" si todavía no hay).
+- Base: cambio `02_CAMBIOS/2026-10-08_01_agregar_trabajo_remoto_a_los_turnos` (agrega la opción a las listas; no toca datos).
+- Corregido: las tarjetas de la línea de tiempo contaban mal (almuerzo, reunión y capacitación salían como "Fuera de turno"); los bloques de pausa salían invisibles (color inexistente) y sin tilde ("Reunion").
+- Prueba nueva `trabajo_remoto_test.php` (8/8).
+
+### Base de datos ordenada (punto de partida para el hosting)
+- Las 3 tablas propias (`sgs_perfil`, `sgs_usuario_perfil`, `sgs_migracion`, vacías) se recrearon con nombres en minúsculas y `id` como clave, igual que el resto.
+- Un solo estilo de nombres para índices y relaciones: `idx_tabla_columna`, `uq_tabla_columna`, `fk_tabla_columna` (57 índices y 32 relaciones renombrados; ningún dato ni columna tocados).
+- Cada tabla tiene su descripción en la base (visible en phpMyAdmin); el generador la exige.
+- `00_instalacion_completa.sql` con índice de contenido al inicio.
+- `DICCIONARIO_DATOS.md` se genera solo desde la base (el anterior estaba desactualizado).
+
+### Instalación en un archivo y cambios por carpeta con fecha
+- `01_INSTALACION/00_instalacion_completa.sql`: toda la base (23 tablas + datos actuales) en un solo archivo para subirla de una vez. Probado en una base vacía.
+- Desde ahora cada cambio de base va en `02_CAMBIOS/AAAA-MM-DD_NN_descripcion/` con `cambio.sql` y `reversion.sql`; se crea con `07_SCRIPTS/nuevo_cambio.php` y se aplica con `migrar.php` (`--estado`, `--revertir`). Probado: crear, aplicar, no repetir y revertir.
+
 ### Respaldos automáticos
 - **Base de datos cada 6 horas y sistema completo (código, .env, fotos) cada 24 horas**, solos mientras el sistema se usa, sin depender de mysqldump (`02_BACKEND/src/config/respaldos.php`). **Apenas la base vuelve después de una caída**, se respaldan ambos al instante (motivo `tras-caida`).
 - Nueva carpeta `10_RESPALDOS/` (`base/` .sql.gz, `sistema/` .tar.gz), bloqueada por web y fuera de git; se conservan 30 días de la base (mínimo 5) y los 5 últimos del sistema. Guía de restauración en `10_RESPALDOS/LEEME.md`.

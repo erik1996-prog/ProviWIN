@@ -4,7 +4,8 @@ Scripts de mantenimiento. Reglas: solo CLI (empiezan con `if (PHP_SAPI !== 'cli'
 
 | Script | Qué hace |
 |---|---|
-| `migrar.php [--estado]` | Aplica las migraciones pendientes de `04_DATABASE/02_CAMBIOS` (respaldar antes) |
+| `nuevo_cambio.php "descripción"` | Crea la carpeta con fecha de un cambio de base: `04_DATABASE/02_CAMBIOS/AAAA-MM-DD_NN_descripcion/` con `cambio.sql` y `reversion.sql` |
+| `migrar.php [--estado | --revertir CARPETA]` | Aplica en orden los cambios pendientes de `04_DATABASE/02_CAMBIOS` (respaldar antes) o deshace uno |
 | `auditar_bd.php [--sql]` | **Solo lectura.** Revisa la BD contra el estándar (motor, utf8mb4, PK, FK, índices, auditoría); `--sql` imprime correcciones sugeridas sin ejecutarlas |
 | `respaldar.php [todo|base|sistema] [motivo]` | Respaldo a mano o por cron de la base (.sql.gz) y del sistema con fotos (.tar.gz) en `10_RESPALDOS/`. El sistema además respalda solo: base cada 6 h, sistema cada 24 h y ambos tras una caída |
 | `cerrar_turnos.php` | Cierra turnos olvidados a las 23:59 (programar a diario a esa hora) |
