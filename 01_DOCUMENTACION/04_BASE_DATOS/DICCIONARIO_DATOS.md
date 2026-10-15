@@ -19,14 +19,15 @@ Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 | 12 | [`usuario_departamentos_acceso`](#usuario_departamentos_acceso) | Zonas adicionales que puede ver cada usuario | 0 registros |
 | 13 | [`usuario_permisos`](#usuario_permisos) | Permisos personalizados por usuario (además de los de su rol) | 0 registros |
 | 14 | [`asistencia_eventos`](#asistencia_eventos) | Pausas dentro del turno (almuerzo, reunión, capacitación) | vacía |
-| 15 | [`supervisiones`](#supervisiones) | Supervisiones de campo y órdenes pendientes asignadas | vacía |
-| 16 | [`checklists_tecnicos`](#checklists_tecnicos) | Checklist de cuadrilla por supervisión | vacía |
-| 17 | [`observaciones_supervision`](#observaciones_supervision) | Observaciones en campo, descargos del partner y plazos | vacía |
-| 18 | [`rescate_seguimientos`](#rescate_seguimientos) | Historial del rescate de cada pendiente (inicio, avances, reasignación y cierre) | vacía |
-| 19 | [`supervision_coordenadas_historial`](#supervision_coordenadas_historial) | Cambios de ubicación GPS de cada supervisión | vacía |
-| 20 | [`supervision_estado_historial`](#supervision_estado_historial) | Cambios de estado de cada supervisión (horas reales de inicio y fin) | vacía |
-| 21 | [`checklist_respuestas`](#checklist_respuestas) | Criterios evaluados en cada checklist | vacía |
-| 22 | [`notificaciones`](#notificaciones) | Avisos a los usuarios | vacía |
+| 15 | [`examen_enlaces`](#examen_enlaces) | Links de examen enviados a los técnicos | vacía |
+| 16 | [`supervisiones`](#supervisiones) | Supervisiones de campo y órdenes pendientes asignadas | vacía |
+| 17 | [`checklists_tecnicos`](#checklists_tecnicos) | Checklist de cuadrilla por supervisión | vacía |
+| 18 | [`observaciones_supervision`](#observaciones_supervision) | Observaciones en campo, descargos del partner y plazos | vacía |
+| 19 | [`rescate_seguimientos`](#rescate_seguimientos) | Historial del rescate de cada pendiente (inicio, avances, reasignación y cierre) | vacía |
+| 20 | [`supervision_coordenadas_historial`](#supervision_coordenadas_historial) | Cambios de ubicación GPS de cada supervisión | vacía |
+| 21 | [`supervision_estado_historial`](#supervision_estado_historial) | Cambios de estado de cada supervisión (horas reales de inicio y fin) | vacía |
+| 22 | [`checklist_respuestas`](#checklist_respuestas) | Criterios evaluados en cada checklist | vacía |
+| 23 | [`notificaciones`](#notificaciones) | Avisos a los usuarios | vacía |
 
 ### `categorias_observacion`
 Categorías de observación
@@ -234,6 +235,23 @@ Pausas dentro del turno (almuerzo, reunión, capacitación) · Depende de: `asis
 | `latitud` | varchar(50) | sí |  |  |
 | `longitud` | varchar(50) | sí |  |  |
 | `created_at` | datetime | sí |  |  |
+
+### `examen_enlaces`
+Links de examen enviados a los técnicos · Depende de: `usuarios`, `tecnicos`
+
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `tecnico_id` | int(11) | no | FK → `tecnicos` | Técnico que rinde el examen (T1 o T2) |
+| `token_hash` | char(64) | no | Única | SHA-256 del código del link (el código no se guarda) |
+| `titulo` | varchar(150) | no |  |  |
+| `generado_por` | int(11) | sí | FK → `usuarios` | Usuario que generó el link |
+| `creado_en` | datetime | no |  |  |
+| `vence_en` | datetime | no |  |  |
+| `abierto_en` | datetime | sí |  | Primera vez que el técnico abrió el link |
+| `usado_en` | datetime | sí |  | Examen rendido: el link ya no sirve |
+| `anulado_en` | datetime | sí |  |  |
+| `anulado_por` | int(11) | sí | FK → `usuarios` |  |
 
 ### `supervisiones`
 Supervisiones de campo y órdenes pendientes asignadas · Depende de: `usuarios`, `partners`, `tecnicos`, `tipificaciones_cancelacion`, `vehiculos`

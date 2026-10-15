@@ -35,6 +35,12 @@ try {
         $params = [];
         $partnerId = (int)($_GET['partner_id'] ?? 0);
         if ($partnerId > 0) { $where[] = 't.partner_id = :partner'; $params[':partner'] = $partnerId; }
+        // Zona del usuario (2026-10-15): igual que la pantalla Cuadrillas.
+        if (!Auth::isAdministrative() && sgsUserZones((int)$usuario['id']) !== null) {
+            $zp = [];
+            $where[] = '(' . sgsZoneSql('t.departamento', (int)$usuario['id'], $zp, ':uz') . " OR t.departamento IS NULL OR t.departamento = '')";
+            $params += $zp;
+        }
         $q = mb_substr(trim((string)($_GET['q'] ?? '')), 0, 60);
         if ($q !== '') {
             $where[] = '(t.nombre_tecnico LIKE :q1 OR ta.nombre_tecnico LIKE :q2 OR v.placa LIKE :q3 OR t.dni LIKE :q4)';
@@ -163,6 +169,39 @@ try {
         $provinciaTexto = mb_substr(trim((string)($_POST['provincia'] ?? '')), 0, 100);
         $zona = $provinciaTexto !== '' ? sgsZonaDesdeProvincia($provinciaTexto, $pdo) : ['provincia' => null, 'departamento' => null];
         if (!$zona) throw new Exception("No se reconoce la provincia \"{$provinciaTexto}\". Escríbala como en el mapa del Perú (p. ej. TRUJILLO, SANTA, CHICLAYO).");
+        // Datos del T1 y del T2 (2026-10-15): DNI (8 dígitos) y celular (9 dígitos), opcionales; solo se tocan si llegan.
+        $dniValido = static function (string $dni, string $quien): ?string {
+            $dni = trim($dni);
+            if ($dni === '' || $dni === '0') return null;
+            if (!preg_match('/^\d{8}$/', $dni)) throw new Exception("El DNI del {$quien} debe tener 8 dígitos.");
+            return $dni;
+        };
+        $celularValido = static function (string $cel, string $quien): ?string {
+            $cel = preg_replace('/\D/', '', $cel);
+            if ($cel === '') return null;
+            if (!preg_match('/^9\d{8}$/', $cel)) throw new Exception("El celular del {$quien} debe tener 9 dígitos y empezar con 9.");
+            return $cel;
+        };
+        $dniLibre = static function (?string $dni, int $propioId) use ($pdo): void {
+            if ($dni === null) return;
+            $st = $pdo->prepare('SELECT nombre_tecnico FROM tecnicos WHERE dni = :dni AND id <> :id LIMIT 1');
+            $st->execute([':dni' => $dni, ':id' => $propioId]);
+            if ($otro = $st->fetchColumn()) throw new Exception("El DNI {$dni} ya está registrado para {$otro}.");
+        };
+        $tocaT1 = array_key_exists('t1_dni', $_POST);
+        $t1Dni = $tocaT1 ? $dniValido((string)$_POST['t1_dni'], 'técnico líder') : null;
+        $t1Cel = $tocaT1 ? $celularValido((string)($_POST['t1_celular'] ?? ''), 'técnico líder') : null;
+        $apoyoNuevo = ($_POST['apoyo_id'] ?? '') === 'nuevo';
+        $tocaT2 = array_key_exists('t2_dni', $_POST) && ($apoyoId > 0 || $apoyoNuevo);
+        $t2Dni = $tocaT2 ? $dniValido((string)$_POST['t2_dni'], 'técnico de apoyo') : null;
+        $t2Cel = $tocaT2 ? $celularValido((string)($_POST['t2_celular'] ?? ''), 'técnico de apoyo') : null;
+        $t2Nombre = mb_strtoupper(preg_replace('/\s+/u', ' ', trim((string)($_POST['t2_nombre'] ?? ''))), 'UTF-8');
+        if ($apoyoNuevo) {
+            if (mb_strlen($t2Nombre) < 5 || mb_strlen($t2Nombre) > 120 || !preg_match('/^[\p{L} .\'-]+$/u', $t2Nombre)) {
+                throw new Exception('Escriba los nombres y apellidos del nuevo técnico de apoyo (solo letras, de 5 a 120 caracteres).');
+            }
+            if ($t2Dni === null) throw new Exception('Registre el DNI del nuevo técnico de apoyo (8 dígitos).');
+        }
 
         $pdo->beginTransaction();
         try {
@@ -171,12 +210,35 @@ try {
             $lider = $st->fetch();
             if (!$lider) throw new Exception('El técnico líder ya no existe.');
 
+            if ($tocaT1) {
+                $dniLibre($t1Dni, $id);
+                $pdo->prepare('UPDATE tecnicos SET dni = :dni, celular = :cel WHERE id = :id')->execute([':dni' => $t1Dni, ':cel' => $t1Cel, ':id' => $id]);
+            }
+            if ($apoyoNuevo) {
+                // T2 nuevo: queda en el partner y la zona del líder.
+                $dniLibre($t2Dni, 0);
+                $st = $pdo->prepare('SELECT id FROM tecnicos WHERE nombre_tecnico = :n LIMIT 1');
+                $st->execute([':n' => $t2Nombre]);
+                if ($st->fetchColumn()) throw new Exception('Ya existe un técnico con ese nombre: elíjalo en la lista de técnicos de apoyo.');
+                $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, dni, celular, tipo_tecnico, estado_operativo, partner_id, provincia, departamento, fecha_registro)
+                        VALUES (:n, :dni, :cel, 2, 'Habilitado', :p, :prov, :dep, NOW())")
+                    ->execute([':n' => $t2Nombre, ':dni' => $t2Dni, ':cel' => $t2Cel, ':p' => $lider['partner_id'], ':prov' => $zona['provincia'], ':dep' => $zona['departamento']]);
+                $apoyoId = (int)$pdo->lastInsertId();
+                win_log_error('audit_technician_created', 'Técnico de apoyo (T2) registrado desde Cuadrillas', ['target_id' => $apoyoId, 'partner_id' => $lider['partner_id']]);
+            } elseif ($tocaT2) {
+                $dniLibre($t2Dni, $apoyoId);
+                $pdo->prepare('UPDATE tecnicos SET dni = :dni, celular = :cel WHERE id = :id AND tipo_tecnico = 2')->execute([':dni' => $t2Dni, ':cel' => $t2Cel, ':id' => $apoyoId]);
+            }
+
             if ($apoyoId > 0) {
                 $st = $pdo->prepare('SELECT id FROM tecnicos WHERE id = :id AND tipo_tecnico = 2');
                 $st->execute([':id' => $apoyoId]);
                 if (!$st->fetchColumn()) throw new Exception('El técnico de apoyo elegido no está registrado como T2.');
                 $pdo->prepare('UPDATE tecnicos SET apoyo_id = NULL WHERE apoyo_id = :a AND id <> :id')->execute([':a' => $apoyoId, ':id' => $id]);
                 if ($lider['partner_id']) $pdo->prepare('UPDATE tecnicos SET partner_id = :p, fecha_actualizacion = NOW() WHERE id = :id')->execute([':p' => $lider['partner_id'], ':id' => $apoyoId]);
+                // El T2 pasa también a la zona del líder.
+                if ($zona['departamento']) $pdo->prepare('UPDATE tecnicos SET provincia = :prov, departamento = :dep WHERE id = :id')
+                    ->execute([':prov' => $zona['provincia'], ':dep' => $zona['departamento'], ':id' => $apoyoId]);
             }
             $vehiculoId = null;
             if ($placa !== '') {

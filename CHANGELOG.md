@@ -4,6 +4,23 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Editor de cuadrillas con T1 y T2, y links de examen (2026-10-15)
+- **Editar cuadrilla, por secciones**: Técnico líder (T1), Técnico de apoyo (T2), Vehículo, Zona y estado.
+  - DNI y celular del T1 y del T2.
+  - Cambiar de T2 o **registrar uno nuevo** ahí mismo: queda en el partner y la zona del líder.
+  - El T2 elegido también pasa a la zona del líder.
+  - Se rechazan un DNI ya registrado en otro técnico y un celular inválido (9 dígitos, empieza con 9).
+- **Link de examen** (botón de enlace en cada fila de Cuadrillas):
+  - Para el T1 o el T2 de la cuadrilla. Lo usan el personal administrativo y los supervisores directos (estos solo con técnicos de su zona).
+  - El link lleva el **nombre del técnico** (`examen.php?tecnico=juan-perez&t=…`) y un código aleatorio. En la base solo se guarda su huella SHA-256.
+  - Se elige el nombre del examen y la vigencia (2 h, 24 h o 3 días).
+  - Para enviarlo: **WhatsApp** (abre el chat del técnico si tiene celular, o deja elegir el contacto), **Copiar** u otras apps del celular.
+  - Uno vigente por técnico: al generar otro, el anterior se anula. Se puede anular a mano. Vence solo y sirve una sola vez.
+  - **Historial** de links por técnico: vigente, abierto por el técnico, rendido, vencido o anulado.
+  - El técnico lo abre sin usuario ni contraseña y ve su nombre. Por ahora el examen figura "en preparación": las preguntas se agregarán en un cambio posterior y se verán en ese mismo link.
+- **Corregido**: la ventana "Editar cuadrilla" se veía cortada y no se podía bajar, y el botón Guardar quedaba fuera de la pantalla. El `<form>` que envuelve la ventana rompía el desplazamiento. Ahora el contenido se desplaza y el pie queda siempre visible; vale para todas las ventanas con formulario (Partners, importar cancelaciones…). Sección 50 de `sgs-theme.css`.
+- Cambio de base `2026-10-15_05_enlaces_de_examen_para_los_tecnicos` (tabla nueva `examen_enlaces`). API `api/examenes.php`. Página pública `examen.php`. Estilos: sección 49 de `sgs-theme.css` y `sgs-login.css`. Prueba nueva `examen_enlaces_test.php` (19/19).
+
 ### Zona de los técnicos líderes (2026-10-15)
 - **Cada técnico líder tiene su zona** (provincia y departamento). Cambio de base `2026-10-15_04_zona_del_tecnico_provincia_y_departamento`: columnas nuevas `tecnicos.provincia` y `tecnicos.departamento`.
 - **Carga por Excel con PROVINCIA**: el Excel de técnicos líderes acepta una tercera columna **PROVINCIA**, en cualquier orden si trae encabezados.
@@ -18,6 +35,7 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
   - en el lápiz se escribe la **provincia** (con sugerencias) y el departamento se pone solo;
   - barra de filtros pasada al patrón de la sección 38 (una sola fila).
 - Prueba `cuadrillas_carga_test.php` ampliada (34/34).
+- **Cuadrillas según la zona del usuario**: el supervisor ve solo las cuadrillas de sus departamentos (los asignados en Usuarios), más las que aún no tienen zona. La pantalla le indica qué zona se muestra y el filtro Zona solo ofrece las suyas. El personal administrativo y la sede "Provincias" ven todas. Misma regla en `api/tecnicos.php?action=cuadrillas`. Prueba nueva `cuadrillas_zona_test.php` (7/7).
 - **Cuadro de Cuadrillas ordenado**: pasa de 8 a 6 columnas.
   - El vehículo muestra placa, tipo y estado en una sola celda.
   - "Supervisiones" lleva la fecha de la última debajo.

@@ -106,3 +106,10 @@ body.sgs-login{
   .sgs-card{border-radius:16px}
   .sgs-footer nav{gap:2px 12px}
 }
+
+/* Link de examen del técnico (2026-10-15): examen.php usa la misma tarjeta del ingreso. */
+.sgs-examen-icono{width:56px;height:56px;margin:4px auto 10px;border-radius:50%;display:grid;place-items:center;background:var(--win-orange-soft);color:var(--win-orange);font-size:26px}
+.sgs-examen-dato{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding:10px 12px;border:1px solid var(--win-border);border-radius:10px;font-size:13.5px;color:var(--win-brown)}
+.sgs-examen-dato .bi{color:var(--win-orange)}
+.sgs-examen-nota{text-align:center;color:var(--win-gray)}
+.sgs-logo--examen{-webkit-mask-image:url(../img/win-wordmark-white.png);mask-image:url(../img/win-wordmark-white.png)}

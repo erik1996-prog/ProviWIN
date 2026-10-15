@@ -1,5 +1,5 @@
 -- 04_DATABASE/03_ESTRUCTURA/esquema_completo.sql
--- Estructura de SGS: 22 tablas en orden de dependencias, sin datos ni DROP.
+-- Estructura de SGS: 23 tablas en orden de dependencias, sin datos ni DROP.
 -- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-10-15. No editar a mano: los cambios van como migración en 02_CAMBIOS.
 
 SET NAMES utf8mb4;
@@ -235,6 +235,29 @@ CREATE TABLE IF NOT EXISTS `asistencia_eventos` (
   KEY `idx_asistencia_eventos_asistencia_id_inicio_evento` (`asistencia_id`,`inicio_evento`),
   CONSTRAINT `fk_asistencia_eventos_asistencia_id` FOREIGN KEY (`asistencia_id`) REFERENCES `asistencia_supervisores` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Pausas dentro del turno (almuerzo, reunión, capacitación)';
+
+-- Tabla `examen_enlaces`: Links de examen enviados a los técnicos (depende de: usuarios, tecnicos)
+CREATE TABLE IF NOT EXISTS `examen_enlaces` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tecnico_id` int(11) NOT NULL COMMENT 'Técnico que rinde el examen (T1 o T2)',
+  `token_hash` char(64) NOT NULL COMMENT 'SHA-256 del código del link (el código no se guarda)',
+  `titulo` varchar(150) NOT NULL DEFAULT 'Evaluación técnica',
+  `generado_por` int(11) DEFAULT NULL COMMENT 'Usuario que generó el link',
+  `creado_en` datetime NOT NULL DEFAULT current_timestamp(),
+  `vence_en` datetime NOT NULL,
+  `abierto_en` datetime DEFAULT NULL COMMENT 'Primera vez que el técnico abrió el link',
+  `usado_en` datetime DEFAULT NULL COMMENT 'Examen rendido: el link ya no sirve',
+  `anulado_en` datetime DEFAULT NULL,
+  `anulado_por` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_examen_enlaces_token_hash` (`token_hash`),
+  KEY `idx_examen_enlaces_tecnico` (`tecnico_id`,`creado_en`),
+  KEY `fk_examen_enlaces_generado_por` (`generado_por`),
+  KEY `fk_examen_enlaces_anulado_por` (`anulado_por`),
+  CONSTRAINT `fk_examen_enlaces_anulado_por` FOREIGN KEY (`anulado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_examen_enlaces_generado_por` FOREIGN KEY (`generado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_examen_enlaces_tecnico_id` FOREIGN KEY (`tecnico_id`) REFERENCES `tecnicos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Links de examen enviados a los técnicos';
 
 -- Tabla `supervisiones`: Supervisiones de campo y órdenes pendientes asignadas (depende de: usuarios, partners, tecnicos, tipificaciones_cancelacion, vehiculos)
 CREATE TABLE IF NOT EXISTS `supervisiones` (
