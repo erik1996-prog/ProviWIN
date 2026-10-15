@@ -1,6 +1,6 @@
 # Diccionario de datos — SGS
 
-Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-10-08 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
+Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-10-15 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
 Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 
 | # | Tabla | Para qué sirve | En la instalación |
@@ -9,25 +9,24 @@ Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 | 2 | [`login_attempts`](#login_attempts) | Intentos de ingreso (bloqueo a los 3 fallidos) | vacía |
 | 3 | [`partners`](#partners) | Contratas; WIN DIRECTO = personal propio | 12 registros |
 | 4 | [`sgs_migracion`](#sgs_migracion) | Cambios de base de datos ya aplicados (los registra 07_SCRIPTS/migrar.php) | vacía |
-| 5 | [`tipificaciones_cancelacion`](#tipificaciones_cancelacion) | Motivos de cancelación (los del Excel de pendientes se agregan solos) | 3 registros |
+| 5 | [`tipificaciones_cancelacion`](#tipificaciones_cancelacion) | Motivos de cancelación (los del Excel de pendientes se agregan solos) | 6 registros |
 | 6 | [`ubigeo`](#ubigeo) | Departamentos, provincias y distritos de operación | 47 registros |
 | 7 | [`vehiculos`](#vehiculos) | Vehículos de las cuadrillas | 2 registros |
 | 8 | [`subopciones_observacion`](#subopciones_observacion) | Tipificaciones de observación con gravedad y penalidad | 83 registros |
 | 9 | [`usuarios`](#usuarios) | Usuarios del sistema (personal WIN y de partners) | 10 registros |
 | 10 | [`asistencia_supervisores`](#asistencia_supervisores) | Turnos de los supervisores: inicio, fin y horas | vacía |
-| 11 | [`sgs_perfil`](#sgs_perfil) | Perfiles de acceso: roles personalizados con sus permisos | 0 registros |
-| 12 | [`tecnicos`](#tecnicos) | Técnicos por partner: líderes (T1) y de apoyo (T2) | 196 registros |
-| 13 | [`usuario_departamentos_acceso`](#usuario_departamentos_acceso) | Zonas adicionales que puede ver cada usuario | 0 registros |
-| 14 | [`usuario_permisos`](#usuario_permisos) | Permisos personalizados por usuario (además de los de su rol) | 0 registros |
-| 15 | [`asistencia_eventos`](#asistencia_eventos) | Pausas dentro del turno (almuerzo, reunión, capacitación) | vacía |
-| 16 | [`sgs_usuario_perfil`](#sgs_usuario_perfil) | Perfil de acceso asignado a cada usuario (uno por usuario) | 0 registros |
-| 17 | [`supervisiones`](#supervisiones) | Supervisiones de campo y órdenes pendientes asignadas | vacía |
-| 18 | [`checklists_tecnicos`](#checklists_tecnicos) | Checklist de cuadrilla por supervisión | vacía |
-| 19 | [`observaciones_supervision`](#observaciones_supervision) | Observaciones en campo, descargos del partner y plazos | vacía |
-| 20 | [`supervision_coordenadas_historial`](#supervision_coordenadas_historial) | Cambios de ubicación GPS de cada supervisión | vacía |
-| 21 | [`supervision_estado_historial`](#supervision_estado_historial) | Cambios de estado de cada supervisión (horas reales de inicio y fin) | vacía |
-| 22 | [`checklist_respuestas`](#checklist_respuestas) | Criterios evaluados en cada checklist | vacía |
-| 23 | [`notificaciones`](#notificaciones) | Avisos a los usuarios | vacía |
+| 11 | [`tecnicos`](#tecnicos) | Técnicos por partner: líderes (T1) y de apoyo (T2) | 196 registros |
+| 12 | [`usuario_departamentos_acceso`](#usuario_departamentos_acceso) | Zonas adicionales que puede ver cada usuario | 0 registros |
+| 13 | [`usuario_permisos`](#usuario_permisos) | Permisos personalizados por usuario (además de los de su rol) | 0 registros |
+| 14 | [`asistencia_eventos`](#asistencia_eventos) | Pausas dentro del turno (almuerzo, reunión, capacitación) | vacía |
+| 15 | [`supervisiones`](#supervisiones) | Supervisiones de campo y órdenes pendientes asignadas | vacía |
+| 16 | [`checklists_tecnicos`](#checklists_tecnicos) | Checklist de cuadrilla por supervisión | vacía |
+| 17 | [`observaciones_supervision`](#observaciones_supervision) | Observaciones en campo, descargos del partner y plazos | vacía |
+| 18 | [`rescate_seguimientos`](#rescate_seguimientos) | Historial del rescate de cada pendiente (inicio, avances, reasignación y cierre) | vacía |
+| 19 | [`supervision_coordenadas_historial`](#supervision_coordenadas_historial) | Cambios de ubicación GPS de cada supervisión | vacía |
+| 20 | [`supervision_estado_historial`](#supervision_estado_historial) | Cambios de estado de cada supervisión (horas reales de inicio y fin) | vacía |
+| 21 | [`checklist_respuestas`](#checklist_respuestas) | Criterios evaluados en cada checklist | vacía |
+| 22 | [`notificaciones`](#notificaciones) | Avisos a los usuarios | vacía |
 
 ### `categorias_observacion`
 Categorías de observación
@@ -95,6 +94,7 @@ Vehículos de las cuadrillas
 | `id` | int(11) | no | PK |  |
 | `placa` | varchar(10) | no | Única |  |
 | `tipo` | enum('Minivan','Auto','Moto','Otro') | sí |  |  |
+| `estado_conservacion` | enum('Mal estado','Regular','Buen estado') | sí |  | Último estado registrado del vehículo (sale por defecto en la siguiente supervisión) |
 | `marca` | varchar(100) | sí |  |  |
 | `modelo` | varchar(100) | sí |  |  |
 | `anio` | smallint(5) unsigned | sí |  |  |
@@ -137,13 +137,16 @@ Usuarios del sistema (personal WIN y de partners) · Depende de: `partners`
 | `sede` | varchar(100) | sí |  |  |
 | `password_hash` | varchar(255) | no |  |  |
 | `password_admin_encrypted` | text | sí |  |  |
-| `rol` | enum('Administrador','Gerente','Coordinador','Supervisor','SGA','SGI','Partner') | no |  |  |
+| `rol` | enum('Administrador','Gerente','Coordinador','Supervisor','SGA','SGI','Jefe de operaciones') | no |  |  |
 | `area_trabajo` | varchar(100) | sí |  |  |
+| `cargo` | varchar(60) | sí |  | Puesto en la empresa (lista fija en el sistema); no da permisos |
 | `zona` | varchar(100) | sí |  |  |
 | `procesos_copiados` | text | sí |  |  |
 | `observacion` | text | sí |  |  |
 | `partner_id` | int(11) | sí | FK → `partners` |  |
 | `activo` | tinyint(1) | sí |  |  |
+| `ultimo_acceso` | datetime | sí |  | Último inicio de sesión correcto en SGS |
+| `debe_cambiar_password` | tinyint(1) | no |  | 1 = al ingresar debe cambiar su contraseña (temporal) |
 | `fecha_creacion` | datetime | sí |  |  |
 | `avatar` | varchar(255) | sí |  |  |
 
@@ -169,21 +172,6 @@ Turnos de los supervisores: inicio, fin y horas · Depende de: `usuarios`
 | `longitud_fin` | varchar(50) | sí |  |  |
 | `observaciones` | text | sí |  |  |
 
-### `sgs_perfil`
-Perfiles de acceso: roles personalizados con sus permisos · Depende de: `usuarios`
-
-| Columna | Tipo | Nulo | Clave | Descripción |
-|---|---|---|---|---|
-| `id` | int(10) unsigned | no | PK |  |
-| `nombre` | varchar(80) | no | Única |  |
-| `descripcion` | varchar(255) | sí |  |  |
-| `rol_base` | varchar(30) | no |  | Rol del sistema sobre el que se arma el perfil |
-| `permisos` | text | no |  | JSON: lista de claves de permiso habilitadas |
-| `activo` | tinyint(1) | no |  |  |
-| `creado_por` | int(11) | sí | FK → `usuarios` |  |
-| `fecha_registro` | datetime | no |  |  |
-| `fecha_actualizacion` | datetime | no |  |  |
-
 ### `tecnicos`
 Técnicos por partner: líderes (T1) y de apoyo (T2) · Depende de: `partners`, `usuarios`, `vehiculos`
 
@@ -201,6 +189,7 @@ Técnicos por partner: líderes (T1) y de apoyo (T2) · Depende de: `partners`, 
 | `partner_id` | int(11) | sí | FK → `partners` |  |
 | `usuario_id` | int(11) | sí | FK → `usuarios` |  |
 | `vehiculo_id` | int(11) | sí | FK → `vehiculos` |  |
+| `apoyo_id` | int(11) | sí | FK → `tecnicos` | Técnico de apoyo (T2) habitual del líder: sale por defecto en la siguiente supervisión |
 
 ### `usuario_departamentos_acceso`
 Zonas adicionales que puede ver cada usuario · Depende de: `usuarios`
@@ -244,16 +233,6 @@ Pausas dentro del turno (almuerzo, reunión, capacitación) · Depende de: `asis
 | `longitud` | varchar(50) | sí |  |  |
 | `created_at` | datetime | sí |  |  |
 
-### `sgs_usuario_perfil`
-Perfil de acceso asignado a cada usuario (uno por usuario) · Depende de: `usuarios`, `sgs_perfil`
-
-| Columna | Tipo | Nulo | Clave | Descripción |
-|---|---|---|---|---|
-| `usuario_id` | int(11) | no | PK |  |
-| `perfil_id` | int(10) unsigned | no | FK → `sgs_perfil` |  |
-| `asignado_por` | int(11) | sí | FK → `usuarios` |  |
-| `fecha_asignacion` | datetime | no |  |  |
-
 ### `supervisiones`
 Supervisiones de campo y órdenes pendientes asignadas · Depende de: `usuarios`, `partners`, `tecnicos`, `tipificaciones_cancelacion`, `vehiculos`
 
@@ -262,11 +241,13 @@ Supervisiones de campo y órdenes pendientes asignadas · Depende de: `usuarios`
 | `id` | int(11) | no | PK |  |
 | `codigo_supervision` | varchar(30) | no | Única |  |
 | `fecha_registro` | datetime | sí |  |  |
+| `fecha_carga` | datetime | sí |  | Cuándo se subió la pendiente por Excel (solo órdenes importadas) |
 | `supervisor_id` | int(11) | no | FK → `usuarios` |  |
 | `asignado_por` | int(11) | sí | FK → `usuarios` |  |
 | `fecha_asignacion` | datetime | sí |  |  |
 | `estado_atencion_partner` | enum('Pendiente','Atendida') | no |  |  |
 | `observacion_atencion_partner` | text | sí |  |  |
+| `partner_rescatable` | tinyint(1) | sí |  | El partner indicó al atender que el servicio se puede rescatar (1) o no (0) |
 | `fecha_atencion_partner` | datetime | sí |  |  |
 | `zona_asignacion` | varchar(100) | sí |  |  |
 | `derivacion_orden` | enum('Autogestión','Mesa de supervisión','Líder','Coordinador','Gerente') | no |  |  |
@@ -274,11 +255,12 @@ Supervisiones de campo y órdenes pendientes asignadas · Depende de: `usuarios`
 | `departamento` | varchar(100) | no |  |  |
 | `provincia` | varchar(100) | no |  |  |
 | `distrito` | varchar(100) | no |  |  |
+| `direccion` | varchar(255) | sí |  | Dirección del cliente (carga de cancelaciones por Excel) |
 | `cliente_nombre` | varchar(200) | sí |  |  |
 | `cliente_dni` | varchar(12) | sí |  |  |
 | `ticket_codigo` | varchar(50) | sí |  |  |
 | `fecha_cancelacion` | date | sí |  |  |
-| `tipo_supervision_inicial` | enum('En caliente','En frío') | no |  |  |
+| `tipo_supervision_inicial` | enum('En caliente','En frío','Remota') | no |  |  |
 | `partner_id` | int(11) | sí | FK → `partners` |  |
 | `tecnico1_nombre` | varchar(200) | sí |  |  |
 | `tecnico1_dni` | varchar(8) | sí |  |  |
@@ -299,6 +281,10 @@ Supervisiones de campo y órdenes pendientes asignadas · Depende de: `usuarios`
 | `origen_importacion` | tinyint(1) | no |  |  |
 | `observacion_previa` | text | sí |  |  |
 | `estado_cancelacion` | varchar(60) | sí |  |  |
+| `rescate_estado` | enum('En rescate','Rescatado','No rescatado') | sí |  | Rescate de la pendiente: en curso o su resultado |
+| `rescate_responsable_id` | int(11) | sí | FK → `usuarios` | Supervisor directo a cargo del rescate |
+| `rescate_inicio` | datetime | sí |  | Cuándo se tomó como rescate |
+| `rescate_fin` | datetime | sí |  | Cuándo se cerró el rescate |
 | `tipificacion_cancelacion` | varchar(200) | sí | FK → `tipificaciones_cancelacion` |  |
 | `tipificacion_tecnico_correcta` | tinyint(1) | sí |  |  |
 | `tipificacion_corregida_supervisor` | varchar(200) | sí | FK → `tipificaciones_cancelacion` |  |
@@ -376,6 +362,19 @@ Observaciones en campo, descargos del partner y plazos · Depende de: `categoria
 | `sustentacion_evaluacion` | text | sí |  |  |
 | `fecha_evaluacion` | datetime | sí |  |  |
 | `evaluado_por` | int(11) | sí |  |  |
+
+### `rescate_seguimientos`
+Historial del rescate de cada pendiente (inicio, avances, reasignación y cierre) · Depende de: `supervisiones`, `usuarios`
+
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `supervision_id` | int(11) | no | FK → `supervisiones` |  |
+| `usuario_id` | int(11) | sí | FK → `usuarios` |  |
+| `tipo` | enum('Propuesta del partner','Inicio','Avance','Reasignación','Cierre') | no |  |  |
+| `comentario` | text | sí |  |  |
+| `foto` | varchar(255) | sí |  |  |
+| `fecha` | datetime | no |  |  |
 
 ### `supervision_coordenadas_historial`
 Cambios de ubicación GPS de cada supervisión · Depende de: `usuarios`, `supervisiones`

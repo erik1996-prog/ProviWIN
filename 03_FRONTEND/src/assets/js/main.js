@@ -174,6 +174,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // se reemplaza dinámicamente. Solo se limpia cuando ya no queda otro abierto.
         const trigger = modalTriggers.get(modal);
         modalTriggers.delete(modal);
+        // Ventana sobre ventana (p. ej. la foto encima del detalle): al cerrar la de arriba, Bootstrap
+        // quita "modal-open" aunque la de abajo siga abierta. Sin esa clase vuelve la animación de
+        // entrada de la página, que deja la ventana de abajo detrás del fondo gris y la pantalla
+        // parece congelada. Se restablece mientras quede alguna abierta.
+        if (document.querySelector('.modal.show')) {
+            document.body.classList.add('modal-open');
+            document.body.style.overflow = 'hidden';
+        }
         window.requestAnimationFrame(() => {
             if (!document.querySelector('.modal.show')) {
                 document.querySelectorAll('.modal-backdrop').forEach((backdrop) => backdrop.remove());
@@ -616,4 +624,67 @@ window.winFetchJson = async (resource, options = {}) => {
         pintar();
         bsModal.show();
     };
+})();
+
+// Compresión de fotos antes de subirlas (2026-10-15). Las fotos del celular pesan 3–6 MB; se reducen en el propio
+// equipo a 2048 px en el lado mayor y JPEG al 85 % (se ven igual y se leen las marcas de agua), ~0,4–0,8 MB.
+// Vale para todo <input type="file"> de imágenes del sistema. Excluir uno: atributo data-sin-comprimir.
+// No toca archivos livianos (< 400 KB), formatos que el navegador no lee (p. ej. HEIC) ni los que no bajan de peso.
+(() => {
+    const LADO_MAX = 2048, CALIDAD = 0.85, MIN_BYTES = 400 * 1024;
+    const leer = async (file) => {
+        if ('createImageBitmap' in window) {
+            try { return await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch (_) { /* se intenta con <img> */ }
+        }
+        const url = URL.createObjectURL(file);
+        try {
+            const img = new Image();
+            img.decoding = 'async';
+            img.src = url;
+            await img.decode();
+            return img;
+        } finally {
+            URL.revokeObjectURL(url);
+        }
+    };
+    const comprimir = async (file) => {
+        if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < MIN_BYTES) return file;
+        let img;
+        try { img = await leer(file); } catch (_) { return file; }
+        const ancho = img.width || img.naturalWidth, alto = img.height || img.naturalHeight;
+        if (!ancho || !alto) return file;
+        const escala = Math.min(1, LADO_MAX / Math.max(ancho, alto));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(ancho * escala);
+        canvas.height = Math.round(alto * escala);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff'; // las capturas PNG con transparencia quedan con fondo blanco
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        img.close?.();
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', CALIDAD));
+        if (!blob || blob.size >= file.size) return file;
+        return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg', lastModified: file.lastModified });
+    };
+    document.addEventListener('change', async (ev) => {
+        const input = ev.target;
+        if (!(input instanceof HTMLInputElement) || input.type !== 'file' || !input.files?.length) return;
+        if ('sinComprimir' in input.dataset || input.dataset.comprimiendo === '1' || !/image/.test(input.accept || '')) return;
+        const originales = [...input.files];
+        input.dataset.comprimiendo = '1';
+        try {
+            const listos = await Promise.all(originales.map(comprimir));
+            if (listos.every((f, i) => f === originales[i])) return;
+            const dt = new DataTransfer();
+            listos.forEach((f) => dt.items.add(f));
+            input.files = dt.files;
+            // Se avisa del cambio para que las vistas previas usen la foto comprimida (esta función no se repite).
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        } catch (_) {
+            /* si algo falla, se sube la foto original */
+        } finally {
+            delete input.dataset.comprimiendo;
+        }
+    });
 })();

@@ -65,10 +65,10 @@ $colores = [
     <div class="col-lg-6">
       <div class="card p-3 p-md-4 mb-4">
         <h5 class="mb-1"><i class="bi bi-fonts me-2 text-primary"></i>Tipografía</h5>
-        <p class="text-muted small mb-3">Nunito para leer · Montserrat para títulos y cifras. Estilo de oración, sin mayúsculas en cada palabra.</p>
-        <div class="gde-type-row"><span class="gde-type-meta">Título de pantalla<br>barra superior · 22 px · 800</span><span style="font-family:var(--sgs-font-display);font-weight:800;font-size:1.35rem;color:var(--sgs-ink)">Línea de tiempo</span></div>
+        <p class="text-muted small mb-3">Una sola letra: Nunito (texto 500, etiquetas y botones 600, títulos y cifras 700; nunca más de 700). Estilo de oración, sin mayúsculas en cada palabra.</p>
+        <div class="gde-type-row"><span class="gde-type-meta">Título de pantalla<br>barra superior · 22 px · 800</span><span style="font-family:var(--sgs-font-display);font-weight: 700;font-size:1.35rem;color:var(--sgs-ink)">Línea de tiempo</span></div>
         <div class="gde-type-row"><span class="gde-type-meta">Título de tarjeta<br>h5 · 16 px · 800</span><h5 class="mb-0">Actividad del día</h5></div>
-        <div class="gde-type-row"><span class="gde-type-meta">Cifra de indicador<br>Montserrat · 25 px</span><span class="sgs-kpi-value" style="font-size:1.55rem">1 284</span></div>
+        <div class="gde-type-row"><span class="gde-type-meta">Cifra de indicador<br>Nunito 700 · 24 px</span><span class="sgs-kpi-value" style="font-size:1.55rem">1 284</span></div>
         <div class="gde-type-row"><span class="gde-type-meta">Texto<br>Nunito · 15 px</span><span>Las órdenes se bloquean a las 24 h sin atención.</span></div>
         <div class="gde-type-row"><span class="gde-type-meta">Etiqueta / encabezado<br>12 px · mayúsculas</span><small class="sgs-kpi-label">Supervisiones del mes</small></div>
       </div>
@@ -133,7 +133,7 @@ $colores = [
     <!-- Tabla -->
     <div class="col-12">
       <div class="card overflow-hidden">
-        <div class="p-3 p-md-4 pb-0"><h5 class="mb-1"><i class="bi bi-table me-2 text-primary"></i>Tabla</h5><p class="text-muted small">Encabezado neutro en mayúsculas pequeñas; acciones a la derecha con botones de ícono.</p></div>
+        <div class="p-3 p-md-4 pb-0"><h5 class="mb-1"><i class="bi bi-table me-2 text-primary"></i>Tabla</h5><p class="text-muted small">Encabezado neutro en mayúsculas pequeñas; acciones a la derecha con botones de ícono. Lista larga: <code>table-responsive sgs-tabla-alta</code> (alto máximo con encabezado fijo).</p></div>
         <div class="table-responsive">
           <table class="table table-hover mb-0 align-middle">
             <thead><tr><th>Código</th><th>Supervisor</th><th>Departamento</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead>

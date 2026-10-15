@@ -66,7 +66,7 @@ try {
         departamento, provincia, distrito, ticket_codigo, tipo_supervision_inicial, partner_id, brevete_poseedor, clasificacion_supervision, area_servicio,
         observacion_servicio, estado_servicio_caliente, es_cancelacion, tipificacion_cancelacion, origen_importacion, estado_supervision, fecha_asignacion)
         VALUES (:code, NOW(), :sup, :sup2, 'Chiclayo', 'Líder', 'Regular', :dep, :prov, :dist, :ticket, 'En frío', :partner, 'Ninguno', 'Instalación', 'Instalación',
-        '', 'Cancelado', 1, (SELECT descripcion FROM tipificaciones_cancelacion LIMIT 1), 1, 'Pendiente', NOW())")
+        '', 'Cancelada', 1, (SELECT descripcion FROM tipificaciones_cancelacion LIMIT 1), 1, 'Pendiente', NOW())")
         ->execute([':code' => 'SUP-PRUEBA-' . random_int(1000, 9999), ':sup' => $ids['bolsa.uno'], ':sup2' => $ids['bolsa.uno'], ':dep' => $ubi['departamento'], ':prov' => $ubi['provincia'],
             ':dist' => $ubi['distrito'], ':ticket' => $ticket, ':partner' => $partner]);
     $ordenId = (int)$pdo->lastInsertId();
@@ -98,8 +98,19 @@ try {
                 'derivacion_orden' => 'Líder', 'tipo_servicio' => 'Regular', 'departamento' => $ubi['departamento'], 'provincia' => $ubi['provincia'],
                 'distrito' => $ubi['distrito'], 'ticket_codigo' => $ticket, 'partner_id' => $partner, 'latitud' => '-6.77', 'longitud' => '-79.84'])])[1];
     };
+    // Una supervisión NUEVA con el código de la pendiente (aunque lo escriba en minúsculas o con espacios) se rechaza
+    $antes = (int)$pdo->query("SELECT COUNT(*) FROM supervisiones WHERE ticket_codigo LIKE 'PRUEBA-BOLSA-%'")->fetchColumn();
+    [, $r] = $http('bolsa.dos', "$base/api/supervisiones.php?action=create", [CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'X-CSRF-Token: ' . $csrf['bolsa.dos']],
+        CURLOPT_POSTFIELDS => json_encode(['estado_supervision' => 'Iniciada', 'tipo_supervision' => 'Instalación', 'tipo_supervision_inicial' => 'En caliente',
+            'derivacion_orden' => 'Líder', 'tipo_servicio' => 'Regular', 'departamento' => $ubi['departamento'], 'provincia' => $ubi['provincia'],
+            'distrito' => $ubi['distrito'], 'ticket_codigo' => ' ' . strtolower($ticket) . ' ', 'partner_id' => $partner, 'latitud' => '-6.77', 'longitud' => '-79.84'])]);
+    $despues = (int)$pdo->query("SELECT COUNT(*) FROM supervisiones WHERE ticket_codigo LIKE 'PRUEBA-BOLSA-%'")->fetchColumn();
+    $check('una supervisión nueva con el código de la pendiente se rechaza ("se encuentra en Pendientes")',
+        ($r['codigo'] ?? '') === 'en_pendientes' && (int)($r['pendiente_id'] ?? 0) === $ordenId && str_contains($r['message'] ?? '', 'se encuentra en Pendientes') && $antes === $despues, $r);
+
     $r = $iniciar('bolsa.dos');
-    $check('el supervisor dos inicia la pendiente', ($r['status'] ?? '') === 'success', $r);
+    $check('el supervisor dos inicia la pendiente',($r['status'] ?? '') === 'success', $r);
     $fila = $pdo->query("SELECT supervisor_id, estado_supervision FROM supervisiones WHERE id=$ordenId")->fetch();
     $check('la orden queda a nombre del supervisor dos y deja de estar pendiente', (int)$fila['supervisor_id'] === $ids['bolsa.dos'] && $fila['estado_supervision'] !== 'Pendiente', $fila);
     $check('desaparece de las pendientes del supervisor uno', !$vePendiente('bolsa.uno'));

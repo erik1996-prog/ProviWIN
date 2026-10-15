@@ -120,6 +120,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (lblTimerType) lblTimerType.textContent = 'Fuera de Turno';
                 updateButtonStates('FUERA_DE_TURNO', currentShiftStatus, []);
             }
+            // Reabrir: solo si lo finalizó él mismo hace menos de 15 minutos
+            const wrapReabrir = document.getElementById('wrap-reabrir-turno');
+            if (wrapReabrir) wrapReabrir.classList.toggle('d-none', !data.puede_reabrir);
 
         } catch (e) {
             console.error('Error al cargar estado de asistencia:', e);
@@ -350,10 +353,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Fin de turno (2026-10-12): ventana con botón explícito. Se ignora si llega justo después de otra acción
+    // (un toque doble en el celular caía sobre "Finalizar turno" cuando los botones se reacomodaban).
+    const modalFinTurnoEl = document.getElementById('modalFinTurno');
+    const modalFinTurno = modalFinTurnoEl ? new bootstrap.Modal(modalFinTurnoEl) : null;
+    let ultimaAccionTurno = 0;
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('#btn-start-almuerzo,#btn-start-reunion,#btn-start-capacitacion,#btn-start-remoto,#btn-end-event,#btn-confirm-reunion,#btn-confirm-remoto,#btn-start-shift')) ultimaAccionTurno = Date.now();
+    }, true);
     if (btnEndShift) {
-        btnEndShift.addEventListener('click', async () => {
-            if (!confirm('¿Estás seguro de que deseas FINALIZAR TU TURNO de hoy?')) return;
-
+        btnEndShift.addEventListener('click', () => {
+            if (Date.now() - ultimaAccionTurno < 2500) return;
+            if (modalFinTurno) modalFinTurno.show();
+        });
+    }
+    const btnConfirmFinTurno = document.getElementById('btn-confirm-fin-turno');
+    if (btnConfirmFinTurno) {
+        btnConfirmFinTurno.addEventListener('click', async () => {
+            if (modalFinTurno) modalFinTurno.hide();
             btnEndShift.disabled = true;
             try {
                 const resp = await fetch('api/asistencia.php?action=end', {
@@ -371,6 +388,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('Error al finalizar turno.');
                 btnEndShift.disabled = false;
             }
+        });
+    }
+
+    async function reabrirTurno(supervisorId = 0) {
+        try {
+            const resp = await fetch('api/asistencia.php?action=reabrir', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(supervisorId ? { supervisor_id: supervisorId } : {})
+            });
+            const res = await resp.json();
+            alert(res.message);
+            return res.status === 'success';
+        } catch (e) {
+            alert('No se pudo reabrir el turno.');
+            return false;
+        }
+    }
+    const btnReabrirTurno = document.getElementById('btn-reabrir-turno');
+    if (btnReabrirTurno) {
+        btnReabrirTurno.addEventListener('click', async () => {
+            if (!confirm('¿Reabrir tu turno de hoy? Seguirá contando desde la hora en que lo iniciaste.')) return;
+            btnReabrirTurno.disabled = true;
+            if (await reabrirTurno()) loadSupervisorStatus();
+            btnReabrirTurno.disabled = false;
         });
     }
 
@@ -576,13 +618,11 @@ document.addEventListener('DOMContentLoaded', () => {
             html += `
                 <tr>
                     <td class="ps-3">
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="rounded-circle text-white d-flex align-items-center justify-content-center fw-bold shadow-sm" style="width:36px; height:36px; background-color:#FF5A0A; font-size:0.9rem;">
-                                ${initial}
-                            </div>
-                            <div>
-                                <strong class="d-block text-dark">${escapeHtml(sup.nombre)}</strong>
-                                <small class="text-muted">${escapeHtml(sup.dni)} | ${escapeHtml(sup.rol)}</small>
+                        <div class="sgs-persona">
+                            <span class="sgs-mini-avatar" aria-hidden="true">${initial}</span>
+                            <div class="sgs-persona-texto">
+                                <span class="sgs-persona-nombre">${escapeHtml(sup.nombre)}</span>
+                                <small>DNI ${escapeHtml(sup.dni)} · ${escapeHtml(sup.rol)}</small>
                             </div>
                         </div>
                     </td>
@@ -594,6 +634,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td><span class="text-muted">${minAlm}</span></td>
                     <td><span class="fw-bold text-warning-emphasis">${hExt}</span></td>
                     <td class="text-end pe-3">
+                        ${tbodyAdminAsistencia.dataset.puedeReabrir === '1' && asist && asist.fin_turno && asist.fecha === new Date().toLocaleDateString('en-CA')
+                            ? `<button type="button" class="btn btn-outline-secondary btn-sm btn-reabrir-sup me-1" data-sup-id="${sup.id}" data-nombre="${escapeHtml(sup.nombre)}" title="Reabrir el turno de hoy"><i class="bi bi-arrow-counterclockwise"></i> Reabrir</button>` : ''}
                         <button type="button" class="btn btn-outline-dark btn-sm btn-detail-sup" data-sup-id="${sup.id}">
                             <i class="bi bi-eye-fill"></i> Detalle
                         </button>
@@ -603,6 +645,15 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         tbodyAdminAsistencia.innerHTML = html;
+
+        document.querySelectorAll('.btn-reabrir-sup').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                if (!confirm(`¿Reabrir el turno de hoy de ${btn.dataset.nombre}?`)) return;
+                btn.disabled = true;
+                if (await reabrirTurno(Number(btn.dataset.supId))) loadAdminSummary();
+                btn.disabled = false;
+            });
+        });
 
         // Listener para Ver Detalle
         document.querySelectorAll('.btn-detail-sup').forEach(btn => {
@@ -639,37 +690,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="row g-2 mb-3 text-center">
                     <div class="col-6">
                         <div class="p-2 bg-success-subtle text-success rounded border border-success-subtle">
-                            <small class="d-block">Inicio Turno</small>
-                            <strong>${asist.inicio_turno}</strong>
+                            <small class="d-block">Inicio del turno</small>
+                            <strong>${asist.inicio_turno.substring(11, 16)}</strong>
                         </div>
                     </div>
                     <div class="col-6">
-                        <div class="p-2 bg-danger-subtle text-danger rounded border border-danger-subtle">
-                            <small class="d-block">Fin Turno</small>
-                            <strong>${asist.fin_turno || 'En curso...'}</strong>
-                        </div>
+                        ${asist.fin_turno
+                            ? `<div class="p-2 bg-danger-subtle text-danger rounded border border-danger-subtle"><small class="d-block">Fin del turno</small><strong>${asist.fin_turno.substring(11, 16)}</strong></div>`
+                            : `<div class="p-2 bg-light rounded border"><small class="d-block text-muted">Fin del turno</small><strong class="text-dark">Sigue trabajando</strong></div>`}
                     </div>
                 </div>
 
-                <h6 class="fw-bold text-dark mb-2">Línea de Tiempo de Pausas & Eventos:</h6>
+                <h6 class="fw-bold text-dark mb-2">Pausas y actividades del turno</h6>
                 <div class="timeline-today mb-3">
             `;
 
             if (evs.length === 0) {
                 bodyHtml += '<p class="text-muted small my-2">No se registraron pausas ni reuniones.</p>';
             } else {
+                const nombresPausa = { almuerzo: 'Almuerzo', reunion: 'Reunión', capacitacion: 'Capacitación', remoto: 'Trabajo remoto', campo: 'Trabajo de campo' };
                 evs.forEach(e => {
+                    // Pausa en curso: los minutos se cuentan hasta ahora (antes mostraba "0 min")
+                    const minutos = e.fin_evento
+                        ? (e.duracion_minutos || 0)
+                        : Math.max(0, Math.round((Date.now() - new Date(e.inicio_evento.replace(/-/g, '/')).getTime()) / 60000));
                     bodyHtml += `
                         <div class="timeline-item">
-                            <strong class="text-dark text-capitalize">${e.tipo_evento}</strong>: 
-                            <span class="small">${e.inicio_evento.substring(11, 16)} a ${e.fin_evento ? e.fin_evento.substring(11, 16) : 'En curso'}</span> 
-                            (${e.duracion_minutos || 0} min) ${e.nota ? ' - <em>' + escapeHtml(e.nota) + '</em>' : ''}
+                            <strong class="text-dark">${escapeHtml(nombresPausa[e.tipo_evento] || e.tipo_evento)}</strong>:
+                            <span class="small">${e.inicio_evento.substring(11, 16)} a ${e.fin_evento ? e.fin_evento.substring(11, 16) : 'ahora (sigue en curso)'}</span>
+                            (${minutos} min) ${e.nota ? ' - <em>' + escapeHtml(e.nota) + '</em>' : ''}
                         </div>
                     `;
                 });
             }
 
             bodyHtml += '</div>';
+
+            if (asist.observaciones) {
+                bodyHtml += `<div class="alert alert-light border small mb-3"><i class="bi bi-info-circle me-1"></i>${escapeHtml(asist.observaciones).replace(/\n/g, '<br>')}</div>`;
+            }
 
             if (asist.latitud_inicio && asist.longitud_inicio) {
                 bodyHtml += `
@@ -705,13 +764,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (tabVistaAdmin) {
-        tabVistaAdmin.addEventListener('shown.bs.tab', () => {
-            loadAdminSummary();
-            if (!adminAutoRefreshInterval) {
-                adminAutoRefreshInterval = setInterval(loadAdminSummary, 30000); // Auto-refresh cada 30s
-            }
-        });
+    // Monitor de turnos: se abre directo para administración, gerencia y coordinación (se actualiza cada 30 s)
+    if (document.getElementById('content-vista-admin')?.classList.contains('active')) {
+        loadAdminSummary();
+        if (!adminAutoRefreshInterval) adminAutoRefreshInterval = setInterval(loadAdminSummary, 30000);
     }
 
     function nameInitials(name) {

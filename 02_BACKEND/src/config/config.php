@@ -16,9 +16,13 @@ require_once __DIR__ . '/env.php';
 sgs_load_env(BASE_PATH . '/.env');
 
 define('APP_VERSION', trim((string)@file_get_contents(BASE_PATH . '/VERSION')) ?: '0.0.0');
-// Versión de estáticos: versión del sistema + fecha de la hoja de estilos principal, para que el navegador
-// descargue los estilos nuevos en cuanto cambian (sin depender de subir VERSION).
-define('ASSET_VERSION', getenv('APP_ASSET_VERSION') ?: APP_VERSION . '.' . (@filemtime(FRONTEND_PATH . '/assets/css/sgs-theme.css') ?: 0));
+// Versión de estáticos: versión del sistema + fecha del último cambio en estilos o JavaScript, para que el
+// navegador descargue los archivos nuevos en cuanto cambian (sin depender de subir VERSION).
+// 2026-10-12: antes solo miraba el CSS y los cambios de JavaScript quedaban en la caché del navegador.
+define('ASSET_VERSION', getenv('APP_ASSET_VERSION') ?: APP_VERSION . '.' . max(array_map(
+    static fn($archivo) => (int)@filemtime($archivo),
+    array_merge([FRONTEND_PATH . '/assets/css/sgs-theme.css'], glob(FRONTEND_PATH . '/assets/js/*.js') ?: [])
+)));
 define('APP_ENV', getenv('APP_ENV') ?: 'production');
 // Meta de productividad: supervisiones finalizadas por día laborable (lunes a sábado; un domingo cuenta solo si se trabajó).
 define('SGS_META_SUPERVISIONES_DIA', (float)(getenv('SGS_META_SUPERVISIONES_DIA') ?: 4.5));
@@ -54,6 +58,8 @@ if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
     // HTTPS directo o detrás de un proxy del hosting (Cloudflare, balanceador)
     $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
         || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
+    // HSTS (2026-10-13): con HTTPS, el navegador ya no intenta entrar por http:// durante 180 días.
+    if ($isHttps && !headers_sent()) header('Strict-Transport-Security: max-age=15552000');
     // Nombre propio: la sesión de SGS no se mezcla con la del sistema de origen.
     session_name('SGS_SESSID');
     session_set_cookie_params([

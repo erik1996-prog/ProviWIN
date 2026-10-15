@@ -21,8 +21,19 @@ function elegirSupervisorCancelacion(PDO $pdo, string $departamento): ?array {
  * Si nadie lo tiene, responden los de alcance PROVINCIAS. Todos ellos ven la
  * pendiente en su lista (bolsa común) y reciben el aviso al importarla.
  */
+/** "Nombre Apellido" (primer nombre y primer apellido), para mostrar varios responsables en poco espacio. */
+function nombreCortoSupervisor(array $u): string {
+    $nombre = strtok(trim((string)($u['nombres'] ?? '')), ' ') ?: '';
+    $apellido = strtok(trim((string)($u['apellidos'] ?? '')), ' ') ?: '';
+    if ($nombre === '' || $apellido === '') {
+        $partes = preg_split('/\s+/', trim((string)($u['nombre_completo'] ?? '')));
+        return trim(($partes[0] ?? '') . ' ' . ($partes[count($partes) > 3 ? 2 : (count($partes) - 1)] ?? ''));
+    }
+    return "$nombre $apellido";
+}
+
 function supervisoresZonaCancelacion(PDO $pdo, string $departamento, bool $bloquear = false): array {
-    $stmt = $pdo->query("SELECT u.id,u.nombre_completo,u.zona,u.sede FROM usuarios u
+    $stmt = $pdo->query("SELECT u.id,u.nombre_completo,u.nombres,u.apellidos,u.zona,u.sede FROM usuarios u
         LEFT JOIN partners p ON p.id=u.partner_id
         WHERE u.rol='Supervisor' AND u.activo=1
           AND (u.partner_id IS NULL OR UPPER(TRIM(p.nombre_partner)) IN ('WIN','WIN DIRECTO'))

@@ -9,7 +9,8 @@ $stmtRegisteredScope->execute([':id'=>(int)($effectiveViewUser['id'] ?? 0)]);
 $registeredUserSite = $stmtRegisteredScope->fetch();
 $registeredDepartmentScope = operationalDepartmentFromSite((string)(($registeredUserSite['sede'] ?? '') ?: ($registeredUserSite['zona'] ?? '')));
 $esVistaSupervisorDirecto = ($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($user['is_win_directo']);
-$esSupervisorPartnerVista = (($effectiveViewUser['rol'] ?? '') === Auth::ROLE_PARTNER)
+$esJefeOperacionesVista = ($effectiveViewUser['rol'] ?? '') === Auth::ROLE_JEFE_OPERACIONES;
+$esSupervisorPartnerVista = $esJefeOperacionesVista
     || (($effectiveViewUser['rol'] ?? '') === Auth::ROLE_SUPERVISOR
         && empty($effectiveViewUser['is_win_directo'])
         && !empty($effectiveViewUser['partner_id']));
@@ -799,18 +800,26 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     <!-- PANEL DE CONTROL: fila 1 = estados + acciones · fila 2 = filtros con etiqueta. Los id los usa el JS. -->
     <div class="card sgs-toolbar-card p-3 mb-3">
       <div class="sgs-toolbar">
-        <?php if ($canFilterSupervisionStatus): ?>
+        <?php if ($esSupervisorPartnerVista): ?>
+        <div class="sgs-segmented" id="filterTabs" role="group" aria-label="Estado de la orden asignada">
+          <button type="button" class="filter-tab-btn active" data-filter="todos">Todas <span class="sgs-seg-count" id="count-todos">0</span></button>
+          <button type="button" class="filter-tab-btn" data-filter="partner_pendiente" title="Asignadas, sin atender y dentro de las 24 horas">Pendientes <span class="sgs-seg-count" id="count-partner_pendiente">0</span></button>
+          <button type="button" class="filter-tab-btn" data-filter="partner_en_proceso" title="Ya registraste la atención; falta que WIN la cierre">En proceso <span class="sgs-seg-count" id="count-partner_en_proceso">0</span></button>
+          <button type="button" class="filter-tab-btn" data-filter="partner_vencida" title="Pasaron las 24 horas sin atención">No revisados <span class="sgs-seg-count" id="count-partner_vencida">0</span></button>
+        </div>
+        <?php elseif ($canFilterSupervisionStatus): ?>
         <div class="sgs-segmented" id="filterTabs" role="group" aria-label="Estado de la supervisión">
           <button type="button" class="filter-tab-btn active" data-filter="todos">Todas <span class="sgs-seg-count" id="count-todos">0</span></button>
           <button type="button" class="filter-tab-btn" data-filter="iniciada">En proceso <span class="sgs-seg-count" id="count-iniciada">0</span></button>
           <button type="button" class="filter-tab-btn" data-filter="finalizada">Finalizadas <span class="sgs-seg-count" id="count-finalizada">0</span></button>
           <button type="button" class="filter-tab-btn" data-filter="pendiente">Pendientes <span class="sgs-seg-count" id="count-pendiente">0</span></button>
+          <button type="button" class="filter-tab-btn" data-filter="rescate" title="Pendientes tomadas como rescate: seguimiento hasta cerrarlas">En rescate <span class="sgs-seg-count" id="count-rescate">0</span></button>
         </div>
         <?php endif; ?>
         <div class="sgs-toolbar-actions">
           <?php if ($canUsePendingMap): ?><button class="btn btn-outline-secondary" id="viewPendingRoutesBtn" type="button"><i class="bi bi-map me-1"></i>Ver rutas</button><?php endif; ?>
           <?php if ($canChooseSupervisionColumns): ?><div class="dropdown">
-            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="btnColumnSelector"><i class="bi bi-layout-three-columns me-1"></i>Columnas</button>
+            <button type="button" class="btn btn-outline-secondary sgs-btn-icono" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="btnColumnSelector" title="Columnas visibles" aria-label="Columnas visibles"><i class="bi bi-layout-three-columns"></i></button>
             <div class="dropdown-menu dropdown-menu-end p-3 sgs-menu-columns" id="dropdownColumnSelector">
           <p class="sgs-kpi-label mb-2">Columnas visibles</p>
           <div class="d-flex flex-column gap-2" id="columnCheckboxesContainer">
@@ -851,7 +860,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
           <?php if (Auth::isAdministrative()): ?><div class="dropdown">
             <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-x-octagon me-1"></i>Cancelaciones</button>
             <div class="dropdown-menu dropdown-menu-end">
-              <a class="dropdown-item" href="03_FRONTEND/src/assets/templates/plantilla_cancelaciones_v3.xlsx" download><i class="bi bi-file-earmark-arrow-down me-2"></i>Descargar modelo (Excel)</a>
+              <a class="dropdown-item" href="03_FRONTEND/src/assets/templates/plantilla_cancelaciones_v5.xlsx?v=<?= (int)@filemtime(FRONTEND_PATH . '/assets/templates/plantilla_cancelaciones_v5.xlsx') ?>" download="plantilla_cancelaciones_v5.xlsx"><i class="bi bi-file-earmark-arrow-down me-2"></i>Descargar modelo (Excel)</a>
               <button class="dropdown-item" id="openCancelImportBtn" type="button"><i class="bi bi-cloud-arrow-up me-2"></i>Subir cancelaciones</button>
             </div>
           </div><?php endif; ?>
@@ -860,21 +869,24 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       </div>
 
       <?php $sgsAdminFilters = Auth::isAdministrative() && $canUseSupervisionFilters; ?>
-      <?php if ($sgsAdminFilters || $canFilterSupervisionDate): ?>
-      <div class="row g-3 sgs-toolbar-filters">
-        <?php if ($sgsAdminFilters): ?>
-        <div class="col-sm-6 col-lg-3"><label class="form-label" for="adminFilterZona">Departamento</label>
-          <select class="form-select" id="adminFilterZona"><option value="">Todos los departamentos</option></select></div>
-        <div class="col-sm-6 col-lg-3"><label class="form-label" for="adminFilterSupervisor">Supervisor</label>
-          <select class="form-select" id="adminFilterSupervisor"><option value="">Todos los supervisores</option></select></div>
-        <?php endif; ?>
-        <?php if ($canFilterSupervisionDate): ?>
-        <div class="col-6 col-lg-2"><label class="form-label" for="adminFilterFechaDesde">Desde</label><input class="form-control" id="adminFilterFechaDesde" type="date"></div>
-        <div class="col-6 col-lg-2"><label class="form-label" for="adminFilterFechaHasta">Hasta</label><input class="form-control" id="adminFilterFechaHasta" type="date"></div>
-        <?php endif; ?>
-        <div class="col-12 col-lg-auto"><button type="button" class="btn btn-outline-secondary w-100" id="btnLimpiarFiltrosSup"><i class="bi bi-x-lg me-1"></i>Limpiar</button></div>
+      <!-- Fila 2 (2026-10-15): solo filtros, a todo el ancho; todos los controles de 40 px y alineados abajo. -->
+      <div class="sgs-toolbar-row">
+        <div class="sgs-filtros">
+          <div class="sgs-filtro sgs-filtro--ancho"><label class="form-label" for="filterCodigoSup">Pedido o ticket</label>
+            <div class="sgs-filtro-busqueda"><i class="bi bi-search" aria-hidden="true"></i><input class="form-control" id="filterCodigoSup" type="search" maxlength="60" placeholder="Código de pedido o ticket" autocomplete="off"></div></div>
+          <?php if ($sgsAdminFilters): ?>
+          <div class="sgs-filtro"><label class="form-label" for="adminFilterZona">Departamento</label>
+            <select class="form-select" id="adminFilterZona"><option value="">Todos los departamentos</option></select></div>
+          <div class="sgs-filtro"><label class="form-label" for="adminFilterSupervisor">Supervisor</label>
+            <select class="form-select" id="adminFilterSupervisor"><option value="">Todos los supervisores</option></select></div>
+          <?php endif; ?>
+          <?php if ($canFilterSupervisionDate): ?>
+          <div class="sgs-filtro sgs-filtro--fecha"><label class="form-label" for="adminFilterFechaDesde">Desde</label><input class="form-control" id="adminFilterFechaDesde" type="date"></div>
+          <div class="sgs-filtro sgs-filtro--fecha"><label class="form-label" for="adminFilterFechaHasta">Hasta</label><input class="form-control" id="adminFilterFechaHasta" type="date"></div>
+          <?php endif; ?>
+          <button type="button" class="btn btn-outline-secondary sgs-filtro-limpiar" id="btnLimpiarFiltrosSup" title="Quitar filtros"><i class="bi bi-x-lg me-1"></i>Limpiar</button>
+        </div>
       </div>
-      <?php endif; ?>
     </div>
 
     <!-- VISTA DESKTOP: Tabla Ejecutiva -->
@@ -983,8 +995,11 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
             <select id="new_tipo_sup" name="tipo_supervision_inicial" required>
               <option value="En caliente">En caliente</option>
               <option value="En frío">En frío</option>
+              <option value="Remota">Remota (videollamada)</option>
             </select>
           </div>
+          <!-- Supervisión remota (2026-10-13): solo se ve con la modalidad "Remota" -->
+          <div class="remota-only d-none sgs-remota-aviso"><i class="bi bi-camera-video me-1"></i>Supervisión remota: solo se pide el partner. Suba la <strong>captura de la videollamada</strong> como foto de evidencia (obligatoria).</div>
 
           <!-- LISTA DE 7 PARTNERS OFICIALES -->
 
@@ -1094,6 +1109,13 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
                 <option value="Buen estado" selected>Buen estado</option>
               </select>
             </div>
+            <div class="field-bitacora full sgs-recordar-cuadrilla">
+              <input type="hidden" name="recordar_cuadrilla" value="0">
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch" id="new_recordar_cuadrilla" name="recordar_cuadrilla" value="1" checked>
+                <label class="form-check-label" for="new_recordar_cuadrilla"><strong>Guardar el T2 y el vehículo</strong> (con su estado) como cuadrilla de este técnico líder al cerrar la supervisión: saldrán por defecto la próxima vez.</label>
+              </div>
+            </div>
             </div>
           </div>
         </div>
@@ -1147,12 +1169,12 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
           </div>
           <div class="field-bitacora" style="justify-content: flex-end;">
             <button type="button" class="btn-bitacora btn-gps-bitacora" onclick="capturarGPS('new_latitud', 'new_longitud', 'new_gps_status')">
-              <i class="bi bi-geo-alt me-1"></i>Capturar ubicación GPS
+              <i class="bi bi-arrow-repeat me-1"></i>Actualizar ubicación
             </button>
           </div>
           <div class="field-bitacora full">
-            <span id="new_gps_status" style="font-size: 12px; color: var(--win-text-muted);">
-              Puedes capturar automáticamente usando GPS o escribir manualmente.
+            <span id="new_gps_status" class="sgs-gps-estado">
+              Tu ubicación se toma sola al abrir la supervisión. Si cambias de lugar, presiona "Actualizar ubicación".
             </span>
           </div>
           <div class="field-bitacora full" id="new_field_resultado_tecnico" style="display:none;">
@@ -1201,7 +1223,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
           .checklist-opciones{display:grid;grid-template-columns:repeat(4,minmax(82px,1fr));gap:7px}
           .checklist-opcion{position:relative;cursor:pointer;margin:0}
           .checklist-opcion input{position:absolute;opacity:0;pointer-events:none}
-          .checklist-opcion span{display:flex;align-items:center;justify-content:center;min-height:44px;padding:8px 6px;border:2px solid #d5dce3;border-radius:9px;background:#fff;color:#475569;font-size:12px;font-weight:800;text-align:center;transition:.15s ease;user-select:none}
+          .checklist-opcion span{display:flex;align-items:center;justify-content:center;min-height:44px;padding:8px 6px;border:2px solid #d5dce3;border-radius:9px;background:#fff;color:#475569;font-size:12px;font-weight: 700;text-align:center;transition:.15s ease;user-select:none}
           .checklist-opcion input:focus-visible + span{outline:3px solid rgba(255,90,10,.28)}
           .checklist-opcion.bueno input:checked + span{background:var(--sgs-success-soft);border-color:var(--sgs-success);color:var(--sgs-success-dark)}
           .checklist-opcion.regular input:checked + span{background:var(--sgs-warning-soft);border-color:var(--sgs-warning);color:var(--sgs-warning-dark)}
@@ -1213,7 +1235,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
           .checklist-opcion.para-cambio input:checked + span{background:var(--sgs-warning-soft);border-color:var(--sgs-warning);color:var(--sgs-warning-dark)}
           .checklist-opcion.no-revisado input:checked + span{background:var(--sgs-border);border-color:var(--sgs-muted);color:var(--sgs-ink-2)}
           .checklist-group{border:1px solid #dde3ea;border-radius:12px;background:#fff;margin-bottom:16px;overflow:hidden}
-          .checklist-group-title{margin:0;padding:11px 14px;background:linear-gradient(135deg,var(--sgs-ink),var(--sgs-ink-2));color:#fff;font-size:13px;font-weight:800;text-transform:uppercase;letter-spacing:.035em;border-left:0}
+          .checklist-group-title{margin:0;padding:11px 14px;background:linear-gradient(135deg,var(--sgs-ink),var(--sgs-ink-2));color:#fff;font-size:13px;font-weight: 700;text-transform:uppercase;letter-spacing:.035em;border-left:0}
           .checklist-group-body{padding:4px 14px}
           .checklist-row{grid-template-columns:minmax(460px,2fr) minmax(210px,1fr) minmax(210px,1fr)!important;gap:14px!important;padding:12px 0!important;margin:0!important}
           .checklist-row:last-child{border-bottom:0!important}
@@ -1275,8 +1297,8 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
               </select>
             </div>
             <div class="field-bitacora full">
-              <label for="new_obs_det">Detalle de la Observación *</label>
-              <textarea id="new_obs_det" name="obs_detalle" placeholder="Escriba el detalle del incumplimiento o falta hallada..."></textarea>
+              <label for="new_obs_det">Comentario de la observación *</label>
+              <textarea id="new_obs_det" name="obs_detalle" placeholder="Describa el incumplimiento o la falta encontrada; vale para todas las fotos..."></textarea>
             </div>
           </div>
 
@@ -1286,19 +1308,16 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
             <div class="field-bitacora">
               <label for="new_foto1">Foto de evidencia 1</label>
               <input type="file" id="new_foto1" name="foto_1" accept="image/*">
-              <input type="text" name="foto_comentario_1" class="mt-2" placeholder="Comentario de la foto 1">
               <div id="new_preview_foto1" style="display:none; margin-top:8px;"></div>
             </div>
             <div class="field-bitacora">
               <label for="new_foto2">Foto de evidencia 2</label>
               <input type="file" id="new_foto2" name="foto_2" accept="image/*">
-              <input type="text" name="foto_comentario_2" class="mt-2" placeholder="Comentario de la foto 2">
               <div id="new_preview_foto2" style="display:none; margin-top:8px;"></div>
             </div>
             <div class="field-bitacora">
               <label for="new_foto3">Foto de evidencia 3</label>
               <input type="file" id="new_foto3" name="foto_3" accept="image/*">
-              <input type="text" name="foto_comentario_3" class="mt-2" placeholder="Comentario de la foto 3">
               <div id="new_preview_foto3" style="display:none; margin-top:8px;"></div>
             </div>
           </div>
@@ -1415,6 +1434,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
   let records = [];
   let currentFilter = 'todos';
   let currentZoneFilter = '';
+  let currentCodeFilter = '';
   let currentSupervisorFilter = '';
   let currentDateFromFilter = '';
   let currentDateToFilter = '';
@@ -1426,6 +1446,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
   let recordsRequest = null;
   let pendingMapRecords = [];
   const initialHighlightId = Math.max(0, Number(new URLSearchParams(location.search).get('highlight') || 0));
+  let abrirAlCargar = new URLSearchParams(location.search).get('abrir') === '1';
   let catalogoCategorias = [];
   let catalogoSubopciones = [];
   let listaTecnicos = [];
@@ -1507,6 +1528,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
   const currentUserId = <?= (int)($effectiveViewUser['id'] ?? 0) ?>;
   const esSupervisorWinDirecto = currentUserRole === 'Supervisor' && <?= !empty($effectiveViewUser['is_win_directo']) ? 'true' : 'false' ?>;
   const esSupervisorPartnerActual = <?= !empty($esSupervisorPartnerVista) ? 'true' : 'false' ?>;
+  const esJefeOperacionesActual = <?= !empty($esJefeOperacionesVista) ? 'true' : 'false' ?>;   // solo consulta
   const canUseFindingsForm = <?= $canUseFindingsForm ? 'true' : 'false' ?>;
   const canUseChecklistForm = <?= $canUseChecklistForm ? 'true' : 'false' ?>;
   const puedeAsignarPartner = esAdministradorActual || esSupervisorWinDirecto;
@@ -1559,11 +1581,13 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     'TRASLADO + CAMBIO ONT'
   ];
 
+  // Solución aplicada o cierre técnico (Avería, Reiterada, Garantía). Única lista: se usa al crear y al editar.
   var LISTA_CIERRE_TECNICO = [
     'ACONDICIONAMIENTO DE DROP',
     'ADAPTADOR ROSETA',
     'ASISTENCIA DGO',
     'ASISTENCIA WIN TV',
+    'CANCELADA',
     'CAMBIO DE CABLE PATCH CORD',
     'CAMBIO DE CONECTOR CTO/NAP',
     'CAMBIO DE CONECTOR EN ROSETA',
@@ -1614,20 +1638,48 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
   });
   document.getElementById('formImportarCancelaciones')?.addEventListener('submit', async event => {
     event.preventDefault();
+    // El formulario se guarda antes de esperar al servidor: después del await, event.currentTarget ya es null y
+    // limpiar el formulario fallaba, mostrando "No se pudo procesar" aunque la carga sí se hizo (2026-10-12).
+    const form = event.currentTarget;
     const button = document.getElementById('submitCancelImportBtn');
     const output = document.getElementById('resultadoImportacionCancelaciones');
     button.disabled = true;
     button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Validando filas...';
     output.innerHTML = '<div class="alert alert-light border small">Procesando el archivo y validando técnicos, ubicaciones, partners y tickets.</div>';
     try {
-      const response = await fetch('api/cancelaciones_import.php', {method:'POST',body:new FormData(event.currentTarget)});
-      const result = await response.json();
+      const response = await fetch('api/cancelaciones_import.php', {method:'POST',body:new FormData(form)});
+      // Si el servidor no responde como se espera (error del hosting, límite de tamaño, bloqueo), se muestra el motivo
+      // con el código HTTP y el de seguimiento, en lugar de un mensaje genérico (2026-10-12).
+      const texto = await response.text();
+      let result;
+      try { result = JSON.parse(texto); } catch (errorJson) {
+        const codigo = (texto.match(/SGS-[A-Z]+-[0-9A-F]{8}/) || [])[0];
+        const motivo = response.status === 413 ? 'El archivo es demasiado grande para el servidor.'
+          : (response.status === 403 ? 'El servidor bloqueó la subida del archivo.'
+          : (response.status >= 500 || codigo ? 'El servidor tuvo un error al procesar el archivo.' : 'El servidor respondió algo inesperado.'));
+        output.innerHTML = `<div class="alert alert-danger mb-0"><strong>${escapeHtml(motivo)}</strong><div class="small mt-1">Respuesta del servidor: HTTP ${Number(response.status)}${codigo ? ` · Código de seguimiento: <strong>${escapeHtml(codigo)}</strong>` : ''}. Envía esta información al administrador del sistema.</div></div>`;
+        console.error('Respuesta no válida de la carga de cancelaciones', response.status, texto.slice(0, 500));
+        return;
+      }
       const issues = Array.isArray(result.observadas) ? result.observadas : [];
-      const issueHtml = issues.length ? `<div class="mt-3"><strong>Filas observadas (${issues.length})</strong><div class="table-responsive mt-2" style="max-height:240px;"><table class="table table-sm small"><thead><tr><th>Fila</th><th>Ticket</th><th>Motivo</th></tr></thead><tbody>${issues.map(issue=>`<tr><td>${Number(issue.fila)}</td><td>${escapeHtml(issue.ticket||'—')}</td><td>${escapeHtml((issue.errores||[]).join('; '))}</td></tr>`).join('')}</tbody></table></div></div>` : '';
-      output.innerHTML = `<div class="alert ${result.status==='success'?'alert-success':'alert-danger'} mb-0"><strong>${escapeHtml(result.message||'Proceso terminado.')}</strong>${result.creadas!==undefined?`<div class="small mt-1">Pendientes creadas: ${Number(result.creadas)}</div>`:''}</div>${issueHtml}`;
-      if (result.status === 'success') { event.currentTarget.reset(); await loadRecords(); }
+      const yaSupervisados = Array.isArray(result.ya_supervisados) ? result.ya_supervisados : [];
+      const repetidos = Array.isArray(result.repetidos_archivo) ? result.repetidos_archivo : [];
+      const tablaCarga = (titulo, ayuda, cabeceras, filas) => `<div class="mt-3"><strong>${titulo}</strong>${ayuda ? `<div class="small text-muted">${ayuda}</div>` : ''}<div class="table-responsive sgs-import-tabla mt-2"><table class="table table-sm small mb-0"><thead><tr>${cabeceras.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>${filas.join('')}</tbody></table></div></div>`;
+      // Ya supervisados: no se ingresaron (2026-10-12)
+      const yaHtml = yaSupervisados.length ? tablaCarga(`Códigos no ingresados: ya están en Supervisiones (${yaSupervisados.length})`,
+        'Ya existe una supervisión con el mismo código de pedido o ticket. El estado indica si ya se supervisó (Finalizada) o si sigue pendiente.',
+        ['Fila', 'Código / ticket', 'Supervisión', 'Estado', 'Fecha'],
+        yaSupervisados.map(y => `<tr><td>${Number(y.fila)}</td><td><strong>${escapeHtml(y.ticket)}</strong></td><td>${escapeHtml(y.supervision || '—')}</td><td>${escapeHtml(y.estado || '—')}</td><td>${escapeHtml(y.fecha || '—')}</td></tr>`)) : '';
+      const repetidosHtml = repetidos.length ? tablaCarga(`Repetidos en el mismo archivo (${repetidos.length})`, 'Se cargaron una sola vez.',
+        ['Fila', 'Código / ticket', 'Ya estaba en la fila'],
+        repetidos.map(x => `<tr><td>${Number(x.fila)}</td><td>${escapeHtml(x.ticket)}</td><td>${Number(x.fila_original)}</td></tr>`)) : '';
+      const issueHtml = issues.length ? tablaCarga(`Filas con problemas (${issues.length})`, 'No se cargaron; corrija el dato y vuelva a subir solo esas filas.',
+        ['Fila', 'Código / ticket', 'Motivo'],
+        issues.map(issue => `<tr><td>${Number(issue.fila)}</td><td>${escapeHtml(issue.ticket || '—')}</td><td>${escapeHtml((issue.errores || []).join('; '))}</td></tr>`)) : '';
+      output.innerHTML = `<div class="alert ${result.status==='success'?'alert-success':'alert-danger'} mb-0"><strong>${escapeHtml(result.message||'Proceso terminado.')}</strong>${result.que_hacer ? `<div class="mt-2"><strong>Qué hacer:</strong> ${escapeHtml(result.que_hacer)}</div>` : ''}${result.detalle ? `<div class="small text-muted mt-2">Código de seguimiento: ${escapeHtml(result.codigo || '—')} · Detalle técnico: <code>${escapeHtml(result.detalle)}</code></div>` : ''}${result.creadas!==undefined?`<div class="small mt-1">Pendientes creadas: ${Number(result.creadas)} · Ya existían: ${yaSupervisados.length} · Con problemas: ${issues.length}</div>`:''}</div>${yaHtml}${repetidosHtml}${issueHtml}`;
+      if (result.status === 'success') { form.reset(); try { await loadRecords(); } catch (e) { console.error(e); } }
     } catch (error) {
-      console.error(error); output.innerHTML = '<div class="alert alert-danger mb-0">No se pudo procesar el archivo. Compruebe que sea la plantilla XLSX oficial.</div>';
+      console.error(error); output.innerHTML = '<div class="alert alert-danger mb-0">No se pudo procesar el archivo. Compruebe que sea un Excel (.xlsx) con los encabezados de la plantilla y vuelva a intentar.</div>';
     } finally { button.disabled=false; button.innerHTML='<i class="bi bi-cloud-arrow-up-fill me-1"></i>Procesar archivo'; }
   });
 
@@ -1736,6 +1788,13 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
         option.type = 'button';
         option.className = 'list-group-item list-group-item-action py-2';
         option.textContent = item.nombre_tecnico;
+        const partnerForm = document.getElementById(select.id.startsWith('edit_') ? 'edit_partner' : 'new_partner')?.value || '';
+        if (tipo === 2 && String(item.partner_id) !== String(partnerForm)) {
+          const origen = document.createElement('small');
+          origen.className = 'text-muted ms-2';
+          origen.textContent = `${item.nombre_partner || 'Sin partner'} · pasará a esta cuadrilla al cerrar`;
+          option.append(origen);
+        }
         option.addEventListener('click', () => chooseTechnician(item.nombre_tecnico));
         results.append(option);
       });
@@ -1753,7 +1812,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       if (!results.children.length) {
         const empty = document.createElement('div');
         empty.className = 'list-group-item text-muted small';
-        empty.textContent = 'No hay técnicos asociados a este partner que coincidan con la búsqueda.';
+        empty.textContent = tipo === 2 ? 'No hay técnicos de apoyo que coincidan con la búsqueda.' : 'No hay técnicos asociados a este partner que coincidan con la búsqueda.';
         results.append(empty);
       }
       results.classList.remove('d-none');
@@ -1974,14 +2033,22 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     if (newTec2Nom) {
       const currentVal2 = newTec2Nom.value;
       newTec2Nom.innerHTML = '<option value="">Sin técnico de apoyo (T2)</option>';
-      const t2List = listaTecnicos.filter(t => String(t.partner_id) === newPartner.value && t.tipo_tecnico == 2); // T2: técnicos de apoyo del partner (rotan entre cuadrillas)
-      t2List.forEach(t => {
-        const isSel = (t.nombre_tecnico === currentVal2) ? 'selected' : '';
-        newTec2Nom.innerHTML += `<option value="${escapeHtml(t.nombre_tecnico)}" data-id="${t.id}" ${isSel}>${escapeHtml(t.nombre_tecnico)}</option>`;
-      });
+      newTec2Nom.innerHTML += opcionesApoyo(newPartner.value, currentVal2);
     }
     activarBuscadorTecnico(newTec1Nom, 1);
     activarBuscadorTecnico(newTec2Nom, 2);
+  }
+
+  // T2 (2026-10-15): rotan entre cuadrillas, así que se puede elegir cualquiera. Primero los del partner de la
+  // supervisión; los demás muestran su partner actual y, al cerrar la supervisión, pasan a esta cuadrilla.
+  function opcionesApoyo(partnerId, actual) {
+    const propios = String(partnerId || '');
+    return listaTecnicos.filter(t => t.tipo_tecnico == 2)
+      .sort((a, b) => (String(a.partner_id) === propios ? 0 : 1) - (String(b.partner_id) === propios ? 0 : 1) || String(a.nombre_tecnico).localeCompare(String(b.nombre_tecnico), 'es'))
+      .map(t => {
+        const otro = String(t.partner_id) !== propios ? ` · ${t.nombre_partner || 'sin partner'}` : '';
+        return `<option value="${escapeHtml(t.nombre_tecnico)}" data-id="${t.id}" ${t.nombre_tecnico === actual ? 'selected' : ''}>${escapeHtml(t.nombre_tecnico + otro)}</option>`;
+      }).join('');
   }
 
   function sincronizarTecnico(select, inputDni, tipo) {
@@ -1993,6 +2060,14 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       const vehicleType = document.getElementById(prefix + '_u_tipo');
       if (plate) plate.value = match?.unidad_placa || '';
       if (vehicleType) vehicleType.value = match?.unidad_tipo || '';
+      const vehicleState = document.getElementById(prefix + '_u_estado');
+      if (vehicleState && match?.unidad_estado) vehicleState.value = match.unidad_estado; // último estado registrado de su vehículo
+      // Cuadrilla (2026-10-15): su técnico de apoyo habitual, si el T2 está vacío y es de la lista de este partner.
+      const t2 = document.getElementById(prefix + '_tec2_nom');
+      if (t2 && match?.apoyo_nombre && !t2.value && [...t2.options].some(o => o.value === match.apoyo_nombre)) {
+        t2.value = match.apoyo_nombre;
+        t2.dispatchEvent(new Event('change', { bubbles: true }));
+      }
     }
   }
 
@@ -2104,6 +2179,20 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     bindCancelacionToggle(newTipoSupervision, newBoxCancelacion);
   }
 
+  // Supervisión remota: muestra los campos de la videollamada solo con la modalidad "Remota".
+  function sgsActualizarRemota(form) {
+    if (!form) return;
+    const sel = form.querySelector('[name="tipo_supervision_inicial"]');
+    const remota = Boolean(sel && !sel.disabled && sel.value === 'Remota');
+    form.querySelectorAll('.remota-only').forEach(el => {
+      el.classList.toggle('d-none', !remota);
+      // No llevan 'required': la hora de fin aún no se conoce al iniciar. Se exigen al finalizar (newFormReadyToFinish, validación de edición y servidor).
+      el.querySelectorAll('input,select').forEach(c => { if (!c.closest('fieldset[disabled]')) c.disabled = !remota || c.dataset.bloqueado === '1'; });
+    });
+    sgsModoCoordenadas(form, remota);
+  }
+  const esModalidadRemota = (id) => document.getElementById(id)?.value === 'Remota' && !document.getElementById(id)?.disabled;
+
   function updateChecklistMode() {
     if (!newTipoSupervision) return;
     const tipoActual = newTipoSupervision.value;
@@ -2183,6 +2272,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       newTipoSupModalidad.disabled = sinModalidad;
       if (sinModalidad) newTipoSupModalidad.value = 'En caliente';
     }
+    sgsActualizarRemota(document.getElementById('form-inicio-supervision'));
     if (newFieldObsGeneral) newFieldObsGeneral.style.display = esChecklist ? 'none' : '';
     const newSecFotosGenerales = document.getElementById('new_sec_fotos_generales');
     if (newSecFotosGenerales) {
@@ -2217,7 +2307,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     [newTec1Nom, newTec1Dni, document.getElementById('new_u_tipo'), document.getElementById('new_u_placa')]
       .forEach(el => { if (el) el.required = incluyeChecklist; });
     if (newSecCuadrilla) {
-      const mostrarPersonal = !sinCuadrilla && !esEnFrio;
+      const mostrarPersonal = !sinCuadrilla && !esEnFrio && newTipoSupModalidad?.value !== 'Remota'; // remota: solo el partner
       newSecCuadrilla.style.display = sinPartner ? 'none' : '';
       const personal = document.getElementById('new_personal_vehiculo');
       personal.style.display = mostrarPersonal ? '' : 'none';
@@ -2457,35 +2547,93 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     });
   }
 
-  // Captura GPS en Navegador
+  // Captura GPS precisa (2026-10-15). Antes se tomaba la PRIMERA lectura, que el celular suele dar por red o wifi
+  // (errores de cientos de metros). Ahora se escucha el GPS hasta 25 s y se conserva la lectura más precisa;
+  // termina antes si llega a ±15 m. Las coordenadas se van mostrando mientras mejoran.
+  var GPS_PRECISION_BUENA = 15, GPS_ESPERA_MS = 25000, GPS_PRECISION_ACEPTABLE = 50; // var: sgsModoCoordenadas puede llamarse antes de esta línea
+  var gpsEnCurso = window.sgsGpsEnCurso = window.sgsGpsEnCurso || {};
   window.capturarGPS = function(targetLatId, targetLngId, statusId) {
     const statusEl = document.getElementById(statusId);
-    if(statusEl) statusEl.textContent = 'Obteniendo ubicación GPS...';
-
-    if (!navigator.geolocation) {
-      if(statusEl) statusEl.textContent = 'Geolocalización no soportada por el navegador.';
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = pos.coords.latitude.toFixed(6);
-        const lng = pos.coords.longitude.toFixed(6);
-        const latEl = document.getElementById(targetLatId);
-        const lngEl = document.getElementById(targetLngId);
-        if (latEl) latEl.value = lat;
-        if (lngEl) lngEl.value = lng;
-        latEl?.dispatchEvent(new Event('input', {bubbles:true}));
-        lngEl?.dispatchEvent(new Event('input', {bubbles:true}));
-        if (statusEl) statusEl.textContent = `GPS obtenido: ${lat}, ${lng} (Precisión: ${Math.round(pos.coords.accuracy)}m)`;
-      },
-      (err) => {
-        if(statusEl) statusEl.textContent = 'No se pudo obtener GPS automáticamente. Puede escribirlo manualmente.';
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+    const latEl = document.getElementById(targetLatId), lngEl = document.getElementById(targetLngId);
+    const aviso = (texto, tipo = '') => { if (statusEl) { statusEl.textContent = texto; statusEl.dataset.estado = tipo; } };
+    if (!navigator.geolocation) return aviso('Este navegador no permite usar el GPS. Avise al administrador.', 'error');
+    detenerGPS(targetLatId);
+    let mejor = null;
+    const hora = () => new Date().toLocaleTimeString('es-PE', {hour:'2-digit', minute:'2-digit', hour12:false});
+    const poner = (pos) => {
+      const lat = pos.coords.latitude.toFixed(7), lng = pos.coords.longitude.toFixed(7);
+      if (latEl) { latEl.value = lat; latEl.dataset.origen = 'gps'; }
+      if (lngEl) { lngEl.value = lng; lngEl.dataset.origen = 'gps'; }
+      latEl?.dispatchEvent(new Event('input', {bubbles:true}));
+      lngEl?.dispatchEvent(new Event('input', {bubbles:true}));
+    };
+    const terminar = () => {
+      detenerGPS(targetLatId);
+      if (!mejor) return aviso('No se pudo tomar la ubicación. Revisa que el GPS esté encendido y presiona "Actualizar ubicación".', 'error');
+      const m = Math.round(mejor.coords.accuracy);
+      aviso(m <= GPS_PRECISION_ACEPTABLE
+        ? `Ubicación tomada a las ${hora()} con precisión de ±${m} m.`
+        : `Ubicación tomada a las ${hora()}, pero con precisión baja (±${m} m). Sal a un lugar abierto, espera unos segundos y presiona "Actualizar ubicación".`,
+        m <= GPS_PRECISION_ACEPTABLE ? 'ok' : 'baja');
+    };
+    aviso('Buscando tu ubicación… mantén el celular quieto unos segundos.', 'buscando');
+    const id = navigator.geolocation.watchPosition((pos) => {
+      if (!mejor || pos.coords.accuracy < mejor.coords.accuracy) {
+        mejor = pos;
+        poner(pos);
+        aviso(`Afinando ubicación… precisión actual ±${Math.round(pos.coords.accuracy)} m.`, 'buscando');
+      }
+      if (pos.coords.accuracy <= GPS_PRECISION_BUENA) terminar();
+    }, (err) => {
+      if (err && err.code === 1) { detenerGPS(targetLatId); return aviso('El celular no dio permiso de ubicación. Actívalo y presiona "Actualizar ubicación".', 'error'); }
+      if (!mejor && err && err.code === 3) terminar();
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_ESPERA_MS });
+    gpsEnCurso[targetLatId] = { id, plazo: setTimeout(terminar, GPS_ESPERA_MS) };
   };
+  function detenerGPS(targetLatId) {
+    const c = (window.sgsGpsEnCurso || {})[targetLatId];
+    if (!c) return;
+    navigator.geolocation?.clearWatch(c.id);
+    clearTimeout(c.plazo);
+    delete window.sgsGpsEnCurso[targetLatId];
+  }
 
+  // Coordenadas escritas a mano (2026-10-15): se pueden pegar juntas ("-8.139075, -79.055686", como las copia
+  // Google Maps) en cualquiera de los dos campos y se separan solas.
+  document.addEventListener('input', (ev) => {
+    const el = ev.target;
+    if (!(el instanceof HTMLInputElement) || !['latitud', 'longitud'].includes(el.name)) return;
+    if (ev.isTrusted) el.dataset.origen = 'manual';
+    const m = el.value.match(/^\s*(-?\d{1,2}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)\s*$/);
+    if (!m) return;
+    const form = el.form || el.closest('form') || document;
+    const lat = form.querySelector('input[name="latitud"]'), lng = form.querySelector('input[name="longitud"]');
+    if (!lat || !lng) return;
+    lat.value = m[1]; lng.value = m[2];
+    lat.dataset.origen = lng.dataset.origen = 'manual';
+    lng.dispatchEvent(new Event('change', {bubbles:true}));
+  });
+
+  // Coordenadas según la modalidad (2026-10-15, a pedido del usuario): en TODAS se toma el GPS al iniciar y se
+  // puede actualizar. La única diferencia: en la remota se pueden editar a mano (p. ej. las del cliente); en las
+  // presenciales quedan solo por GPS. El administrador siempre puede corregirlas.
+  function sgsModoCoordenadas(form, remota) {
+    const lat = form?.querySelector('input[name="latitud"]'), lng = form?.querySelector('input[name="longitud"]');
+    if (!lat || !lng) return;
+    const status = document.getElementById(lat.id.replace('latitud', 'gps_status'));
+    const editable = remota || esAdministradorActual;
+    const veniaEscrita = lat.dataset.origen === 'manual';
+    [lat, lng].forEach(c => { c.readOnly = !editable; c.title = editable ? '' : 'Se toma del GPS. Use "Actualizar ubicación".'; });
+    lat.placeholder = remota ? 'Ej.: -8.139075' : '-12.046374';
+    lng.placeholder = remota ? 'Ej.: -79.055686' : '-77.042689';
+    if (remota && status && !status.dataset.estado) {
+      status.textContent = 'Supervisión remota: se toma tu ubicación al iniciar, y puedes corregirla a mano o pegar las coordenadas del cliente (por ejemplo -8.139075, -79.055686).';
+    }
+    // De remota a presencial con coordenadas escritas a mano: se vuelven a tomar del GPS.
+    if (!remota && !esAdministradorActual && veniaEscrita && !lat.disabled) {
+      capturarGPS(lat.id, lng.id, lat.id.replace('latitud', 'gps_status'));
+    }
+  }
   // Función para Eliminar una Supervisión
   window.eliminarSupervision = async function(id, codigo) {
     if (!confirm(`¿Está seguro de eliminar la supervisión ${codigo}? Esta acción no se puede deshacer.`)) {
@@ -2514,9 +2662,10 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
 
   function normalizeSupervisionRecord(item) {
     const rawSt = String(item.estado_supervision || '').toLowerCase();
-    const st = ['culminada','finalizada','finalizado','cancelada'].includes(rawSt)
+    // Una pendiente "En rescate" tiene su propio estado: no se inicia ni se asigna a partner mientras dure el rescate.
+    const st = item.rescate_estado === 'En rescate' ? 'rescate' : (['culminada','finalizada','finalizado','cancelada'].includes(rawSt)
       ? 'finalizada'
-      : (rawSt === 'pendiente' ? 'pendiente' : 'iniciada');
+      : (rawSt === 'pendiente' ? 'pendiente' : 'iniciada'));
     return {
       id: Number(item.id),
       codigo: item.codigo_supervision,
@@ -2524,7 +2673,9 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       fecha: item.fecha_registro ? item.fecha_registro.slice(0,10) : todayISO(),
       departamento: item.departamento || 'LIMA', provincia: item.provincia || 'LIMA', distrito: item.distrito || 'LIMA',
       ubicacion: `${item.departamento || 'LIMA'} / ${item.distrito || 'LIMA'}`,
-      responsable: item.supervisor_nombre || 'Supervisor WIN', supervisor_id: String(item.supervisor_id || ''),
+      direccion: item.direccion || '', // dirección del cliente (carga de cancelaciones, 2026-10-15)
+      // Pendiente sin tomar (bolsa común): responsables = todos los supervisores directos de la zona.
+      responsable: item.responsables_zona || item.supervisor_nombre || 'Supervisor WIN', supervisor_id: String(item.supervisor_id || ''),
       asignado_por: String(item.asignado_por || ''), fecha_asignacion: item.fecha_asignacion || '',
       es_asignacion_partner: Number(item.es_asignacion_partner || 0), fecha_limite_partner: item.fecha_limite_partner || '',
       plazo_partner_vencido: item.plazo_partner_vencido || 0, estado_atencion_partner: item.estado_atencion_partner || 'Pendiente',
@@ -2532,6 +2683,8 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       clasificacion: item.clasificacion_supervision || item.tipo_servicio || 'Instalación', derivacion: item.derivacion_orden || 'Autogestión',
       tipo_servicio: item.tipo_servicio || 'Regular', area_servicio: item.area_servicio || 'Instalación', sub_tipo_atencion: item.sub_tipo_atencion || '',
       tipo_supervision_inicial: item.tipo_supervision_inicial || 'En caliente', partner_nombre: item.nombre_partner || '—', partner_id: item.partner_id,
+      rescate_estado: item.rescate_estado || '', rescate_inicio: item.rescate_inicio || '', rescate_fin: item.rescate_fin || '',
+      rescate_responsable_id: String(item.rescate_responsable_id || ''), partner_rescatable: Number(item.partner_rescatable || 0),
       cliente_nombre: item.cliente_nombre || '', cliente_dni: item.cliente_dni || '', ticket_codigo: item.ticket_codigo || '',
       tecnico1_nombre: item.tecnico1_nombre || '', tecnico1_dni: item.tecnico1_dni || '', tecnico2_nombre: item.tecnico2_nombre || '',
       tecnico2_dni: item.tecnico2_dni || '', brevete_poseedor: item.brevete_poseedor || '', unidad_tipo: item.unidad_tipo || '',
@@ -2556,10 +2709,11 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     if (recordsRequest) recordsRequest.abort();
     recordsRequest = new AbortController();
     const params = new URLSearchParams({action:'list', page_number:String(requestedPage), limit:'50', estado:currentFilter});
-    if (!append && initialHighlightId && currentFilter === 'todos' && !currentZoneFilter && !currentSupervisorFilter && !currentDateFromFilter && !currentDateToFilter) {
+    if (!append && initialHighlightId && currentFilter === 'todos' && !currentZoneFilter && !currentSupervisorFilter && !currentDateFromFilter && !currentDateToFilter && !currentCodeFilter) {
       params.set('highlight', String(initialHighlightId));
     }
     if (currentZoneFilter) params.set('departamento', currentZoneFilter);
+    if (currentCodeFilter) params.set('codigo', currentCodeFilter);
     if (currentSupervisorFilter) params.set('supervisor_id', currentSupervisorFilter);
     if (currentDateFromFilter) params.set('fecha_inicio', currentDateFromFilter);
     if (currentDateToFilter) params.set('fecha_fin', currentDateToFilter);
@@ -2584,6 +2738,13 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       activeSupervisionMeta = meta.active_supervision || null;
       window.pendingMapTotal = Number(meta.pending_map_total || 0);
       populateAdminSupervisionFilters(meta);
+      // Llegada desde el mapa del Dashboard (?highlight=ID&abrir=1): se abre esa supervisión una sola vez.
+      if (!append && initialHighlightId && abrirAlCargar) {
+        abrirAlCargar = false;
+        const destino = records.find(r => Number(r.id) === initialHighlightId);
+        if (destino) setTimeout(() => abrirRegistro(destino), 0);
+        else showToast('No tiene acceso a esa supervisión o ya no existe.');
+      }
     } catch(e) {
       if (e.name === 'AbortError') return;
       if (!append) {
@@ -2672,7 +2833,8 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
         : 'Crear una nueva supervisión';
     }
 
-    const countValues = {todos:countTodos,iniciada:countIniciada,finalizada:countFinalizada,pendiente:countPendiente};
+    const countValues = {todos:countTodos,iniciada:countIniciada,finalizada:countFinalizada,pendiente:countPendiente,rescate:Number(listCounts.rescate || 0),
+      partner_pendiente:Number(listCounts.partner_pendiente || 0),partner_en_proceso:Number(listCounts.partner_en_proceso || 0),partner_vencida:Number(listCounts.partner_vencida || 0)};
     Object.entries(countValues).forEach(([key,value]) => {
       const target = document.getElementById(`count-${key}`);
       if (target) target.textContent = value;
@@ -2728,6 +2890,8 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       const codigoDisplay = rec.ticket_codigo ? rec.ticket_codigo : rec.codigo;
       let labelEstado = rec.estado_supervision || 'En proceso';
       if (['Culminada','Finalizado'].includes(labelEstado)) labelEstado = 'Finalizada';
+      if (rec.estado === 'rescate') labelEstado = 'En rescate';
+      else if (['Rescatado', 'No rescatado'].includes(rec.rescate_estado)) labelEstado = `Finalizada · ${rec.rescate_estado}`;
 
       // Se crea únicamente la variante visible para no duplicar el DOM.
       if (!renderMobileLayout) {
@@ -2755,7 +2919,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
             rowHtml += `<td>${escapeHtml(rec.departamento)}</td>`;
             break;
           case 'estado':
-            rowHtml += `<td><span class="badge-exec ${rec.estado}">${labelEstado}</span>${rec.es_asignacion_partner?`<br><small class="${rec.estado_atencion_partner==='Atendida'?'text-success':(Number(rec.plazo_partner_vencido)?'text-danger':'text-warning')}">${rec.estado_atencion_partner==='Atendida'?'Partner atendió':(Number(rec.plazo_partner_vencido)?'Partner no atendió · plazo vencido':'Partner pendiente · 24 h')}</small>`:''}</td>`;
+            rowHtml += `<td><span class="badge-exec ${rec.estado}">${labelEstado}</span>${rec.es_asignacion_partner?`<br><small class="${rec.estado_atencion_partner==='Atendida'?'text-success':(Number(rec.plazo_partner_vencido)?'text-danger':'text-warning')}">${rec.estado_atencion_partner==='Atendida'?'Partner atendió':(Number(rec.plazo_partner_vencido)?'Partner no atendió · plazo vencido':'Partner pendiente · 24 h')}</small>`:''}${rec.partner_rescatable===1 && !rec.rescate_estado ? '<br><small class="text-success fw-bold"><i class="bi bi-life-preserver me-1"></i>Se puede rescatar</small>' : ''}</td>`;
             break;
           case 'partner_nombre':
             rowHtml += `<td>${escapeHtml(rec.partner_nombre || 'WIN Directo')}</td>`;
@@ -2776,7 +2940,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
         </div></td>
       `;
       row.innerHTML = rowHtml;
-      row.addEventListener('click', ()=> rec.estado === 'iniciada' ? openProcessForm(rec) : openDetail(rec.id));
+      row.addEventListener('click', ()=> abrirRegistro(rec));
       tbody.appendChild(row);
       }
 
@@ -2830,7 +2994,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
               </button>` : ''}
           </div>` : ''}
         `;
-        card.addEventListener('click', ()=> rec.estado === 'iniciada' ? openProcessForm(rec) : openDetail(rec.id));
+        card.addEventListener('click', ()=> abrirRegistro(rec));
         mobileContainer.appendChild(card);
       }
     });
@@ -2895,6 +3059,22 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
   let pendingMap = null;
   let pendingMarkers = null;
   let supervisorLocationMarker = null;
+  let pendingFans = [];
+  // Abanico: separa en pantalla (unos 34 px del punto real) los marcadores que comparten ubicación. Se recalcula al hacer zoom
+  // porque la separación es en píxeles, no en metros.
+  function acomodarAbanicosPendientes() {
+    if (!pendingMap || !pendingMap._loaded) return; // sin vista aún: se acomoda al ubicar el mapa
+    pendingFans.forEach(fan => {
+      const n = fan.markers.length;
+      const base = pendingMap.latLngToLayerPoint(fan.centro);
+      fan.markers.forEach((marker, i) => {
+        const ang = -Math.PI / 2 + (2 * Math.PI * i) / n;
+        const punto = pendingMap.layerPointToLatLng(L.point(base.x + 34 * Math.cos(ang), base.y + 34 * Math.sin(ang)));
+        marker.setLatLng(punto);
+        fan.legs[i]?.setLatLngs([fan.centro, punto]);
+      });
+    });
+  }
 
   function distanceInKm(origin, point) {
     const radians = degrees => degrees * Math.PI / 180;
@@ -2949,6 +3129,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
         attribution:'Tiles &copy; Esri'
       }).addTo(pendingMap);
       pendingMarkers = L.layerGroup().addTo(pendingMap);
+      pendingMap.on('zoomend', acomodarAbanicosPendientes);
     }
     pendingMarkers.clearLayers();
     const bounds = [];
@@ -2959,20 +3140,47 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       pendingMarkers.addLayer(supervisorLocationMarker);
       bounds.push([supervisorLocation.lat, supervisorLocation.lng]);
     }
-    points.forEach(({record,lat,lng}, index) => {
-      const code = record.ticket_codigo || record.codigo;
-      const distanceLabel = Number.isFinite(points[index].distance) ? ` · ${points[index].distance.toFixed(1)} km` : '';
-      const marker = L.marker([lat,lng], {title:`${code}${distanceLabel}`});
-      marker.bindTooltip(`${index + 1}${index === 0 && supervisorLocation ? ' · Más cercana' : ''}`, {permanent:true, direction:'top', offset:[0,-10]});
-      marker.on('click', () => {
-        const modalElement = document.getElementById('pendingRoutesModal');
-        const modal = bootstrap.Modal.getInstance(modalElement);
-        modalElement.addEventListener('hidden.bs.modal', () => openDetail(record.id), {once:true});
-        modal?.hide();
-      });
-      pendingMarkers.addLayer(marker);
-      bounds.push([lat,lng]);
+    const openFromMap = (id) => {
+      const modalElement = document.getElementById('pendingRoutesModal');
+      const modal = bootstrap.Modal.getInstance(modalElement);
+      modalElement.addEventListener('hidden.bs.modal', () => openDetail(id), {once:true});
+      modal?.hide();
+    };
+    // Órdenes en el mismo punto (a ~10 m): cada una con su propio marcador, abiertas en abanico alrededor del punto real
+    // y unidas a él con una línea fina (2026-10-13). Antes se juntaban en un solo marcador "1 · 2".
+    const groups = [];
+    points.forEach((point, index) => {
+      const key = `${point.lat.toFixed(4)},${point.lng.toFixed(4)}`;
+      let group = groups.find(g => g.key === key);
+      if (!group) { group = {key, lat:point.lat, lng:point.lng, items:[]}; groups.push(group); }
+      group.items.push({...point, number:index + 1});
     });
+    pendingFans = [];
+    const colorAbanico = getComputedStyle(document.documentElement).getPropertyValue('--sgs-muted').trim() || 'gray';
+    groups.forEach(group => {
+      const centro = L.latLng(group.lat, group.lng);
+      const fan = {centro, markers:[], legs:[]};
+      if (group.items.length > 1) {
+        pendingMarkers.addLayer(L.circleMarker(centro, {radius:4, color:colorAbanico, weight:1, fillColor:colorAbanico, fillOpacity:1, interactive:false}));
+      }
+      group.items.forEach(item => {
+        const code = item.record.ticket_codigo || item.record.codigo;
+        const distanceLabel = Number.isFinite(item.distance) ? ` · ${item.distance.toFixed(1)} km` : '';
+        const marker = L.marker(centro, {title:`${code}${distanceLabel}${item.record.direccion ? ' · ' + item.record.direccion : ''}`});
+        marker.bindTooltip(`${item.number}${item.number === 1 && supervisorLocation ? ' · Más cercana' : ''}`, {permanent:true, direction:'top', offset:[0,-10]});
+        marker.on('click', () => openFromMap(item.record.id));
+        pendingMarkers.addLayer(marker);
+        fan.markers.push(marker);
+        if (group.items.length > 1) {
+          const leg = L.polyline([centro, centro], {color:colorAbanico, weight:1, dashArray:'3 3', interactive:false});
+          pendingMarkers.addLayer(leg);
+          fan.legs.push(leg);
+        }
+      });
+      if (group.items.length > 1) pendingFans.push(fan);
+      bounds.push([group.lat, group.lng]);
+    });
+    acomodarAbanicosPendientes();
     setTimeout(() => {
       pendingMap.invalidateSize();
       if (supervisorLocation) {
@@ -2982,6 +3190,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       } else {
         pendingMap.setView([-9.19,-75.015], 6);
       }
+      acomodarAbanicosPendientes();
     }, 0);
     if (routeLink && points.length) {
       const coordinates = points.map(point => `${point.lat},${point.lng}`);
@@ -3009,7 +3218,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       if (!response.ok || result.status !== 'success' || !Array.isArray(result.data)) throw new Error(result.message || 'Mapa no disponible');
       pendingMapRecords = result.data.map(item => ({
         id:Number(item.id), codigo:item.codigo_supervision || '', ticket_codigo:item.ticket_codigo || '',
-        latitud:item.latitud || '', longitud:item.longitud || '', departamento:item.departamento || '', distrito:item.distrito || ''
+        latitud:item.latitud || '', longitud:item.longitud || '', departamento:item.departamento || '', distrito:item.distrito || '', direccion:item.direccion || ''
       }));
       renderPendingMap(supervisorLocation);
     } catch (error) {
@@ -3027,9 +3236,20 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
   document.getElementById('adminFilterSupervisor')?.addEventListener('change', e => { currentSupervisorFilter = e.target.value; loadRecords(); });
   document.getElementById('adminFilterFechaDesde')?.addEventListener('change', e => { currentDateFromFilter = e.target.value; loadRecords(); });
   document.getElementById('adminFilterFechaHasta')?.addEventListener('change', e => { currentDateToFilter = e.target.value; loadRecords(); });
+  // Búsqueda por pedido o ticket: espera a que se deje de escribir para no consultar por cada tecla
+  let codeFilterTimer = null;
+  document.getElementById('filterCodigoSup')?.addEventListener('input', e => {
+    clearTimeout(codeFilterTimer);
+    codeFilterTimer = setTimeout(() => {
+      const valor = e.target.value.trim();
+      if (valor === currentCodeFilter) return;
+      currentCodeFilter = valor;
+      loadRecords();
+    }, 350);
+  });
   document.getElementById('btnLimpiarFiltrosSup')?.addEventListener('click', () => {
-    ['adminFilterZona','adminFilterSupervisor','adminFilterFechaDesde','adminFilterFechaHasta'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-    currentZoneFilter = ''; currentSupervisorFilter = ''; currentDateFromFilter = ''; currentDateToFilter = '';
+    ['filterCodigoSup','adminFilterZona','adminFilterSupervisor','adminFilterFechaDesde','adminFilterFechaHasta'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    currentZoneFilter = ''; currentSupervisorFilter = ''; currentDateFromFilter = ''; currentDateToFilter = ''; currentCodeFilter = '';
     loadRecords();
   });
 
@@ -3080,14 +3300,31 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       if (Array.isArray(data.observaciones)) {
         obsVinculadas = data.observaciones;
       }
+      if (data.supervision?.rescate_estado !== undefined) {
+        rec.rescate_estado = data.supervision.rescate_estado || '';
+        rec.rescate_inicio = data.supervision.rescate_inicio || ''; rec.rescate_fin = data.supervision.rescate_fin || '';
+        rec.rescate_responsable_id = String(data.supervision.rescate_responsable_id || '');
+        rec.rescate_responsable_nombre = data.supervision.rescate_responsable_nombre || '';
+        rec.asignado_por_nombre = data.supervision.asignado_por_nombre || '';
+        rec.partner_rescatable = Number(data.supervision.partner_rescatable || 0);
+        if (rec.rescate_estado === 'En rescate') rec.estado = 'rescate';
+      }
       detailContent.innerHTML = buildDetailContent(rec, obsVinculadas, forceAdminEdit);
       initChecklistSignaturePads(detailContent);
       attachDetailHandlers(rec, forceAdminEdit);
+      renderRescate(rec, Array.isArray(data.rescate_seguimientos) ? data.rescate_seguimientos : []);
     } catch(e) {
       if (!rec) { showToast(e.message || 'No se pudo abrir la supervisión.'); return; }
       detailContent.innerHTML = buildDetailContent(rec, [], forceAdminEdit);
       initChecklistSignaturePads(detailContent);
       attachDetailHandlers(rec, forceAdminEdit);
+    }
+    // Orden sin coordenadas que el supervisor va a trabajar: la ubicación se toma sola. Si ya las trae
+    // (por ejemplo, una cancelación importada con la dirección del cliente), se respetan.
+    const editLat = document.getElementById('edit_latitud');
+    if (editLat && !editLat.disabled && !editLat.readOnly && !String(editLat.value || '').trim()
+        && rec.estado !== 'finalizada' && !esAdministradorActual) {
+      capturarGPS('edit_latitud', 'edit_longitud', 'edit_gps_status');
     }
 
     viewList.classList.add('hidden');
@@ -3095,6 +3332,134 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     viewDetail.classList.add('open');
     window.scrollTo({top:0, behavior:'smooth'});
   }
+  // ---------- Rescate de pendientes (2026-10-13) ----------
+  // Pendiente libre de la zona → "Tomar como rescate". En rescate → historial, avances y cierre (quien lo tomó o el
+  // administrador) y reasignación (solo el administrador). Cerrado → resultado e historial de consulta.
+  function renderRescate(rec, seguimientos) {
+    const fmtFH = (v) => { if (!v) return '—'; const [d, h] = String(v).split(' '); return `${d.split('-').reverse().join('/')} ${(h || '').slice(0, 5)}`; };
+    if (esSupervisorPartnerActual || esJefeOperacionesActual) return; // el partner solo propone (en su formulario)
+    const esDueno = String(rec.rescate_responsable_id) === String(currentUserId);
+    const puedeTomar = false; // 2026-10-13: el rescate se elige en "Resultado de la validación" del formulario
+    const propuesta = seguimientos.filter(g => g.tipo === 'Propuesta del partner');
+    let html = '';
+    if (rec.partner_rescatable === 1 && !rec.rescate_estado && rec.estado === 'pendiente') {
+      // Orden asignada a un partner que indicó que se puede rescatar: la pasa a rescate quien la asignó.
+      const puedePasar = esSupervisorWinDirecto && String(rec.asignado_por) === String(currentUserId);
+      html = `<div class="sgs-rescate card p-3 mb-3" id="rescatePanel">
+        <h5 class="mb-1"><i class="bi bi-life-preserver me-2 text-primary"></i>El partner indica que se puede rescatar</h5>
+        <p class="small text-muted mb-2">${escapeHtml(rec.partner_nombre)} · atendida el ${fmtFH(rec.fecha_atencion_partner)}</p>
+        <div class="mb-2">${escapeHtml(rec.observacion_atencion_partner || '—')}</div>
+        <div class="d-flex flex-wrap gap-2 mb-3">${propuesta.filter(g => g.foto).map((g, i) => `<button type="button" class="btn btn-sm btn-outline-secondary" data-rescate-foto="${escapeHtml(g.foto)}"><i class="bi bi-image me-1"></i>Evidencia ${i + 1}</button>`).join('') || '<span class="small text-muted">Sin fotos.</span>'}</div>
+        ${puedePasar ? `
+        <label class="form-label" for="rescateComentarioInicio">Comentario (opcional)</label>
+        <textarea class="form-control mb-2" id="rescateComentarioInicio" rows="2" maxlength="1000" placeholder="Ej.: se coordinará con el cliente"></textarea>
+        <div class="text-end"><button type="button" class="btn btn-win" data-rescate="tomar"><i class="bi bi-life-preserver me-1"></i>Pasar a rescate</button></div>`
+        : `<p class="small mb-0 text-muted">La decide el supervisor que la asignó${rec.asignado_por_nombre ? `: <strong>${escapeHtml(rec.asignado_por_nombre)}</strong>` : ''}.</p>`}
+      </div>`;
+    } else if (puedeTomar) {
+      html = `<div class="sgs-rescate card p-3 mb-3" id="rescatePanel">
+        <h5 class="mb-1"><i class="bi bi-life-preserver me-2 text-primary"></i>¿La va a rescatar?</h5>
+        <p class="text-muted small mb-2">Tómela como rescate para darle seguimiento, sin plazo, hasta cerrarla. Sale de la lista de pendientes de los demás y no ocupa su supervisión en proceso.</p>
+        <label class="form-label" for="rescateComentarioInicio">Comentario (opcional)</label>
+        <textarea class="form-control mb-2" id="rescateComentarioInicio" rows="2" maxlength="1000" placeholder="Ej.: cliente pidió que lo llamen el lunes"></textarea>
+        <div class="text-end"><button type="button" class="btn btn-win" data-rescate="tomar"><i class="bi bi-life-preserver me-1"></i>Tomar como rescate</button></div>
+      </div>`;
+    } else if (rec.rescate_estado) {
+      const abierto = rec.rescate_estado === 'En rescate';
+      const insignia = abierto ? 'bg-warning' : (rec.rescate_estado === 'Rescatado' ? 'bg-success' : 'bg-danger');
+      const iconos = { 'Propuesta del partner': 'bi-megaphone', 'Inicio': 'bi-play-circle', 'Avance': 'bi-chat-left-text', 'Reasignación': 'bi-arrow-left-right', 'Cierre': 'bi-flag' };
+      const historial = seguimientos.length ? seguimientos.map((g) => `<li>
+          <i class="bi ${iconos[g.tipo] || 'bi-dot'}" aria-hidden="true"></i>
+          <div><div class="small"><strong>${escapeHtml(g.tipo)}</strong> · ${fmtFH(g.fecha)} · ${escapeHtml(g.usuario || '—')}</div>
+          ${g.comentario ? `<div>${escapeHtml(g.comentario)}</div>` : ''}
+          ${g.foto ? `<button type="button" class="btn btn-sm btn-outline-secondary mt-1" data-rescate-foto="${escapeHtml(g.foto)}"><i class="bi bi-image me-1"></i>Ver foto</button>` : ''}</div>
+        </li>`).join('') : '<li class="text-muted small">Sin movimientos registrados.</li>';
+      const puedeTrabajar = abierto && (esDueno || esAdministradorActual);
+      html = `<div class="sgs-rescate card p-3 mb-3" id="rescatePanel">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+          <h5 class="mb-0"><i class="bi bi-life-preserver me-2 text-primary"></i>Rescate</h5>
+          <span class="badge ${insignia}">${escapeHtml(rec.rescate_estado)}</span>
+        </div>
+        <p class="small text-muted mb-2">Responsable: <strong>${escapeHtml(rec.rescate_responsable_nombre || rec.responsable)}</strong> · desde ${fmtFH(rec.rescate_inicio)}${rec.rescate_fin ? ` · cerrado ${fmtFH(rec.rescate_fin)}` : ''}</p>
+        <ul class="list-unstyled sgs-rescate-historial mb-3">${historial}</ul>
+        ${puedeTrabajar ? `
+        <div class="sgs-rescate-bloque">
+          <label class="form-label" for="rescateAvance">Registrar avance</label>
+          <textarea class="form-control mb-2" id="rescateAvance" rows="2" maxlength="2000" placeholder="Qué se hizo y qué sigue"></textarea>
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <input type="file" class="form-control" id="rescateFoto" accept="image/*" aria-label="Foto del avance (opcional)">
+            <button type="button" class="btn btn-outline-secondary" data-rescate="avance"><i class="bi bi-plus-lg me-1"></i>Registrar avance</button>
+          </div>
+        </div>
+        <div class="sgs-rescate-bloque">
+          <label class="form-label" for="rescateCierre">Cerrar el rescate</label>
+          <textarea class="form-control mb-2" id="rescateCierre" rows="2" maxlength="2000" placeholder="Resultado final (obligatorio)"></textarea>
+          <div class="d-flex flex-wrap gap-2 justify-content-end">
+            <button type="button" class="btn btn-outline-secondary" data-rescate="cerrar" data-resultado="No rescatado"><i class="bi bi-x-circle me-1"></i>Cancelación correcta</button>
+            <button type="button" class="btn btn-win" data-rescate="cerrar" data-resultado="Rescatado"><i class="bi bi-check2-circle me-1"></i>Rescate</button>
+          </div>
+        </div>` : ''}
+        ${abierto && esAdministradorActual ? `
+        <div class="sgs-rescate-bloque">
+          <label class="form-label" for="rescateReasignar">Reasignar a otro supervisor (casos puntuales)</label>
+          <div class="d-flex flex-wrap gap-2">
+            <select class="form-select" id="rescateReasignar"><option value="">Cargando supervisores…</option></select>
+            <button type="button" class="btn btn-outline-secondary" data-rescate="reasignar"><i class="bi bi-arrow-left-right me-1"></i>Reasignar</button>
+          </div>
+        </div>` : ''}
+      </div>`;
+    }
+    if (!html) return;
+    detailContent.insertAdjacentHTML('afterbegin', html);
+    if (rec.estado === 'rescate') document.getElementById('saveProgressBtn')?.remove(); // se trabaja desde el rescate
+    const panel = document.getElementById('rescatePanel');
+    if (esAdministradorActual && document.getElementById('rescateReasignar')) {
+      fetch('api/asistencia.php?action=list_filters').then(r => r.json()).then(d => {
+        const sel = document.getElementById('rescateReasignar'); if (!sel) return;
+        const dep = String(rec.departamento || '').toUpperCase();
+        const lista = (d.supervisores || []).filter(u => String(u.id) !== String(rec.supervisor_id) && (u.zonas === null || (u.zonas || []).includes(dep)));
+        sel.innerHTML = '<option value="">Seleccione un supervisor…</option>' + lista.map(u => `<option value="${Number(u.id)}">${escapeHtml(u.nombre_completo)}</option>`).join('');
+      }).catch(() => {});
+    }
+    panel.addEventListener('click', async (ev) => {
+      const fotoBtn = ev.target.closest('[data-rescate-foto]');
+      if (fotoBtn) { window.sgsVerFoto ? window.sgsVerFoto(fotoBtn.dataset.rescateFoto) : window.open(fotoBtn.dataset.rescateFoto, '_blank', 'noopener'); return; }
+      const btn = ev.target.closest('[data-rescate]');
+      if (!btn) return;
+      const accion = btn.dataset.rescate;
+      const body = new FormData();
+      body.append('supervision_id', rec.id);
+      if (accion === 'tomar') body.append('comentario', document.getElementById('rescateComentarioInicio')?.value || '');
+      if (accion === 'avance') {
+        body.append('comentario', document.getElementById('rescateAvance')?.value || '');
+        const foto = document.getElementById('rescateFoto')?.files?.[0]; if (foto) body.append('foto', foto);
+      }
+      if (accion === 'cerrar') {
+        const comentario = (document.getElementById('rescateCierre')?.value || '').trim();
+        if (!comentario) { showToast('Escriba el resultado final antes de cerrar el rescate.', 'error'); document.getElementById('rescateCierre')?.focus(); return; }
+        if (!confirm(btn.dataset.resultado === 'Rescatado' ? '¿Cerrar como RESCATE (se rescató el servicio)? La orden quedará finalizada.' : '¿Cerrar como CANCELACIÓN CORRECTA (no se rescató)? La orden quedará finalizada.')) return;
+        body.append('comentario', comentario); body.append('resultado', btn.dataset.resultado);
+      }
+      if (accion === 'reasignar') {
+        const destino = document.getElementById('rescateReasignar')?.value;
+        if (!destino) { showToast('Elija el supervisor que seguirá el rescate.', 'error'); return; }
+        body.append('supervisor_id', destino);
+      }
+      btn.disabled = true;
+      try {
+        const resp = await fetch(`api/supervisiones.php?action=rescate_${accion}`, { method: 'POST', body });
+        const res = await resp.json();
+        showToast(res.message || 'Listo.', res.status === 'success' ? 'success' : 'error');
+        if (res.status === 'success') {
+          records = records.filter(r => r.id !== rec.id); // se vuelve a leer con su nuevo estado
+          if (accion === 'cerrar' || accion === 'reasignar') { closeDetail(); loadRecords(); }
+          else { await openDetail(rec.id); loadRecords(); }
+        }
+      } catch (e) { showToast('No se pudo completar la acción del rescate.', 'error'); }
+      finally { btn.disabled = false; }
+    });
+  }
+
   function closeDetail(){
     viewDetail.classList.remove('open');
     viewNew.classList.remove('open');
@@ -3113,8 +3478,10 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
           <div class="field-bitacora"><label>Departamento</label><input value="${escapeHtml(rec.departamento)}" disabled></div>
           <div class="field-bitacora"><label>Provincia</label><input value="${escapeHtml(rec.provincia)}" disabled></div>
           <div class="field-bitacora"><label>Distrito</label><input value="${escapeHtml(rec.distrito)}" disabled></div>
+          ${rec.direccion ? `<div class="field-bitacora full"><label>Dirección</label><input value="${escapeHtml(rec.direccion)}" disabled></div>` : ''}
           <div class="field-bitacora"><label>Gestión o actividad supervisada</label><input value="${escapeHtml(rec.clasificacion)}" disabled></div>
           <div class="field-bitacora"><label>Código de pedido o ticket</label><input value="${escapeHtml(rec.ticket_codigo||'No aplica')}" disabled></div>
+          ${esJefeOperacionesActual ? `<div class="field-bitacora"><label>Supervisor asignado</label><input value="${escapeHtml(rec.responsable||'—')}" disabled></div>` : ''}
         </div></div>
         <div class="panel-bitacora p-3 mb-3"><p class="section-subtitle-bitacora mt-0">Partner, personal técnico y vehículo</p><div class="grid-bitacora">
           <div class="field-bitacora"><label>Partner o contrata responsable</label><input value="${escapeHtml(rec.partner_nombre)}" disabled></div>
@@ -3122,58 +3489,89 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
           <div class="field-bitacora"><label>DNI del técnico líder</label><input value="${escapeHtml(rec.tecnico1_dni||'Sin registrar')}" disabled></div>
           ` : ''}
         </div></div>
-        <div class="panel-bitacora p-3 mb-3"><div class="field-bitacora full"><label>Observación de la atención *</label><textarea name="observacion_atencion_partner" rows="5" ${attended||expired?'disabled':''}>${escapeHtml(rec.observacion_atencion_partner||'')}</textarea></div></div>
-        <div class="form-actions-bitacora">${attended?'<span class="badge bg-success p-2">Atención registrada</span>':(expired?'<span class="badge bg-danger p-2">Plazo de 24 horas vencido</span>':'<button type="button" class="btn-bitacora btn-orange-bitacora" id="partnerSaveProgress">Registrar atención</button>')}</div>
+        <div class="panel-bitacora p-3 mb-3"><div class="field-bitacora full"><label>Observación de la atención *</label><textarea name="observacion_atencion_partner" rows="5" ${attended||expired||esJefeOperacionesActual?'disabled':''}>${escapeHtml(rec.observacion_atencion_partner||'')}</textarea></div></div>
+        <div class="panel-bitacora p-3 mb-3">
+          <div class="grid-bitacora">
+            <div class="field-bitacora"><label for="partner_rescatable">¿Se puede rescatar el servicio? *</label>
+              <select id="partner_rescatable" name="partner_rescatable" ${attended||expired||esJefeOperacionesActual?'disabled':''}>
+                <option value="0" ${Number(rec.partner_rescatable)===1?'':'selected'}>No</option>
+                <option value="1" ${Number(rec.partner_rescatable)===1?'selected':''}>Sí, se puede rescatar</option>
+              </select></div>
+          </div>
+          <div id="partner_rescate_evidencias" class="${attended||expired||esJefeOperacionesActual||Number(rec.partner_rescatable)!==1?'d-none':''}">
+            <p class="small text-muted mt-2 mb-2"><i class="bi bi-life-preserver me-1"></i>Suba sus evidencias (al menos una foto). El supervisor de WIN que le asignó la orden decidirá si la pasa a rescate.</p>
+            <div class="grid-bitacora">
+              ${[1,2,3].map(i => `<div class="field-bitacora"><label for="foto_rescate_${i}">Evidencia ${i}${i===1?' *':''}</label><input type="file" class="form-control" id="foto_rescate_${i}" name="foto_rescate_${i}" accept="image/*"></div>`).join('')}
+            </div>
+          </div>
+          ${attended && Number(rec.partner_rescatable)===1 ? '<p class="small mt-2 mb-0"><span class="badge bg-success">Indicó que se puede rescatar</span></p>' : ''}
+        </div>
+        <div class="form-actions-bitacora">${esJefeOperacionesActual && !attended && !expired?'<span class="badge bg-warning p-2">Pendiente de atención del supervisor</span>':attended?'<span class="badge bg-success p-2">Atención registrada</span>':(expired?'<span class="badge bg-danger p-2">Plazo de 24 horas vencido</span>':'<button type="button" class="btn-bitacora btn-orange-bitacora" id="partnerSaveProgress">Registrar atención</button>')}</div>
       </form>`;
   }
 
+  // Vista de consulta de una supervisión finalizada (2026-10-15): ficha de datos en rejilla de 4 columnas sin cajas.
+  // Los textos largos (dirección, resumen) van a lo ancho al final de su sección, para no dejar huecos en blanco.
   function buildFinalizedViewContent(rec, obsVinculadas = []) {
-    const field = (label, value) => {
-      const clean = String(value ?? '').trim();
-      if (!clean || ['0','—','No aplica','Sin registrar'].includes(clean)) return '';
-      return `<div class="field-bitacora"><label>${escapeHtml(label)}</label><div style="padding:10px 12px;background:var(--sgs-surface-alt);border:1px solid var(--win-border);border-radius:6px;min-height:42px;white-space:pre-wrap;">${escapeHtml(clean)}</div></div>`;
+    const vacio = v => { const t = String(v ?? '').trim(); return !t || ['0','—','No aplica','Sin registrar'].includes(t); };
+    const dato = (label, value, tipo = '') => {
+      if (vacio(value)) return null;
+      const texto = String(value).trim();
+      const visible = tipo === 'html' ? texto.replace(/<[^>]*>/g, '') : texto; // el ancho se decide con lo que se ve
+      const largo = tipo === 'texto' || visible.length > 60 || visible.includes('\n');
+      return { largo, html: `<div class="sgs-dato${largo ? ' sgs-dato--completo' : (visible.length > 26 ? ' sgs-dato--ancho' : '')}"><span class="sgs-dato-etiqueta">${escapeHtml(label)}</span><span class="sgs-dato-valor">${tipo === 'html' ? value : escapeHtml(texto)}</span></div>` };
     };
-    const section = (title, content) => content.trim() ? `<div class="panel-bitacora p-3 mb-3"><p class="section-subtitle-bitacora mt-0">${escapeHtml(title)}</p><div class="grid-bitacora">${content}</div></div>` : '';
-    const estadoGeneral = 'Finalizada';
+    const section = (title, items) => {
+      const lista = items.filter(Boolean);
+      if (!lista.length) return '';
+      const html = [...lista.filter(i => !i.largo), ...lista.filter(i => i.largo)].map(i => i.html).join('');
+      return `<div class="panel-bitacora p-3 p-md-4 mb-3"><p class="section-subtitle-bitacora mt-0">${escapeHtml(title)}</p><div class="sgs-ficha-datos">${html}</div></div>`;
+    };
+    const esCancel = Number(rec.es_cancelacion) === 1;
+    const enFrio = ['En frío', 'Remota'].includes(rec.tipo_supervision_inicial); // sin cuadrilla en campo
+    const gps = rec.latitud && rec.longitud
+      ? `${escapeHtml(rec.latitud)}, ${escapeHtml(rec.longitud)} <a class="sgs-dato-enlace" href="https://maps.google.com/?q=${encodeURIComponent(rec.latitud + ',' + rec.longitud)}" target="_blank" rel="noopener"><i class="bi bi-geo-alt"></i>Ver en mapa</a>` : '';
 
-    const general = [
-      field('Departamento', rec.departamento), field('Provincia', rec.provincia), field('Distrito', rec.distrito),
-      field('Gestión o actividad supervisada', rec.clasificacion), field('Derivación de orden', rec.derivacion),
-      field('Tipo de servicio', rec.tipo_servicio), field('Modalidad', rec.tipo_supervision_inicial),
-      field('Código de pedido o ticket', rec.ticket_codigo)
-    ].join('');
-    const recursos = [
-      field('Partner o contrata responsable', rec.partner_nombre), field('Técnico líder', rec.tecnico1_nombre),
-      field('DNI del técnico líder', rec.tecnico1_dni), field('Técnico de apoyo', rec.tecnico2_nombre),
-      field('DNI del técnico de apoyo', rec.tecnico2_dni), field('Conductor con brevete', rec.brevete_poseedor),
-      field('Tipo de vehículo', rec.unidad_tipo), field('Placa', rec.unidad_placa),
-      field('SOAT', rec.unidad_soat), field('Revisión técnica', rec.unidad_revision_tecnica),
-      field('Estado del vehículo', rec.unidad_estado)
-    ].join('');
-    const resultado = [
-      field('Estado de la orden', Number(rec.es_cancelacion) ? 'Cancelada' : ''),
-      field('Tipificación registrada', Number(rec.es_cancelacion) ? rec.tipificacion_cancelacion : ''),
-      field('Fecha de cancelación', Number(rec.es_cancelacion) ? rec.fecha_cancelacion : ''),
-      field('Observación previa para campo', rec.observacion_previa),
-      field('Resultado o cierre técnico', rec.sub_tipo_atencion), field('Resumen u observaciones', rec.observaciones),
-      field('Latitud', rec.latitud), field('Longitud', rec.longitud)
-    ].join('');
-    const fotos = [1,2,3].map(i => {
-      const src = rec[`foto_servicio_${i}`];
-      if (!src) return '';
-      return `<div class="field-bitacora"><label>Evidencia ${i}</label><button type="button" class="btn p-0 border-0 bg-transparent" onclick="abrirFotoModal('${escapeHtml(src)}','Evidencia ${i}')"><img src="${escapeHtml(src)}" alt="Evidencia ${i}" style="width:100%;height:170px;object-fit:cover;border-radius:8px;border:1px solid var(--win-border);"></button></div>`;
-    }).join('');
-    const hallazgos = obsVinculadas.map((obs, idx) => `<div class="field-bitacora full"><label>Observación ${idx + 1}${obs.nombre_categoria ? ' · ' + escapeHtml(obs.nombre_categoria) : ''}</label><div style="padding:12px;background:var(--sgs-surface-alt);border:1px solid var(--win-border);border-radius:6px;white-space:pre-wrap;">${escapeHtml(obs.detalle_observacion || '')}</div></div>`).join('');
+    const general = section('Información registrada', [
+      dato('Código de pedido o ticket', rec.ticket_codigo), dato('Gestión o actividad supervisada', rec.clasificacion),
+      dato('Modalidad', rec.tipo_supervision_inicial === 'Remota' ? 'Remota (videollamada)' : rec.tipo_supervision_inicial),
+      dato('Derivación de orden', rec.derivacion), dato('Tipo de servicio', rec.tipo_servicio),
+      dato('Departamento', rec.departamento), dato('Provincia', rec.provincia), dato('Distrito', rec.distrito),
+      dato('Dirección', rec.direccion, 'texto')
+    ]);
+    const recursos = section('Partner, personal técnico y vehículo', [
+      dato('Partner o contrata responsable', rec.partner_nombre),
+      ...(enFrio ? [] : [
+        dato('Técnico líder', rec.tecnico1_nombre), dato('DNI del técnico líder', rec.tecnico1_dni),
+        dato('Técnico de apoyo', rec.tecnico2_nombre), dato('DNI del técnico de apoyo', rec.tecnico2_dni),
+        dato('Conductor con brevete', rec.brevete_poseedor), dato('Tipo de vehículo', rec.unidad_tipo), dato('Placa', rec.unidad_placa),
+        dato('SOAT', rec.unidad_soat), dato('Revisión técnica', rec.unidad_revision_tecnica), dato('Estado del vehículo', rec.unidad_estado)
+      ])
+    ]);
+    const resultado = section('Resultado de la supervisión', [
+      dato('Estado de la orden', esCancel ? 'Cancelada' : ''),
+      dato('Resultado de la validación', esCancel ? rec.estado_cancelacion : ''),
+      dato('Tipificación registrada', esCancel ? rec.tipificacion_cancelacion : ''),
+      dato('Fecha de cancelación', esCancel && rec.fecha_cancelacion ? String(rec.fecha_cancelacion).slice(0, 10).split('-').reverse().join('/') : ''),
+      dato('Resultado o cierre técnico', rec.sub_tipo_atencion),
+      dato('Ubicación GPS', gps, 'html'),
+      dato('Observación previa para campo', rec.observacion_previa, 'texto'),
+      dato('Resumen u observaciones', rec.observaciones, 'texto')
+    ]);
+    const fotos = [1,2,3].map(i => rec[`foto_servicio_${i}`]).filter(Boolean).map((src, i) =>
+      `<button type="button" class="sgs-evidencia" onclick="abrirFotoModal('${escapeHtml(src)}','Evidencia ${i + 1}')" aria-label="Ver evidencia ${i + 1}"><img src="${escapeHtml(src)}" alt="Evidencia ${i + 1}"><span>Evidencia ${i + 1}</span></button>`).join('');
+    const hallazgos = obsVinculadas.map((obs, idx) => ({ largo: true, html: `<div class="sgs-dato sgs-dato--completo"><span class="sgs-dato-etiqueta">Observación ${idx + 1}${obs.nombre_categoria ? ' · ' + escapeHtml(obs.nombre_categoria) : ''}</span><span class="sgs-dato-valor">${escapeHtml(obs.detalle_observacion || '')}</span></div>` }));
 
-    return `<div class="detail-head-bitacora"><div><h2>${escapeHtml(rec.codigo)}${rec.ticket_codigo ? ` (${escapeHtml(rec.ticket_codigo)})` : ''}</h2><span class="detail-sub-bitacora">Finalizada · ${escapeHtml(rec.ubicacion)} · ${escapeHtml(rec.responsable)}</span></div><span class="badge-exec finalizada">${escapeHtml(estadoGeneral)}</span></div>
-      ${section('Información registrada', general)}
-      ${section('Partner, personal técnico y vehículo', recursos)}
-      ${section('Resultado de la supervisión', resultado)}
-      ${section('Evidencias registradas', fotos)}
+    return `<div class="detail-head-bitacora"><div><h2>${escapeHtml(rec.codigo)}${rec.ticket_codigo ? ` (${escapeHtml(rec.ticket_codigo)})` : ''}</h2><span class="detail-sub-bitacora">Finalizada · ${escapeHtml(rec.ubicacion)} · ${escapeHtml(rec.responsable)}</span></div><span class="badge-exec finalizada">Finalizada</span></div>
+      ${general}
+      ${recursos}
+      ${resultado}
+      ${fotos ? `<div class="panel-bitacora p-3 p-md-4 mb-3"><p class="section-subtitle-bitacora mt-0">Evidencias registradas</p><div class="sgs-evidencias">${fotos}</div></div>` : ''}
       ${section('Observaciones registradas', hallazgos)}
-      <div class="form-actions-bitacora"><span class="badge bg-success p-2">Vista de consulta · supervisión finalizada</span></div>`;
+      <div class="form-actions-bitacora">${esAdministradorActual
+        ? `<span class="badge bg-success p-2">Supervisión finalizada</span><button type="button" class="btn-bitacora btn-orange-bitacora" id="btnCorregirSupervision"><i class="bi bi-pencil-square me-1"></i>Corregir supervisión</button>`
+        : `<span class="badge bg-success p-2">Supervisión finalizada · solo el administrador puede corregirla</span>`}</div>`;
   }
-
   function buildDetailContent(rec, obsVinculadas = [], forceAdminEdit = false){
     if (rec.estado === 'finalizada' && !forceAdminEdit) return buildFinalizedViewContent(rec, obsVinculadas);
     if(esSupervisorPartnerActual)return buildPartnerDetailContent(rec);
@@ -3203,11 +3601,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       const sel = (t.nombre_tecnico === rec.tecnico1_nombre) ? 'selected' : '';
       tec1OptionsHtml += `<option value="${escapeHtml(t.nombre_tecnico)}" ${sel}>${escapeHtml(t.nombre_tecnico)}</option>`;
     });
-    let tec2OptionsHtml = '<option value="">Sin técnico de apoyo (T2)</option>';
-    listaTecnicos.filter(t => String(t.partner_id) === String(rec.partner_id) && t.tipo_tecnico == 2).forEach(t => {
-      const sel = (t.nombre_tecnico === rec.tecnico2_nombre) ? 'selected' : '';
-      tec2OptionsHtml += `<option value="${escapeHtml(t.nombre_tecnico)}" ${sel}>${escapeHtml(t.nombre_tecnico)}</option>`;
-    });
+    let tec2OptionsHtml = '<option value="">Sin técnico de apoyo (T2)</option>' + opcionesApoyo(rec.partner_id, rec.tecnico2_nombre);
 
     const seccionesChecklistEdicion = <?= json_encode($checklistSecciones,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) ?>;
     const opcionesChecklistSeccion = seccion => seccion==='EPP y EPE' ? ['Sí','No','Para cambio','No revisado'] : (seccion==='Indumentaria' ? ['Sí','No','Mal estado','No revisado'] : (seccion==='Materiales y ferretería' ? ['Sí','No'] : ['Bueno','Regular','Malo','No tiene']));
@@ -3259,7 +3653,10 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     });
     const esCierreTecnico = ['Avería', 'Reiterada', 'Garantía'].includes(curTipoSup);
     let resultadosCierreHtml = '<option value="">Seleccione el resultado después de validar</option>';
-    ['Cambio de patch cord', 'Cambio de router', 'Cambio de ONT', 'Cambio de fuente', 'Reconectorización', 'Reparación de cable drop', 'Validación de potencia', 'Otro'].forEach(opcion => {
+    // Misma lista que al crear; si la supervisión guardó un valor que ya no está en la lista, se conserva.
+    const opcionesCierre = esCierreTecnico && rec.sub_tipo_atencion && !LISTA_CIERRE_TECNICO.includes(rec.sub_tipo_atencion)
+      ? [rec.sub_tipo_atencion, ...LISTA_CIERRE_TECNICO] : LISTA_CIERRE_TECNICO;
+    opcionesCierre.forEach(opcion => {
       resultadosCierreHtml += `<option value="${escapeHtml(opcion)}" ${rec.sub_tipo_atencion===opcion?'selected':''}>${escapeHtml(opcion)}</option>`;
     });
 
@@ -3289,6 +3686,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
           <div class="field-bitacora"><label>Departamento</label><input id="edit_departamento_visible" type="text" value="${escapeHtml(rec.departamento)}" ${esAdministradorActual ? '' : 'disabled'}></div>
           <div class="field-bitacora"><label>Provincia</label><input id="edit_provincia_visible" type="text" value="${escapeHtml(rec.provincia)}" ${esAdministradorActual ? '' : 'disabled'}></div>
           <div class="field-bitacora"><label>Distrito</label><input id="edit_distrito_visible" type="text" value="${escapeHtml(rec.distrito)}" ${esAdministradorActual ? '' : 'disabled'}></div>
+          ${rec.direccion ? `<div class="field-bitacora full"><label>Dirección</label><input type="text" value="${escapeHtml(rec.direccion)}" disabled></div>` : ''}
         </div>
 
         <div class="grid-bitacora mb-3">
@@ -3336,8 +3734,11 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
             <select id="edit_tipo_sup" name="tipo_supervision_inicial">
               <option value="En caliente" ${rec.tipo_supervision_inicial==='En caliente'?'selected':''}>En caliente</option>
               <option value="En frío" ${rec.tipo_supervision_inicial==='En frío'?'selected':''}>En frío</option>
+              <option value="Remota" ${rec.tipo_supervision_inicial==='Remota'?'selected':''}>Remota (videollamada)</option>
             </select>
           </div>
+          <!-- Supervisión remota (2026-10-13): solo se ve con la modalidad "Remota" -->
+          <div class="remota-only d-none sgs-remota-aviso"><i class="bi bi-camera-video me-1"></i>Supervisión remota: solo se pide el partner. Suba la <strong>captura de la videollamada</strong> como foto de evidencia (obligatoria).</div>
         </div>
 
         <input id="edit_cliente" name="cliente_nombre" type="hidden" value="${escapeHtml(rec.cliente_nombre)}">
@@ -3414,6 +3815,13 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
                 <option value="Buen estado" ${rec.unidad_estado==='Buen estado'?'selected':''}>Buen estado</option>
               </select>
             </div>
+            <div class="field-bitacora full sgs-recordar-cuadrilla">
+              <input type="hidden" name="recordar_cuadrilla" value="0">
+              <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" role="switch" id="edit_recordar_cuadrilla" name="recordar_cuadrilla" value="1" checked>
+                <label class="form-check-label" for="edit_recordar_cuadrilla"><strong>Guardar el T2 y el vehículo</strong> (con su estado) como cuadrilla de este técnico líder al cerrar la supervisión: saldrán por defecto la próxima vez.</label>
+              </div>
+            </div>
             ` : ''}
             </div>
           </div>
@@ -3441,11 +3849,11 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
           </div>
           <div class="field-bitacora" style="justify-content: flex-end;">
             <button type="button" class="btn-bitacora btn-gps-bitacora" onclick="capturarGPS('edit_latitud', 'edit_longitud', 'edit_gps_status')">
-              <i class="bi bi-geo-alt me-1"></i>Actualizar GPS
+              <i class="bi bi-arrow-repeat me-1"></i>Actualizar ubicación
             </button>
           </div>
           <div class="field-bitacora full" id="edit_sec_resumen_general">
-            <span id="edit_gps_status" style="font-size: 12px; color: var(--win-text-muted);">
+            <span id="edit_gps_status" class="sgs-gps-estado">
               ${hasMap ? `GPS Registrado: ${rec.latitud}, ${rec.longitud} &nbsp; | &nbsp; ${mapBtn}` : 'Sin coordenadas GPS registradas.'}
             </span>
           </div>
@@ -3470,6 +3878,14 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
               <div class="field-bitacora">
                 <label>Fecha de cancelación</label>
                 <input type="text" value="${escapeHtml(rec.fecha_cancelacion ? rec.fecha_cancelacion.slice(0, 10) : 'No registrada')}" disabled>
+              </div>
+              <div class="field-bitacora" id="edit_resultado_cancelacion_box">
+                <label for="edit_resultado_cancelacion">Resultado de la validación *</label>
+                <select id="edit_resultado_cancelacion" name="resultado_cancelacion">
+                  <option value="">Seleccione el resultado de la validación</option>
+                  ${['Cancelación correcta', 'En proceso de rescate', 'Rescate'].map(o => `<option value="${o}" ${rec.estado_cancelacion === o ? 'selected' : ''}>${o}</option>`).join('')}
+                </select>
+                <small class="text-muted" id="edit_resultado_cancelacion_ayuda"></small>
               </div>
             </div>
           </div>` : ''}
@@ -3570,8 +3986,8 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
                 </select>
               </div>
               <div class="field-bitacora full">
-                <label for="edit_obs_det">Detalle de la Observación *</label>
-                <textarea id="edit_obs_det" name="obs_detalle" placeholder="Escriba el detalle del incumplimiento o falta hallada..."></textarea>
+                <label for="edit_obs_det">Comentario de la observación *</label>
+                <textarea id="edit_obs_det" name="obs_detalle" placeholder="Describa el incumplimiento o la falta encontrada; vale para todas las fotos..."></textarea>
               </div>
             </div>
 
@@ -3581,19 +3997,16 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
               <div class="field-bitacora">
                 <label for="edit_foto1">Foto de evidencia 1</label>
                 <input type="file" id="edit_foto1" name="foto_1" accept="image/*">
-                <input type="text" name="foto_comentario_1" class="mt-2" placeholder="Comentario de la foto 1">
                 <div id="edit_preview_foto1" style="display:none; margin-top:8px;"></div>
               </div>
               <div class="field-bitacora">
                 <label for="edit_foto2">Foto de evidencia 2</label>
                 <input type="file" id="edit_foto2" name="foto_2" accept="image/*">
-                <input type="text" name="foto_comentario_2" class="mt-2" placeholder="Comentario de la foto 2">
                 <div id="edit_preview_foto2" style="display:none; margin-top:8px;"></div>
               </div>
               <div class="field-bitacora">
                 <label for="edit_foto3">Foto de evidencia 3</label>
                 <input type="file" id="edit_foto3" name="foto_3" accept="image/*">
-                <input type="text" name="foto_comentario_3" class="mt-2" placeholder="Comentario de la foto 3">
                 <div id="edit_preview_foto3" style="display:none; margin-top:8px;"></div>
               </div>
             </div>
@@ -3610,13 +4023,19 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
                    <button class="btn-bitacora btn-orange-bitacora" id="saveProgressBtn" type="button">Guardar cambios</button>
                  </span>`
               : `<span class="badge bg-success p-2">Supervisión finalizada · solo el administrador puede editarla</span>`)
-            : `<button class="btn-bitacora ${rec.estado === 'pendiente' ? 'btn-orange-bitacora' : 'btn-ghost-bitacora'}" id="saveProgressBtn" type="button">${rec.estado === 'pendiente' ? 'Iniciar supervisión' : 'Guardar avance y volver al listado'}</button>`)
+            : (isFinished && forceAdminEdit
+              ? `<button class="btn-bitacora btn-ghost-bitacora" id="btnCancelarCorreccion" type="button">Cancelar</button>
+                 <button class="btn-bitacora btn-orange-bitacora" id="saveProgressBtn" type="button"><i class="bi bi-check2 me-1"></i>Guardar corrección</button>`
+              : `<button class="btn-bitacora ${rec.estado === 'pendiente' ? 'btn-orange-bitacora' : 'btn-ghost-bitacora'}" id="saveProgressBtn" type="button">${rec.estado === 'pendiente' ? 'Iniciar supervisión' : 'Guardar avance y volver al listado'}</button>`))
           }
         </div>
       </form>`;
   }
 
   function attachDetailHandlers(rec, forceAdminEdit = false){
+    // Corrección por el administrador (2026-10-15): desde la vista de consulta abre el formulario completo editable.
+    document.getElementById('btnCorregirSupervision')?.addEventListener('click', () => openDetail(rec.id, true));
+    document.getElementById('btnCancelarCorreccion')?.addEventListener('click', () => openDetail(rec.id));
     if(esSupervisorPartnerActual){
       const form=document.getElementById('partner-supervision-form');
       const sendPartnerUpdate=async estado=>{
@@ -3624,7 +4043,16 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
         const data=new FormData(form);data.append('supervision_id',rec.id);
         try{const response=await fetch('api/supervisiones.php?action=partner_update',{method:'POST',headers:{'X-CSRF-Token':document.querySelector('meta[name="csrf-token"]')?.content||''},body:data});const result=await response.json();showToast(result.message,result.status==='success'?'success':'error');if(result.status==='success')closeDetail();}catch(e){showToast('No se pudo guardar la validación.','error');}
       };
-      document.getElementById('partnerSaveProgress')?.addEventListener('click',()=>sendPartnerUpdate());
+      const selRescatable = document.getElementById('partner_rescatable');
+      selRescatable?.addEventListener('change', () => document.getElementById('partner_rescate_evidencias')?.classList.toggle('d-none', selRescatable.value !== '1'));
+      document.getElementById('partnerSaveProgress')?.addEventListener('click',()=>{
+        if (selRescatable?.value === '1' && ![1,2,3].some(i => document.getElementById(`foto_rescate_${i}`)?.files?.length)) {
+          showToast('Si el servicio se puede rescatar, suba al menos una foto de evidencia.', 'error');
+          document.getElementById('foto_rescate_1')?.focus();
+          return;
+        }
+        sendPartnerUpdate();
+      });
       return;
     }
     setupPhotoPreview('edit_foto_serv_1', 'edit_preview_foto_serv_1');
@@ -3687,6 +4115,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     document.getElementById('edit_partner')?.addEventListener('change', function() {
       [editTec1Nom,editTec2Nom].forEach((select,index) => {
         if (!select) return;
+        if (index === 1) { select.innerHTML = '<option value="">Sin técnico de apoyo (T2)</option>' + opcionesApoyo(this.value, ''); select.dispatchEvent(new Event('change')); return; }
         select.innerHTML = '<option value="">Seleccione técnico</option>';
         listaTecnicos.filter(t => String(t.partner_id) === this.value && Number(t.tipo_tecnico || 1) === index+1)
           .forEach(t => select.add(new Option(t.nombre_tecnico,t.nombre_tecnico)));
@@ -3734,7 +4163,8 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
         editFieldResultadoTecnico.style.display = usaResultadoTecnico ? '' : 'none';
         editResultadoTecnico.disabled = !usaResultadoTecnico;
         editResultadoTecnico.innerHTML = '<option value="">Seleccione el resultado después de validar</option>';
-        LISTA_CIERRE_TECNICO.forEach(op => editResultadoTecnico.add(new Option(op, op, false, op === anterior)));
+        const opcionesEdicion = anterior && !LISTA_CIERRE_TECNICO.includes(anterior) ? [anterior, ...LISTA_CIERRE_TECNICO] : LISTA_CIERRE_TECNICO;
+        opcionesEdicion.forEach(op => editResultadoTecnico.add(new Option(op, op, false, op === anterior)));
         activarBuscadorSelect(editResultadoTecnico, 'Escriba para buscar solución aplicada / cierre técnico...');
       }
       const sinPedido = ['Incidencia / Casos atípicos', 'Proyecto de ordenamiento', 'Visita partner por capacitación', 'Conjunta PEXT', 'Checklist'].includes(tipo);
@@ -3807,7 +4237,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       }
       const sinCuadrilla = ['Incidencia / Casos atípicos', 'Visita partner por capacitación'].includes(tipo);
       if (editSecCuadrilla) {
-        const mostrar = !sinCuadrilla && editTipoSupModalidad?.value !== 'En frío';
+        const mostrar = !sinCuadrilla && !['En frío', 'Remota'].includes(editTipoSupModalidad?.value); // remota: solo el partner
         editSecCuadrilla.style.display = tipo === 'Incidencia / Casos atípicos' ? 'none' : '';
         const personal = document.getElementById('edit_personal_vehiculo');
         personal.style.display = mostrar ? '' : 'none';
@@ -3816,7 +4246,9 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     }
     editTipoSupervision?.addEventListener('change', aplicarReglasEdicion);
     editTipoSupModalidad?.addEventListener('change', aplicarReglasEdicion);
+    editTipoSupModalidad?.addEventListener('change', () => sgsActualizarRemota(document.getElementById('form-edit-detail')));
     aplicarReglasEdicion();
+    sgsActualizarRemota(document.getElementById('form-edit-detail'));
 
     const formDetalle = document.getElementById('form-edit-detail');
     const finalEditableControls = [];
@@ -3832,7 +4264,8 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       // El bloqueo total se aplica únicamente al cerrarla como finalizada.
       if (rec.estado !== 'finalizada' && esCancelacionPendiente && formDetalle) {
         formDetalle.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach(campo => campo.disabled = true);
-        ['edit_latitud','edit_longitud','edit_obs','edit_chk_obs',
+        // "Resultado de la validación" lo decide el supervisor (2026-10-15: faltaba aquí y le salía bloqueado).
+        ['edit_latitud','edit_longitud','edit_obs','edit_chk_obs','edit_resultado_cancelacion',
          'edit_foto_serv_1','edit_foto_serv_2','edit_foto_serv_3']
           .forEach(id => { const campo = document.getElementById(id); if (campo) campo.disabled = false; });
         editSecObservaciones?.querySelectorAll('input,select,textarea,button').forEach(campo => campo.disabled = false);
@@ -3899,24 +4332,72 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     
     const updateDetailWorkflowButton = () => {
       if (!saveBtn || !formDetalle || rec.estado === 'pendiente' || rec.estado === 'finalizada') return;
+      const resultado = document.getElementById('edit_resultado_cancelacion');
+      const usaResultado = resultado && !resultado.disabled;
+      if (usaResultado && resultado.value === 'En proceso de rescate') {
+        saveBtn.dataset.action = 'rescate';
+        saveBtn.classList.add('btn-finish-bitacora'); saveBtn.classList.remove('btn-ghost-bitacora');
+        saveBtn.innerHTML = '<i class="bi bi-life-preserver me-1"></i>Pasar a rescate';
+        return;
+      }
       const finishReady = validarCierreSupervision(formDetalle, false);
-      saveBtn.dataset.action = finishReady ? 'finish' : 'progress';
-      saveBtn.classList.toggle('btn-finish-bitacora', finishReady);
-      saveBtn.classList.toggle('btn-ghost-bitacora', !finishReady);
-      saveBtn.innerHTML = finishReady
-        ? '<i class="bi bi-check-circle me-1"></i>Finalizar supervisión'
-        : '<i class="bi bi-save2 me-1"></i>Guardar avance y volver al listado';
+      // 2026-10-15: con todo completo pero sin "Resultado de la validación", el botón señala ese punto y no finaliza.
+      const faltaResultado = finishReady && usaResultado && !resultado.value;
+      saveBtn.dataset.action = faltaResultado ? 'resultado' : (finishReady ? 'finish' : 'progress');
+      saveBtn.classList.toggle('btn-finish-bitacora', finishReady && !faltaResultado);
+      saveBtn.classList.toggle('btn-ghost-bitacora', !finishReady || faltaResultado);
+      saveBtn.innerHTML = faltaResultado
+        ? '<i class="bi bi-exclamation-circle me-1"></i>Seleccione el resultado de la validación'
+        : (finishReady ? '<i class="bi bi-check-circle me-1"></i>Finalizar supervisión' : '<i class="bi bi-save2 me-1"></i>Guardar avance y volver al listado');
     };
     formDetalle?.addEventListener('input', updateDetailWorkflowButton);
     formDetalle?.addEventListener('change', updateDetailWorkflowButton);
     document.getElementById('edit_checklist_firma_canvas')?.addEventListener('pointerup', updateDetailWorkflowButton);
     updateDetailWorkflowButton();
 
+    // Resultado de la cancelación: "En proceso de rescate" no finaliza; pasa la orden a rescate con seguimiento.
+    const selResultado = document.getElementById('edit_resultado_cancelacion');
+    const ayudaResultado = document.getElementById('edit_resultado_cancelacion_ayuda');
+    const textoBotonOriginal = saveBtn?.textContent;
+    const actualizarResultado = () => {
+      if (!selResultado) return;
+      const ayudas = {
+        'Cancelación correcta': 'La cancelación es correcta: se valida y se finaliza.',
+        'En proceso de rescate': 'Pasa a rescate: queda a su cargo y le da seguimiento hasta cerrarla (no ocupa su supervisión en proceso).',
+        'Rescate': 'El servicio se rescató: se finaliza como rescatada.',
+      };
+      const pendienteResultado = !selResultado.disabled && !selResultado.value;
+      if (ayudaResultado) ayudaResultado.textContent = ayudas[selResultado.value]
+        || (pendienteResultado ? 'Obligatorio para finalizar: indique si la cancelación es correcta, si pasa a rescate o si se rescató.' : '');
+      const cajaResultado = document.getElementById('edit_resultado_cancelacion_box');
+      cajaResultado?.classList.toggle('sgs-campo-pendiente', pendienteResultado);
+      if (!pendienteResultado) cajaResultado?.classList.remove('is-alerta');
+      // Pendiente sin iniciar: el botón es "Iniciar supervisión" o "Pasar a rescate"; ya iniciada, lo decide updateDetailWorkflowButton.
+      if (rec.estado === 'pendiente') { if (saveBtn) saveBtn.textContent = selResultado.value === 'En proceso de rescate' ? 'Pasar a rescate' : textoBotonOriginal; }
+      else updateDetailWorkflowButton();
+    };
+    const senalarResultado = () => {
+      const caja = document.getElementById('edit_resultado_cancelacion_box');
+      caja?.classList.add('is-alerta');
+      selResultado?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      selResultado?.focus({ preventScroll: true });
+      showToast('Seleccione el resultado de la validación para finalizar.');
+    };
+    selResultado?.addEventListener('change', actualizarResultado);
+    actualizarResultado();
+
     if(saveBtn) {
       saveBtn.addEventListener('click', async () => {
+        if (selResultado?.value === 'En proceso de rescate') {
+          if (!confirm('¿Pasar esta orden a rescate? Quedará a su cargo hasta cerrarla.')) return;
+          await enviarFormularioEdicion('En proceso', cancelacionAunPendiente);
+          return;
+        }
+        if (saveBtn.dataset.action === 'resultado') { senalarResultado(); return; }
         const puedeFinalizar = rec.estado !== 'pendiente'
           && rec.estado !== 'finalizada'
           && validarCierreSupervision(formDetalle, false);
+        if (puedeFinalizar && selResultado && !selResultado.disabled && !selResultado.value) { senalarResultado(); return; }
         const estadoGuardado = rec.estado === 'pendiente'
           ? 'Iniciada'
           : (rec.estado === 'finalizada' ? 'Finalizada' : (puedeFinalizar ? 'Finalizada' : 'En proceso'));
@@ -4013,13 +4494,15 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
       }
       return false;
     };
+    const remotaEdicion = esModalidadRemota('edit_tipo_sup');
+    const noAplicaEnRemota = ['edit_tec1_nom','edit_tec1_dni','edit_brevete','edit_u_tipo','edit_u_placa','edit_u_estado','edit_latitud','edit_longitud'];
     const obligatoriosVisibles = [
       'edit_tipo_supervision','edit_sub_tipo_atencion','edit_derivacion','edit_tipo_servicio',
       'edit_tipo_sup','edit_partner','edit_ticket','edit_tec1_nom','edit_tec1_dni',
       'edit_brevete','edit_u_tipo','edit_u_placa','edit_u_estado','edit_latitud','edit_longitud',
       'edit_resultado_tecnico','edit_estado_servicio','edit_motivo_cancelacion'
       ,'edit_estado_cancelacion'
-    ].map(id => document.getElementById(id));
+    ].filter(id => !(remotaEdicion && noAplicaEnRemota.includes(id))).map(id => document.getElementById(id));
     const faltanteGestion = obligatoriosVisibles.find(el => visibleHabilitado(el) && !String(el.value || '').trim());
     if (faltanteGestion) return marcarFaltante(faltanteGestion, 'Complete todos los campos solicitados para finalizar esta gestión.');
 
@@ -4034,7 +4517,9 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     const tieneFotoNueva = inputsFotoServicio.some(input => input?.files?.length);
     const esChecklistPuro = valor('edit_tipo_supervision') === 'Checklist';
     if (!esChecklistPuro && !tieneFotoGuardada && !tieneFotoNueva) {
-      return marcarFaltante(inputsFotoServicio[0], 'Suba al menos una foto de evidencia para finalizar la supervisión.');
+      return marcarFaltante(inputsFotoServicio[0], remotaEdicion
+        ? 'Suba la captura de la videollamada como foto de evidencia para finalizar la supervisión remota.'
+        : 'Suba al menos una foto de evidencia para finalizar la supervisión.');
     }
 
     const chkObs = document.getElementById('edit_chk_obs');
@@ -4097,14 +4582,15 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     const modalidad = newTipoSupModalidad?.value || '';
     if (!tiposSinPedido.includes(tipo) && !newTicketCodigo?.value.trim()) return false;
     if (!tiposSinPartner.includes(tipo) && !String(newPartner?.value || '').trim()) return false;
-    const requiereCuadrilla = modalidad !== 'En frío' && !tiposSinCuadrilla.includes(tipo);
+    const remota = modalidad === 'Remota';
+    const requiereCuadrilla = modalidad !== 'En frío' && !remota && !tiposSinCuadrilla.includes(tipo); // remota: solo el partner
     if (requiereCuadrilla) {
       if (!newTec1Nom?.value || !/^\d{8}$/.test(newTec1Dni?.value.trim() || '')) return false;
-      if (!document.getElementById('new_u_tipo')?.value || !document.getElementById('new_u_placa')?.value.trim() || !document.getElementById('new_u_estado')?.value) return false;
+      if (!remota && (!document.getElementById('new_u_tipo')?.value || !document.getElementById('new_u_placa')?.value.trim() || !document.getElementById('new_u_estado')?.value)) return false;
     }
     const lat = Number(document.getElementById('new_latitud')?.value);
     const lng = Number(document.getElementById('new_longitud')?.value);
-    if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) return false;
+    if (!remota && (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180)) return false;
     if (['Avería','Reiterada','Garantía'].includes(tipo) && !newResultadoTecnico?.value) return false;
     if (tipo !== 'Checklist' && !document.getElementById('new_obs')?.value.trim()) return false;
     if (newChkObs?.checked) {
@@ -4202,6 +4688,15 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
   formInicio?.addEventListener('input', markNewFormDirty);
   formInicio?.addEventListener('change', markNewFormDirty);
 
+  // Abrir una supervisión de la lista (2026-10-15). Una cancelación cargada por Excel SIEMPRE se trabaja en su
+  // formulario de validación (tipificación, "Resultado de la validación", ubicación de origen bloqueada), también
+  // después de iniciarla. Antes, ya "En proceso", se abría el formulario de registro nuevo: no mostraba la validación,
+  // el distrito del Excel podía quedar vacío y la sección 1 no dejaba continuar.
+  function abrirRegistro(rec) {
+    const esCancelacionCargada = Number(rec.es_cancelacion) === 1 && Number(rec.origen_importacion) === 1;
+    return rec.estado === 'iniciada' && !esCancelacionCargada ? openProcessForm(rec) : openDetail(rec.id);
+  }
+
   async function openProcessForm(rec) {
     if (!(await verificarTurnoActivo())) return;
     resetNewWorkflowForm();
@@ -4219,6 +4714,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     setValue('new_derivacion', rec.derivacion);
     setValue('new_tipo_servicio', rec.tipo_servicio);
     setValue('new_tipo_sup', rec.tipo_supervision_inicial);
+    sgsActualizarRemota(document.getElementById('form-inicio-supervision'));
     updateChecklistMode();
     setValue('new_sub_tipo_atencion', rec.sub_tipo_atencion);
     setValue('new_cliente_nombre', rec.cliente_nombre);
@@ -4278,15 +4774,13 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     // Función auxiliar para seleccionar opción sin importar mayúsculas/minúsculas
     const setSelectCaseInsensitive = (selectElement, textValue) => {
       if (!textValue || !selectElement) return;
-      const target = String(textValue).trim().toUpperCase();
-      for (let i = 0; i < selectElement.options.length; i++) {
-        if (selectElement.options[i].value.toUpperCase() === target) {
-          selectElement.value = selectElement.options[i].value;
-          return;
-        }
-      }
-      // Fallback si no coincide nada
-      selectElement.value = textValue;
+      const norm = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+      const target = norm(textValue);
+      const opcion = [...selectElement.options].find(o => o.value && norm(o.value) === target);
+      if (opcion) { selectElement.value = opcion.value; return; }
+      // No está en el catálogo (p. ej. escrito distinto en el Excel): se agrega tal cual para no perder el dato.
+      selectElement.add(new Option(String(textValue), String(textValue)));
+      selectElement.value = String(textValue);
     };
 
     if (dep) {
@@ -4382,6 +4876,8 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     viewNew.classList.add('open');
     updateNewWorkflowButton();
     window.scrollTo({top:0, behavior:'smooth'});
+    // La ubicación se toma sola al abrir (2026-10-12); el supervisor puede actualizarla con el botón.
+    if (!String(document.getElementById('new_latitud')?.value || '').trim()) capturarGPS('new_latitud', 'new_longitud', 'new_gps_status');
   }
 
   function closeNewForm(){
@@ -4430,10 +4926,11 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
           currentSupervisorFilter = '';
           currentDateFromFilter = '';
           currentDateToFilter = '';
+          currentCodeFilter = '';
           filterTabs?.querySelectorAll('.filter-tab-btn').forEach(button => {
             button.classList.toggle('active', button.dataset.filter === currentFilter);
           });
-          ['adminFilterZona','adminFilterSupervisor','adminFilterFechaDesde','adminFilterFechaHasta'].forEach(id => {
+          ['filterCodigoSup','adminFilterZona','adminFilterSupervisor','adminFilterFechaDesde','adminFilterFechaHasta'].forEach(id => {
             const filter = document.getElementById(id);
             if (filter) filter.value = '';
           });

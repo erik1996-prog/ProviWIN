@@ -30,7 +30,7 @@ Bootstrap está alineado a esta paleta: `btn-*`, `badge bg-*`, `alert-*` y `text
 
 ## Tipografía
 - **Texto:** Nunito (`--sgs-font`), 15 px. Alternativa libre a MADE Tommy Soft.
-- **Títulos y cifras:** Montserrat (`--sgs-font-display`). Alternativa libre a Panton.
+- **Títulos y cifras:** desde 2026-10-15 la misma letra, Nunito (peso 700; nunca 800/900). Montserrat se eliminó porque se veía tosca. Detalle en la skill `sgs-diseno` v2.0, sección Tipografía.
 - **Estilo de oración** en títulos, botones y etiquetas ("Matriz mensual de supervisiones"). Solo las etiquetas de indicadores y los encabezados de tabla van en mayúsculas pequeñas.
 
 ## Componentes

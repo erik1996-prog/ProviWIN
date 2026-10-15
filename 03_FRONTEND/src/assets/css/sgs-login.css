@@ -3,8 +3,8 @@
 :root{
   --win-orange:#FF5A0A; --win-orange-dark:#D8450B; --win-orange-soft:#FFEFE6;
   --win-ink:#141414; --win-brown:#301D19; --win-gray:#7C7E80; --win-border:#D6D6D6;
-  --font:'MADETommySoft','Nunito',sans-serif;
-  --font-display:'Panton','Montserrat',sans-serif;
+  --font:'Nunito',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-display:var(--font); /* 2026-10-15: una sola letra (Nunito) en todo el sistema */
 
   /* Escala del login: cambiar aquí ajusta todo */
   --card-w: clamp(300px, 92vw, 380px);
@@ -44,8 +44,8 @@ body.sgs-login{
 .sgs-logo{display:block;width:clamp(84px,12vh,104px);aspect-ratio:1935/813;margin:0 auto 6px;background:var(--win-orange);
   -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-position:center;mask-position:center;
   filter:drop-shadow(0 3px 6px rgba(255,90,10,.22))}
-.sgs-system{text-align:center;color:var(--win-gray);font-size:11px;letter-spacing:1.2px;text-transform:uppercase;font-weight:800;margin-bottom:clamp(10px,2vh,16px)}
-.sgs-card h1{font-size:clamp(19px,2.8vh,22px);font-weight:800;text-align:center;color:var(--win-ink);margin-bottom:2px}
+.sgs-system{text-align:center;color:var(--win-gray);font-size:11px;letter-spacing:1.2px;text-transform:uppercase;font-weight: 700;margin-bottom:clamp(10px,2vh,16px)}
+.sgs-card h1{font-size:clamp(19px,2.8vh,22px);font-weight: 700;text-align:center;color:var(--win-ink);margin-bottom:2px}
 .sgs-sub{text-align:center;color:var(--win-gray);font-size:13px;margin-bottom:clamp(12px,2.2vh,18px)}
 
 .sgs-card .mb-3{margin-bottom:var(--gap) !important}
@@ -79,7 +79,7 @@ body.sgs-login{
 
 .btn-sgs{
   height:calc(var(--field-h) + 4px);border:0;border-radius:10px;background:var(--win-orange);color:#fff;
-  font-family:var(--font-display);font-weight:900;font-size:15.5px;letter-spacing:.2px;
+  font-family:var(--font-display);font-weight: 700;font-size:15.5px;letter-spacing:.2px;
   box-shadow:var(--shadow-btn);transition:background .15s,transform .1s,box-shadow .15s;
 }
 .btn-sgs:hover,.btn-sgs:focus{background:var(--win-orange-dark);color:#fff;box-shadow:0 10px 20px rgba(255,90,10,.35),0 3px 6px rgba(255,90,10,.22)}

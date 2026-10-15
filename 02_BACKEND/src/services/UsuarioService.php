@@ -1,27 +1,37 @@
 <?php
-// 02_BACKEND/src/services/UsuarioService.php - Reglas de negocio de usuarios, perfiles y permisos.
+// 02_BACKEND/src/services/UsuarioService.php - Reglas de negocio de usuarios y permisos.
 //
 // Reglas:
 //  - Nunca queda el sistema sin un administrador activo (no se puede desactivar ni bajar de rol al último).
 //  - Un administrador no puede desactivarse a sí mismo.
 //  - Personal directo WIN = partner WIN DIRECTO (o sin partner). El partner se elige solo para contratas.
-//  - Perfil asignado: el rol del usuario pasa a ser el rol base del perfil y sus permisos se escriben en usuario_permisos.
-//  - Sin perfil: el usuario usa los permisos por defecto de su rol, o permisos personalizados si el administrador los marca.
+//  - Permisos: los del rol por defecto, o personalizados si el administrador los marca (usuario_permisos).
+//    (2026-10-12: se quitaron los "perfiles de acceso"; no se usaban.)
+//  - Quién ve a quién (2026-10-12): el administrador y el personal directo WIN ven a todos; el personal de un partner,
+//    solo a los de su partner y dentro de sus zonas habilitadas.
+//  - "Agregar y editar personal": solo datos personales. El trabajador nuevo queda "Sin acceso" (sin usuario e inactivo)
+//    hasta que el administrador le asigne usuario, contraseña, rol y zonas.
 
 require_once BACKEND_PATH . '/validators/UsuarioValidator.php';
 require_once BACKEND_PATH . '/repositories/UsuarioRepository.php';
-require_once BACKEND_PATH . '/repositories/PerfilRepository.php';
 
 final class UsuarioService
 {
     private UsuarioRepository $usuarios;
-    private PerfilRepository $perfiles;
 
     public function __construct(private PDO $pdo)
     {
         $this->usuarios = new UsuarioRepository($pdo);
-        $this->perfiles = new PerfilRepository($pdo);
     }
+
+    /** Para qué sirve cada rol del sistema (se muestra en "Roles y permisos"). El cargo y el área no dan permisos. */
+    public const DESCRIPCION_ROLES = [
+        'Administrador' => 'Dueño del sistema: ve y configura todo (usuarios, permisos, cargas, eliminaciones).',
+        'Gerente' => 'Consulta general: indicadores, supervisiones y observaciones de todos. No opera ni valida.',
+        'Coordinador' => 'Gestiona el trabajo: ve todo, revisa y valida observaciones, monitorea turnos y línea de tiempo.',
+        'Supervisor' => 'Trabaja en campo. Directo WIN: registra supervisiones y su turno. De un partner: atiende las órdenes asignadas y responde observaciones.',
+        'Jefe de operaciones' => 'Solo para partners: consulta las órdenes, observaciones y personal de su partner.',
+    ];
 
     /** Permisos que el administrador puede delegar (los "reservados" quedan fijos por rol). */
     public static function permisosDelegables(): array
@@ -29,16 +39,21 @@ final class UsuarioService
         return array_keys(array_filter(Auth::permissionCatalog(), static fn($p) => !empty($p['delegable'])));
     }
 
-    /** Permisos relevantes para SGS (se ocultan los de módulos que siguen en el sistema de origen). */
+    /** Permisos que el administrador puede marcar por usuario (los reservados no se muestran). */
     public static function catalogoSgs(): array
     {
-        $fuera = [Auth::PERM_RESOURCES_VIEW, Auth::PERM_EXAM_VIEW];
         $out = [];
         foreach (Auth::permissionCatalog() as $clave => $def) {
-            if (empty($def['delegable']) || in_array($clave, $fuera, true)) continue;
+            if (empty($def['delegable'])) continue;
             $out[] = ['clave' => $clave, 'grupo' => $def['group'], 'etiqueta' => $def['label']];
         }
         return $out;
+    }
+
+    /** Partners (contratas) activos, sin WIN ni WIN DIRECTO. */
+    public function partnersOperativos(): array
+    {
+        return array_values(array_filter($this->usuarios->partners(), static fn($p) => !in_array(mb_strtoupper(trim($p['nombre_partner'])), ['WIN', 'WIN DIRECTO'], true)));
     }
 
     public function catalogos(): array
@@ -46,36 +61,157 @@ final class UsuarioService
         $roles = [];
         $conteo = $this->usuarios->conteoPorRol();
         foreach (UsuarioValidator::ROLES as $rol) {
-            $roles[] = ['rol' => $rol, 'permisos' => array_values(array_intersect(Auth::roleDefaultPermissions($rol), self::permisosDelegables())), 'usuarios' => $conteo[$rol] ?? 0];
+            $roles[] = ['rol' => $rol, 'descripcion' => self::DESCRIPCION_ROLES[$rol] ?? '', 'permisos' => array_values(array_intersect(Auth::roleDefaultPermissions($rol), self::permisosDelegables())), 'usuarios' => $conteo[$rol] ?? 0];
         }
         $departamentos = sgsOperationalDepartments();
         return [
             'roles' => $roles,
-            'perfiles' => $this->perfiles->listar(),
             'partners' => array_values(array_filter($this->usuarios->partners(), static fn($p) => !in_array(mb_strtoupper(trim($p['nombre_partner'])), ['WIN', 'WIN DIRECTO'], true))),
             'departamentos' => $departamentos,
             'permisos' => self::catalogoSgs(),
+            'areas' => UsuarioValidator::AREAS, 'cargos' => UsuarioValidator::CARGOS, 'procesos' => UsuarioValidator::PROCESOS,
         ];
     }
 
-    public function listar(array $filtros): array
+    /** Alcance de quien consulta: null = todos; si no, su partner y sus zonas (null = todas sus zonas). */
+    public function alcance(array $actor): ?array
     {
+        if (Auth::can(Auth::PERM_USERS_MANAGE, $actor) || !empty($actor['is_win_directo'])) return null;
+        // El jefe de operaciones ve a todo su partner; el resto del personal del partner, solo sus zonas.
+        $zonas = ($actor['rol'] ?? '') === Auth::ROLE_JEFE_OPERACIONES ? null : sgsUserZones((int)($actor['id'] ?? 0));
+        return ['partner_id' => (int)($actor['partner_id'] ?? 0), 'zonas' => $zonas];
+    }
+
+    /** $fila debe traer 'partner_id', 'zonas' y 'todas_zonas' ya calculados. */
+    private function dentroDelAlcance(array $fila, ?array $alcance): bool
+    {
+        if ($alcance === null) return true;
+        if ($alcance['partner_id'] < 1 || (int)($fila['partner_id'] ?? 0) !== $alcance['partner_id']) return false;
+        if ($alcance['zonas'] === null || !empty($fila['todas_zonas'])) return true;
+        return (bool)array_intersect($fila['zonas'] ?? [], $alcance['zonas']);
+    }
+
+    private function filaConZonas(array $u): array
+    {
+        $u['zonas'] = $this->zonasDe($u);
+        $u['todas_zonas'] = $this->esTodasZonas($u);
+        return $u;
+    }
+
+    /** Usuario dentro del alcance de quien consulta, o error. */
+    private function usuarioVisible(int $id, array $actor): array
+    {
+        $u = $this->usuarios->obtener($id) ?? throw new ValidationException('Usuario no encontrado.');
+        if (!$this->dentroDelAlcance($this->filaConZonas($u), $this->alcance($actor))) throw new ValidationException('Este usuario no pertenece a su partner o a sus zonas.');
+        return $u;
+    }
+
+    /** Estados de acceso para los contadores de Usuarios y roles (2026-10-15). */
+    public const ESTADOS_ACCESO = ['con_acceso', 'por_ingresar', 'sin_acceso', 'desactivados', 'bloqueados'];
+
+    public function listar(array $filtros, ?array $actor = null): array
+    {
+        $alcance = $actor ? $this->alcance($actor) : null;
         $f = [
             'q' => mb_substr(trim((string)($filtros['q'] ?? '')), 0, 80),
             'rol' => in_array($filtros['rol'] ?? '', UsuarioValidator::ROLES, true) ? $filtros['rol'] : '',
             'estado' => in_array($filtros['estado'] ?? '', ['activos', 'inactivos'], true) ? $filtros['estado'] : '',
             'organizacion' => (string)($filtros['organizacion'] ?? ''),
         ];
+        // Estado de acceso (2026-10-15): cada persona está en uno; "bloqueados" se cuenta aparte (se superpone).
+        $estadoAcceso = in_array($filtros['estado'] ?? '', self::ESTADOS_ACCESO, true) ? $filtros['estado'] : '';
+        $conteos = array_fill_keys(array_merge(['todos'], self::ESTADOS_ACCESO), 0);
         $lista = $this->usuarios->listar($f);
         $bloqueados = array_flip(Auth::lockedAccountIds(array_column($lista, 'id')));
-        foreach ($lista as &$fila) {
+        $visibles = [];
+        foreach ($lista as $fila) {
+            $fila = $this->filaConZonas($fila);
+            if (!$this->dentroDelAlcance($fila, $alcance)) continue;
             $fila['bloqueado'] = isset($bloqueados[(int)$fila['id']]);
-            $fila['zonas'] = $this->zonasDe($fila);
-            $fila['todas_zonas'] = $this->esTodasZonas($fila);
+            $fila['sin_acceso'] = trim((string)($fila['usuario'] ?? '')) === '';
+            $fila['estado_acceso'] = $fila['sin_acceso'] ? 'sin_acceso'
+                : ((int)$fila['activo'] !== 1 ? 'desactivados' : ($fila['ultimo_acceso'] ? 'con_acceso' : 'por_ingresar'));
+            $fila['debe_cambiar_password'] = (int)($fila['debe_cambiar_password'] ?? 0) === 1;
+            $conteos['todos']++;
+            $conteos[$fila['estado_acceso']]++;
+            if ($fila['bloqueado']) $conteos['bloqueados']++;
+            if ($estadoAcceso === 'bloqueados' ? !$fila['bloqueado'] : ($estadoAcceso !== '' && $fila['estado_acceso'] !== $estadoAcceso)) continue;
             unset($fila['sede'], $fila['zona']);
+            $visibles[] = $fila;
         }
-        unset($fila);
-        return ['usuarios' => $lista, 'resumen' => array_map('intval', $this->usuarios->resumen())];
+        if ($alcance === null) $resumen = array_map('intval', $this->usuarios->resumen());
+        else {
+            // Indicadores solo con el personal que esta persona puede ver.
+            $todos = array_filter($this->usuarios->listar(['q' => '', 'rol' => '', 'estado' => '', 'organizacion' => '']),
+                fn($u) => $this->dentroDelAlcance($this->filaConZonas($u), $alcance));
+            $activos = array_filter($todos, fn($u) => (int)$u['activo'] === 1);
+            $resumen = ['total' => count($todos), 'activos' => count($activos), 'directos' => 0, 'partners' => count($activos),
+                'administradores' => 0];
+        }
+        return ['usuarios' => $visibles, 'resumen' => $resumen, 'conteos' => $conteos];
+    }
+
+    /** Ficha con datos personales (para quien solo ve o gestiona personal). */
+    public function detallePersonal(int $id, array $actor): array
+    {
+        $u = $this->usuarioVisible($id, $actor);
+        return ['id' => (int)$u['id'], 'dni' => $u['dni'], 'nombres' => $u['nombres'], 'apellidos' => $u['apellidos'], 'email' => $u['email'],
+            'telefono_personal' => $u['telefono_personal'], 'telefono_corporativo' => $u['telefono_corporativo'], 'area_trabajo' => $u['area_trabajo'], 'cargo' => $u['cargo'] ?? null,
+            'rol' => $u['rol'], 'nombre_partner' => $u['nombre_partner'], 'zonas' => $this->zonasDe($u)];
+    }
+
+    /**
+     * Agregar o editar personal: SOLO datos personales. Al crear, el trabajador queda "Sin acceso" (sin usuario, inactivo)
+     * y se avisa a los administradores para que completen usuario, contraseña, rol y zonas.
+     */
+    public function guardarPersonal(array $in, int $id, array $actor): array
+    {
+        $d = UsuarioValidator::personal($in);
+        $alcance = $this->alcance($actor);
+        $previo = $id > 0 ? $this->usuarios->obtener($id) : null;
+        $d['area_trabajo'] = UsuarioValidator::deLista($d['area_trabajo'], UsuarioValidator::AREAS, $previo['area_trabajo'] ?? null, 'area_trabajo', 'área de trabajo');
+        $d['cargo'] = UsuarioValidator::deLista($d['cargo'], UsuarioValidator::CARGOS, $previo['cargo'] ?? null, 'cargo', 'cargo');
+        if ($id > 0) {
+            $u = $this->usuarioVisible($id, $actor);
+            if ($u['rol'] === Auth::ROLE_ADMINISTRADOR && !Auth::can(Auth::PERM_USERS_MANAGE, $actor)) {
+                throw new ValidationException('Los datos de un administrador solo los cambia otro administrador.');
+            }
+            if ($dup = $this->usuarios->existeDuplicado($d['dni'], $d['email'], (string)($u['usuario'] ?? ''), $id)) {
+                throw new ValidationException("Ya existe otro usuario con el mismo $dup.", $dup === 'correo' ? 'email' : 'dni');
+            }
+            $this->usuarios->actualizarPersonal($id, $d);
+            return ['id' => $id, 'nombre' => $d['nombres'] . ' ' . $d['apellidos'], 'nuevo' => false];
+        }
+
+        // Organización y zona del trabajador nuevo
+        $zona = mb_strtoupper(trim((string)($in['zona'] ?? '')), 'UTF-8');
+        if ($alcance !== null) {
+            $d['partner_id'] = $alcance['partner_id'];
+            $permitidas = $alcance['zonas'] ?? sgsOperationalDepartments();
+            if (!in_array($zona, $permitidas, true)) throw new ValidationException('Elija una de sus zonas de trabajo.', 'zona');
+        } else {
+            $organizacion = ($in['organizacion'] ?? 'directo') === 'partner' ? 'partner' : 'directo';
+            $d['partner_id'] = $organizacion === 'partner' ? (int)($in['partner_id'] ?? 0) : (int)($this->usuarios->partnerWinDirectoId() ?? 0);
+            if ($organizacion === 'partner' && $d['partner_id'] < 1) throw new ValidationException('Seleccione el partner del trabajador.', 'partner_id');
+            if ($zona !== '' && !in_array($zona, sgsOperationalDepartments(), true)) throw new ValidationException('Zona de trabajo no válida.', 'zona');
+        }
+        $d['sede'] = $zona !== '' ? sgsSiteFromDepartment($zona) : '';
+        if ($dup = $this->usuarios->existeDuplicado($d['dni'], $d['email'], '', 0)) {
+            throw new ValidationException("Ya existe otro usuario con el mismo $dup.", $dup === 'correo' ? 'email' : 'dni');
+        }
+        $this->pdo->beginTransaction();
+        try {
+            $nuevoId = $this->usuarios->crearPersonal($d, password_hash(bin2hex(random_bytes(24)), PASSWORD_DEFAULT));
+            $nombre = $d['nombres'] . ' ' . $d['apellidos'];
+            $this->usuarios->notificarAdministradores('Nuevo personal por completar',
+                $nombre . ' fue registrado por ' . ($actor['nombre_completo'] ?? 'un usuario') . '. Asígnale usuario, contraseña, rol y zonas para darle acceso.',
+                'index.php?page=usuarios');
+            $this->pdo->commit();
+        } catch (Throwable $e) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            throw $e;
+        }
+        return ['id' => $nuevoId, 'nombre' => $nombre, 'nuevo' => true];
     }
 
     public function detalle(int $id): array
@@ -89,9 +225,11 @@ final class UsuarioService
         return [
             'id' => (int)$u['id'], 'dni' => $u['dni'], 'nombres' => $u['nombres'], 'apellidos' => $u['apellidos'], 'usuario' => $u['usuario'],
             'email' => $u['email'], 'telefono_personal' => $u['telefono_personal'], 'telefono_corporativo' => $u['telefono_corporativo'],
-            'rol' => $u['rol'], 'perfil_id' => (int)($u['perfil_id'] ?? 0), 'organizacion' => $esDirecto ? 'directo' : 'partner',
+            'rol' => $u['rol'], 'organizacion' => $esDirecto ? 'directo' : 'partner',
             'partner_id' => $esDirecto ? 0 : (int)$u['partner_id'],
-            'area_trabajo' => $u['area_trabajo'], 'modalidad' => $u['modalidad'], 'turno' => $u['turno'], 'activo' => (int)$u['activo'],
+            'area_trabajo' => $u['area_trabajo'], 'cargo' => $u['cargo'] ?? null,
+            'procesos' => array_values(array_filter(array_map('trim', explode(',', (string)($u['procesos_copiados'] ?? ''))))),
+            'modalidad' => $u['modalidad'], 'turno' => $u['turno'], 'activo' => (int)$u['activo'],
             'zonas' => $this->zonasDe($u), 'todas_zonas' => $this->esTodasZonas($u),
             'permisos' => $efectivos, 'permisos_personalizados' => !empty($overrides),
         ];
@@ -107,23 +245,28 @@ final class UsuarioService
             $d['partner_id'] = (int)($this->usuarios->partnerWinDirectoId() ?? 0);
         }
 
-        $perfil = null;
-        if ($d['perfil_id'] > 0) {
-            $perfil = $this->perfiles->obtener($d['perfil_id']);
-            if (!$perfil || !$perfil['activo']) throw new ValidationException('El perfil seleccionado no existe o está inactivo.', 'perfil_id');
-            $d['rol'] = $perfil['rol_base'];
-        }
-        $operativo = in_array($d['rol'], [Auth::ROLE_SUPERVISOR, Auth::ROLE_PARTNER], true);
+
+        $operativo = $d['rol'] === Auth::ROLE_SUPERVISOR;   // el jefe de operaciones ve todo su partner: no lleva zonas
         if ($operativo && !$d['todas_zonas'] && !$d['zonas']) throw new ValidationException('Marque al menos una zona de trabajo (o "Todas las zonas"): define qué puede ver el usuario.', 'zonas');
         // La primera zona es la base; se guarda como sede porque el sistema de origen la usa. Las demás, como accesos adicionales.
         $d['sede'] = $d['todas_zonas'] ? 'PROVINCIAS' : ($d['zonas'] ? sgsSiteFromDepartment($d['zonas'][0]) : '');
         $zonasAdicionales = $d['todas_zonas'] ? [] : array_slice($d['zonas'], 1);
-        if ($organizacion === 'partner' && in_array($d['rol'], [Auth::ROLE_ADMINISTRADOR, Auth::ROLE_GERENTE, Auth::ROLE_COORDINADOR], true)) {
-            throw new ValidationException('El personal de un partner solo puede tener rol Supervisor o Partner.', 'rol');
+        if ($organizacion === 'partner' && !in_array($d['rol'], [Auth::ROLE_SUPERVISOR, Auth::ROLE_JEFE_OPERACIONES], true)) {
+            throw new ValidationException('El personal de un partner solo puede tener rol Supervisor o Jefe de operaciones.', 'rol');
+        }
+        if ($organizacion === 'directo' && $d['rol'] === Auth::ROLE_JEFE_OPERACIONES) {
+            throw new ValidationException('El rol Jefe de operaciones es solo para personal de un partner.', 'rol');
         }
 
+        $completaAcceso = false;
+        $previo = $id > 0 ? $this->usuarios->obtener($id) : null;
+        $d['area_trabajo'] = UsuarioValidator::deLista($d['area_trabajo'], UsuarioValidator::AREAS, $previo['area_trabajo'] ?? null, 'area_trabajo', 'área de trabajo');
+        $d['cargo'] = UsuarioValidator::deLista($d['cargo'], UsuarioValidator::CARGOS, $previo['cargo'] ?? null, 'cargo', 'cargo');
         if ($id > 0) {
             $actual = $this->usuarios->obtener($id) ?? throw new ValidationException('Usuario no encontrado.');
+            // Personal registrado "Sin acceso": al completarlo el administrador debe darle una contraseña; queda activo.
+            $completaAcceso = trim((string)($actual['usuario'] ?? '')) === '';
+            if ($completaAcceso && $d['password'] === '') throw new ValidationException('Asigne una contraseña para darle acceso al sistema.', 'password');
             if ($actual['rol'] === Auth::ROLE_ADMINISTRADOR && $d['rol'] !== Auth::ROLE_ADMINISTRADOR && $actual['activo'] && $this->usuarios->administradoresActivos($id) === 0) {
                 throw new ValidationException('Es el único administrador activo: asigne primero otro administrador antes de cambiarle el rol.', 'rol');
             }
@@ -133,6 +276,7 @@ final class UsuarioService
             $base = mb_strtolower(mb_substr(iconv('UTF-8', 'ASCII//TRANSLIT', $d['nombres']) ?: $d['nombres'], 0, 1) . preg_replace('/[^a-z]/', '', mb_strtolower(iconv('UTF-8', 'ASCII//TRANSLIT', explode(' ', $d['apellidos'])[0]) ?: '')));
             $d['usuario'] = $this->usuarios->usuarioDisponible($base !== '' ? $base : 'usuario');
         }
+
         if ($dup = $this->usuarios->existeDuplicado($d['dni'], $d['email'], $d['usuario'], $id)) {
             throw new ValidationException("Ya existe otro usuario con el mismo $dup.", $dup === 'correo' ? 'email' : ($dup === 'DNI' ? 'dni' : 'usuario'));
         }
@@ -141,19 +285,16 @@ final class UsuarioService
         try {
             if ($id > 0) {
                 $this->usuarios->actualizar($id, $d);
-                if ($d['password'] !== '') $this->usuarios->cambiarPassword($id, password_hash($d['password'], PASSWORD_DEFAULT));
+                if ($d['password'] !== '') $this->usuarios->cambiarPassword($id, password_hash($d['password'], PASSWORD_DEFAULT), $d['pedir_cambio']);
+                if ($completaAcceso) $this->usuarios->activar($id);
             } else {
-                $id = $this->usuarios->crear($d, password_hash($d['password'], PASSWORD_DEFAULT));
+                $hash = password_hash($d['password'], PASSWORD_DEFAULT);
+                $id = $this->usuarios->crear($d, $hash);
+                if ($d['pedir_cambio']) $this->usuarios->cambiarPassword($id, $hash, true);
             }
             $delegables = self::permisosDelegables();
-            if ($perfil) {
-                $this->usuarios->asignarPerfil($id, (int)$perfil['id'], $actorId);
-                $this->usuarios->guardarPermisos($id, array_intersect($perfil['permisos'], $delegables), $delegables, $actorId);
-            } else {
-                $this->usuarios->quitarPerfil($id);
-                if ($d['permisos_personalizados']) $this->usuarios->guardarPermisos($id, array_intersect($d['permisos'], $delegables), $delegables, $actorId);
-                else $this->usuarios->limpiarPermisos($id);
-            }
+            if ($d['permisos_personalizados']) $this->usuarios->guardarPermisos($id, array_intersect($d['permisos'], $delegables), $delegables, $actorId);
+            else $this->usuarios->limpiarPermisos($id);
             $this->usuarios->guardarZonas($id, $operativo ? $zonasAdicionales : [], $actorId);
             $this->pdo->commit();
         } catch (Throwable $e) {
@@ -174,12 +315,12 @@ final class UsuarioService
     }
 
     /** Restablece la contraseña. Si no se envía una, genera una temporal segura y la devuelve una sola vez. */
-    public function restablecerPassword(int $id, string $nueva = ''): string
+    public function restablecerPassword(int $id, string $nueva = '', bool $pedirCambio = true): string
     {
         $this->usuarios->obtener($id) ?? throw new ValidationException('Usuario no encontrado.');
         if ($nueva === '') $nueva = self::passwordTemporal();
         UsuarioValidator::password($nueva);
-        $this->usuarios->cambiarPassword($id, password_hash($nueva, PASSWORD_DEFAULT));
+        $this->usuarios->cambiarPassword($id, password_hash($nueva, PASSWORD_DEFAULT), $pedirCambio);
         Auth::unlockAccount($id); // una contraseña nueva también libera el bloqueo por intentos
         return $nueva;
     }
@@ -190,7 +331,8 @@ final class UsuarioService
         if ($hash === null || !password_verify($actual, $hash)) throw new ValidationException('La contraseña actual no es correcta.', 'actual');
         if ($actual === $nueva) throw new ValidationException('La nueva contraseña debe ser distinta de la actual.', 'nueva');
         UsuarioValidator::password($nueva);
-        $this->usuarios->cambiarPassword($id, password_hash($nueva, PASSWORD_DEFAULT));
+        $this->usuarios->cambiarPassword($id, password_hash($nueva, PASSWORD_DEFAULT)); // quita el cambio obligatorio
+        if (session_status() === PHP_SESSION_ACTIVE && (int)($_SESSION['user_id'] ?? 0) === $id) unset($_SESSION['debe_cambiar_password']);
     }
 
     /**
@@ -255,44 +397,5 @@ final class UsuarioService
         for ($i = 0; $i < 9; $i++) $p .= $a[random_int(0, strlen($a) - 1)];
         for ($i = 0; $i < 3; $i++) $p .= $n[random_int(0, strlen($n) - 1)];
         return $p . $s[random_int(0, strlen($s) - 1)];
-    }
-
-    // ---------------- Perfiles ----------------
-
-    public function guardarPerfil(array $in, int $id, int $actorId): int
-    {
-        $d = UsuarioValidator::perfil($in);
-        $d['permisos'] = array_values(array_intersect($d['permisos'], self::permisosDelegables()));
-        if ($this->perfiles->nombreEnUso($d['nombre'], $id)) throw new ValidationException('Ya existe un perfil con ese nombre.', 'nombre');
-        $this->pdo->beginTransaction();
-        try {
-            $id = $this->perfiles->guardar($id, $d, $actorId);
-            // Los usuarios que ya tienen el perfil reciben los cambios al instante.
-            $delegables = self::permisosDelegables();
-            foreach ($this->usuarios->usuariosConPerfil($id) as $userId) {
-                $u = $this->usuarios->obtener($userId);
-                if ($u && $u['rol'] !== $d['rol_base']) {
-                    if ($u['rol'] === Auth::ROLE_ADMINISTRADOR && $u['activo'] && $this->usuarios->administradoresActivos($userId) === 0) {
-                        throw new ValidationException('El perfil lo usa el único administrador activo; no se puede cambiar su rol base.', 'rol_base');
-                    }
-                    $this->pdo->prepare('UPDATE usuarios SET rol = :r WHERE id = :id')->execute([':r' => $d['rol_base'], ':id' => $userId]);
-                }
-                $this->usuarios->guardarPermisos($userId, $d['permisos'], $delegables, $actorId);
-            }
-            $this->pdo->commit();
-        } catch (Throwable $e) {
-            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
-            throw $e;
-        }
-        return $id;
-    }
-
-    public function cambiarEstadoPerfil(int $id, bool $activo): void
-    {
-        $p = $this->perfiles->obtener($id) ?? throw new ValidationException('Perfil no encontrado.');
-        if (!$activo && $this->usuarios->usuariosConPerfil($id)) {
-            throw new ValidationException('Hay usuarios con este perfil. Cámbieles el perfil antes de desactivarlo.');
-        }
-        $this->perfiles->cambiarEstado((int)$p['id'], $activo);
     }
 }

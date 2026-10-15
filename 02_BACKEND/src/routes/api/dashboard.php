@@ -224,6 +224,19 @@ if ($action === 'cumplimiento_partners') {
     $stmtBloq->execute($params);
 
     $toInt = static fn(array $r): array => array_map(static fn($v) => is_numeric($v) ? (int)$v : $v, $r);
+
+    // Por supervisor del partner (2026-10-13): quién atiende a tiempo y quién deja bloquear sus órdenes.
+    $stmtSup = $pdo->prepare("SELECT u.id, u.nombre_completo, p.nombre_partner, {$metricas}
+        FROM supervisiones s JOIN partners p ON p.id = s.partner_id JOIN usuarios u ON u.id = s.supervisor_id
+        WHERE {$where} GROUP BY u.id, u.nombre_completo, p.nombre_partner ORDER BY bloqueadas DESC, asignadas DESC LIMIT 50");
+    $stmtSup->execute($params);
+    $supervisoresPartner = array_map(static function ($r) use ($toInt) {
+        $r = $toInt($r);
+        $cerradas = $r['a_tiempo'] + $r['bloqueadas'];
+        $r['cumplimiento'] = $cerradas > 0 ? round($r['a_tiempo'] * 100 / $cerradas, 1) : null;
+        return $r;
+    }, $stmtSup->fetchAll());
+
     $partners = array_map(static function ($r) use ($toInt) {
         $r = $toInt($r);
         $cerradas = $r['a_tiempo'] + $r['bloqueadas'];
@@ -240,7 +253,150 @@ if ($action === 'cumplimiento_partners') {
         'resumen' => $resumen,
         'partners' => $partners,
         'bloqueadas' => array_map($toInt, $stmtBloq->fetchAll()),
+        'supervisores' => $supervisoresPartner,
     ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// Pendientes cargadas por Excel y su atención por los supervisores directos (2026-10-13).
+// Responsable: el supervisor directo que la tomó; si la transfirió a un partner, sigue siendo suya (asignado_por)
+// y se muestra además quién la atendió en el partner.
+if ($action === 'pendientes_directos') {
+    $inicio = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_GET['fecha_inicio'] ?? '')) ? $_GET['fecha_inicio'] : date('Y-m-01');
+    $fin = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_GET['fecha_fin'] ?? '')) ? $_GET['fecha_fin'] : date('Y-m-d');
+    $where = "s.origen_importacion = 1 AND s.es_cancelacion = 1 AND s.fecha_carga >= :ini AND s.fecha_carga < DATE_ADD(:fin, INTERVAL 1 DAY)";
+    $params = [':ini' => $inicio, ':fin' => $fin];
+    $partnerId = (int)($_GET['partner_id'] ?? 0);
+    if ($partnerId > 0) { $where .= ' AND s.partner_id = :partner'; $params[':partner'] = $partnerId; }
+    $depFiltro = sgsDashboardDepartamento();
+    if ($depFiltro !== '') { $where .= ' AND s.departamento = :dep'; $params[':dep'] = $depFiltro; }
+
+    $transferida = "(s.fecha_asignacion IS NOT NULL AND u.partner_id = s.partner_id AND UPPER(TRIM(COALESCE(p.nombre_partner,''))) NOT IN ('WIN','WIN DIRECTO'))";
+    $base = "SELECT s.id, s.codigo_supervision, s.ticket_codigo, s.departamento, s.fecha_carga, s.fecha_asignacion, p.nombre_partner,
+            COALESCE(rr.nombre_completo, u.nombre_completo) atendio_nombre,
+            CASE WHEN s.rescate_estado = 'En rescate' THEN 'en_rescate'
+                 WHEN s.rescate_estado IS NOT NULL THEN 'atendida'
+                 WHEN {$transferida} AND (s.estado_atencion_partner = 'Atendida' OR s.estado_supervision = 'Finalizada') THEN 'partner_atendida'
+                 WHEN {$transferida} AND NOW() > DATE_ADD(s.fecha_asignacion, INTERVAL 24 HOUR) THEN 'partner_vencida'
+                 WHEN {$transferida} THEN 'partner_en_plazo'
+                 WHEN s.estado_supervision = 'Finalizada' THEN 'atendida'
+                 WHEN s.estado_supervision IN ('Iniciada','En proceso') THEN 'en_proceso'
+                 ELSE 'sin_tomar' END situacion,
+            CASE WHEN s.rescate_estado IS NOT NULL THEN s.rescate_responsable_id WHEN {$transferida} THEN s.asignado_por
+                 WHEN s.estado_supervision <> 'Pendiente' THEN s.supervisor_id END responsable_id,
+            s.rescate_estado,
+            CASE WHEN s.rescate_estado IS NOT NULL AND s.rescate_estado <> 'En rescate' THEN s.rescate_fin
+                 WHEN {$transferida} THEN s.fecha_atencion_partner
+                 WHEN s.estado_supervision = 'Finalizada' THEN (SELECT MIN(h.fecha_cambio) FROM supervision_estado_historial h WHERE h.supervision_id = s.id AND h.estado_nuevo = 'Finalizada')
+            END fecha_atencion
+        FROM supervisiones s JOIN usuarios u ON u.id = s.supervisor_id LEFT JOIN partners p ON p.id = s.partner_id
+        LEFT JOIN usuarios rr ON rr.id = s.rescate_responsable_id
+        WHERE {$where}";
+    $supFiltro = (int)($_GET['supervisor_id'] ?? 0);
+    $externo = $supFiltro > 0 ? ' WHERE x.responsable_id = :sup' : '';
+    if ($supFiltro > 0) $params[':sup'] = $supFiltro;
+
+    $metricas = "COUNT(*) cargadas,
+        SUM(x.situacion = 'sin_tomar') sin_tomar,
+        SUM(x.situacion = 'en_proceso') en_proceso,
+        SUM(x.situacion = 'en_rescate') en_rescate,
+        SUM(x.rescate_estado = 'Rescatado') rescatadas,
+        SUM(x.rescate_estado = 'No rescatado') no_rescatadas,
+        SUM(x.situacion = 'atendida') atendidas_directo,
+        SUM(x.situacion LIKE 'partner_%') transferidas,
+        SUM(x.situacion = 'partner_atendida') atendidas_partner,
+        SUM(x.situacion = 'partner_en_plazo') partner_en_plazo,
+        SUM(x.situacion = 'partner_vencida') partner_vencidas,
+        ROUND(AVG(CASE WHEN x.fecha_atencion IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, x.fecha_carga, x.fecha_atencion) END)) minutos_atencion";
+    $toInt = static fn(array $r): array => array_map(static fn($v) => is_numeric($v) ? (int)$v : $v, $r);
+    $conPct = static function (array $r) use ($toInt): array {
+        $r = $toInt($r);
+        $r['atendidas'] = ($r['atendidas_directo'] ?? 0) + ($r['atendidas_partner'] ?? 0);
+        $tomadas = ($r['cargadas'] ?? 0) - ($r['sin_tomar'] ?? 0);
+        $r['tomadas'] = $tomadas;
+        $r['pct_atencion'] = ($r['cargadas'] ?? 0) > 0 ? round($r['atendidas'] * 100 / $r['cargadas'], 1) : null;
+        return $r;
+    };
+    $st = $pdo->prepare("SELECT {$metricas} FROM ({$base}) x{$externo}"); $st->execute($params);
+    $resumen = $conPct($st->fetch() ?: []);
+    $st = $pdo->prepare("SELECT x.responsable_id id, r.nombre_completo, {$metricas} FROM ({$base}) x JOIN usuarios r ON r.id = x.responsable_id
+        " . ($supFiltro > 0 ? 'WHERE x.responsable_id = :sup' : '') . " GROUP BY x.responsable_id, r.nombre_completo ORDER BY cargadas DESC, r.nombre_completo");
+    $st->execute($params);
+    $supervisores = array_map($conPct, $st->fetchAll());
+    $st = $pdo->prepare("SELECT x.id, x.codigo_supervision, x.ticket_codigo, x.departamento, x.fecha_carga, x.situacion, x.rescate_estado, x.nombre_partner, x.fecha_atencion,
+            r.nombre_completo responsable, IF(x.situacion LIKE 'partner_%' OR x.situacion IN ('atendida','en_proceso','en_rescate'), x.atendio_nombre, NULL) atendio
+        FROM ({$base}) x LEFT JOIN usuarios r ON r.id = x.responsable_id{$externo} ORDER BY x.fecha_carga DESC, x.id DESC LIMIT 200");
+    $st->execute($params);
+
+    echo json_encode(['status' => 'success', 'periodo' => ['inicio' => $inicio, 'fin' => $fin], 'resumen' => $resumen,
+        'supervisores' => $supervisores, 'detalle' => $st->fetchAll()], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// Observaciones y descargos de los partners (2026-10-13). Misma regla que la pantalla Observaciones: cada hallazgo de
+// campo y cada ítem de checklist con comentario o foto es una observación, con el estado del descargo de su partner.
+if ($action === 'observaciones_partners') {
+    $inicio = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_GET['fecha_inicio'] ?? '')) ? $_GET['fecha_inicio'] : date('Y-m-01');
+    $fin = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_GET['fecha_fin'] ?? '')) ? $_GET['fecha_fin'] : date('Y-m-d');
+    $partnerId = (int)($_GET['partner_id'] ?? 0);
+    $depFiltro = sgsDashboardDepartamento();
+    $params = [];
+    // Prepares nativos: cada parte del UNION lleva sus propios marcadores.
+    $filtro = static function (string $fecha, string $n) use (&$params, $inicio, $fin, $partnerId, $depFiltro): string {
+        $sql = "{$fecha} >= :ini{$n} AND {$fecha} < DATE_ADD(:fin{$n}, INTERVAL 1 DAY) AND UPPER(TRIM(p.nombre_partner)) NOT IN ('WIN','WIN DIRECTO')";
+        $params[":ini{$n}"] = $inicio; $params[":fin{$n}"] = $fin;
+        if ($partnerId > 0) { $sql .= " AND p.id = :partner{$n}"; $params[":partner{$n}"] = $partnerId; }
+        if ($depFiltro !== '') { $sql .= " AND s.departamento = :dep{$n}"; $params[":dep{$n}"] = $depFiltro; }
+        return $sql;
+    };
+    $base = "SELECT p.id partner_id, p.nombre_partner, 'Campo' tipo, o.gravedad,
+            COALESCE(sub.descripcion_subopcion, c.nombre_categoria, 'Observación') motivo,
+            o.fecha_registro, o.fecha_limite_respuesta limite, o.fecha_respuesta_partner respuesta,
+            CASE WHEN o.estado_respuesta IN ('Apelación Aprobada','Levantamiento validado') THEN 'validada'
+                 WHEN o.estado_respuesta IN ('Penalidad Directa','Apelación Rechazada','Levantamiento rechazado') THEN 'penalizada'
+                 WHEN o.estado_respuesta IN ('Respondido','En revisión') THEN 'revision' ELSE 'pendiente' END grupo
+        FROM observaciones_supervision o JOIN supervisiones s ON s.id = o.supervision_id JOIN partners p ON p.id = s.partner_id
+        LEFT JOIN categorias_observacion c ON c.id = o.categoria_id LEFT JOIN subopciones_observacion sub ON sub.id = o.subopcion_id
+        WHERE " . $filtro('o.fecha_registro', '1') . "
+        UNION ALL
+        SELECT p.id, p.nombre_partner, 'Checklist', NULL, cr.criterio, ct.fecha_registro, ct.fecha_limite_respuesta, ct.fecha_respuesta_partner,
+            CASE ct.estado_respuesta WHEN 'Validado' THEN 'validada' WHEN 'Penalizado' THEN 'penalizada' WHEN 'En revisión' THEN 'revision' ELSE 'pendiente' END
+        FROM checklist_respuestas cr JOIN checklists_tecnicos ct ON ct.id = cr.checklist_id JOIN supervisiones s ON s.id = ct.supervision_id
+        JOIN partners p ON p.id = s.partner_id
+        WHERE ((cr.observacion IS NOT NULL AND TRIM(cr.observacion) <> '') OR cr.foto_evidencia IS NOT NULL) AND " . $filtro('ct.fecha_registro', '2');
+
+    $metricas = "COUNT(*) total,
+        SUM(r.respuesta IS NOT NULL) respondidas,
+        SUM(r.respuesta IS NOT NULL AND (r.limite IS NULL OR r.respuesta <= r.limite)) a_tiempo,
+        SUM(r.respuesta IS NULL AND r.grupo = 'pendiente' AND (r.limite IS NULL OR NOW() <= r.limite)) en_plazo,
+        SUM(r.respuesta IS NULL AND r.limite IS NOT NULL AND NOW() > r.limite) sin_respuesta_vencidas,
+        SUM(r.grupo = 'revision') en_revision,
+        SUM(r.grupo = 'validada') validadas,
+        SUM(r.grupo = 'penalizada') penalizadas,
+        ROUND(AVG(CASE WHEN r.respuesta IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, r.fecha_registro, r.respuesta) END)) minutos_respuesta";
+    $toInt = static fn(array $r): array => array_map(static fn($v) => is_numeric($v) ? (int)$v : $v, $r);
+    $conPorcentajes = static function (array $r) use ($toInt): array {
+        $r = $toInt($r);
+        $r['pct_a_tiempo'] = ($r['total'] ?? 0) > 0 ? round($r['a_tiempo'] * 100 / $r['total'], 1) : null;
+        $evaluadas = ($r['validadas'] ?? 0) + ($r['penalizadas'] ?? 0);
+        $r['pct_penalizadas'] = $evaluadas > 0 ? round($r['penalizadas'] * 100 / $evaluadas, 1) : null;
+        return $r;
+    };
+
+    $st = $pdo->prepare("SELECT {$metricas} FROM ({$base}) r"); $st->execute($params);
+    $resumen = $conPorcentajes($st->fetch() ?: []);
+    $st = $pdo->prepare("SELECT r.partner_id, r.nombre_partner, {$metricas} FROM ({$base}) r GROUP BY r.partner_id, r.nombre_partner ORDER BY penalizadas DESC, total DESC");
+    $st->execute($params);
+    $partners = array_map($conPorcentajes, $st->fetchAll());
+    $st = $pdo->prepare("SELECT r.motivo, r.tipo, COUNT(*) total, SUM(r.grupo = 'penalizada') penalizadas FROM ({$base}) r GROUP BY r.motivo, r.tipo ORDER BY total DESC LIMIT 8");
+    $st->execute($params);
+    $motivos = array_map($toInt, $st->fetchAll());
+    $st = $pdo->prepare("SELECT COALESCE(r.gravedad, 'Checklist') gravedad, COUNT(*) total FROM ({$base}) r GROUP BY COALESCE(r.gravedad, 'Checklist')");
+    $st->execute($params);
+    $gravedad = array_map($toInt, $st->fetchAll());
+
+    echo json_encode(['status' => 'success', 'periodo' => ['inicio' => $inicio, 'fin' => $fin], 'resumen' => $resumen,
+        'partners' => $partners, 'motivos' => $motivos, 'gravedad' => $gravedad], JSON_UNESCAPED_UNICODE);
     exit;
 }
 

@@ -1402,7 +1402,9 @@ html.win-page-transitioning #main-content-area {
 }
 @keyframes win-page-enter {
     from { opacity: 0; transform: translateY(7px); }
-    to { opacity: 1; transform: translateY(0); }
+    /* "none" y no "translateY(0)": la animación queda aplicada (fill "both") y una transformación, aunque sea 0,
+       hace que todo lo "position: fixed" de la página quede atado a ella (los botones flotantes caían al final). */
+    to { opacity: 1; transform: none; }
 }
 @keyframes win-menu-in {
     from { opacity: 0; transform: translateY(-5px) scale(.985); }
@@ -1413,7 +1415,9 @@ html.win-page-transitioning #main-content-area {
     to { transform: translateX(105%); }
 }
 body:not(.modal-open) #main-content-area > * {
-    animation: win-page-enter .28s var(--win-ease) both;
+    /* "backwards" (no "both"): al terminar, la animación deja de aplicarse. Si quedaba aplicada, el contenedor seguía
+       "transformado" y los botones flotantes (position: fixed) caían al final del formulario (2026-10-15). */
+    animation: win-page-enter .28s var(--win-ease) backwards;
 }
 ::view-transition-old(root) {
     animation: .14s ease both win-view-out;
@@ -1686,8 +1690,8 @@ body:not(.modal-open) #main-content-area > * {
     --sgs-danger-border: #F5C2C2;
     --sgs-info: #4A4D52;
     --sgs-info-soft: #F0EFEE;
-    --sgs-font: 'MADETommySoft', 'Nunito', system-ui, sans-serif;
-    --sgs-font-display: 'Panton', 'Montserrat', 'Nunito', sans-serif;
+    --sgs-font: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif; /* v2 (2026-10-15): una sola letra en todo el sistema */
+    --sgs-font-display: var(--sgs-font); /* antes Montserrat 800: se veía tosco */
     --sgs-radius-sm: 10px;
     --sgs-radius: 16px;
     --sgs-radius-lg: 20px;
@@ -1806,7 +1810,7 @@ a:hover {
 #main-content-area h5,
 #main-content-area h6 {
     font-family: var(--sgs-font) !important;
-    font-weight: 800 !important;
+    font-weight: 700 !important;
     letter-spacing: -.01em;
     color: var(--sgs-ink);
 }
@@ -1835,9 +1839,9 @@ a:hover {
 }
 /* ============================== 3. MENÚ LATERAL (naranja WIN, logo blanco) ============================== */
 #sidebar.sgs-sidebar {
-    min-width: 248px !important;
-    max-width: 248px !important;
-    width: 248px !important;
+    min-width: 228px !important;
+    max-width: 228px !important;
+    width: 228px !important;
     background: linear-gradient(180deg, #FF6A1F 0%, var(--sgs-orange) 45%, var(--sgs-orange-dark) 100%) !important;
     border-right: 0 !important;
     box-shadow: 4px 0 24px rgba(216, 69, 11, .25) !important;
@@ -1860,7 +1864,7 @@ a:hover {
     letter-spacing: 1.2px;
     text-transform: uppercase;
     color: rgba(255, 255, 255, .85);
-    font-weight: 800;
+    font-weight: 700;
     margin-top: 6px;
 }
 #sidebar.sgs-sidebar #sidebarCloseMobile {
@@ -1892,7 +1896,7 @@ a:hover {
     place-items: center;
     background: #fff;
     color: var(--sgs-orange);
-    font-weight: 900;
+    font-weight: 700;
     font-size: 14px;
     box-shadow: 0 2px 6px rgba(120, 30, 0, .25);
 }
@@ -1911,7 +1915,7 @@ a:hover {
 }
 .sgs-profile-name {
     color: #fff;
-    font-weight: 800;
+    font-weight: 700;
     font-size: 13.5px;
     line-height: 1.2;
 }
@@ -1923,12 +1927,12 @@ a:hover {
     background: #fff;
     color: var(--sgs-orange-dark);
     font-size: 10.5px;
-    font-weight: 800;
+    font-weight: 700;
 }
 .sgs-menu-label {
     padding: 16px 22px 6px;
     font-size: 10.5px;
-    font-weight: 800;
+    font-weight: 700;
     letter-spacing: 1.4px;
     text-transform: uppercase;
     color: rgba(255, 255, 255, .72);
@@ -2030,7 +2034,7 @@ a:hover {
     border-radius: 30px;
     border: 1px solid var(--sgs-orange-border);
     color: var(--sgs-orange-dark);
-    font-weight: 800;
+    font-weight: 700;
     font-size: 13px;
     background: var(--sgs-surface);
     box-shadow: var(--sgs-shadow-field);
@@ -2193,7 +2197,7 @@ a:hover {
     display: block;
     color: var(--sgs-muted) !important;
     font-size: .72rem !important;
-    font-weight: 800 !important;
+    font-weight: 700 !important;
     letter-spacing: .05em;
     text-transform: uppercase;
 }
@@ -2202,7 +2206,7 @@ a:hover {
 .sgs-kpi-value,
 #main-content-area .obs-kpi strong {
     font-family: var(--sgs-font-display) !important;
-    font-weight: 900 !important;
+    font-weight: 700 !important;
     color: var(--sgs-ink);
 }
 #main-content-area .obs-kpi .icon {
@@ -2255,7 +2259,7 @@ a:hover {
     background: var(--sgs-ink) !important;
     border-color: var(--sgs-ink) !important;
     font-family: var(--sgs-font-display) !important;
-    font-weight: 900 !important;
+    font-weight: 700 !important;
     box-shadow: 0 6px 14px rgba(20, 20, 20, .18) !important;
 }
 .btn-dark:hover,
@@ -2391,7 +2395,7 @@ a:hover {
 /* ============================== 10. INSIGNIAS Y ALERTAS ============================== */
 .badge {
     border-radius: 20px !important;
-    font-weight: 800 !important;
+    font-weight: 700 !important;
     padding: .38em .75em;
 }
 .badge.bg-warning,
@@ -2449,7 +2453,7 @@ a:hover {
 .display-5,
 .fs-2 {
     font-family: var(--sgs-font-display);
-    font-weight: 900 !important;
+    font-weight: 700 !important;
 }
 /* ============================== 11. MODALES ============================== */
 .modal-content {
@@ -2466,7 +2470,7 @@ a:hover {
 .modal-header.text-white,
 .modal-header .text-white {
     color: var(--sgs-ink) !important;
-    font-weight: 800 !important;
+    font-weight: 700 !important;
 }
 .modal-footer {
     border-top-color: var(--sgs-border) !important;
@@ -2958,7 +2962,7 @@ body {
 /* Título de pantalla: estilo de oración, sin mayúsculas forzadas */
 .sgs-topbar-title h1 {
     text-transform: none !important;
-    font-weight: 800 !important;
+    font-weight: 700 !important;
     letter-spacing: -.015em;
     font-size: clamp(1.15rem, 1.7vw, 1.4rem) !important;
 }
@@ -3001,7 +3005,7 @@ body {
 .sgs-kpi--info h3,
 .sgs-kpi--info h6 {
     color: var(--sgs-ink) !important;
-    font-weight: 800 !important;
+    font-weight: 700 !important;
     letter-spacing: -.01em;
 }
 .sgs-kpi--danger h3,
@@ -3019,7 +3023,7 @@ body {
     color: var(--sgs-muted) !important;
     border-bottom: 1px solid var(--sgs-border) !important;
     font-size: .72rem !important;
-    font-weight: 800 !important;
+    font-weight: 700 !important;
     letter-spacing: .05em;
     text-transform: uppercase;
 }
@@ -3145,7 +3149,7 @@ body {
     color: var(--sgs-ink-2) !important;
     border: 1px solid var(--sgs-border) !important;
     font-size: 12.5px !important;
-    font-weight: 800;
+    font-weight: 700;
     box-shadow: none !important;
 }
 /* ============================== 18. BARRA DE HERRAMIENTAS DE LISTADOS ============================== */
@@ -3226,7 +3230,7 @@ body {
     border-radius: 20px;
     text-align: center;
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 700;
     background: var(--sgs-surface);
     color: var(--sgs-muted);
     border: 1px solid var(--sgs-border);
@@ -3285,7 +3289,7 @@ body {
    En turno = verde · pausa = amarillo · reunión/capacitación = neutro · fuera de turno = gris (no es un error). */
 .badge.badge-status {
     border-radius: 30px !important;
-    font-weight: 800 !important;
+    font-weight: 700 !important;
     box-shadow: none !important;
     border: 1px solid transparent !important;
     background-image: none !important;
@@ -3459,7 +3463,7 @@ html.sgs-gps-bloqueado, html.sgs-gps-bloqueado body { overflow: hidden; }
     width: 64px; height: 64px; margin: 0 auto 14px; border-radius: 50%; display: grid; place-items: center;
     background: var(--sgs-orange-soft); color: var(--sgs-orange); font-size: 1.8rem;
 }
-.sgs-gps-card h2 { font-family: var(--sgs-font-display); font-weight: 800; font-size: 1.3rem; color: var(--sgs-ink); margin-bottom: 8px; }
+.sgs-gps-card h2 { font-family: var(--sgs-font-display); font-weight: 700; font-size: 1.3rem; color: var(--sgs-ink); margin-bottom: 8px; }
 .sgs-gps-card p { color: var(--sgs-brown); margin-bottom: 16px; }
 .sgs-gps-pasos { text-align: left; margin: 0 0 18px; padding-left: 1.2rem; color: var(--sgs-ink-2); }
 .sgs-gps-pasos li { margin-bottom: 6px; }
@@ -3574,7 +3578,7 @@ html.sgs-gps-bloqueado, html.sgs-gps-bloqueado body { overflow: hidden; }
 .sgs-obs-detalle { display: flex; flex-direction: column; gap: 18px; }
 .sgs-obs-estado { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; font-size: .875rem; }
 .sgs-obs-seccion { border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); padding: 14px 16px; background: var(--sgs-surface); }
-.sgs-obs-seccion-titulo { margin: 0 0 12px; font-size: .72rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--sgs-muted); }
+.sgs-obs-seccion-titulo { margin: 0 0 12px; font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--sgs-muted); }
 .sgs-obs-datos { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px 18px; margin: 0; }
 .sgs-obs-datos dt { font-size: .72rem; font-weight: 700; color: var(--sgs-muted); margin-bottom: 2px; }
 .sgs-obs-datos dd { margin: 0; font-weight: 600; color: var(--sgs-ink); overflow-wrap: anywhere; }
@@ -3592,3 +3596,463 @@ html.sgs-gps-bloqueado, html.sgs-gps-bloqueado body { overflow: hidden; }
 }
 .sgs-obs-seguimiento li.is-hecho > i { background: var(--sgs-success-soft); color: var(--sgs-success-dark); border-color: transparent; }
 .sgs-obs-seguimiento li > div { flex: 1 1 auto; min-width: 0; }
+
+/* ============================== 30. GRÁFICO DE MODALIDAD (Dashboard: en caliente / en frío) ============================== */
+/* Anillo de dos partes. Colores validados (contraste y daltonismo): naranja WIN = en caliente, azul = en frío. */
+:root {
+    --sgs-serie-caliente: var(--sgs-orange);
+    --sgs-serie-frio: #2A78D6;
+    --sgs-serie-remota: #1BAF7A; /* 2026-10-13: tercera parte (remota), validada con las otras dos (daltonismo y visión normal) */
+}
+.sgs-donut-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; }
+.sgs-donut { width: 180px; height: 180px; flex: none; }
+.sgs-donut-arc { fill: none; stroke-width: 24; transition: stroke-width .15s ease; cursor: default; }
+.sgs-donut-arc:hover, .sgs-donut-arc:focus { stroke-width: 28; outline: none; }
+.sgs-donut-arc.is-caliente, .sgs-donut-swatch.is-caliente { stroke: var(--sgs-serie-caliente); background: var(--sgs-serie-caliente); }
+.sgs-donut-arc.is-frio, .sgs-donut-swatch.is-frio { stroke: var(--sgs-serie-frio); background: var(--sgs-serie-frio); }
+.sgs-donut-arc.is-remota, .sgs-donut-swatch.is-remota { stroke: var(--sgs-serie-remota); background: var(--sgs-serie-remota); }
+.sgs-donut-total { font-family: var(--sgs-font-display); font-weight: 700; font-size: 26px; fill: var(--sgs-ink); }
+.sgs-donut-sub { font-size: 11px; fill: var(--sgs-muted); }
+.sgs-donut-legend { display: grid; gap: 10px; flex: 1 1 200px; min-width: 0; }
+.sgs-donut-legend li { display: grid; grid-template-columns: 14px 1fr auto; align-items: center; gap: 10px; color: var(--sgs-brown); }
+.sgs-donut-legend strong { color: var(--sgs-ink); font-size: 1.1rem; }
+.sgs-donut-swatch { width: 14px; height: 14px; border-radius: 4px; }
+
+/* ============================== 31. RESULTADO DE LA CARGA DE CANCELACIONES ============================== */
+.sgs-import-tabla { max-height: 240px; border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); }
+.sgs-import-tabla thead th { position: sticky; top: 0; background: var(--sgs-surface-alt); }
+
+/* ============================== 32. TABLA LARGA CON ALTO MÁXIMO (Dashboard: detalle de pendientes) ============================== */
+.sgs-tabla-alta { max-height: 420px; border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); }
+.sgs-tabla-alta thead th { position: sticky; top: 0; z-index: 1; background: var(--sgs-surface-alt); }
+
+/* ============================== 33. LÍNEA DE TIEMPO POR HORAS (Gantt de la jornada + ventana flotante) ============================== */
+.sgs-gantt { border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); overflow: auto; max-height: 640px; background: var(--sgs-surface); }
+.sgs-gantt-inner { min-width: 980px; }
+.sgs-gantt-row { display: grid; grid-template-columns: 230px 1fr; border-bottom: 1px solid var(--sgs-border); }
+.sgs-gantt-row:last-child { border-bottom: 0; }
+.sgs-gantt-head { position: sticky; top: 0; z-index: 4; background: var(--sgs-surface-alt); }
+.sgs-gantt-name { position: sticky; left: 0; z-index: 3; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 10px; background: var(--sgs-surface);
+    border: 0; border-right: 1px solid var(--sgs-border); text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.sgs-gantt-name:hover { background: var(--sgs-surface-alt); }
+.sgs-gantt-name:focus-visible, .sgs-gantt-blk:focus-visible, .sgs-gantt-turno:focus-visible { outline: 0; box-shadow: var(--sgs-ring); }
+.sgs-gantt-head .sgs-gantt-name { background: var(--sgs-surface-alt); cursor: default; z-index: 5; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--sgs-muted); }
+.sgs-gantt-avatar { flex: 0 0 32px; width: 32px; height: 32px; border-radius: 50%; object-fit: cover; display: inline-flex; align-items: center; justify-content: center;
+    background: var(--sgs-orange-soft); color: var(--sgs-orange-dark); font-size: .72rem; font-weight: 700; }
+.sgs-gantt-who { min-width: 0; line-height: 1.2; }
+.sgs-gantt-who strong { display: block; font-size: .82rem; color: var(--sgs-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sgs-gantt-who small { display: block; font-size: .7rem; color: var(--sgs-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sgs-gantt-track { position: relative; height: 54px; }
+.sgs-gantt-head .sgs-gantt-track { height: 32px; }
+.sgs-gantt-hour { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--sgs-border); pointer-events: none; }
+.sgs-gantt-head .sgs-gantt-hour { border-left-style: solid; }
+.sgs-gantt-hour span { position: absolute; top: 8px; left: 4px; font-size: .72rem; font-weight: 700; color: var(--sgs-muted); white-space: nowrap; }
+.sgs-gantt-turno { position: absolute; top: 9px; bottom: 9px; border-radius: 9px; background: var(--sgs-surface-alt); border: 1px solid var(--sgs-border); padding: 0; cursor: pointer; }
+.sgs-gantt-turno.is-abierto { border-right: 2px dashed var(--sgs-success); }
+.sgs-gantt-blk { position: absolute; top: 13px; bottom: 13px; min-width: 6px; display: flex; align-items: center; gap: 4px; padding: 0 6px; overflow: hidden; white-space: nowrap;
+    border-radius: 6px; border: 1px solid transparent; font: inherit; font-size: .7rem; font-weight: 700; cursor: pointer; z-index: 1; }
+.sgs-gantt-blk.is-sup-fin { background: var(--sgs-success-soft); border-color: var(--sgs-success); color: var(--sgs-success-dark); }
+.sgs-gantt-blk.is-sup-curso { background: var(--sgs-orange-soft); border-color: var(--sgs-orange); color: var(--sgs-orange-dark); }
+.sgs-gantt-blk.is-pausa { background: var(--sgs-info); border-color: var(--sgs-info); color: var(--sgs-surface); }
+.sgs-gantt-blk.is-remoto { background: var(--sgs-info-soft); border: 1px dashed var(--sgs-info); color: var(--sgs-info); }
+.sgs-gantt-blk.is-traslado { top: 22px; bottom: 22px; padding: 0; background: repeating-linear-gradient(45deg, var(--sgs-warning-soft) 0 5px, var(--sgs-warning) 5px 7px); border-color: var(--sgs-warning); }
+.sgs-gantt-ahora { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--sgs-danger); z-index: 2; pointer-events: none; }
+.sgs-gantt-head .sgs-gantt-ahora span { position: absolute; top: 7px; left: 4px; padding: 0 5px; border-radius: 6px; background: var(--sgs-danger); color: var(--sgs-surface); font-size: .66rem; font-weight: 700; }
+.sgs-gantt-licencia { position: absolute; inset: 12px 8px; display: flex; align-items: center; padding: 0 10px; border-radius: 6px; background: var(--sgs-info-soft); color: var(--sgs-info); font-size: .75rem; font-weight: 700; }
+.sgs-gantt-vacio { position: absolute; inset: 0; display: flex; align-items: center; padding-left: 12px; font-size: .75rem; color: var(--sgs-muted); }
+.sgs-gantt-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: .78rem; color: var(--sgs-brown); }
+.sgs-gantt-legend i.sw { display: inline-block; width: 22px; height: 10px; margin-right: 6px; border-radius: 3px; vertical-align: middle; position: static; }
+.sgs-gantt-legend i.sw.sgs-gantt-blk { top: auto; bottom: auto; min-width: 0; padding: 0; }
+.sgs-gantt-legend i.sw.is-ahora { width: 2px; height: 14px; background: var(--sgs-danger); }
+.sgs-gantt-legend i.sw.is-turno { background: var(--sgs-surface-alt); border: 1px solid var(--sgs-border); }
+/* Ventana flotante: junto al clic en escritorio; hoja inferior en celular */
+.sgs-tl-pop { position: fixed; z-index: 1080; width: 330px; max-width: calc(100vw - 24px); max-height: calc(100vh - 24px); overflow: auto; padding: 14px 16px;
+    background: var(--sgs-surface); border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius); box-shadow: var(--sgs-shadow); }
+.sgs-tl-pop.is-sheet { left: 0; right: 0; bottom: 0; width: auto; max-width: none; max-height: 75vh; border-radius: var(--sgs-radius-lg) var(--sgs-radius-lg) 0 0; }
+.sgs-tl-pop-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.sgs-tl-pop-head h6 { margin: 0; font-weight: 700; color: var(--sgs-ink); }
+.sgs-tl-pop dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0 0 10px; font-size: .82rem; }
+.sgs-tl-pop dt { font-weight: 600; color: var(--sgs-muted); }
+.sgs-tl-pop dd { margin: 0; color: var(--sgs-brown); text-align: right; }
+@media (max-width: 575.98px) {
+    .sgs-gantt-inner { min-width: 860px; }
+    .sgs-gantt-row { grid-template-columns: 112px 1fr; }
+    .sgs-gantt-name { padding: 6px 8px; }
+    .sgs-gantt-name .sgs-gantt-avatar { display: none; }
+}
+/* Marcas de inicio y fin de turno (flecha arriba, hora abajo) */
+.sgs-gantt-marca { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; padding: 0; border: 0; z-index: 2; cursor: pointer; }
+.sgs-gantt-marca.is-inicio { background: var(--sgs-success); color: var(--sgs-success-dark); }
+.sgs-gantt-marca.is-fin { background: var(--sgs-ink); color: var(--sgs-ink); }
+.sgs-gantt-marca i { position: absolute; top: -1px; left: 50%; transform: translateX(-50%); font-size: 1.05rem; line-height: 1; background: var(--sgs-surface); border-radius: 50%; }
+.sgs-gantt-marca span { position: absolute; bottom: 1px; font-size: .62rem; font-weight: 700; white-space: nowrap; background: var(--sgs-surface); padding: 0 2px; border-radius: 3px; }
+.sgs-gantt-marca.is-inicio span { right: 4px; }
+.sgs-gantt-marca.is-fin span { left: 4px; }
+.sgs-gantt-marca:focus-visible { outline: 0; box-shadow: var(--sgs-ring); }
+.sgs-gantt-legend .bi.is-inicio { color: var(--sgs-success); margin-right: 4px; }
+.sgs-gantt-legend .bi.is-fin { color: var(--sgs-ink); margin-right: 4px; }
+/* Menos amontonado (2026-10-13): botón para desplegar la lista, traslado como línea fina y supervisiones cortas visibles */
+div.sgs-gantt-name { cursor: default; padding: 6px 8px 6px 4px; gap: 4px; }
+div.sgs-gantt-name:hover { background: var(--sgs-surface); }
+.sgs-gantt-expand { flex: 0 0 24px; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 6px;
+    background: transparent; color: var(--sgs-muted); cursor: pointer; }
+.sgs-gantt-expand:hover { background: var(--sgs-surface-alt); color: var(--sgs-ink); }
+.sgs-gantt-expand i { transition: transform .15s ease; }
+.sgs-gantt-expand.is-open i { transform: rotate(90deg); }
+.sgs-gantt-who-btn { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 2px 4px; border: 0; border-radius: 8px; background: transparent;
+    text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.sgs-gantt-who-btn:hover { background: var(--sgs-surface-alt); }
+.sgs-gantt-expand:focus-visible, .sgs-gantt-who-btn:focus-visible { outline: 0; box-shadow: var(--sgs-ring); }
+.sgs-gantt-detalle { position: sticky; left: 0; box-sizing: border-box; width: var(--sgs-tl-visible, 100%); padding: 8px 12px 12px; background: var(--sgs-surface-alt); border-bottom: 1px solid var(--sgs-border); }
+.sgs-gantt-detalle .table { background: var(--sgs-surface); border-radius: var(--sgs-radius-sm); font-size: .82rem; }
+.sgs-gantt-blk.is-sup-fin, .sgs-gantt-blk.is-sup-curso { min-width: 10px; }
+.sgs-gantt-blk.is-traslado { top: 25px; bottom: 25px; padding: 0; border: 0; border-radius: 2px; background: repeating-linear-gradient(90deg, var(--sgs-warning) 0 6px, transparent 6px 10px); z-index: 0; }
+.sgs-gantt-legend i.sw.sgs-gantt-blk.is-traslado { height: 4px; }
+@media (max-width: 575.98px) { div.sgs-gantt-name .sgs-gantt-who-btn { gap: 4px; } }
+
+/* ============================== 34. SUPERVISIÓN REMOTA (videollamada) ============================== */
+.sgs-remota-aviso { grid-column: 1 / -1; padding: 10px 12px; border-radius: var(--sgs-radius-sm); background: var(--sgs-info-soft); color: var(--sgs-brown); font-size: .85rem; }
+.sgs-gantt-blk.is-sup-fin.is-remota, .sgs-gantt-blk.is-sup-curso.is-remota { border-style: dashed; }
+
+/* ============================== 35. RESCATE DE PENDIENTES ============================== */
+.badge-exec.rescate { background: var(--sgs-warning-soft); color: var(--sgs-warning-dark); border: 1px solid var(--sgs-warning); }
+.badge-exec.rescate::before { content: ''; display: inline-block; width: 6px; height: 6px; background: var(--sgs-warning-dark); border-radius: 50%; }
+.sgs-rescate { border: 1px solid var(--sgs-warning); background: var(--sgs-surface); }
+.sgs-rescate-historial { display: grid; gap: 10px; padding-left: 4px; border-left: 2px solid var(--sgs-border); }
+.sgs-rescate-historial li { display: grid; grid-template-columns: 22px 1fr; gap: 6px; padding-left: 8px; color: var(--sgs-brown); font-size: .88rem; }
+.sgs-rescate-historial li > i { color: var(--sgs-orange-dark); margin-top: 2px; }
+.sgs-rescate-bloque { padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--sgs-border); }
+.sgs-rescate-bloque .form-select, .sgs-rescate-bloque input[type="file"] { flex: 1 1 220px; width: auto; }
+
+/* ============================== 36. BOTONES DE GUARDAR SIEMPRE A LA VISTA (formularios de supervisión) ============================== */
+/* 2026-10-15: flotan fijos en la esquina inferior derecha mientras el formulario está abierto (antes "sticky", que
+   dependía del contenedor). Viven dentro de su vista: al cerrarla, desaparecen con ella. En celular, barra a lo ancho. */
+#form-edit-detail .form-actions-bitacora,
+#partner-supervision-form .form-actions-bitacora {
+    position: fixed; right: 20px; bottom: 20px; z-index: 1030; margin: 0; padding: 10px 12px; max-width: calc(100vw - 40px);
+    flex-wrap: wrap; background: var(--sgs-surface); border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius); box-shadow: var(--sgs-shadow);
+}
+button#startBtn.floating-start-action { position: fixed; right: 20px; bottom: 20px; z-index: 1030; margin: 0; }
+/* Espacio al final para que los botones flotantes no tapen los últimos campos */
+#form-edit-detail, #partner-supervision-form, #form-inicio-supervision { padding-bottom: 88px; }
+@media (max-width: 767.98px) {
+    #form-edit-detail .form-actions-bitacora,
+    #partner-supervision-form .form-actions-bitacora { left: 0; right: 0; bottom: 0; max-width: none; border-radius: var(--sgs-radius) var(--sgs-radius) 0 0; }
+    button#startBtn.floating-start-action { left: 12px; right: 12px; bottom: 12px; width: auto; }
+}
+
+/* ============================================================
+   37. Tabla que en celular se vuelve tarjetas (2026-10-15)
+   Uso: <table class="table sgs-tabla-tarjetas"> y data-label="Columna" en cada <td>.
+   ============================================================ */
+@media (max-width: 767.98px) {
+    .sgs-tabla-tarjetas thead { display: none; }
+    .sgs-tabla-tarjetas, .sgs-tabla-tarjetas tbody, .sgs-tabla-tarjetas tr, .sgs-tabla-tarjetas td { display: block; width: 100%; }
+    .sgs-tabla-tarjetas tr { margin: 0 0 10px; border: 1px solid var(--sgs-border); border-left: 4px solid var(--sgs-orange); border-radius: var(--sgs-radius-sm); padding: 6px 4px; background: var(--sgs-surface); }
+    .sgs-tabla-tarjetas > tbody > tr > td { border: 0; padding: 6px 12px; text-align: left; }
+    .sgs-tabla-tarjetas td[data-label] { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .sgs-tabla-tarjetas td[data-label]::before { content: attr(data-label); flex: 0 0 auto; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--sgs-muted); }
+    .sgs-tabla-tarjetas td[data-label] > * { text-align: right; }
+}
+
+/* ============================================================
+   38. Barra de listados en dos filas (2026-10-15) — Supervisiones
+   Fila 1 (.sgs-toolbar): estados a la izquierda; a la derecha las acciones (.sgs-toolbar-actions):
+   secundarias primero (Ver rutas, Columnas como solo ícono .sgs-btn-icono, menús) y la principal (btn-win) al final.
+   Fila 2 (.sgs-toolbar-row > .sgs-filtros): solo filtros, a todo el ancho; cada .sgs-filtro crece por igual,
+   "Limpiar" (.sgs-filtro-limpiar) al final. Controles de 40 px, etiquetas arriba. En celular, rejilla de 2 columnas.
+   ============================================================ */
+.sgs-toolbar .sgs-segmented .filter-tab-btn { padding: 6px 12px !important; }
+.sgs-toolbar-actions .btn,
+.sgs-toolbar-actions .btn-win { height: 40px; min-height: 40px; white-space: nowrap; }
+.sgs-btn-icono { width: 40px; padding: 0 !important; justify-content: center; }
+.sgs-btn-icono .bi { font-size: 16px; }
+.sgs-toolbar-row {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--sgs-border);
+}
+.sgs-filtros {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+}
+.sgs-filtro { flex: 1 1 150px; min-width: 140px; }
+.sgs-filtro--ancho { flex: 2 1 220px; }
+.sgs-filtro--fecha { flex: 1 1 150px; max-width: 200px; }
+.sgs-filtro .form-label { display: block; margin-bottom: 6px; }
+.sgs-filtros .form-control,
+.sgs-filtros .form-select,
+.sgs-filtros .btn { height: 40px; min-height: 40px; }
+.sgs-filtro-limpiar { flex: 0 0 auto; display: inline-flex; align-items: center; white-space: nowrap; }
+.sgs-filtro-busqueda { position: relative; }
+.sgs-filtro-busqueda > .bi {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    color: var(--sgs-muted); pointer-events: none; font-size: 14px;
+}
+.sgs-filtro-busqueda > .form-control { padding-left: 36px; }
+@media (max-width: 767.98px) {
+    .sgs-filtros { display: grid; grid-template-columns: 1fr 1fr; }
+    .sgs-filtro, .sgs-filtro--ancho, .sgs-filtro--fecha { min-width: 0; max-width: none; }
+    .sgs-filtro--ancho, .sgs-filtro-limpiar { grid-column: 1 / -1; justify-content: center; }
+    .sgs-toolbar-actions > .dropdown:has(.sgs-btn-icono) { flex: 0 0 40px; }
+}
+
+/* ============================================================
+   39. Campo obligatorio pendiente de elegir (2026-10-15)
+   Uso: contenedor del campo (.field-bitacora) + .sgs-campo-pendiente mientras esté vacío; .is-alerta cuando el
+   usuario intentó finalizar sin elegirlo. Ej.: "Resultado de la validación" de las cancelaciones cargadas.
+   ============================================================ */
+.sgs-campo-pendiente {
+    padding: 12px 14px;
+    border: 1px solid var(--sgs-warning);
+    border-left-width: 4px;
+    border-radius: var(--sgs-radius-sm);
+    background: var(--sgs-warning-soft);
+}
+.sgs-campo-pendiente > label { color: var(--sgs-warning-dark); }
+.sgs-campo-pendiente > label::after {
+    content: "Pendiente";
+    margin-left: 8px;
+    padding: 1px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    background: var(--sgs-warning);
+    color: var(--sgs-ink);
+    vertical-align: middle;
+}
+.sgs-campo-pendiente select,
+.sgs-campo-pendiente .form-select { border-color: var(--sgs-warning) !important; background-color: var(--sgs-surface); }
+.sgs-campo-pendiente small { color: var(--sgs-warning-dark) !important; font-weight: 700; }
+.sgs-campo-pendiente.is-alerta { border-color: var(--sgs-danger); background: var(--sgs-danger-soft); }
+.sgs-campo-pendiente.is-alerta > label { color: var(--sgs-danger-dark); }
+.sgs-campo-pendiente.is-alerta > label::after { background: var(--sgs-danger); color: #fff; content: "Obligatorio"; }
+.sgs-campo-pendiente.is-alerta select { border-color: var(--sgs-danger) !important; box-shadow: 0 0 0 3px var(--sgs-danger-soft); }
+
+/* ============================================================
+   40. Ficha de datos de consulta (2026-10-15) — supervisión finalizada
+   .sgs-ficha-datos > .sgs-dato (.sgs-dato-etiqueta + .sgs-dato-valor). Rejilla de 4 columnas sin cajas;
+   .sgs-dato--ancho ocupa 2 columnas y .sgs-dato--completo toda la fila (textos largos, en un recuadro suave).
+   .sgs-evidencias: fotos en rejilla pareja.
+   ============================================================ */
+.sgs-ficha-datos {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-flow: row dense;
+    gap: 16px 24px;
+}
+.sgs-dato { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.sgs-dato--ancho { grid-column: span 2; }
+.sgs-dato--completo { grid-column: 1 / -1; }
+.sgs-dato-etiqueta {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    color: var(--sgs-muted);
+}
+.sgs-dato-valor {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--sgs-ink);
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+.sgs-dato--completo .sgs-dato-valor {
+    font-weight: 500;
+    color: var(--sgs-brown);
+    white-space: pre-wrap;
+    padding: 12px 14px;
+    background: var(--sgs-surface-alt);
+    border: 1px solid var(--sgs-border);
+    border-radius: var(--sgs-radius-sm);
+}
+.sgs-dato-enlace {
+    display: inline-flex; align-items: center; gap: 4px; margin-left: 8px;
+    font-size: 13px; font-weight: 700; color: var(--sgs-orange-dark); text-decoration: none;
+}
+.sgs-dato-enlace:hover { text-decoration: underline; }
+.sgs-evidencias { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.sgs-evidencia {
+    display: flex; flex-direction: column; gap: 6px; padding: 0; border: 0; background: transparent; text-align: left;
+}
+.sgs-evidencia img {
+    width: 100%; aspect-ratio: 4 / 3; object-fit: cover;
+    border-radius: var(--sgs-radius-sm); border: 1px solid var(--sgs-border);
+}
+.sgs-evidencia span { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--sgs-muted); }
+.sgs-evidencia:hover img { border-color: var(--sgs-orange); }
+@media (max-width: 991.98px) {
+    .sgs-ficha-datos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 575.98px) {
+    .sgs-ficha-datos, .sgs-evidencias { grid-template-columns: 1fr; }
+    .sgs-dato--ancho { grid-column: auto; }
+}
+
+/* ============================================================
+   41. Estado de la captura GPS (2026-10-15)
+   <span class="sgs-gps-estado" data-estado="buscando|ok|baja|error">. Lo escribe capturarGPS() en Supervisiones.
+   ============================================================ */
+.sgs-gps-estado { font-size: 12.5px; color: var(--sgs-muted); }
+.sgs-gps-estado[data-estado="buscando"] { color: var(--sgs-ink-2); font-weight: 700; }
+.sgs-gps-estado[data-estado="ok"] { color: var(--sgs-success-dark); font-weight: 700; }
+.sgs-gps-estado[data-estado="baja"] { color: var(--sgs-warning-dark); font-weight: 700; }
+.sgs-gps-estado[data-estado="error"] { color: var(--sgs-danger-dark); font-weight: 700; }
+/* Coordenadas tomadas solo por GPS (presencial): se ven como dato, no como campo para escribir. */
+input[name="latitud"][readonly],
+input[name="longitud"][readonly] { background: var(--sgs-surface-alt); color: var(--sgs-ink-2); cursor: default; }
+
+/* ============================================================
+   42. Menú lateral limpio (2026-10-15, a pedido del usuario: "más acogedor, más limpio")
+   Lista plana siempre visible (sin títulos desplegables); los grupos se separan con una línea fina; letra más
+   liviana y más aire entre opciones. Los colores del menú no cambian.
+   ============================================================ */
+#sidebar.sgs-sidebar .sidebar-scrollable-menu { padding: 10px 0 8px; }
+#sidebar.sgs-sidebar .sgs-menu-group + .sgs-menu-group { margin-top: 8px; padding-top: 8px; border-top: 0; position: relative; }
+#sidebar.sgs-sidebar .sgs-menu-group + .sgs-menu-group::before {
+    content: ""; position: absolute; top: 0; left: 24px; right: 24px;
+    border-top: 1px solid rgba(255, 255, 255, .2);
+}
+#sidebar.sgs-sidebar ul li a {
+    margin: 2px 12px;
+    padding: 10px 14px !important;
+    font-size: 14.5px !important;
+    font-weight: 600 !important;
+    letter-spacing: .1px;
+    gap: 14px;
+}
+#sidebar.sgs-sidebar ul li a i { font-size: 1.1rem; width: 22px; color: rgba(255, 255, 255, .9) !important; }
+#sidebar.sgs-sidebar ul li.active > a { font-weight: 700 !important; }
+#sidebar.sgs-sidebar .sgs-sidebar-account { padding: 8px 0; }
+#sidebar.collapsed .sgs-menu-group + .sgs-menu-group::before { left: 14px; right: 14px; }
+/* 42b. Secciones desplegables en acordeón (2026-10-15). El encabezado se ve como una opción más (mismo tamaño y letra)
+   con flecha a la derecha; sus pantallas van debajo con sangría y una línea guía. Una sección con una sola opción
+   se muestra como enlace directo (.sgs-menu-directo). En el menú contraído se ven solo los íconos de las pantallas. */
+#sidebar.sgs-sidebar .sgs-menu-group + .sgs-menu-group { margin-top: 2px; padding-top: 0; }
+#sidebar.sgs-sidebar .sgs-menu-group + .sgs-menu-group::before { content: none; }
+#sidebar.sgs-sidebar .sgs-menu-toggle {
+    display: flex; align-items: center; gap: 14px; justify-content: flex-start;
+    width: calc(100% - 24px); margin: 2px 12px; padding: 10px 14px !important;
+    border-radius: 10px; color: #fff;
+    font-family: var(--sgs-font); font-size: 14.5px; font-weight: 600; letter-spacing: .1px;
+    text-transform: none;
+}
+#sidebar.sgs-sidebar .sgs-menu-toggle > .bi:first-child { font-size: 1.1rem; width: 22px; text-align: center; opacity: .9; }
+#sidebar.sgs-sidebar .sgs-menu-toggle .sgs-menu-flecha { margin-left: auto; font-size: .8rem; opacity: .85; transition: transform .2s ease; }
+#sidebar.sgs-sidebar .sgs-menu-seccion:not(.is-open) .sgs-menu-flecha { transform: rotate(-90deg); }
+#sidebar.sgs-sidebar .sgs-menu-toggle:hover,
+#sidebar.sgs-sidebar .sgs-menu-seccion.is-open > .sgs-menu-toggle { background: rgba(255, 255, 255, .14); }
+#sidebar.sgs-sidebar .sgs-menu-seccion.is-current > .sgs-menu-toggle { font-weight: 700; }
+#sidebar.sgs-sidebar .sgs-menu-seccion .sgs-menu-items > ul {
+    position: relative; margin-left: 34px; padding: 2px 0 4px;
+}
+#sidebar.sgs-sidebar .sgs-menu-seccion .sgs-menu-items > ul::before {
+    content: ""; position: absolute; left: 10px; top: 4px; bottom: 6px; border-left: 1px solid rgba(255, 255, 255, .3);
+}
+#sidebar.sgs-sidebar .sgs-menu-seccion .sgs-menu-items li a {
+    margin: 1px 12px 1px 14px; padding: 8px 12px !important; font-size: 14px !important; gap: 10px;
+}
+#sidebar.sgs-sidebar .sgs-menu-seccion .sgs-menu-items li a i { font-size: .95rem; width: 18px; }
+/* Menú contraído (escritorio): sin encabezados ni sangría; se ven todos los íconos de las pantallas. */
+#sidebar.collapsed .sgs-menu-toggle { display: none !important; }
+#sidebar.collapsed .sgs-menu-seccion .sgs-menu-items > ul { margin-left: 0; }
+#sidebar.collapsed .sgs-menu-seccion .sgs-menu-items > ul::before { content: none; }
+#sidebar.collapsed .sgs-menu-seccion .sgs-menu-items li a { margin: 2px 12px; }
+/* 42c. Menú más angosto (2026-10-15: 248 → 228 px, como el ejemplo del usuario). Las pantallas dentro de una sección
+   van sin ícono (solo texto sobre la línea guía) para que los nombres no se corten; el ícono vuelve en el menú contraído. */
+#sidebar.sgs-sidebar .sgs-menu-seccion .sgs-menu-items > ul { margin-left: 30px; }
+#sidebar.sgs-sidebar .sgs-menu-seccion .sgs-menu-items li a { margin: 1px 10px 1px 12px; padding: 8px 12px !important; }
+#sidebar.sgs-sidebar:not(.collapsed) .sgs-menu-seccion .sgs-menu-items li a i { display: none; }
+#sidebar.sgs-sidebar .sgs-brand-sub { letter-spacing: .6px; white-space: nowrap; } /* entra en una línea con el menú de 228 px */
+/* Logo WIN y subtítulo centrados en el menú (2026-10-15). El botón × de celular va en la esquina, sin desplazar el logo. */
+#sidebar.sgs-sidebar .sgs-brand { position: relative; justify-content: center; }
+#sidebar.sgs-sidebar .sgs-brand > .menu-label-text { flex: 1 1 auto; display: flex; flex-direction: column; align-items: center; text-align: center; }
+#sidebar.sgs-sidebar .sgs-brand #sidebarCloseMobile { position: absolute; top: 12px; right: 10px; margin: 0 !important; }
+
+/* ============================================================
+   43. Tipografía v2 (2026-10-15) — una sola letra (Nunito) y pesos livianos en TODO el sistema
+   A pedido del usuario: "el tipo de letra a nivel de todo el sistema" como el menú nuevo, sin nada tosco ni grande.
+   Escala: título de pantalla 20/700 · título de tarjeta 15.5/700 · texto 14/500 · etiqueta 12.5/600 ·
+   botón 13.5/600 (principal 700) · encabezado de tabla 11.5/700 mayúsculas · cifra de indicador 24/700.
+   Ningún texto pasa de 700. Ver skill sgs-diseno (sección Tipografía).
+   ============================================================ */
+body { font-family: var(--sgs-font); font-weight: 500; -webkit-font-smoothing: antialiased; }
+h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 { font-family: var(--sgs-font) !important; font-weight: 700 !important; letter-spacing: -.005em; }
+.fw-bolder, strong, b { font-weight: 700 !important; }
+#content header h1, .sgs-topbar h1 { font-size: 20px !important; line-height: 1.2; }
+#content header h1 + p, .sgs-topbar h1 + p { font-size: 12.5px; font-weight: 500; color: var(--sgs-muted); }
+#main-content-area .card h5, #main-content-area .card .h5, #main-content-area .modal-title, .modal .modal-title { font-size: 15.5px !important; }
+#main-content-area h2:not(.sgs-kpi-value) { font-size: 18px; }
+#main-content-area h3:not(.sgs-kpi-value), #main-content-area h4 { font-size: 16.5px; }
+.sgs-kpi-value { font-family: var(--sgs-font) !important; font-size: 24px !important; font-weight: 700 !important; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.sgs-kpi-value.is-text { font-size: 15.5px !important; }
+.sgs-kpi-label, #main-content-area th, .table thead th { font-weight: 700 !important; letter-spacing: .04em; }
+#main-content-area td { font-size: 13.5px; }
+.form-label, #main-content-area label { font-weight: 600 !important; }
+.btn { font-weight: 600 !important; }
+.btn-win, .btn-primary, .btn-orange-bitacora, .btn-finish-bitacora { font-weight: 700 !important; }
+.badge { font-weight: 700 !important; letter-spacing: .01em; }
+.filter-tab-btn, .sgs-segmented .filter-tab-btn { font-weight: 600 !important; }
+.filter-tab-btn.active, .sgs-segmented .filter-tab-btn.active { font-weight: 700 !important; }
+.section-subtitle-bitacora { font-weight: 700 !important; letter-spacing: .04em; }
+#main-content-area .sgs-kpi-value, #main-content-area .card .sgs-kpi-value { font-size: 24px !important; }
+
+/* 43b. Componentes rediseñados con la tipografía v2 (2026-10-15) */
+/* Persona en tablas (Monitor de turnos): círculo con iniciales pequeño, nombre en una línea si cabe. */
+.sgs-col-persona { min-width: 230px; }
+.sgs-persona { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.sgs-mini-avatar {
+    flex: 0 0 32px; width: 32px; height: 32px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 12px; font-weight: 700;
+    background: var(--sgs-orange-soft); color: var(--sgs-orange-dark);
+}
+.sgs-persona-texto { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.sgs-persona-nombre { font-weight: 700; color: var(--sgs-ink); font-size: 13.5px; }
+.sgs-persona-texto small { color: var(--sgs-muted); font-size: 12px; }
+/* Pestañas de tipo en Observaciones: control segmentado compacto (antes, barra naranja a todo el ancho). */
+@media (min-width: 768px) {
+    #main-content-area .obs-kind-tabs {
+        display: inline-flex !important; width: auto !important; gap: 4px; padding: 4px;
+        background: var(--sgs-surface-alt); border: 1px solid var(--sgs-border); border-radius: 12px;
+    }
+    #main-content-area .obs-kind-tabs > .btn {
+        flex: 0 0 auto !important; width: auto !important; min-height: 34px; padding: 6px 14px !important;
+        border: 0 !important; border-radius: 9px !important; background: transparent !important; color: var(--sgs-ink-2) !important;
+        font-size: 13.5px !important; box-shadow: none !important;
+    }
+    #main-content-area .obs-kind-tabs > .btn:hover { background: var(--sgs-surface) !important; }
+    #main-content-area .obs-kind-tabs > .btn-check:checked + .btn { background: var(--sgs-orange) !important; color: #fff !important; font-weight: 700 !important; }
+}
+.sgs-col-persona { width: 270px; }
+@media (min-width: 768px) {
+    #main-content-area #observationFilters .obs-kind-tabs { display: inline-flex !important; width: auto !important; max-width: 100%; }
+    #main-content-area #observationFilters .obs-kind-tabs > .btn { border-radius: 9px !important; }
+}
+@media (min-width: 768px) {
+    #main-content-area form#observationFilters .obs-kind-tabs.btn-group { display: inline-flex !important; width: auto !important; }
+}
+@media (min-width: 768px) {
+    /* La tarjeta del filtro es flex en columna y estiraba las pestañas a todo el ancho. */
+    #main-content-area form#observationFilters .obs-kind-tabs.btn-group { align-self: flex-start; }
+}
+
+/* 44. Ventana de un punto del mapa (2026-10-15): datos ordenados + botón "Ver supervisión". */
+.sgs-mapa-pop { font-family: var(--sgs-font); }
+.sgs-mapa-pop-titulo { display: flex; align-items: center; gap: 6px; font-size: 14.5px; font-weight: 700; color: var(--sgs-ink); }
+.sgs-mapa-pop-titulo .bi { color: var(--sgs-orange); }
+.sgs-mapa-pop-lugar { font-size: 12.5px; font-weight: 600; color: var(--sgs-muted); margin: 2px 0 8px; }
+.sgs-mapa-pop-fila { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; padding: 3px 0; border-top: 1px solid var(--sgs-border); }
+.sgs-mapa-pop-fila span { color: var(--sgs-muted); }
+.sgs-mapa-pop-fila strong { color: var(--sgs-ink-2); font-weight: 600; text-align: right; }
+.sgs-mapa-pop .btn-win { color: #fff; }
+
+/* 45. Usuarios y roles en 5 columnas (2026-10-15): "Rol y organización" y "Estado" (con el último ingreso debajo)
+   para que la tabla entre completa sin desplazamiento lateral. */
+.usr-celda-doble { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.usr-celda-doble .usr-org { font-size: 12.5px; font-weight: 600; color: var(--sgs-ink-2); }
+.usr-insignias { display: flex; flex-wrap: wrap; gap: 4px; }
+.usr-ingreso { font-size: 12px; color: var(--sgs-muted); white-space: nowrap; }
+@media (max-width: 767.98px) { .usr-celda-doble { align-items: flex-end; text-align: right; } }

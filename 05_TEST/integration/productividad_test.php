@@ -26,7 +26,7 @@ $uid = (int)$r['id'];
 // Turnos: domingo 2026-09-06 y lunes 2026-09-07. Supervisiones finalizadas: 5 el domingo + 4 el lunes = 9. Una "En proceso" no cuenta.
 $turno = $pdo->prepare("INSERT INTO asistencia_supervisores (supervisor_id, fecha, inicio_turno, fin_turno, estado_turno, fecha_registro) VALUES (:u, :f, :i, :fin, 'Fuera de turno', :reg)");
 foreach (['2026-09-06', '2026-09-07'] as $f) $turno->execute([':u' => $uid, ':f' => $f, ':i' => "$f 08:00:00", ':fin' => "$f 17:00:00", ':reg' => "$f 08:00:00"]);
-$sup = $pdo->prepare("INSERT INTO supervisiones (codigo_supervision, fecha_registro, supervisor_id, departamento, provincia, distrito, tipo_supervision_inicial, estado_supervision) VALUES (:c, :f, :u, 'PIURA', 'PIURA', 'PIURA', 'En caliente', :e)");
+$sup = $pdo->prepare("INSERT INTO supervisiones (codigo_supervision, fecha_registro, supervisor_id, derivacion_orden, departamento, provincia, distrito, tipo_supervision_inicial, clasificacion_supervision, area_servicio, estado_supervision) VALUES (:c, :f, :u, 'Líder', 'PIURA', 'PIURA', 'PIURA', 'En caliente', 'Instalación', 'Instalación', :e)");
 $n = 0;
 foreach ([['2026-09-06', 5, 'Finalizada'], ['2026-09-07', 4, 'Finalizada'], ['2026-09-07', 1, 'En proceso']] as [$f, $k, $e])
     for ($i = 0; $i < $k; $i++) $sup->execute([':c' => sprintf('SUP-PROD-%04d', ++$n), ':f' => "$f 10:" . sprintf('%02d', $i) . ':00', ':u' => $uid, ':e' => $e]);

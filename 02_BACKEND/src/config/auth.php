@@ -15,7 +15,8 @@ class Auth {
     public const ROLE_SUPERVISOR = 'Supervisor';
     public const ROLE_SGA = 'SGA';
     public const ROLE_SGI = 'SGI';
-    public const ROLE_PARTNER = 'Partner';
+    /** Jefe de operaciones de un partner (2026-10-12, reemplaza al rol "Partner"): solo consulta lo de su partner. */
+    public const ROLE_JEFE_OPERACIONES = 'Jefe de operaciones';
 
     // Capacidades funcionales. Los roles definen el punto de partida y las
     // reglas territoriales/propiedad completan la autorización de cada registro.
@@ -27,6 +28,8 @@ class Auth {
     public const PERM_SUPERVISION_IMPORT = 'supervision.import';
     public const PERM_OBSERVATION_REVIEW = 'observation.review';
     public const PERM_OBSERVATION_VIEW = 'observation.view';
+    /** Responder observaciones y checklists de su partner (levantamiento con fotos). Por defecto: supervisor del partner. */
+    public const PERM_OBSERVATION_RESPOND = 'observation.respond';
     public const PERM_SUPERVISION_FILTERS = 'supervision.filters';
     public const PERM_SUPERVISION_FILTER_DATE = 'supervision.filter.date';
     public const PERM_SUPERVISION_FILTER_STATUS = 'supervision.filter.status';
@@ -36,18 +39,15 @@ class Auth {
     public const PERM_SUPERVISION_MAP = 'supervision.map';
     public const PERM_FORM_FINDINGS = 'supervision.form.findings';
     public const PERM_FORM_CHECKLIST = 'supervision.form.checklist';
+    /** Ver la lista de usuarios (solo consulta). Directo WIN: todos; partner: su partner y sus zonas. */
     public const PERM_USERS_VIEW = 'users.view';
-    public const PERM_USERS_FILTER_SEARCH = 'users.filter.search';
-    public const PERM_USERS_FILTER_PARTNER = 'users.filter.partner';
-    public const PERM_USERS_FILTER_ROLE = 'users.filter.role';
-    public const PERM_USERS_FILTER_LOCATION = 'users.filter.location';
+    /** Agregar y editar solo datos personales del personal (sin usuario, contraseña, rol, ni activar/desactivar). */
+    public const PERM_STAFF_MANAGE = 'users.staff';
     public const PERM_USERS_MANAGE = 'users.manage';
     public const PERM_DASHBOARD_VIEW = 'dashboard.view';
     public const PERM_SYSTEM_MANAGE = 'system.manage';
     public const PERM_ATTENDANCE_SELF = 'attendance.self';
-    public const PERM_RESOURCES_VIEW = 'resources.view';
     public const PERM_TIMELINE_VIEW = 'timeline.view';
-    public const PERM_EXAM_VIEW = 'exam.view';
 
     private const ROLE_PERMISSIONS = [
         self::ROLE_ADMINISTRADOR => [
@@ -57,42 +57,38 @@ class Auth {
             self::PERM_USERS_MANAGE, self::PERM_DASHBOARD_VIEW,
             self::PERM_SYSTEM_MANAGE, self::PERM_SUPERVISION_FILTERS,
             self::PERM_SUPERVISION_MAP, self::PERM_FORM_FINDINGS,
-            self::PERM_FORM_CHECKLIST, self::PERM_RESOURCES_VIEW,
-            self::PERM_TIMELINE_VIEW, self::PERM_EXAM_VIEW,
+            self::PERM_FORM_CHECKLIST, self::PERM_STAFF_MANAGE,
+            self::PERM_TIMELINE_VIEW,
             self::PERM_SUPERVISION_FILTER_DATE, self::PERM_SUPERVISION_FILTER_STATUS, self::PERM_SUPERVISION_FILTER_COLUMNS,
             self::PERM_OBSERVATION_FILTER_DATE, self::PERM_OBSERVATION_FILTER_ADVANCED,
-            self::PERM_USERS_FILTER_SEARCH, self::PERM_USERS_FILTER_PARTNER, self::PERM_USERS_FILTER_ROLE, self::PERM_USERS_FILTER_LOCATION,
         ],
         self::ROLE_GERENTE => [
             self::PERM_SUPERVISION_VIEW, self::PERM_SUPERVISION_VIEW_ALL,
             self::PERM_OBSERVATION_VIEW, self::PERM_USERS_VIEW,
             self::PERM_DASHBOARD_VIEW, self::PERM_SUPERVISION_FILTERS,
-            self::PERM_RESOURCES_VIEW,
             self::PERM_SUPERVISION_FILTER_DATE, self::PERM_SUPERVISION_FILTER_STATUS, self::PERM_SUPERVISION_FILTER_COLUMNS,
             self::PERM_OBSERVATION_FILTER_DATE, self::PERM_OBSERVATION_FILTER_ADVANCED,
-            self::PERM_USERS_FILTER_SEARCH, self::PERM_USERS_FILTER_PARTNER, self::PERM_USERS_FILTER_ROLE, self::PERM_USERS_FILTER_LOCATION,
         ],
         self::ROLE_COORDINADOR => [
             self::PERM_SUPERVISION_VIEW, self::PERM_SUPERVISION_VIEW_ALL,
             self::PERM_OBSERVATION_VIEW, self::PERM_OBSERVATION_REVIEW,
             self::PERM_USERS_VIEW, self::PERM_DASHBOARD_VIEW,
             self::PERM_SUPERVISION_FILTERS, self::PERM_SUPERVISION_MAP,
-            self::PERM_RESOURCES_VIEW, self::PERM_TIMELINE_VIEW,
+            self::PERM_TIMELINE_VIEW,
             self::PERM_SUPERVISION_FILTER_DATE, self::PERM_SUPERVISION_FILTER_STATUS, self::PERM_SUPERVISION_FILTER_COLUMNS,
             self::PERM_OBSERVATION_FILTER_DATE, self::PERM_OBSERVATION_FILTER_ADVANCED,
-            self::PERM_USERS_FILTER_SEARCH, self::PERM_USERS_FILTER_PARTNER, self::PERM_USERS_FILTER_ROLE, self::PERM_USERS_FILTER_LOCATION,
         ],
         self::ROLE_SUPERVISOR => [
             self::PERM_SUPERVISION_VIEW, self::PERM_SUPERVISION_CREATE,
-            self::PERM_SUPERVISION_ASSIGN, self::PERM_OBSERVATION_VIEW,
-            self::PERM_OBSERVATION_REVIEW, self::PERM_USERS_VIEW,
+            self::PERM_SUPERVISION_ASSIGN, self::PERM_OBSERVATION_VIEW, self::PERM_OBSERVATION_RESPOND,
+            self::PERM_OBSERVATION_REVIEW,
             self::PERM_ATTENDANCE_SELF, self::PERM_SUPERVISION_FILTERS,
             self::PERM_SUPERVISION_MAP, self::PERM_FORM_FINDINGS,
-            self::PERM_FORM_CHECKLIST, self::PERM_RESOURCES_VIEW,
-            self::PERM_EXAM_VIEW, self::PERM_SUPERVISION_FILTER_DATE, self::PERM_SUPERVISION_FILTER_STATUS,
-            self::PERM_SUPERVISION_FILTER_COLUMNS, self::PERM_OBSERVATION_FILTER_DATE, self::PERM_USERS_FILTER_SEARCH,
+            self::PERM_FORM_CHECKLIST,
+            self::PERM_SUPERVISION_FILTER_DATE, self::PERM_SUPERVISION_FILTER_STATUS,
+            self::PERM_SUPERVISION_FILTER_COLUMNS, self::PERM_OBSERVATION_FILTER_DATE,
         ],
-        self::ROLE_PARTNER => [self::PERM_SUPERVISION_VIEW, self::PERM_OBSERVATION_VIEW, self::PERM_USERS_VIEW, self::PERM_OBSERVATION_FILTER_DATE, self::PERM_USERS_FILTER_SEARCH],
+        self::ROLE_JEFE_OPERACIONES => [self::PERM_SUPERVISION_VIEW, self::PERM_OBSERVATION_VIEW, self::PERM_OBSERVATION_FILTER_DATE, self::PERM_USERS_VIEW],
         self::ROLE_SGA => [],
         self::ROLE_SGI => [],
     ];
@@ -131,18 +127,14 @@ class Auth {
             self::PERM_FORM_FINDINGS => ['group'=>'Formularios','label'=>'Abrir formulario de hallazgos','delegable'=>true],
             self::PERM_FORM_CHECKLIST => ['group'=>'Formularios','label'=>'Abrir checklist técnico','delegable'=>true],
             self::PERM_OBSERVATION_VIEW => ['group'=>'Observaciones','label'=>'Ver observaciones','delegable'=>true],
+            self::PERM_OBSERVATION_RESPOND => ['group'=>'Observaciones','label'=>'Responder observaciones del partner (levantamiento con fotos)','delegable'=>true],
             self::PERM_OBSERVATION_FILTER_DATE => ['group'=>'Observaciones · Filtros','label'=>'Rango de fechas','delegable'=>true],
             self::PERM_OBSERVATION_FILTER_ADVANCED => ['group'=>'Observaciones · Filtros','label'=>'Partner, técnico, zona y estado','delegable'=>true],
             self::PERM_OBSERVATION_REVIEW => ['group'=>'Observaciones','label'=>'Revisar y validar observaciones','delegable'=>true],
-            self::PERM_USERS_VIEW => ['group'=>'Consulta','label'=>'Consultar usuarios y personal','delegable'=>true],
-            self::PERM_USERS_FILTER_SEARCH => ['group'=>'Usuarios · Filtros','label'=>'Búsqueda general','delegable'=>true],
-            self::PERM_USERS_FILTER_PARTNER => ['group'=>'Usuarios · Filtros','label'=>'Partner','delegable'=>true],
-            self::PERM_USERS_FILTER_ROLE => ['group'=>'Usuarios · Filtros','label'=>'Rol','delegable'=>true],
-            self::PERM_USERS_FILTER_LOCATION => ['group'=>'Usuarios · Filtros','label'=>'Sede o ciudad operativa','delegable'=>true],
+            self::PERM_USERS_VIEW => ['group'=>'Usuarios','label'=>'Ver usuarios (solo consulta; el partner ve solo a su partner y sus zonas)','delegable'=>true],
+            self::PERM_STAFF_MANAGE => ['group'=>'Usuarios','label'=>'Agregar y editar personal (solo datos personales; sin acceso, rol ni activar)','delegable'=>true],
             self::PERM_DASHBOARD_VIEW => ['group'=>'Consulta','label'=>'Ver indicadores generales','delegable'=>true],
             self::PERM_TIMELINE_VIEW => ['group'=>'Consulta','label'=>'Ver línea de tiempo','delegable'=>true],
-            self::PERM_RESOURCES_VIEW => ['group'=>'Consulta','label'=>'Ver recursos y archivos','delegable'=>true],
-            self::PERM_EXAM_VIEW => ['group'=>'Consulta','label'=>'Ver examen técnico','delegable'=>true],
             self::PERM_ATTENDANCE_SELF => ['group'=>'Operación personal','label'=>'Registrar el propio turno','delegable'=>true],
             self::PERM_USERS_MANAGE => ['group'=>'Reservado','label'=>'Administrar usuarios','delegable'=>false],
             self::PERM_SUPERVISION_DELETE => ['group'=>'Reservado','label'=>'Eliminar supervisiones','delegable'=>false],
@@ -191,7 +183,9 @@ class Auth {
     public static function getLoggedInUser(): ?array {
         if (!self::isLoggedIn()) return null;
         $partnerNombre = $_SESSION['user_partner_nombre'] ?? '';
-        $isWinDirecto = (empty($partnerNombre) || str_contains(strtoupper($partnerNombre), 'WIN')) && ($_SESSION['user_rol'] !== self::ROLE_PARTNER);
+        // Nombre exacto (2026-10-13): con "contiene WIN", un partner llamado p. ej. "NETWIN" habría visto todo como personal directo.
+        $isWinDirecto = (trim($partnerNombre) === '' || in_array(mb_strtoupper(trim($partnerNombre), 'UTF-8'), ['WIN', 'WIN DIRECTO'], true))
+            && ($_SESSION['user_rol'] !== self::ROLE_JEFE_OPERACIONES);
 
         return [
             'id' => $_SESSION['user_id'],
@@ -290,6 +284,8 @@ class Auth {
             return ['status' => 'error', 'cuenta' => true, 'message' => 'Usuario o contraseña incorrectos. ' . ($restantes === 1 ? 'Te queda 1 intento.' : "Te quedan {$restantes} intentos.")];
         }
         self::clearFailedLogins((int)$user['id']);
+        // Último ingreso (2026-10-15), para la lista de usuarios.
+        $pdo->prepare('UPDATE usuarios SET ultimo_acceso = NOW() WHERE id = :id')->execute([':id' => (int)$user['id']]);
 
         // Crear Sesión segura únicamente después de completar la autenticación.
         session_regenerate_id(true);
@@ -312,9 +308,13 @@ class Auth {
         // Reiniciar el control visual de flyers en cada autenticación. De esta
         // manera el flyer vigente aparece una vez por ingreso al sistema.
         $_SESSION['flyers_mostrados_ingreso'] = [];
+        // Contraseña puesta por el administrador: hasta cambiarla solo puede ver la pantalla de cambio (requireLogin).
+        if (!empty($user['debe_cambiar_password'])) $_SESSION['debe_cambiar_password'] = true;
+        else unset($_SESSION['debe_cambiar_password']);
 
         return [
             'status' => 'success',
+            'debe_cambiar_password' => !empty($user['debe_cambiar_password']),
             'message' => 'Inicio de sesión exitoso.',
             'user' => self::getLoggedInUser()
         ];
@@ -372,6 +372,8 @@ class Auth {
         return self::hasRole([self::ROLE_ADMINISTRADOR]);
     }
 
+    public static function mustChangePassword(): bool { return !empty($_SESSION['debe_cambiar_password']); }
+
     public static function requireLogin(): void {
         if (!self::isLoggedIn()) {
             // Las APIs responden 401 en JSON; las pantallas vuelven al login.
@@ -383,6 +385,16 @@ class Auth {
                 exit;
             }
             header('Location: index.php?page=login');
+            exit;
+        }
+        // Cambio de contraseña obligatorio (2026-10-15): las APIs solo atienden el cambio propio; las pantallas
+        // (index.php) muestran únicamente el formulario de cambio. Cerrar sesión no pasa por aquí.
+        if (self::mustChangePassword() && str_contains($_SERVER['SCRIPT_NAME'] ?? '', '/api/')
+            && !(str_ends_with($_SERVER['SCRIPT_NAME'] ?? '', '/api/usuarios.php') && ($_GET['action'] ?? '') === 'cambiar_password_propia')) {
+            if (ob_get_level() > 0) ob_clean();
+            http_response_code(403);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['status' => 'error', 'message' => 'Antes de continuar debe cambiar su contraseña.', 'debe_cambiar_password' => true]);
             exit;
         }
         // Rendimiento con muchos usuarios: PHP bloquea la sesión durante toda la petición, y las consultas

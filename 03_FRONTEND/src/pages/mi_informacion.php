@@ -21,7 +21,7 @@ $isDirectStaff = $partnerName === '' || in_array(mb_strtoupper($partnerName), ['
 $organizacion = $isDirectStaff ? 'WIN · Personal directo' : $partnerName . ' · Partner';
 $isSupervisor = $rolPerfil === Auth::ROLE_SUPERVISOR;
 $isDirectSupervisor = $isSupervisor && $isDirectStaff;
-$isPartnerSupervisor = ($isSupervisor && !$isDirectStaff) || $rolPerfil === Auth::ROLE_PARTNER;
+$isPartnerSupervisor = ($isSupervisor && !$isDirectStaff) || $rolPerfil === Auth::ROLE_JEFE_OPERACIONES;
 $activo = !empty($profile['activo']);
 
 $departamento = mb_strtoupper(operationalDepartmentFromSite((string)(($profile['sede'] ?? '') ?: ($profile['zona'] ?? ''))), 'UTF-8');
@@ -114,19 +114,19 @@ $e = static fn($v): string => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 ?>
 <style>
 .sgs-profile-page{max-width:1180px;margin:0 auto}
-.sgs-pcard{position:relative;overflow:hidden;text-align:center;padding:0 22px 22px !important}
-.sgs-pcard-band{height:96px;margin:0 -22px;background:radial-gradient(ellipse at 50% 0,rgba(255,255,255,.25),transparent 60%),linear-gradient(120deg,var(--sgs-orange) 0%,#FF7A33 55%,var(--sgs-orange-dark) 100%)}
-.sgs-pcard-photo{position:relative;width:112px;margin:-56px auto 12px}
+.sgs-pcard{position:relative;overflow:hidden;text-align:center;padding:28px 22px 22px !important}
+.sgs-pcard-band{display:none} /* 2026-10-15: sin franja con degradado (se veía recargado) */
+.sgs-pcard-photo{position:relative;width:88px;margin:0 auto 14px}
 .sgs-pcard-photo .sgs-pcard-avatar{margin:0}
-.sgs-pcard-camera{position:absolute;right:-2px;bottom:4px;width:38px;height:38px;border-radius:50%;border:3px solid #fff;background:var(--sgs-ink,#141414);color:#fff;display:grid;place-items:center;padding:0;font-size:1rem;cursor:pointer;box-shadow:0 4px 10px rgba(48,29,25,.25)}
+.sgs-pcard-camera{position:absolute;right:-4px;bottom:0;width:32px;height:32px;border-radius:50%;border:3px solid #fff;background:var(--sgs-ink,#141414);color:#fff;display:grid;place-items:center;padding:0;font-size:1rem;cursor:pointer;box-shadow:0 4px 10px rgba(48,29,25,.25)}
 .sgs-pcard-camera:hover,.sgs-pcard-camera:focus-visible{background:var(--sgs-orange);outline:none}
 .sgs-pcard-camera:disabled{opacity:.6;cursor:wait}
 .sgs-pcard-photo-actions{text-align:center;min-height:1.5rem;font-size:.85rem}
 .sgs-pcard-photo-actions .btn-link{font-size:.85rem;padding:0;color:var(--sgs-muted,#7C7E80)}
-.sgs-pcard-avatar{width:112px;height:112px;margin:-56px auto 12px;border-radius:50%;border:5px solid #fff;background:var(--sgs-orange);color:#fff;display:grid;place-items:center;font-family:var(--sgs-font-display);font-weight:900;font-size:2.3rem;object-fit:cover;box-shadow:0 8px 20px rgba(48,29,25,.16)}
-#main-content-area .sgs-pcard-name{font-size:1.25rem !important;margin:0 0 6px;overflow-wrap:anywhere}
+.sgs-pcard-avatar{width:88px;height:88px;margin:0 auto 14px;border-radius:50%;border:3px solid var(--sgs-orange-soft);background:var(--sgs-orange-soft);color:var(--sgs-orange-dark);display:grid;place-items:center;font-family:var(--sgs-font);font-weight:700;font-size:1.6rem;object-fit:cover}
+#main-content-area .sgs-pcard-name{font-size:17px !important;margin:0 0 6px;overflow-wrap:anywhere}
 .sgs-pcard-chips{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-bottom:14px}
-.sgs-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:30px;font-size:.76rem;font-weight:800;border:1px solid var(--sgs-border);background:var(--sgs-surface-alt);color:var(--sgs-ink-2)}
+.sgs-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:30px;font-size:.76rem;font-weight: 700;border:1px solid var(--sgs-border);background:var(--sgs-surface-alt);color:var(--sgs-ink-2)}
 .sgs-chip--brand{background:var(--sgs-orange-soft);border-color:var(--sgs-orange-border);color:var(--sgs-orange-dark)}
 .sgs-chip--ok{background:var(--sgs-success-soft);border-color:#BFE6CD;color:var(--sgs-success-dark)}
 .sgs-chip--off{background:var(--sgs-surface-alt);color:var(--sgs-muted)}
@@ -139,7 +139,7 @@ $e = static fn($v): string => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 .sgs-section-head>i{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:var(--sgs-orange-soft);color:var(--sgs-orange);font-size:1rem;flex:none}
 #main-content-area .sgs-section-head h2{margin:0;font-size:1rem !important}
 .sgs-field{padding:10px 0;border-bottom:1px dashed var(--sgs-border)}
-.sgs-field small{display:block;color:var(--sgs-muted);font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.sgs-field small{display:block;color:var(--sgs-muted);font-size:.72rem;font-weight: 700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
 .sgs-field span{display:block;color:var(--sgs-ink);font-weight:700;font-size:.92rem;overflow-wrap:anywhere}
 .sgs-field span.is-empty{color:var(--sgs-muted-2);font-weight:600;font-style:italic}
 .sgs-field a{color:var(--sgs-orange-dark);font-weight:700;text-decoration:none}
@@ -168,7 +168,7 @@ $e = static fn($v): string => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
           <?php endif; ?>
           
           <button type="button" class="sgs-pcard-camera" id="btnFoto" title="Cambiar foto" aria-label="Cambiar foto de perfil"><i class="bi bi-camera-fill"></i></button>
-          <input type="file" id="inpFoto" accept="image/jpeg,image/png,image/webp" hidden>
+          <input type="file" id="inpFoto" accept="image/jpeg,image/png,image/webp" data-sin-comprimir hidden>
           
         </div>
         
@@ -264,7 +264,7 @@ $e = static fn($v): string => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         <div class="sgs-section-head"><i class="bi bi-key"></i><h2>Cambiar contraseña</h2></div>
         <form id="formPassword" class="row g-3 align-items-end" novalidate autocomplete="off">
           <div class="col-md-4"><label class="form-label" for="pwActual">Contraseña actual</label><input class="form-control" type="password" id="pwActual" name="actual" autocomplete="current-password" required></div>
-          <div class="col-md-4"><label class="form-label" for="pwNueva">Nueva contraseña</label><input class="form-control" type="password" id="pwNueva" name="nueva" autocomplete="new-password" required></div>
+          <div class="col-md-4"><label class="form-label" for="pwNueva">Nueva contraseña</label><input class="form-control" type="password" id="pwNueva" name="nueva" autocomplete="new-password" required><div data-password-meter="pwNueva"></div></div>
           <div class="col-md-4"><label class="form-label" for="pwConfirma">Repite la nueva</label><input class="form-control" type="password" id="pwConfirma" autocomplete="new-password" required></div>
           <div class="col-md-8"><small class="text-muted">Mínimo 10 caracteres, con letras y números. Al cambiarla, la anterior deja de funcionar.</small></div>
           <div class="col-md-4"><button class="btn btn-win w-100" type="submit" id="btnPassword"><i class="bi bi-check2"></i>Actualizar contraseña</button></div>
@@ -282,7 +282,7 @@ $e = static fn($v): string => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
           try {
             const res = await fetch('api/usuarios.php?action=cambiar_password_propia', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actual: f.actual.value, nueva: f.nueva.value }) });
             const data = await res.json().catch(() => ({}));
-            if (data.status === 'success') { show(data.message, true); f.reset(); } else show(data.message || 'No se pudo cambiar la contraseña.', false);
+            if (data.status === 'success') { show(data.message, true); f.reset(); f.nueva.dispatchEvent(new Event('input')); } else show(data.message || 'No se pudo cambiar la contraseña.', false);
           } catch (_) { show('No hay conexión con el servidor.', false); }
           finally { btn.disabled = false; }
         });

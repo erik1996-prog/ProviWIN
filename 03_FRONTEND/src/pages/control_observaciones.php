@@ -54,16 +54,16 @@ $motivoTop = array_key_first($motivosGlobales) ?: 'Sin datos';
 <style>
 .obs-kpi{min-height:132px;height:auto;padding:12px!important;border:0;border-radius:14px;background:linear-gradient(145deg,var(--sgs-ink),#313a48);color:#fff;box-shadow:0 12px 28px rgba(15,23,42,.13)}
 .obs-kpi .icon{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border-radius:9px;background:rgba(255,90,10,.18);color:#ff8a50;font-size:1rem}.obs-kpi small{color:#d6dde6;text-transform:uppercase;font-weight:750;font-size:.74rem;line-height:1.3;letter-spacing:.025em}.obs-kpi strong{font-size:1.08rem;line-height:1.2;margin-top:5px}.obs-bar{height:8px;background:var(--sgs-surface-alt);border-radius:20px;overflow:hidden;min-width:105px}.obs-bar>span{display:block;height:100%;border-radius:20px;background:linear-gradient(90deg,var(--sgs-orange),#dc3545)}
-.obs-rank-number{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:var(--sgs-ink);color:var(--sgs-warning);font-weight:800;font-size:.76rem}.obs-motive-row{padding:10px 0;border-bottom:1px solid var(--sgs-surface-alt)}.obs-motive-row:last-child{border-bottom:0}.obs-ranking-table{font-size:.82rem}.obs-ranking-table th{font-size:.72rem;white-space:nowrap}.obs-ranking-row{cursor:pointer}.obs-ranking-row.is-selected{--bs-table-bg:var(--sgs-orange-subtle);box-shadow:inset 4px 0 var(--sgs-orange)}.obs-kpi-value{display:block!important;font-size:.92rem!important;line-height:1.3!important;overflow-wrap:anywhere;word-break:normal}
+.obs-rank-number{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:var(--sgs-ink);color:var(--sgs-warning);font-weight: 700;font-size:.76rem}.obs-motive-row{padding:10px 0;border-bottom:1px solid var(--sgs-surface-alt)}.obs-motive-row:last-child{border-bottom:0}.obs-ranking-table{font-size:.82rem}.obs-ranking-table th{font-size:.72rem;white-space:nowrap}.obs-ranking-row{cursor:pointer}.obs-ranking-row.is-selected{--bs-table-bg:var(--sgs-orange-subtle);box-shadow:inset 4px 0 var(--sgs-orange)}.obs-kpi-value{display:block!important;font-size:.92rem!important;line-height:1.3!important;overflow-wrap:anywhere;word-break:normal}
 @media (max-width:575.98px){.obs-kpi{min-height:128px;padding:12px!important}.obs-kpi-value{font-size:.84rem!important}.obs-kpi small{font-size:.7rem}}
 </style>
 <div class="container-fluid p-3 p-md-4">
-  <form class="card border-0 shadow-sm p-3 mb-4" method="get"><input type="hidden" name="page" value="control_observaciones"><div class="row g-3 align-items-end">
+  <form class="card border-0 shadow-sm p-3 mb-4" method="get" id="controlObsFiltros"><input type="hidden" name="page" value="control_observaciones"><div class="row g-3 align-items-end">
     <div class="col-md-3"><label for="control-obs-partner" class="form-label fw-bold small">Partner</label><select id="control-obs-partner" class="form-select form-select-sm" name="partner_id"><option value="0">Todos los partners</option><?php foreach($partnersObs as $p): ?><option value="<?= $p['id'] ?>" <?= $partnerFiltro===$p['id']?'selected':'' ?>><?= htmlspecialchars($p['nombre_partner']) ?></option><?php endforeach; ?></select></div>
     <div class="col-md-3"><label for="control-obs-departamento" class="form-label fw-bold small">Departamento</label><select id="control-obs-departamento" class="form-select form-select-sm" name="zona"><option value="">Todos los departamentos</option><?php foreach($zonasObs as $z): ?><option <?= $zonaFiltro===$z?'selected':'' ?>><?= htmlspecialchars($z) ?></option><?php endforeach; ?></select></div>
     <div class="col-6 col-md-2"><label for="control-obs-desde" class="form-label fw-bold small">Desde</label><input id="control-obs-desde" class="form-control form-control-sm" type="date" name="fecha_desde" value="<?= htmlspecialchars($fechaDesde) ?>"></div>
     <div class="col-6 col-md-2"><label for="control-obs-hasta" class="form-label fw-bold small">Hasta</label><input id="control-obs-hasta" class="form-control form-control-sm" type="date" name="fecha_hasta" value="<?= htmlspecialchars($fechaHasta) ?>"></div>
-    <div class="col-md-2"><button class="btn btn-win btn-sm w-100"><i class="bi bi-funnel me-1"></i>Filtrar</button></div>
+    <div class="col-md-2"><a href="index.php?page=control_observaciones" class="btn btn-outline-secondary btn-sm w-100"><i class="bi bi-x-lg me-1"></i>Limpiar</a></div>
   </div></form>
   <div class="row g-3 mb-4">
     <div class="col-6 col-xl-3"><div class="obs-kpi p-3"><div class="icon mb-2"><i class="bi bi-exclamation-triangle"></i></div><small>Observaciones asociadas</small><strong class="d-block"><?= $totalObservacionesFiltradas ?></strong></div></div>
@@ -80,6 +80,8 @@ $motivoTop = array_key_first($motivosGlobales) ?: 'Sin datos';
   </div>
 </div>
 <script>
+// Los filtros se aplican apenas cambian (sin botón "Filtrar").
+document.getElementById('controlObsFiltros')?.querySelectorAll('select,input[type="date"]').forEach((campo) => campo.addEventListener('change', () => campo.form.requestSubmit()));
 (() => {
   const globalMotives = <?= json_encode($motivosGlobales, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
   const technicians = <?= json_encode(array_map(fn($r) => ['name'=>$r['tecnico'], 'motives'=>$r['motivos']], $ranking), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;

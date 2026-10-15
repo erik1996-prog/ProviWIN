@@ -13,34 +13,14 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
 
 <div class="container-fluid p-3 p-md-4 <?= $isReadOnlyWinSupervisor ? 'attendance-supervisor-compact' : '' ?>">
     
-    <!-- Encabezado Principal -->
-    <div class="attendance-page-header sgs-page-actions">
-
-        <div class="attendance-header-actions d-flex align-items-center gap-2 flex-wrap">
-            
-        <?php if ($isAdmin): ?>
-            <!-- Selector de Pestañas para Administradores -->
-            <ul class="nav nav-pills custom-asist-pills bg-light p-1 rounded-3 border border-secondary-subtle" id="pills-tab" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active fw-bold px-3 py-2" id="tab-mi-asistencia" data-bs-toggle="pill" data-bs-target="#content-mi-asistencia" type="button" role="tab">
-                        <i class="bi bi-person-badge me-1"></i> Mi turno
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link fw-bold px-3 py-2" id="tab-vista-admin" data-bs-toggle="pill" data-bs-target="#content-vista-admin" type="button" role="tab">
-                        <i class="bi bi-shield-lock-fill me-1"></i> Vista General (Admin)
-                    </button>
-                </li>
-            </ul>
-        <?php endif; ?>
-        </div>
-    </div>
+    <?php /* Sin pestañas (2026-10-12): el supervisor directo ve su turno; administración, gerencia y coordinación
+             no registran turno propio y ven directo el monitor. */ ?>
 
     <div class="tab-content" id="pills-tabContent">
         <!-- ========================================================= -->
         <!-- PESTAÑA 1: VISTA DE SUPERVISOR (MI CONTROL DE ASISTENCIA) -->
         <!-- ========================================================= -->
-        <div class="tab-pane fade show active" id="content-mi-asistencia" role="tabpanel">
+        <div class="tab-pane fade<?= $isAdmin ? '' : ' show active' ?>" id="content-mi-asistencia" role="tabpanel">
             <div class="row g-3 g-md-4">
                 <!-- Columna Izquierda: Tarjeta Principal de Registro -->
                 <div class="col-12 col-lg-7">
@@ -101,6 +81,9 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
                                         <strong>Finalizar turno</strong>
                                     </button>
                                 </div>
+                                <div class="col-12 d-none" id="wrap-reabrir-turno">
+                                    <button type="button" id="btn-reabrir-turno" class="btn btn-outline-secondary w-100"><i class="bi bi-arrow-counterclockwise me-1"></i>¿Lo finalizaste por error? Reabrir turno</button>
+                                </div>
                             </div>
 
                             <!-- Sub-Estados / Pausas durante el turno -->
@@ -138,7 +121,7 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
             <!-- ========================================================= -->
             <!-- PESTAÑA 2: VISTA GENERAL ADMINISTRADOR Y MONITOR EN VIVO  -->
             <!-- ========================================================= -->
-            <div class="tab-pane fade" id="content-vista-admin" role="tabpanel">
+            <div class="tab-pane fade show active" id="content-vista-admin" role="tabpanel">
                 <!-- Tarjetas KPI Administrador -->
                 <div class="row g-2 g-md-3 mb-4">
                     <div class="col-6 col-sm-4 col-lg">
@@ -224,20 +207,20 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
                 <div class="card card-win p-0 shadow-sm border-0 overflow-hidden">
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0" id="table-admin-asistencia">
-                            <thead class="table-dark small text-uppercase">
+                            <thead>
                                 <tr>
-                                    <th class="ps-3">Supervisor</th>
+                                    <th class="ps-3 sgs-col-persona">Supervisor</th>
                                     <th>Partner / área</th>
                                     <th>Estado actual</th>
                                     <th>Inicio de turno</th>
                                     <th>Fin de turno</th>
-                                    <th>Horas Trab.</th>
+                                    <th>Horas trabajadas</th>
                                     <th>Almuerzo</th>
                                     <th>Horas extra</th>
                                     <th class="text-end pe-3">Acciones</th>
                                 </tr>
                             </thead>
-                            <tbody id="tbody-admin-asistencia">
+                            <tbody id="tbody-admin-asistencia" data-puede-reabrir="<?= ($user['rol'] ?? '') === 'Administrador' ? '1' : '0' ?>">
                                 <tr>
                                     <td colspan="9" class="text-center py-4 text-muted">Cargando monitor de asistencia...</td>
                                 </tr>
@@ -247,6 +230,26 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
                 </div>
             </div>
         <?php endif; ?>
+    </div>
+</div>
+
+<!-- CONFIRMAR FIN DE TURNO: botón explícito para evitar finalizar por un toque accidental -->
+<div class="modal fade" id="modalFinTurno" tabindex="-1" aria-labelledby="modalFinTurnoTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalFinTurnoTitulo"><i class="bi bi-stop-circle me-2 text-danger"></i>Finalizar turno</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Vas a <strong>terminar tu jornada de hoy</strong>. Si estás en una pausa, también se cerrará.</p>
+                <p class="text-muted small mb-0">Si fue un error, podrás reabrirlo durante 15 minutos.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Seguir trabajando</button>
+                <button type="button" id="btn-confirm-fin-turno" class="btn btn-danger"><i class="bi bi-stop-circle me-1"></i>Sí, finalizar mi turno</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -313,11 +316,11 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
     border-radius: 1rem;
     background: linear-gradient(110deg, #fff 0%, #fff8f3 100%);
 }
-.attendance-eyebrow { color: var(--sgs-muted); font-size: .72rem; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
+.attendance-eyebrow { color: var(--sgs-muted); font-size: .72rem; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
 .attendance-command-card { border-top: 0 !important; }
 .attendance-card-title { min-height: 52px; }
 .shift-hero { background: var(--sgs-surface-alt); border: 1px solid var(--sgs-border); color: var(--sgs-ink); }
-.shift-hero #lbl-timer-type { color: var(--sgs-muted); font-size: .72rem; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.shift-hero #lbl-timer-type { color: var(--sgs-muted); font-size: .72rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
 .shift-hero #txt-timer-live { font-family: var(--sgs-font-display); color: var(--sgs-ink); letter-spacing: .02em; }
 .shift-hero #txt-timer-sub { color: var(--sgs-muted); }
 .shift-hero #lbl-timer-type, .shift-hero #txt-timer-live { position: relative; }

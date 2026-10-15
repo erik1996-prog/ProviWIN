@@ -21,8 +21,6 @@ $tablasSgs = [
     'usuarios' => 'datos',
     'usuario_permisos' => 'datos',
     'usuario_departamentos_acceso' => 'datos',
-    'sgs_perfil' => 'datos',
-    'sgs_usuario_perfil' => 'datos',
     'login_attempts' => 'vacia',
     // Catálogos y maestros
     'partners' => 'datos',
@@ -35,6 +33,7 @@ $tablasSgs = [
     // Ingresos de la operación: se instalan vacíos
     'supervisiones' => 'vacia',
     'supervision_estado_historial' => 'vacia',
+    'rescate_seguimientos' => 'vacia',
     'supervision_coordenadas_historial' => 'vacia',
     'observaciones_supervision' => 'vacia',
     'checklists_tecnicos' => 'vacia',

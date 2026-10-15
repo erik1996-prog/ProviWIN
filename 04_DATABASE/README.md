@@ -1,6 +1,6 @@
 # Base de datos de SGS
 
-23 tablas, todas en uso por el sistema. Diagrama: `03_ESTRUCTURA/diagrama_relaciones.svg` (se abre en el navegador).
+21 tablas, todas en uso por el sistema. Diagrama: `03_ESTRUCTURA/diagrama_relaciones.svg` (se abre en el navegador).
 
 ```
 04_DATABASE/

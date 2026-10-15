@@ -15,7 +15,7 @@ require BACKEND_PATH . '/config/database.php';
 
 const TEST_USER = 'sgs.prueba';
 const TEST_DNI = '99999901';
-const TEST_EMAIL = 'sgs.prueba@proviwin.test';
+const TEST_EMAIL = 'sgs.prueba';
 const TEST_MARK = 'USUARIO DE PRUEBA SGS - eliminar antes de producción';
 
 $args = array_slice($argv, 1);

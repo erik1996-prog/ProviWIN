@@ -5,7 +5,7 @@ const [, , inFile, outFile] = process.argv;
 const DB = JSON.parse(fs.readFileSync(inFile, 'utf8'));
 
 const LANES = [
-  { nombre: 'Usuarios, accesos y turnos', color: '#2563EB', tablas: ['usuarios', 'usuario_permisos', 'usuario_departamentos_acceso', 'sgs_usuario_perfil', 'sgs_perfil', 'asistencia_supervisores', 'asistencia_eventos', 'login_attempts'] },
+  { nombre: 'Usuarios, accesos y turnos', color: '#2563EB', tablas: ['usuarios', 'usuario_permisos', 'usuario_departamentos_acceso', 'asistencia_supervisores', 'asistencia_eventos', 'login_attempts'] },
   { nombre: 'Supervisión', color: '#FF5A0A', tablas: ['supervisiones', 'supervision_estado_historial', 'supervision_coordenadas_historial', 'tipificaciones_cancelacion'] },
   { nombre: 'Partners, cuadrillas y ubicación', color: '#0F9D58', tablas: ['partners', 'tecnicos', 'vehiculos', 'ubigeo'] },
   { nombre: 'Observaciones y checklist', color: '#B45309', tablas: ['observaciones_supervision', 'categorias_observacion', 'subopciones_observacion', 'notificaciones', 'checklists_tecnicos', 'checklist_respuestas'] },

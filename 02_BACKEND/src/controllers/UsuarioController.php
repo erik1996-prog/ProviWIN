@@ -7,16 +7,24 @@ require_once BACKEND_PATH . '/services/UsuarioService.php';
 final class UsuarioController
 {
     /** Acciones que requieren administrar usuarios (PERM_USERS_MANAGE). */
-    private const ADMIN = ['catalogos', 'listar', 'detalle', 'guardar', 'estado', 'restablecer_password', 'desbloquear', 'guardar_perfil', 'estado_perfil'];
+    private const ADMIN = ['catalogos', 'detalle', 'guardar', 'estado', 'restablecer_password', 'desbloquear'];
+    /** Ver la lista de personal: PERM_USERS_VIEW, PERM_STAFF_MANAGE o PERM_USERS_MANAGE (cada uno con su alcance). */
+    private const CONSULTA = ['listar', 'ficha', 'zonas_propias'];
+    /** Agregar y editar solo datos personales: PERM_STAFF_MANAGE (o PERM_USERS_MANAGE). */
+    private const PERSONAL = ['guardar_personal'];
     /** Acciones disponibles para cualquier usuario con sesión. */
     private const PROPIAS = ['cambiar_password_propia', 'mi_foto', 'quitar_mi_foto'];
-    private const ESCRITURA = ['guardar', 'estado', 'restablecer_password', 'desbloquear', 'guardar_perfil', 'estado_perfil', 'cambiar_password_propia', 'mi_foto', 'quitar_mi_foto'];
+    private const ESCRITURA = ['guardar', 'guardar_personal', 'estado', 'restablecer_password', 'desbloquear', 'cambiar_password_propia', 'mi_foto', 'quitar_mi_foto'];
 
     public function __construct(private UsuarioService $service, private array $user) {}
 
     public function handle(string $action): array
     {
-        if (!in_array($action, array_merge(self::ADMIN, self::PROPIAS), true)) return $this->error(404, 'Acción no válida.');
+        if (!in_array($action, array_merge(self::ADMIN, self::CONSULTA, self::PERSONAL, self::PROPIAS), true)) return $this->error(404, 'Acción no válida.');
+        $admin = Auth::can(Auth::PERM_USERS_MANAGE, $this->user);
+        $gestionaPersonal = $admin || Auth::can(Auth::PERM_STAFF_MANAGE, $this->user);
+        if (in_array($action, self::CONSULTA, true) && !$gestionaPersonal && !Auth::can(Auth::PERM_USERS_VIEW, $this->user)) return $this->error(403, 'No tiene permiso para ver usuarios.');
+        if (in_array($action, self::PERSONAL, true) && !$gestionaPersonal) return $this->error(403, 'No tiene permiso para agregar o editar personal.');
         if (in_array($action, self::ESCRITURA, true) && ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') return $this->error(405, 'Use POST para esta acción.');
         if (in_array($action, self::ADMIN, true) && !Auth::can(Auth::PERM_USERS_MANAGE, $this->user)) return $this->error(403, 'Solo el administrador puede gestionar usuarios y roles.');
 
@@ -27,7 +35,20 @@ final class UsuarioController
                 case 'catalogos':
                     return ['status' => 'success', 'data' => $this->service->catalogos()];
                 case 'listar':
-                    return ['status' => 'success'] + $this->service->listar($_GET);
+                    return ['status' => 'success'] + $this->service->listar($_GET, $this->user);
+                case 'ficha':
+                    return ['status' => 'success', 'data' => $this->service->detallePersonal((int)($_GET['id'] ?? 0), $this->user)];
+                case 'zonas_propias':
+                    // Zonas donde puede registrar personal: las suyas (partner) o todas (directo WIN).
+                    $alcance = $this->service->alcance($this->user);
+                    return ['status' => 'success', 'data' => ['zonas' => $alcance === null ? sgsOperationalDepartments() : ($alcance['zonas'] ?? sgsOperationalDepartments()),
+                        'es_partner' => $alcance !== null, 'partners' => $alcance === null ? $this->service->partnersOperativos() : [],
+                        'areas' => UsuarioValidator::AREAS, 'cargos' => UsuarioValidator::CARGOS]];
+                case 'guardar_personal':
+                    $id = (int)($in['id'] ?? 0);
+                    $r = $this->service->guardarPersonal($in, $id, $this->user);
+                    win_log_error('audit_staff_saved', ($r['nuevo'] ? 'Personal registrado (sin acceso): ' : 'Datos personales actualizados: ') . $r['nombre'], ['target_id' => $r['id'], 'actor_id' => $actor]);
+                    return ['status' => 'success', 'message' => $r['nuevo'] ? "{$r['nombre']} quedó registrado. El administrador le dará acceso al sistema." : 'Datos actualizados.', 'data' => $r];
                 case 'detalle':
                     return ['status' => 'success', 'data' => $this->service->detalle((int)($_GET['id'] ?? 0))];
                 case 'guardar':
@@ -41,20 +62,13 @@ final class UsuarioController
                     win_log_error('audit_user_status', $activo ? 'Usuario activado' : 'Usuario desactivado', ['target_id' => (int)($in['id'] ?? 0), 'actor_id' => $actor]);
                     return ['status' => 'success', 'message' => $activo ? 'Usuario activado.' : 'Usuario desactivado.'];
                 case 'restablecer_password':
-                    $temporal = $this->service->restablecerPassword((int)($in['id'] ?? 0), (string)($in['password'] ?? ''));
+                    $temporal = $this->service->restablecerPassword((int)($in['id'] ?? 0), (string)($in['password'] ?? ''), !array_key_exists('pedir_cambio', $in) || !empty($in['pedir_cambio']));
                     win_log_error('audit_password_reset', 'Contraseña restablecida por el administrador', ['target_id' => (int)($in['id'] ?? 0), 'actor_id' => $actor]);
                     return ['status' => 'success', 'message' => 'Contraseña restablecida.', 'password' => empty($in['password']) ? $temporal : null];
                 case 'desbloquear':
                     Auth::unlockAccount((int)($in['id'] ?? 0));
                     win_log_error('audit_account_unlocked', 'Usuario desbloqueado por el administrador', ['target_id' => (int)($in['id'] ?? 0), 'actor_id' => $actor]);
                     return ['status' => 'success', 'message' => 'Usuario desbloqueado. Ya puede volver a ingresar.'];
-                case 'guardar_perfil':
-                    $pid = $this->service->guardarPerfil($in, (int)($in['id'] ?? 0), $actor);
-                    win_log_error('audit_profile_saved', 'Perfil de acceso guardado: ' . ($in['nombre'] ?? ''), ['perfil_id' => $pid, 'actor_id' => $actor]);
-                    return ['status' => 'success', 'message' => 'Perfil guardado.', 'data' => ['id' => $pid]];
-                case 'estado_perfil':
-                    $this->service->cambiarEstadoPerfil((int)($in['id'] ?? 0), !empty($in['activo']));
-                    return ['status' => 'success', 'message' => !empty($in['activo']) ? 'Perfil activado.' : 'Perfil desactivado.'];
                 case 'cambiar_password_propia':
                     $this->service->cambiarPasswordPropia($actor, (string)($in['actual'] ?? ''), (string)($in['nueva'] ?? ''));
                     win_log_error('audit_password_changed', 'El usuario cambió su contraseña', ['actor_id' => $actor]);

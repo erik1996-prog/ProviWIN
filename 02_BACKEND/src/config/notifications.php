@@ -15,10 +15,10 @@ function observationBusinessDeadline(int $days = 3): string
 function notifyPartnerObservation(PDO $pdo, int $observationId, int $supervisionId, int $partnerId, int $days, bool $immediate, bool $directPenalty = false): void
 {
     if ($partnerId <= 0) return;
-    // Representantes de la contrata y supervisor asignado, no todos sus supervisores.
+    // Jefe de operaciones del partner y supervisor asignado, no todos sus supervisores.
     $stmtUsers = $pdo->prepare("SELECT u.id FROM usuarios u
         WHERE u.partner_id=:partner AND u.activo=1
-          AND (u.rol='Partner' OR (u.rol='Supervisor' AND EXISTS (
+          AND (u.rol='Jefe de operaciones' OR (u.rol='Supervisor' AND EXISTS (
               SELECT 1 FROM supervisiones s WHERE s.id=:supervision AND s.supervisor_id=u.id
           )))");
     $stmtUsers->execute([':partner'=>$partnerId, ':supervision'=>$supervisionId]);

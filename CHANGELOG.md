@@ -4,6 +4,227 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Cuadrillas editables, carga de técnicos líderes y dirección en cancelaciones (2026-10-15)
+- **La cuadrilla se actualiza al cerrar la supervisión**: el T2, el vehículo y su tipo y estado pasan a la ficha del técnico líder solo cuando la supervisión se **finaliza** (con "Guardar el T2 y el vehículo" marcada). Así, un vehículo reparado queda en "Buen estado" y un cambio de vehículo se registra. Mientras está en proceso, la ficha no cambia.
+- **Los T2 rotan**: en el formulario se puede buscar y elegir a cualquier técnico de apoyo, también de otra cuadrilla o partner (se indica de dónde viene). Si no existe, se registra ahí mismo como antes. Al cerrar, el T2 sale de su cuadrilla anterior y pasa a la del líder y a su partner. Lo mismo con el vehículo: es de una sola cuadrilla.
+- **Pantalla Cuadrillas**: el personal administrativo puede **editar** cada cuadrilla (T2, placa, tipo y estado del vehículo, y estado del técnico líder) para emergencias. Nuevo filtro por estado del técnico líder (habilitados por defecto).
+- **Carga de técnicos líderes por Excel** (Cuadrillas → "Cargar técnicos líderes"): dos columnas, técnico líder y partner. Primero muestra una **vista previa** y solo cambia algo al pulsar "Aplicar cambios":
+  - el técnico que ya está queda igual;
+  - si es la misma persona con **otra nomenclatura** (cambia el inicio, p. ej. "P 4 DOMINION SGI …" → "P 9 OLMA SGA …"), se actualiza su nombre y partner y conserva su historial y cuadrilla;
+  - los que no están se agregan;
+  - los habilitados que no vienen en el archivo se **inhabilitan** (no se borran) y se reactivan si vuelven en otra carga;
+  - la lista negra no se toca;
+  - las filas con partner desconocido o repetidas se informan y no se aplican.
+  - "Descargar lista (Excel)" baja la lista actual en el mismo formato.
+- **Cancelaciones con dirección**: la carga por Excel lee la columna **DIRECCIÓN** (opcional). Se ve en el detalle, en los formularios y en el mapa de pendientes. Plantilla nueva `plantilla_cancelaciones_v5.xlsx` (se llamó v4 unas horas; se renombró porque Cloudflare guardaba en caché la v4 dañada) (DIRECCIÓN después de DISTRITO); se retiró la v3.
+- **Corregido el mismo día**: la plantilla v4 y "Descargar lista (Excel)" no abrían en Excel (se armaban con PharData porque el PHP local no trae ZipArchive). Ahora se empaquetan con un ZIP estándar propio (`sgsEmpaquetarZip`); verificado abriéndolos con Excel.
+- El enlace "Descargar modelo (Excel)" lleva la fecha del archivo (`?v=`): Cloudflare seguía entregando la plantilla dañada que tenía guardada en caché.
+- **Corregido**: "Resultado de la validación" salía bloqueado para el supervisor mientras la cancelación seguía pendiente (faltaba en la lista de campos editables); el administrador no lo notaba porque a él no se le bloquea.
+- **Barra de Supervisiones ordenada**: fila 1 = estados + acciones (Ver rutas, Columnas como ícono, Cancelaciones, Nueva supervisión); fila 2 = solo filtros, a todo el ancho, con buscador con lupa; todo de 40 px y alineado. Revisada a 1366 px, 1100 px y en celular. Estilos: sección 38 de `sgs-theme.css`; patrón actualizado en la skill sgs-diseno.
+- **Corregido**: una cancelación cargada que ya estaba "En proceso" se abría en el formulario de registro nuevo: no mostraba la validación (tipificación y resultado), el distrito del Excel quedaba vacío si no coincidía letra por letra con el catálogo y la sección 1 no dejaba continuar. Ahora las cancelaciones cargadas se abren siempre en su formulario de validación. Además, la ubicación se compara sin tildes y, si no está en el catálogo, se conserva tal cual.
+- **"Resultado de la validación" obligatorio y resaltado**: empieza en "Seleccione el resultado de la validación" (ya no viene "Cancelación correcta" por defecto). Mientras está vacío se ve resaltado con la marca "Pendiente". Se puede iniciar y guardar avance, pero no finalizar: con lo demás completo, el botón dice "Seleccione el resultado de la validación" y lleva al campo, que pasa a rojo. El servidor también lo exige. Estilos: sección 39 de `sgs-theme.css`.
+- **Vista de una supervisión finalizada ordenada**: ficha de datos en 4 columnas sin cajas; los textos largos (dirección, resumen, observación previa) van a lo ancho al final de su sección, sin huecos en blanco. Muestra también el resultado de la validación, la fecha en dd/mm/aaaa, la ubicación GPS con enlace al mapa y las evidencias en rejilla pareja. Estilos: sección 40 de `sgs-theme.css`.
+- **Corregir supervisiones (administrador)**: botón "Corregir supervisión" en la vista de una finalizada. Abre el formulario completo y guarda con "Guardar corrección" sin reabrirla. La opción existía, pero el botón nunca aparecía.
+- **Corrección por el administrador en el servidor**: el guardado rechazaba al administrador ("solo un supervisor directo…"). Ahora el rol Administrador puede guardar sobre una supervisión FINALIZADA: sigue finalizada, a nombre del supervisor y con su fecha, y queda en la auditoría (`audit_supervision_corrected`). Registrar supervisiones nuevas sigue siendo solo del supervisor directo. Prueba nueva `correccion_admin_test.php` (7/7).
+- **GPS más preciso**: antes se guardaba la primera lectura del celular (suele venir de la red o el wifi, con errores de cientos de metros). Ahora se escucha el GPS hasta 25 s y se queda la lectura más precisa (termina antes si llega a ±15 m), mostrando "Afinando ubicación… ±X m". Si la precisión final pasa de ±50 m, avisa en amarillo que conviene salir a un lugar abierto. Se guardan 7 decimales. Estilo: sección 41 de `sgs-theme.css`.
+- **Coordenadas: remota editable**: la remota también toma el GPS al iniciar y tiene "Actualizar ubicación", igual que la presencial; la única diferencia es que en la remota las coordenadas se pueden editar a mano (o pegar las del cliente). En las presenciales quedan solo por GPS (solo lectura); el administrador siempre puede corregirlas. En cualquier modalidad se pueden pegar juntas ("-8.139075, -79.055686") y se separan solas. El servidor valida: números, rangos y las dos juntas; acepta la coma decimal.
+- **Fotos comprimidas antes de subir**: en el propio celular se reducen a 2048 px en el lado mayor y JPEG al 85 % (de ~3–6 MB a ~0,3–0,9 MB), sin pérdida visible; se leen las marcas de agua. Aplica a todos los campos de fotos (`main.js`); no toca archivos de menos de 400 KB, formatos que el navegador no lee ni la foto de perfil (tiene su propio recorte; `data-sin-comprimir`). Las fotos no van dentro de la base: se guardan como archivos en `uploads` y la base solo guarda la ruta.
+- **Corregido "Data truncated for column unidad_soat"**: al guardar una supervisión presencial sin SOAT (o revisión técnica) registrado, el formulario lo mandaba vacío y el MySQL estricto del hosting lo rechazaba. Ahora los campos de lista fija (SOAT, revisión técnica, tipo y estado del vehículo, brevete) guardan "sin dato" si llegan vacíos o fuera de la lista, o conservan el valor anterior. Caso agregado a `correccion_admin_test.php` (8/8).
+- **Menú lateral más limpio, por secciones**: letra más liviana y más aire, mismos colores. Secciones según la tarea: Inicio (Dashboard / Mi turno), Supervisiones (Supervisiones, Cuadrillas), Seguimiento (Línea de tiempo, Monitor de turnos), Observaciones (Registro, Control y recurrencia) y Administración (Usuarios y roles). Se despliegan en acordeón (al abrir una se cierra la otra; la de la pantalla actual empieza abierta) y una sección con una sola opción para ese usuario sale como enlace directo. El menú pasa de 248 a 228 px de ancho (como el ejemplo del usuario); las pantallas dentro de una sección van sin ícono (vuelve en el menú contraído) para que los nombres no se corten. Logo WIN y subtítulo centrados en el menú. Estilos: secciones 42, 42b y 42c de `sgs-theme.css`.
+- **Mapa del Dashboard → supervisión**: la ventana de cada punto muestra el ticket, lugar, partner, técnico, cliente y fecha, con el botón **"Ver supervisión"**, que abre Supervisiones y despliega esa supervisión (`?highlight=ID&abrir=1`). El punto trae ahora también el ticket. Estilos: sección 44 de `sgs-theme.css`. Probado: el enlace abre la supervisión. Sin técnico registrado, esa fila no se muestra (antes decía "Técnico: Técnico").
+- **Usuarios y roles sin desplazamiento lateral**: la tabla pasa de 7 a 5 columnas ("Rol y organización"; "Estado" con el último ingreso debajo). Entra completa a 1100 y 1366 px; en celular se ve como tarjetas. Sección 45 de `sgs-theme.css`.
+- **Tipografía v2 en todo el sistema**: una sola letra (Nunito) en todas las pantallas, el ingreso y el cambio de contraseña; se eliminó Montserrat (títulos en peso 800, se veían toscos) y los nombres de fuentes que nunca existieron. Ningún texto pasa de peso 700: título de pantalla 20/700, títulos de tarjeta 15.5/700, etiquetas y botones 600, cifras de indicadores 24/700. Medido en las 9 pantallas. Sección 43 de `sgs-theme.css`.
+- **Rediseños**: Monitor de turnos (encabezado de tabla claro en vez de oscuro, iniciales pequeñas sin recortarse, columna de supervisor más ancha); Mi información (sin la franja con degradado ni el círculo gigante); pestañas de Observaciones como control compacto (antes, barra naranja a todo el ancho). Sección 43b.
+- **Guía de diseño (skill sgs-diseno) rehecha desde cero, versión 2.0**: tipografía única, menú por secciones, barra de listados, ficha de consulta, campo pendiente, tablas, prohibiciones y verificación. Página `guia_estilo` y `GUIA_VISUAL.md` actualizadas.
+- **Pendientes de la bolsa común**: en "Responsable" aparecen todos los supervisores directos de la zona ("Roger Vasquez / Yelsin Ruiz"); al tomarla, solo quien la inició.
+- Código: lector de Excel compartido en `config/excel_lector.php`; carga de líderes en `config/tecnicos_lideres.php`.
+- Base: cambio `2026-10-15_03_direccion_del_cliente_en_las_cancelaciones` (`supervisiones.direccion`). Probado aplicar, revertir y volver a aplicar; instalación, diccionario y diagrama regenerados.
+- Pruebas: nueva `cuadrillas_carga_test.php` (23/23); `importar_cancelaciones_test.php` cubre la dirección (16/16). Todas las pruebas de integración y de pantallas pasan.
+
+### Cuadrillas, acceso de usuarios y contraseñas (2026-10-15)
+- **Cuadrillas que se llenan solas**: en el formulario de supervisión, la casilla **"Guardar el T2 y el vehículo"** (marcada por defecto) deja al técnico de apoyo y al vehículo como cuadrilla del técnico líder. La próxima vez que se elige a ese líder salen su T2, placa, tipo y estado del vehículo; se pueden cambiar. Si se desmarca, la supervisión los registra igual pero la ficha del líder no cambia.
+- **Pantalla Cuadrillas** (menú Supervisión; administración y supervisores directos): cada técnico líder con su T2, vehículo, estado del vehículo, supervisiones y última supervisión. Indicadores de completas / por completar y filtros por partner, búsqueda y estado. Solo consulta.
+- **Cambio de contraseña obligatorio**: al crear un usuario o ponerle contraseña, la opción **"Pedir que la cambie al ingresar"** (marcada por defecto). La contraseña temporal de "Restablecer contraseña" siempre lo pide. Al ingresar, la persona solo ve la pantalla **"Crea tu contraseña"** hasta cambiarla; las demás APIs responden 403 mientras tanto.
+- **Usuarios y roles**: contadores que filtran al hacer clic: **Todos, Con acceso, Por ingresar, Sin acceso, Desactivados, Bloqueados**; columna **Último ingreso** e insignia "Cambiará su contraseña". "Por ingresar" = activo que aún no entra desde que se registra el último ingreso (al inicio estarán todos ahí y se irán moviendo a "Con acceso").
+- **Indicador de seguridad de contraseña** (Débil / Aceptable / Buena / Fuerte, con la lista de requisitos) en Usuarios, Mi información y la pantalla de cambio obligatorio (`assets/js/password-meter.js`).
+- **Botones del formulario**: los botones de guardar quedaban abajo porque la animación de entrada de la página impedía que quedaran fijos; corregido, ahora flotan siempre a la vista (también en celular).
+- Estilos: sección 37 de `sgs-theme.css` (tabla que en celular se vuelve tarjetas).
+- Base: cambios `2026-10-15_01_cuadrilla_del_tecnico_lider` (`tecnicos.apoyo_id`, llenado con el último T2 de cada líder) y `2026-10-15_02_ultimo_ingreso_y_cambio_de_contrasena_obligatorio` (`usuarios.ultimo_acceso`, `usuarios.debe_cambiar_password`). Instalación y diagrama regenerados.
+- Prueba nueva `acceso_y_cuadrillas_test.php` (23/23). Todas las pruebas de integración, `design_lint`, `smoke_pages` y `check_inline_js` pasan.
+
+### Ajustes a pedido: remota, vehículo, rescate y botones flotantes (2026-10-13)
+- **Supervisión remota simplificada**: basta elegir la modalidad "Remota". Se quitaron el medio y las horas de la videollamada. En la sección 3 solo se pide el **partner** (sin técnicos ni vehículo); tampoco GPS. Para finalizar sigue exigiendo la **captura** como foto de evidencia. (El cambio de base `2026-10-13_02` se simplificó antes de subirlo al hosting: solo agrega la opción "Remota".)
+- **Vehículo por defecto**: al registrar una supervisión, el tipo, la placa y ahora también el **estado del vehículo** quedan en la ficha del técnico líder y salen solos la próxima vez que se le elige. Si se cambia de vehículo, tipo o estado, se edita y queda guardado lo último. Base: cambio `2026-10-13_05_estado_del_vehiculo_por_defecto` (columna `vehiculos.estado_conservacion`).
+- **Rescate en el formulario**: en una cancelación cargada, el campo **"Resultado de la validación"** con las opciones **Cancelación correcta** (por defecto), **En proceso de rescate** y **Rescate**:
+  - Cancelación correcta: se valida y se finaliza como hasta ahora.
+  - En proceso de rescate: el botón pasa a **"Pasar a rescate"**; la orden queda a cargo del supervisor, en la pestaña "En rescate", con seguimiento hasta cerrarla (no ocupa su supervisión en proceso).
+  - Rescate: al finalizar queda como rescatada.
+  - Se quitó la tarjeta aparte "¿La va a rescatar?". El cierre de un rescate usa los mismos nombres: **Rescate** o **Cancelación correcta**, y se anota en el estado de la cancelación.
+- **Botones siempre a la vista**: "Iniciar supervisión", "Guardar avance" / finalizar (y "Registrar atención" del partner) quedan fijos abajo mientras se baja por el formulario.
+- **Monitor de turnos**: se mantiene en el menú.
+- Pruebas: `supervision_remota_test.php` (10/10, incluye el vehículo por defecto) y `rescate_pendientes_test.php` (40/40, incluye el resultado de la validación).
+
+### Rescate propuesto por el partner (2026-10-13)
+- Al atender una orden asignada, el supervisor del partner responde **"¿Se puede rescatar el servicio?"**. Si marca **Sí**, debe subir al menos una foto de evidencia (hasta 3). El partner **solo propone**: no puede pasarla a rescate ni registrar avances.
+- Se avisa al **supervisor directo que la asignó**. En su lista la orden muestra **"Se puede rescatar"** y en el detalle ve la observación y las evidencias del partner con el botón **Pasar a rescate** (solo él; los demás ven quién decide). Desde ahí sigue el mismo rescate: avances, reasignación por el administrador y cierre.
+- El rescate tiene su **propio responsable** (`rescate_responsable_id`): en una orden de partner el supervisor asignado no cambia, así **el cumplimiento de 24 horas del partner se mantiene** (sigue contando como atendida a tiempo). En el Dashboard el responsable de un rescate es su supervisor directo.
+- **Corregido** (venía de antes): **asignar una pendiente a un partner fallaba con un error de SQL** (faltaba un paréntesis en la consulta que valida al supervisor del partner). La prueba de rescate ahora lo cubre.
+- Base: cambio `02_CAMBIOS/2026-10-13_04_rescate_propuesto_por_el_partner` (columnas `partner_rescatable` y `rescate_responsable_id`; tipo "Propuesta del partner" en el historial). Probado aplicar, revertir y volver a aplicar; instalación y diagrama regenerados.
+- `rescate_pendientes_test.php` amplía con el flujo del partner (35/35).
+
+### Rescate de pendientes (2026-10-13)
+- En el detalle de una pendiente libre de su zona, el supervisor directo puede **Tomar como rescate** (con comentario opcional). La pendiente queda a su nombre en estado **"En rescate"**, sale de la bolsa común (los demás ya no la ven ni la pueden tomar) y **no ocupa su "supervisión en proceso"**: puede seguir trabajando en paralelo.
+- **Seguimiento sin plazo**: registra avances (comentario y foto opcional) las veces que necesite. **Cierre**: "Se rescató" o "No se rescató", con comentario obligatorio; la pendiente queda **Finalizada** con su resultado.
+- **Reasignación** solo por el administrador (casos puntuales), a otro supervisor directo activo que trabaje esa zona; se le avisa por notificación.
+- Todo queda en un **historial** (inicio, avances, reasignación, cierre) que se ve en el detalle. Mientras dura el rescate no se puede iniciar como supervisión normal ni asignar a un partner (también en la API).
+- Supervisiones: pestaña **"En rescate"** con su contador; en la lista se ve "En rescate" o "Finalizada · Rescatado / No rescatado".
+- Dashboard → Pendientes cargadas: indicadores **En rescate** y **Rescatadas** (con las no rescatadas); en el detalle, situación "En rescate", "Rescatada" o "No rescatada".
+- Reemplaza el rescate que había quedado a medias (mensajes en el servidor sin botón en la pantalla).
+- Base: cambio `02_CAMBIOS/2026-10-13_03_rescate_de_pendientes_con_seguimiento` (columnas `rescate_estado`, `rescate_inicio`, `rescate_fin` y tabla nueva `rescate_seguimientos`; 22 tablas). Probado aplicar, revertir y volver a aplicar; instalación (se agregó la tabla a `generar_instalacion.php`), diccionario y diagrama regenerados. Estilos: sección 35 de `sgs-theme.css`.
+- Prueba nueva `rescate_pendientes_test.php` (21/21).
+
+### Supervisión remota por videollamada (2026-10-13)
+- Nueva modalidad **"Remota (videollamada)"** para todos los tipos de supervisión que piden modalidad. Funciona como "En caliente" (técnico líder y resultado), pero **no exige GPS ni datos del vehículo**.
+- Para finalizarla exige la **captura de la videollamada** (foto de evidencia), el **medio** (WhatsApp, Google Meet, Microsoft Teams, Zoom u otro) y la **hora de inicio y fin** de la llamada (el fin no puede ser antes que el inicio). Se piden al finalizar, no al iniciar. *(Simplificado el mismo día: ver "Ajustes a pedido" arriba; ya no pide medio ni horas.)*
+- **Cuenta para la meta de productividad** igual que una presencial. El gráfico de **modalidad** del Dashboard pasa a tres partes (caliente, frío, remota; el tercer color se validó por contraste y daltonismo). En la **línea de tiempo** la supervisión remota se ve con borde punteado y su ventana indica la modalidad. El detalle muestra el medio y la hora de la llamada.
+- Base: cambio `02_CAMBIOS/2026-10-13_02_supervision_remota_por_videollamada` (opción "Remota" en `tipo_supervision_inicial`; columnas `remota_medio`, `remota_hora_inicio`, `remota_hora_fin`). Probado aplicar, revertir y volver a aplicar. Estilos: sección 34 de `sgs-theme.css`.
+- Prueba nueva `supervision_remota_test.php` (9/9).
+
+### Línea de tiempo por horas con ventana flotante (2026-10-13)
+- La **Línea de tiempo** pasa a ser un diagrama por horas: regla de horas arriba (se ajusta sola a la jornada del día, mínimo 8 horas) y una fila por supervisor. Cada actividad se dibuja de la hora en que empezó a la hora en que terminó: franja del turno, supervisiones (finalizadas / en curso), traslados, almuerzo, reunión o capacitación y trabajo remoto. **Flecha verde de inicio de turno** y **flecha oscura de fin de turno**, cada una con su hora (sin flecha de fin mientras el turno sigue abierto). Línea roja de **Ahora** en el día actual. Antes los bloques iban uno tras otro, sin escala de tiempo.
+- **Ventana flotante** al tocar: un bloque de supervisión muestra código, pedido/ticket, estado, inicio, fin, duración, técnico y partner, con el botón **Abrir supervisión**; una pausa o traslado, desde/hasta y duración; el nombre o la franja del turno, el resumen de la jornada (inicio y fin de turno, duración, tiempo en supervisiones, traslados, pausas y remoto, 1.ª acción) y, para el administrador, **Reabrir turno** (hoy). Se cierra con la X, Esc o clic afuera. En celular sale como hoja inferior y la columna de nombres se angosta.
+- **Menos amontonado**: escala de horas **Día / ×2 / ×4** (se recuerda en el navegador) para ver supervisiones de pocos minutos; el traslado es una línea punteada fina en vez de una franja; las supervisiones tienen un ancho mínimo visible.
+- **Lo que fue atendiendo, debajo**: el botón de flecha junto al nombre despliega la lista de la jornada en orden de hora (inicio de turno, supervisiones con código, técnico y partner, traslados, pausas, remoto, fin de turno), con su duración y un botón para abrir cada supervisión.
+- Filtros: fecha, búsqueda por nombre y "Solo con actividad". Se actualiza cada minuto (no mientras hay una ventana abierta).
+- API `asistencia.php?action=timeline_diaria`: cada bloque envía además `ts_inicio`/`ts_fin` (y el ticket en supervisiones); cada supervisor, `turno_ts`; la respuesta, `ahora`, `es_hoy` y `puede_reabrir`. No se quitó nada de lo anterior (el Dashboard sigue usando los mismos campos).
+- Estilos: sección 33 de `sgs-theme.css` (`sgs-gantt-*`, `sgs-tl-pop`). Prueba nueva `timeline_horas_test.php`.
+
+### Dashboard: pendientes cargadas y su atención por supervisor directo (2026-10-13)
+- Nueva tarjeta **Pendientes cargadas** en la vista Supervisión (API `dashboard.php?action=pendientes_directos`): cancelaciones subidas por Excel en el período; sin tomar, en proceso, atendidas por directos, transferidas a partner, atendidas por partner, en el partner en plazo y vencidas, % atendidas del total y tiempo promedio desde la carga hasta la atención.
+- **Por supervisor directo**: tomadas, las que atendió él, en proceso, transferidas, las que atendió el partner, vencidas en el partner, total atendidas y % de atención. Una pendiente transferida a un partner **sigue siendo del supervisor directo que la asignó**.
+- **Detalle de las pendientes** (últimas 200): código, departamento, fecha de carga, situación, supervisor responsable, **atendida por** (si se transfirió: el supervisor del partner y su partner) y fecha de atención.
+- Responde a todos los filtros generales (período por fecha de carga, partner, departamento y supervisor).
+- Base: cambio `02_CAMBIOS/2026-10-13_01_fecha_de_carga_de_las_pendientes` (columna `supervisiones.fecha_carga`; antes no quedaba la fecha de carga porque `fecha_registro` cambia al tomar la pendiente). Las pendientes ya cargadas reciben la fecha más temprana conocida. La carga por Excel la guarda desde ahora. Probado aplicar, revertir y volver a aplicar; instalación, diccionario y diagrama regenerados.
+- Estilo: nueva clase `sgs-tabla-alta` (tabla con alto máximo y encabezado fijo), sección 32 de `sgs-theme.css`.
+- Prueba nueva `pendientes_directos_test.php` (12/12); `importar_cancelaciones_test.php` comprueba la fecha de carga (14/14).
+
+### Dashboard, vista Partners: indicadores propios del partner (2026-10-13)
+- "Partners y cuadrillas más supervisados" pasa a la vista **Supervisión**: sale de las supervisiones que hacen los supervisores directos, no de la gestión del partner.
+- **Cumplimiento de partners**: nueva tabla **Por supervisor del partner** (asignadas, a tiempo, en plazo, bloqueadas, respuesta promedio y cumplimiento de cada uno).
+- Nueva tarjeta **Observaciones y descargos** (API `dashboard.php?action=observaciones_partners`): observaciones de campo y de checklist hechas a los partners en el período, respondidas a tiempo, sin respuesta vencidas, pendientes en plazo, descargos por revisar, respuesta promedio, validadas, penalizadas, % de respuesta a tiempo y % de penalidad sobre lo evaluado; tabla por partner, motivos más observados y reparto por gravedad. Cuenta igual que la pantalla Observaciones (cada hallazgo de campo y cada ítem de checklist con comentario o foto). Usa los filtros generales (período, partner, departamento).
+- Prueba nueva `dashboard_partners_test.php` (12/12).
+
+### Revisión de seguridad (2026-10-13)
+- **Seguridad — eliminar supervisiones solo por POST con token.** La acción `delete` aceptaba GET, donde no se revisa el token CSRF: si el administrador abría un enlace preparado (`api/supervisiones.php?action=delete&id=…`) con su sesión iniciada, se borraba la supervisión. Ahora responde 405 a GET y el id solo se lee del cuerpo POST.
+- **Seguridad — "personal directo WIN" por nombre exacto.** Se consideraba directo a cualquier usuario cuyo partner *contuviera* "WIN" en el nombre: un partner futuro como "NETWIN" habría visto todo. Ahora solo "WIN" o "WIN DIRECTO", igual que en las consultas a la base.
+- **Seguridad — HSTS**: con HTTPS, el navegador recuerda por 180 días que debe entrar siempre por https://.
+- Revisado sin cambios: login (contraseñas cifradas, bloqueo por intentos, sesión nueva al entrar, se cierra si se desactiva la cuenta o cambia el rol), CSRF en todas las acciones, consultas preparadas (sin inyección SQL), escape de textos en pantalla (XSS), subida de archivos (contenido real, solo JPG/PNG/WEBP, nombres aleatorios, sin ejecución en uploads), permisos por registro (orden, partner y zona), exportaciones, enrutado por lista cerrada, sin CORS, sin claves en git; en el hosting, carpetas internas 403/404 y http → https.
+- `importar_cancelaciones_test.php`: 3 casos nuevos de eliminación (13/13).
+
+### No duplicar una orden que está en Pendientes (2026-10-13)
+- Si un supervisor registra una supervisión nueva con un código de pedido / ticket que ya fue cargado como **pendiente**, no se guarda y se le avisa: "El código … se encuentra en Pendientes (departamento). No se guardó para evitar duplicarla: búsquela en Pendientes y atiéndala desde ahí." El código se compara sin espacios y sin importar mayúsculas.
+- Atender la propia pendiente (iniciarla desde Pendientes) funciona igual que antes.
+- `pendientes_bolsa_zona_test.php`: caso nuevo (10/10).
+
+### Mapa de pendientes: órdenes en la misma ubicación (2026-10-13)
+- **Corregido**: si dos pendientes tenían la misma ubicación GPS (o a pocos metros), sus marcadores quedaban uno encima del otro y parecía que faltaba una (3 pendientes, 2 puntos). Ahora se agrupan en un solo marcador con sus números ("1 · 2"); al tocarlo se abre una lista para elegir la orden.
+- **Cambiado (mismo día)**: en vez de juntarlas en un marcador, cada pendiente tiene **su propio marcador**, abiertos en abanico alrededor del punto real (un punto gris y una línea punteada fina los unen a él). La separación es en pantalla, así que se mantiene al acercar o alejar el mapa; cada marcador abre su orden.
+
+### Área de trabajo, cargo y procesos en correos (2026-10-12)
+- Se separan tres datos que antes se confundían: **rol del sistema** (lo que puede hacer en SGS; da permisos), **área de trabajo** (su equipo) y **cargo** (su puesto). Área y cargo no dan permisos.
+- **Área de trabajo** pasa a lista fija: Instalaciones, Averías, Instalaciones y averías, Almacén.
+- **Cargo** (nuevo): Supervisor de campo, Supervisor de calidad, Coordinador, Jefe de operaciones, Jefe, Gerente, Subgerente, Asistente, Asesor, Almacenero, Analista.
+- Un valor guardado antes que no está en la lista (por ejemplo "SUPERVISOR UM") se conserva y se muestra como "(anterior)" hasta que se cambie.
+- Nueva sección **"Procesos en los que se le copia en los correos"**: Liquidaciones, Penalidades, Gestión Phoenix, con la casilla "Todos". Se guarda en la columna existente `procesos_copiados`.
+- El formulario "Personal" (partners) también usa las listas de área y cargo. La lista de usuarios muestra cargo y área debajo del nombre. En "Roles y permisos" cada rol muestra para qué sirve.
+- Base: cambio `02_CAMBIOS/2026-10-12_03_cargo_de_los_usuarios` (columna `cargo`). Probado aplicar, revertir y volver a aplicar. Instalación y diagrama regenerados.
+- `usuarios_service_test.php`: 5 casos nuevos (32/32).
+
+### Formulario de usuario en otro orden (2026-10-12)
+- Nuevo orden: Datos personales → **Organización y rol** (organización y partner, área de trabajo, cargo, rol del sistema, modalidad, turno) → Procesos en correos → Zonas de trabajo → **Acceso** (usuario y contraseña) → Permisos.
+
+### Rol "Jefe de operaciones" en lugar de "Partner" (2026-10-12)
+- El rol **"Partner"** (heredado del sistema anterior) se elimina. El personal de un partner que atiende órdenes es **Supervisor** con organización Partner; por eso los usuarios que tenían rol Partner pasan a Supervisor (así aparecen al asignar órdenes).
+- Nuevo rol **"Jefe de operaciones"**, solo para personal de un partner y **solo de consulta**: ve todas las órdenes asignadas a su partner (cualquier zona y estado, con el supervisor asignado), las observaciones de su partner y su personal ("Personal", como directorio). No atiende órdenes ni responde observaciones (tampoco por la API). Su menú dice "Órdenes del partner". Recibe los avisos de observaciones que antes recibía el rol Partner. No lleva zonas.
+- El rol no se puede dar a personal directo WIN; el personal de un partner solo puede ser Supervisor o Jefe de operaciones.
+- Base: cambio `02_CAMBIOS/2026-10-12_02_rol_jefe_de_operaciones_en_lugar_de_partner` (agrega el rol, pasa Partner → Supervisor, quita Partner). Probado aplicar, revertir y volver a aplicar. Instalación, diccionario y diagrama regenerados.
+- **Permiso "Responder observaciones del partner"** (nuevo, delegable): lo trae el Supervisor (el del partner responde como siempre); el Jefe de operaciones no, pero el administrador se lo puede activar en Usuarios → Personalizar. Aplica a observaciones y checklists, en pantalla y en la API.
+- Prueba nueva `jefe_operaciones_test.php` (9/9).
+
+### Carga de cancelaciones: fallaba en el hosting (2026-10-12)
+- **Corregido**: la carga guardaba `estado_servicio_caliente = 'Cancelado'`, pero la columna solo acepta 'Finalizada' o 'Cancelada'. En el PC no se notaba (MySQL permisivo deja el campo vacío con un aviso); en el hosting, con MySQL en modo estricto, la carga fallaba con "Data truncated". Ahora guarda 'Cancelada'.
+- Todas las pruebas se corrieron también con MySQL en modo estricto (como el hosting) y pasan. Dos pruebas tenían datos de prueba que el modo estricto rechazaba ('Cancelado' y columnas obligatorias sin llenar): corregidas.
+
+### Carga de cancelaciones: códigos ya existentes y Excel más robusto (2026-10-12)
+- **No se vuelve a ingresar un código que ya está en Supervisiones**: cada "Código de seguimiento / ticket" se compara con el "Código pedido / ticket" de todas las supervisiones, sin importar espacios, mayúsculas ni el ".0" de Excel. Se lista aparte en "Códigos no ingresados: ya están en Supervisiones", con la supervisión, su estado (Finalizada o Pendiente) y la fecha. Ya no cuenta como error.
+- Un código repetido dentro del mismo archivo se carga una sola vez y se avisa.
+- **Lectura del Excel**: se leen hasta 200 columnas (antes solo de la A a la T: en exportaciones con más columnas no se encontraban los encabezados); se usa la primera hoja del libro aunque internamente no se llame `sheet1`; se aceptan archivos sin numeración de filas o celdas; los tickets numéricos se guardan sin ".0".
+- **Errores claros**: los avisos de PHP ya no se mezclan con la respuesta (la pantalla mostraba "No se pudo procesar el archivo"); un error inesperado se registra y se muestra con su código de seguimiento, sin el texto técnico.
+- El resultado muestra: pendientes creadas, ya existentes, repetidos del archivo y filas con problemas.
+- **Corregido: la plantilla oficial no se podía leer.** La plantilla que descarga el sistema guarda su XML con prefijo (`<x:row>`, `<x:c>`) y el lector solo entendía el formato sin prefijo que usa Excel al guardar: no encontraba encabezados ni filas, y el aviso de PHP que se generaba se mezclaba con la respuesta ("No se pudo procesar el archivo"). Ahora se leen ambos formatos.
+- **Corregido: "No se pudo procesar el archivo" aunque la carga sí se hacía.** Al terminar con éxito, la pantalla limpiaba el formulario con `event.currentTarget`, que después de esperar al servidor ya es `null`; el error resultante reemplazaba el mensaje de éxito por el de fallo. Ahora el formulario se guarda antes de esperar.
+- Si el servidor responde algo inesperado (error del hosting, archivo muy grande, bloqueo), la ventana muestra el código HTTP y el código de seguimiento en lugar de un mensaje genérico.
+- Eliminar una supervisión ahora deja registro (`audit_supervision_deleted`, con una copia completa); antes no quedaba rastro.
+- **Errores de la carga traducidos**: en lugar de "error interno", la ventana dice qué pasó, en qué fila del Excel y qué hacer (falta una columna o tabla en la base → aplicar cambios pendientes; valor no válido; dato muy largo; dato que no existe en el catálogo; código duplicado; base saturada; servidor sin la extensión ZIP; archivo demasiado grande). Debajo, el código de seguimiento y el detalle técnico (la carga es solo del administrador).
+- Prueba nueva `importar_cancelaciones_test.php` (10/10, incluye la plantilla oficial).
+
+### Cierre técnico: opción "CANCELADA" (2026-10-12)
+- "Solución aplicada o cierre técnico" (Avería, Reiterada, Garantía) tiene la opción **CANCELADA**.
+- **Corregido**: al editar una supervisión, el campo se armaba primero con otra lista corta y antigua; si la supervisión tenía guardada una opción de la lista real, se perdía al abrirla. Ahora crear y editar usan la misma lista y se conserva lo guardado.
+
+### Dashboard: vistas Supervisión / Partners y modalidad (2026-10-12)
+- **Dos vistas** debajo de los filtros (que aplican a ambas): "Supervisión" (indicadores, mapa, distritos, modalidad, meta de productividad y matriz mensual) y "Partners" (partners y cuadrillas más supervisados y cumplimiento de partners en 24 h). La vista elegida se recuerda en el navegador.
+- **Gráfico de modalidad**: anillo con el porcentaje y la cantidad en caliente / en frío; cambia con cualquier filtro (período, partner, departamento, supervisor). No cuenta checklist ni visitas de capacitación (no tienen modalidad). Colores validados para daltonismo (naranja = caliente, azul = frío), en `sgs-theme.css` sección 30.
+- **Supervisión en frío**: la ficha de una supervisión ya registrada ya no muestra técnicos, brevete ni vehículo (el formulario ya no los pedía).
+
+### Ubicación automática al hacer una supervisión (2026-10-12)
+- Al abrir "Nueva supervisión" la ubicación GPS se toma sola. También al abrir una orden pendiente que no tiene coordenadas; si ya las trae (por ejemplo, una cancelación importada con la dirección del cliente), se respetan.
+- El botón pasa a "Actualizar ubicación" para volver a tomarla si el supervisor cambia de lugar. El aviso muestra la hora (24 h) y la precisión; si el celular no da permiso, explica qué hacer.
+
+### Turno finalizado por error (2026-10-12)
+- **Caso real**: un supervisor inició capacitación y, con un toque doble en el celular, terminó en "Finalizar turno" (07:04). Como solo se permite un turno al día, ya no podía seguir trabajando.
+- **Reabrir turno**: el supervisor puede reabrirlo durante 15 minutos ("¿Lo finalizaste por error? Reabrir turno"); el administrador puede hacerlo el mismo día desde el Monitor de turnos (botón "Reabrir"). La pausa que el cierre cortó (capacitación, reunión, almuerzo o remoto) sigue abierta y el turno vuelve a ese estado. Queda anotado en el turno y en el registro (`audit_shift_reopened`). No aplica al cierre automático de las 23:59.
+- **Finalizar turno** ahora usa una ventana propia con el botón "Sí, finalizar mi turno" (antes era el aviso del navegador) y se ignora si llega en los 2,5 segundos siguientes a otra acción del turno.
+- **Monitor de turnos para el administrador**: antes solo lo veían Gerente y Coordinador. El administrador (dueño del sistema) ve todas las pantallas. Administración, gerencia y coordinación abren directo el monitor (sin la pestaña "Mi turno", que es solo del supervisor directo).
+- Prueba nueva `reabrir_turno_test.php` (7/7).
+
+### Permisos de usuarios y personal (2026-10-12)
+- **Permisos nuevos** (se habilitan por usuario con "Personalizar"):
+  - "Ver usuarios": solo consulta. El personal directo WIN ve a todos; el personal de un partner ve solo a su partner y dentro de sus zonas.
+  - "Agregar y editar personal": solo datos personales (DNI, nombres, correo, teléfonos). No crea usuario ni contraseña, no asigna rol ni zonas, no activa, desactiva ni elimina, y no toca a administradores.
+- **Trabajador "Sin acceso"**: el registrado así queda sin usuario e inactivo; a los administradores les llega el aviso "Nuevo personal por completar". El administrador lo abre con "Completar acceso" (usuario, contraseña, rol, zonas) y al guardar con contraseña queda activo. El filtro "Activos y sin acceso" los muestra.
+- Quien no es administrador ve la pantalla como "Personal", un directorio: sin pestaña de roles, sin indicadores, sin filtros de rol u organización y sin estados (activo, inactivo, sin acceso).
+- Al agregar personal solo se llenan DNI, nombres, apellidos, correo, teléfonos, área de trabajo y zona. El partner y la organización salen de quien registra; turno Día y modalidad Presencial quedan por defecto.
+- **Limpieza de permisos**: se quitaron los que no hacían nada ("Ver recursos y archivos", "Ver examen técnico" y los 4 filtros de usuarios). "Ver usuarios" deja de venir por defecto para Supervisor y Partner. El rol Administrador sigue siendo solo para personal directo WIN.
+- **Correo libre otra vez**: obligatorio y válido, pero sin forzar `@win.pe` ni `@partner.pe` (se deshace la regla de esta misma fecha).
+- Observaciones: se quitó el aviso "Vista restringida al partner".
+- Pruebas: `usuarios_service_test.php` 27/27 (personal sin acceso, alcance del partner, completar acceso); las demás pruebas usan correos completos.
+
+### Observaciones: el partner ve las fotos como WIN y un solo comentario general (2026-10-12)
+- **Corregido**: el partner no podía abrir las fotos de una observación (su ventana mostraba imágenes fijas). Ahora usa el mismo "Ver detalle" que WIN: datos de la orden, hallazgo, fotos que se abren en el visor con zoom y seguimiento. Si le toca responder, tiene "Responder" en la fila y dentro del detalle.
+- **Un solo comentario general**: al registrar una observación ya no se pide comentario por cada foto; queda "Comentario de la observación" + hasta 3 fotos. Al responder, el partner sube sus 3 fotos y un "Comentario del levantamiento". El servidor ya no exige comentarios por foto (las columnas se conservan para los registros anteriores, que se siguen mostrando).
+- Las fotos del levantamiento dentro del detalle ahora también se abren en el visor. Ya no aparece "Sin comentario" bajo cada foto.
+
+### Filtros que se aplican solos y vista del partner (2026-10-12)
+- **Filtros sin botón "Filtrar"**: en Observaciones, Dashboard y Control y recurrencia cada filtro se aplica apenas cambia (lo escrito espera a que se deje de teclear, sin perder el cursor). Queda solo "Limpiar".
+- **Observaciones**: el filtro de estado (Pendientes, En revisión, Aceptados, Penalizados, Reabiertos) ahora lo tienen todos, también el partner.
+- **Mi agenda (partner)**: pestañas Pendientes (asignadas y dentro de las 24 h), En proceso (ya registró su atención; falta que WIN la cierre) y No revisados (pasaron las 24 h sin atención), con sus contadores. Sin cambios en la base.
+- Menú del partner: "De mi partner" pasa a "Registro", igual que para el resto.
+- Prueba nueva `agenda_partner_test.php` (5/5).
+
+### Usuarios: sin perfiles de acceso, correo con dominio y turno día o noche (2026-10-12)
+- **Eliminado**: los "perfiles de acceso" (nunca se usaron; sus 2 tablas estaban vacías). Quedan el rol con sus permisos por defecto y, si hace falta, permisos personalizados por usuario ("Personalizar"). La pestaña pasa a llamarse "Roles y permisos". Se borró `PerfilRepository.php`.
+- **Correo opcional y con dominio fijo**: si no se escribe, se arma con el usuario. Siempre termina en `@win.pe` (personal directo) o `@partner.pe` (personal de partner); en el formulario solo se escribe lo de antes de la @ y el dominio cambia solo según la organización. Si pegan un correo completo, se conserva solo lo de antes de la @.
+- **Turno**: solo Día o Noche. Los turnos anteriores (Mañana, Tarde, Rotativo) se guardan como Día.
+- Base: cambio `02_CAMBIOS/2026-10-12_01_quitar_perfiles_de_acceso_y_dejar_turnos_dia_y_noche` (borra `sgs_perfil` y `sgs_usuario_perfil`; pasa los turnos a Día). Quedan 21 tablas. Probado aplicar, revertir y volver a aplicar. Instalación, diccionario y diagrama regenerados.
+- Pruebas: `usuarios_service_test.php` cambia los casos de perfiles por los de correo y turno (23/23); las demás pruebas usan correos sin dominio.
+
+### Foto que congelaba la pantalla y búsqueda por pedido o ticket (2026-10-12)
+- **Corregido**: al ver una foto desde el detalle de una observación y cerrarla, la pantalla quedaba gris y no respondía. Al cerrar una ventana que estaba encima de otra se perdía el estado "ventana abierta" y la animación de la página dejaba la ventana de abajo detrás del fondo. Se corrigió en el manejo general de ventanas (`main.js`), así que vale para todas las pantallas.
+- **Corregido**: el navegador no descargaba los cambios de JavaScript (la versión de los archivos solo miraba el CSS). Ahora también mira los `.js`, así que basta con subir el archivo.
+- **Buscador "Pedido o ticket"** en Observaciones y en Supervisiones, para todos los roles (cada uno sigue viendo solo lo suyo). También encuentra por código de supervisión. En Observaciones se mantiene al exportar a Excel o PDF.
+- El detalle y la tabla del partner dicen "Pedido o ticket" (es el mismo dato).
+
 ### Observaciones, Dashboard y pendientes (2026-10-11)
 - **Detalle de la observación rediseñado** (vista del partner y de todos): fecha de ingreso, fecha plazo (en rojo si venció), código de pedido, cuadrilla, partner, departamento, hallazgo con gravedad y fotos, y seguimiento por pasos.
 - **Administrador**: puede ampliar el plazo (también en penalidad directa; si la nueva fecha es futura vuelve a Pendiente) y **eliminar** la observación con motivo obligatorio; se guarda una copia completa en el registro (`audit_observation_deleted`).

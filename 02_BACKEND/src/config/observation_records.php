@@ -5,7 +5,7 @@ function observationRegisterFilters(array $source): array {
         'partner_id' => max(0, (int)($source['partner_id'] ?? 0)),
         'cuadrilla' => trim((string)($source['cuadrilla'] ?? '')),
         'departamento' => trim((string)($source['departamento'] ?? '')),
-        'codigo' => trim((string)($source['codigo'] ?? '')),
+        'codigo' => mb_substr(trim((string)($source['codigo'] ?? '')), 0, 60),
         'fecha_desde' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($source['fecha_desde'] ?? '')) ? $source['fecha_desde'] : '',
         'fecha_hasta' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($source['fecha_hasta'] ?? '')) ? $source['fecha_hasta'] : ''
         ,'tipo_registro' => in_array((string)($source['tipo_registro'] ?? ''), ['Checklist','Campo','Hallazgo'], true) ? (string)$source['tipo_registro'] : ''
@@ -19,6 +19,10 @@ function observationRegisterScope(array $user): array {
     $effectiveRole = (string)($user['rol'] ?? '');
     if (in_array($effectiveRole, [Auth::ROLE_ADMINISTRADOR, Auth::ROLE_GERENTE, Auth::ROLE_COORDINADOR], true)) {
         return ['', []];
+    }
+    if (($user['rol'] ?? '') === Auth::ROLE_JEFE_OPERACIONES && !empty($user['partner_id'])) {
+        // Jefe de operaciones (2026-10-12): todas las observaciones de su partner, en todas sus zonas.
+        return [' AND registros.partner_id=:scope_partner', [':scope_partner' => (int)$user['partner_id']]];
     }
     if (empty($user['is_win_directo']) && !empty($user['partner_id'])) {
         // Regla de negocio (2026-10-04): el usuario de un partner ve las observaciones de SU partner
@@ -69,7 +73,7 @@ function observationRecordsBaseQuery(array $user, array $filters): array {
         // PDO usa prepares nativos: cada aparición necesita su propio marcador.
         // Reutilizar :codigo en ambos LIKE produce HY093 al aplicar el filtro.
         $sql.=' AND (registros.ticket_codigo LIKE :codigo_ticket OR registros.codigo_supervision LIKE :codigo_supervision)';
-        $searchCode='%'.$filters['codigo'].'%';
+        $searchCode='%'.addcslashes($filters['codigo'],'%_\\').'%';
         $params[':codigo_ticket']=$searchCode;
         $params[':codigo_supervision']=$searchCode;
     }

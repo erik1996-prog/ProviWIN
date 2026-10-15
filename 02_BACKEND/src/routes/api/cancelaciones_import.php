@@ -1,10 +1,13 @@
 <?php
 header('Content-Type: application/json; charset=utf-8');
+// Cualquier aviso de PHP al leer el Excel no debe mezclarse con la respuesta (la pantalla dejaría de entenderla).
+ob_start();
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/auth.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/uploads.php';
 require_once __DIR__ . '/../../config/asignacion_cancelaciones.php';
+require_once __DIR__ . '/../../config/excel_lector.php';
 
 Auth::requireLogin();
 Auth::requireCsrf();
@@ -19,63 +22,51 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_FILES['archivo'])) {
     exit;
 }
 
-// Mayúsculas y sin tildes. No se usa iconv(ASCII//TRANSLIT): en Windows convierte "Ó" en "'O" y los
-// encabezados con tilde (CÓDIGO, GESTIÓN) o zonas (ÁNCASH, JUNÍN) dejaban de reconocerse.
-function normalizeImportText(string $value): string {
-    $value = mb_strtoupper(trim(preg_replace('/\s+/u', ' ', $value)), 'UTF-8');
-    return strtr($value, ['Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U', 'Ü' => 'U', 'Ñ' => 'N',
-        'À' => 'A', 'È' => 'E', 'Ì' => 'I', 'Ò' => 'O', 'Ù' => 'U', 'Â' => 'A', 'Ê' => 'E', 'Î' => 'I', 'Ô' => 'O', 'Û' => 'U']);
+/** Código de seguimiento / ticket tal como se compara y se guarda: " 12345.0 " → "12345", "1.2345E+5" → "123450". */
+function normalizarTicket(string $ticket): string {
+    $ticket = mb_strtoupper(preg_replace('/\s+/u', '', $ticket), 'UTF-8');
+    if (preg_match('/^\d+\.0+$/', $ticket)) $ticket = preg_replace('/\.0+$/', '', $ticket);
+    elseif (preg_match('/^\d+(\.\d+)?E\+\d+$/', $ticket)) $ticket = sprintf('%.0f', (float)$ticket);
+    return $ticket;
 }
 
-function readXlsxRows(string $path): array {
-    $sharedXml = false;
-    $sheetXml = false;
-    if (class_exists('ZipArchive')) {
-        $zip = new ZipArchive();
-        if ($zip->open($path) !== true) throw new RuntimeException('El archivo Excel no se pudo abrir.');
-        $sharedXml = $zip->getFromName('xl/sharedStrings.xml');
-        $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
-        $zip->close();
-    } else {
-        $archive = new PharData($path);
-        if (isset($archive['xl/sharedStrings.xml'])) $sharedXml = $archive['xl/sharedStrings.xml']->getContent();
-        if (isset($archive['xl/worksheets/sheet1.xml'])) $sheetXml = $archive['xl/worksheets/sheet1.xml']->getContent();
+/**
+ * Traduce un error inesperado de la carga a algo accionable (2026-10-12): qué pasó, en qué fila y qué hacer.
+ * Devuelve ['que_paso' => …, 'que_hacer' => …]. Lo que no se reconoce queda como error interno con su código.
+ */
+function explicarErrorCarga(Throwable $e, ?int $fila): array {
+    $msg = $e->getMessage();
+    $codigo = $e instanceof PDOException ? (int)($e->errorInfo[1] ?? 0) : 0;
+    $enFila = $fila ? " (fila {$fila} del Excel)" : '';
+    $columna = preg_match("/column '([^']+)'/i", $msg, $m) ? $m[1] : '';
+    $tabla = preg_match("/Table '[^.']*\.?([^']+)' doesn't exist/i", $msg, $m) ? $m[1] : '';
+    $cambios = 'Aplique en la base del hosting los cambios pendientes de la carpeta 04_DATABASE/02_CAMBIOS (con migrar.php o ejecutando cada cambio.sql en phpMyAdmin) y vuelva a subir el archivo.';
+    switch (true) {
+        case $codigo === 1054:
+            return ['que_paso' => "A la base del hosting le falta la columna «{$columna}» que usa el sistema.", 'que_hacer' => $cambios];
+        case $codigo === 1146:
+            return ['que_paso' => "A la base del hosting le falta la tabla «{$tabla}».", 'que_hacer' => $cambios];
+        case in_array($codigo, [1265, 1366], true):
+            return ['que_paso' => "Un valor del Excel no es válido para el dato «{$columna}»{$enFila}.",
+                'que_hacer' => 'Revise ese dato en el Excel (por ejemplo, la fecha o la gestión). Si el valor es correcto, a la base le falta un cambio. ' . $cambios];
+        case $codigo === 1406:
+            return ['que_paso' => "Un dato del Excel es demasiado largo para «{$columna}»{$enFila}.", 'que_hacer' => 'Acorte ese dato en el Excel y vuelva a subir el archivo.'];
+        case $codigo === 1452:
+            $dato = str_contains($msg, 'tipificacion') ? 'la tipificación (motivo de cancelación)' : (str_contains($msg, 'partner') ? 'el partner' : (str_contains($msg, 'supervisor') ? 'el supervisor asignado' : 'un dato relacionado'));
+            return ['que_paso' => "El Excel usa {$dato} que no existe en el sistema{$enFila}.",
+                'que_hacer' => 'Corrija ese dato en el Excel para que coincida con el catálogo del sistema (partners, tipificaciones o usuarios) y vuelva a subir el archivo.'];
+        case $codigo === 1062:
+            return ['que_paso' => "Un código del Excel ya está registrado{$enFila}.", 'que_hacer' => 'Quite esa fila del Excel (ya está en Supervisiones) y vuelva a subir el archivo.'];
+        case in_array($codigo, [2002, 2006, 2013, 1040, 1205, 1213], true):
+            return ['que_paso' => 'La base de datos del hosting no respondió a tiempo o está saturada.', 'que_hacer' => 'Espere un minuto y vuelva a subir el archivo. Si se repite, revise en cPanel que MySQL esté funcionando.'];
+        case $e instanceof Error && preg_match('/ZipArchive|PharData|Phar/i', $msg):
+            return ['que_paso' => 'El servidor no puede abrir archivos Excel (le falta la extensión ZIP de PHP).',
+                'que_hacer' => 'En cPanel, entre a "Seleccionar versión de PHP" → "Extensiones", active "zip" y vuelva a intentar.'];
+        case $e instanceof Error && preg_match('/memory|Allowed memory/i', $msg):
+            return ['que_paso' => 'El archivo es demasiado grande para la memoria del servidor.', 'que_hacer' => 'Divida el Excel en archivos más pequeños (por ejemplo, de 300 filas) y súbalos por separado.'];
     }
-    $shared = [];
-    if ($sharedXml !== false) {
-        $xml = simplexml_load_string($sharedXml);
-        foreach ($xml->si as $item) {
-            $texts = [];
-            if (isset($item->t)) $texts[] = (string)$item->t;
-            foreach ($item->r as $run) $texts[] = (string)$run->t;
-            $shared[] = implode('', $texts);
-        }
-    }
-    if ($sheetXml === false) throw new RuntimeException('No se encontró la hoja de datos en el archivo Excel.');
-    $xml = simplexml_load_string($sheetXml);
-    $rows = [];
-    foreach ($xml->sheetData->row as $row) {
-        $rowNumber = (int)$row['r'];
-        $values = array_fill(0, 20, '');
-        foreach ($row->c as $cell) {
-            $ref = (string)$cell['r'];
-            preg_match('/^[A-Z]+/', $ref, $match);
-            $letters = $match[0] ?? '';
-            $column = 0;
-            for ($i = 0; $i < strlen($letters); $i++) {
-                $column = $column * 26 + (ord($letters[$i]) - 64);
-            }
-            $column--;
-            if ($column < 0 || $column >= 20) continue;
-            $type = (string)$cell['t'];
-            if ($type === 's') $value = $shared[(int)$cell->v] ?? '';
-            elseif ($type === 'inlineStr') $value = (string)$cell->is->t;
-            else $value = (string)$cell->v;
-            $values[$column] = trim((string)$value);
-        }
-        $rows[$rowNumber] = $values;
-    }
-    return $rows;
+    return ['que_paso' => 'No se pudo procesar el archivo por un error interno' . $enFila . '.',
+        'que_hacer' => 'Envíe al administrador del sistema el código de seguimiento y el detalle técnico que aparecen abajo.'];
 }
 
 function excelDateToSql(string $value): ?string {
@@ -119,7 +110,8 @@ try {
         'cancel_date' => ['FECHAINIVISI', 'FECHA INI VISI', 'F.CANCELACION', 'FECHA CANCELACION'],
         'reason' => ['CANCELACIÓN', 'CANCELACION', 'MOTIVO CANCELACION', 'MOTIVO'],
         'coordinates' => ['GEOREFERENCIA', 'COORDENADAS', 'LATITUD/LONGITUD'],
-        'partner' => ['PROVEEDEOR-', 'PROVEEDEOR', 'PROVEEDOR', 'PARTNER', 'CONTRATISTA', 'EMPRESA']
+        'partner' => ['PROVEEDEOR-', 'PROVEEDEOR', 'PROVEEDOR', 'PARTNER', 'CONTRATISTA', 'EMPRESA'],
+        'address' => ['DIRECCION']
     ];
 
     // 1) Nombres exactos de encabezado (plantilla del sistema y exportación antigua). Evita confusiones como
@@ -133,6 +125,8 @@ try {
         'reason' => ['MOTIVO CANCELACION', 'MOTIVO DE CANCELACION', 'CANCELACION', 'MOTIVO'],
         'coordinates' => ['COORDENADAS DE VENTA', 'GEOREFERENCIA', 'COORDENADAS', 'LATITUD/LONGITUD'],
         'prior_observation' => ['OBSERVACION PREVIA', 'OBSERVACIONES', 'OBSERVACION'],
+        // 2026-10-15: dirección del cliente (opcional).
+        'address' => ['DIRECCION', 'DIRECCION DEL CLIENTE', 'DIRECCION CLIENTE', 'DIRECCION DE INSTALACION', 'DIRECCION DE VENTA'],
     ];
     $headerRowIdx = null;
     $columnMap = [];
@@ -188,6 +182,16 @@ try {
     $errors = [];
     $created = 0;
     $avisosZona = [];
+    // 2026-10-12: un ticket que ya tiene supervisión no se vuelve a ingresar; se informa aparte (no es un error).
+    $yaSupervisados = [];
+    $repetidosArchivo = [];
+    $ticketsVistos = [];
+    $existentes = [];
+    foreach ($pdo->query("SELECT ticket_codigo, codigo_supervision, estado_supervision, fecha_registro FROM supervisiones
+        WHERE ticket_codigo IS NOT NULL AND TRIM(ticket_codigo) <> '' ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC) as $sup) {
+        $clave = normalizarTicket((string)$sup['ticket_codigo']);
+        if ($clave !== '' && !isset($existentes[$clave])) $existentes[$clave] = $sup;
+    }
 
     $pdo->beginTransaction();
 
@@ -207,7 +211,9 @@ try {
         'LIMA' => 'Lima'
     ];
 
+    $filaActual = null;
     foreach ($rows as $rowNumber => $row) {
+        $filaActual = $rowNumber;
         if ($rowNumber <= $headerRowIdx || !array_filter($row, fn($v) => trim((string)$v) !== '')) continue;
 
         // Algunas plantillas omiten columnas opcionales. Resolver primero el índice
@@ -218,7 +224,8 @@ try {
         $department = $cell('department');
         $province = $cell('province');
         $district = $cell('district');
-        $ticket = $cell('ticket');
+        $address = mb_substr(trim(preg_replace('/\s+/u', ' ', $cell('address'))), 0, 255);
+        $ticket = normalizarTicket($cell('ticket'));
         $reason = $cell('reason');
         $coordinates = $cell('coordinates');
         $partnerName = $cell('partner');
@@ -292,14 +299,19 @@ try {
             }
         }
 
-        // Check for existing duplicate ticket
-        if (!empty($ticket)) {
-            $stmtDuplicate = $pdo->prepare("SELECT 1 FROM supervisiones WHERE ticket_codigo = :ticket LIMIT 1");
-            $stmtDuplicate->execute([':ticket' => $ticket]);
-            if ($stmtDuplicate->fetchColumn()) {
-                $rowErrors[] = "El ticket '$ticket' ya fue registrado anteriormente.";
-            }
+        // Ticket ya supervisado: no se ingresa y va a la lista "ya supervisados"
+        if ($ticket !== '' && isset($existentes[$ticket])) {
+            $sup = $existentes[$ticket];
+            $yaSupervisados[] = ['fila' => $rowNumber, 'ticket' => $ticket, 'supervision' => $sup['codigo_supervision'],
+                'estado' => $sup['estado_supervision'], 'fecha' => $sup['fecha_registro'] ? date('d/m/Y', strtotime($sup['fecha_registro'])) : ''];
+            continue;
         }
+        // Mismo ticket dos veces en el archivo: se carga una sola vez
+        if ($ticket !== '' && isset($ticketsVistos[$ticket])) {
+            $repetidosArchivo[] = ['fila' => $rowNumber, 'ticket' => $ticket, 'fila_original' => $ticketsVistos[$ticket]];
+            continue;
+        }
+        if ($ticket !== '') $ticketsVistos[$ticket] = $rowNumber;
 
         $assignedSupervisor = null;
         if (!$rowErrors) {
@@ -329,9 +341,11 @@ try {
 
         $code = 'SUP-CAN-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)));
 
+        // estado_servicio_caliente solo acepta 'Finalizada' o 'Cancelada'. Antes se guardaba 'Cancelado': en el PC pasaba
+        // (MySQL permisivo lo dejaba vacío) pero en el hosting, en modo estricto, la carga fallaba (2026-10-12).
         $stmtInsert = $pdo->prepare("INSERT INTO supervisiones (
-            codigo_supervision, fecha_registro, supervisor_id, asignado_por, zona_asignacion,
-            derivacion_orden, tipo_servicio, departamento, provincia, distrito,
+            codigo_supervision, fecha_registro, fecha_carga, supervisor_id, asignado_por, zona_asignacion,
+            derivacion_orden, tipo_servicio, departamento, provincia, distrito, direccion,
             cliente_nombre, cliente_dni, ticket_codigo, fecha_cancelacion, tipo_supervision_inicial,
             partner_id, tecnico1_nombre, tecnico1_dni, tecnico2_nombre, tecnico2_dni,
             brevete_poseedor, unidad_tipo, unidad_placa, unidad_estado_conservacion,
@@ -341,13 +355,13 @@ try {
             tipificacion_tecnico_correcta, tipificacion_corregida_supervisor, estado_supervision,
             latitud, longitud
         ) VALUES (
-            :code, NOW(), :uploader, :assigned_by, :zone,
-            'Líder', 'Regular', :dep, :prov, :dist,
+            :code, NOW(), NOW(), :uploader, :assigned_by, :zone,
+            'Líder', 'Regular', :dep, :prov, :dist, :direccion,
             NULL, NULL, :ticket, :cancel_date, 'En frío',
             :partner, NULL, NULL, NULL, NULL,
             'Ninguno', NULL, NULL, NULL,
             :supervision_type1, :supervision_type2, NULL, '',
-            'Cancelado', 1, :reason,
+            'Cancelada', 1, :reason,
             1, :prior_observation, NULL,
             NULL, NULL, 'Pendiente',
             :lat, :lng
@@ -361,6 +375,7 @@ try {
             ':dep' => $department,
             ':prov' => $province,
             ':dist' => $district,
+            ':direccion' => $address !== '' ? $address : null,
             ':ticket' => $ticket,
             ':cancel_date' => $cancelDate,
             ':partner' => $partner['id'],
@@ -384,11 +399,17 @@ try {
 
     if ($created === 0) {
         $pdo->rollBack();
+        ob_end_clean();
+        $soloYaSupervisados = !$errors && ($yaSupervisados || $repetidosArchivo);
         echo json_encode([
-            'status' => 'error',
-            'message' => 'No se importó ninguna fila. Revise las observaciones indicadas.',
+            'status' => $soloYaSupervisados ? 'success' : 'error',
+            'message' => $soloYaSupervisados
+                ? 'No había cancelaciones nuevas: todos los códigos del archivo ya están en Supervisiones.'
+                : ($errors || $yaSupervisados ? 'No se importó ninguna fila nueva. Revise el detalle.' : 'El archivo no tiene filas con datos debajo de los encabezados.'),
             'creadas' => 0,
-            'observadas' => $errors
+            'observadas' => $errors,
+            'ya_supervisados' => $yaSupervisados,
+            'repetidos_archivo' => $repetidosArchivo
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }
@@ -407,18 +428,34 @@ try {
     ]);
 
     $pdo->commit();
+    ob_end_clean();
 
     echo json_encode([
         'status' => 'success',
-        'message' => "Se cargaron exitosamente {$created} cancelaciones pendientes.",
+        'message' => "Se cargaron {$created} cancelaciones pendientes.",
         'creadas' => $created,
-        'observadas' => $errors
+        'observadas' => $errors,
+        'ya_supervisados' => $yaSupervisados,
+        'repetidos_archivo' => $repetidosArchivo
     ], JSON_UNESCAPED_UNICODE);
 
 } catch (Throwable $error) {
     if (isset($pdo) && $pdo->inTransaction()) {
         $pdo->rollBack();
     }
+    if (ob_get_level() > 0) ob_end_clean();
     http_response_code(422);
-    echo json_encode(['status' => 'error', 'message' => $error->getMessage()], JSON_UNESCAPED_UNICODE);
+    // Los avisos propios (RuntimeException) se muestran tal cual; un error inesperado (base de datos, PHP) se registra
+    // y se muestra con su código de seguimiento, sin el texto técnico.
+    if ($error instanceof RuntimeException && !$error instanceof PDOException) {
+        echo json_encode(['status' => 'error', 'message' => $error->getMessage()], JSON_UNESCAPED_UNICODE);
+    } else {
+        $fila = isset($filaActual) ? (int)$filaActual : null;
+        win_log_error('cancel_import_error', $error->getMessage(), ['clase' => get_class($error), 'linea' => $error->getLine(), 'fila_excel' => $fila]);
+        $explicacion = explicarErrorCarga($error, $fila);
+        // La carga es solo del administrador: se le muestra el detalle técnico para poder corregir sin buscar en los registros.
+        $detalle = get_class($error) . ': ' . mb_substr($error->getMessage(), 0, 400) . ' (línea ' . $error->getLine() . ')';
+        echo json_encode(['status' => 'error', 'message' => $explicacion['que_paso'], 'que_hacer' => $explicacion['que_hacer'],
+            'codigo' => sgs_error_code(), 'detalle' => $detalle], JSON_UNESCAPED_UNICODE);
+    }
 }

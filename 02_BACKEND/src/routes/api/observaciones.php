@@ -44,7 +44,7 @@ $pdo->exec("
 
 // 3. Registrar Observación con Carga de Hasta 3 Fotos
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
-    if (!Auth::hasRole([Auth::ROLE_SUPERVISOR, Auth::ROLE_PARTNER, Auth::ROLE_ADMINISTRADOR, Auth::ROLE_GERENTE, Auth::ROLE_COORDINADOR])) {
+    if (!Auth::hasRole([Auth::ROLE_SUPERVISOR, Auth::ROLE_ADMINISTRADOR, Auth::ROLE_GERENTE, Auth::ROLE_COORDINADOR])) {
         http_response_code(403);
         echo json_encode(['status' => 'error', 'message' => 'No tiene permisos para registrar observaciones.']);
         exit;
@@ -105,9 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
             }
         }
     }
-    foreach ($fotoRutas as $index=>$ruta) {
-        if ($ruta && $fotoComentarios[$index]==='') { echo json_encode(['status'=>'error','message'=>'Ingrese un comentario para cada fotografía.']); exit; }
-    }
+    // 2026-10-12: un solo comentario general (detalle_observacion); el comentario por foto es opcional.
 
     $fechaLimite = $penalidadDirecta
         ? date('Y-m-d H:i:s')
@@ -164,7 +162,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
 
 // 4. Respuesta del Partner a las observaciones de un checklist
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'responder_checklist_partner') {
-    $esRepresentantePartner = empty($user['is_win_directo']) && !empty($user['partner_id']);
+    // Personal del partner con el permiso de responder (el supervisor lo trae; al jefe de operaciones se le puede activar).
+    $esRepresentantePartner = empty($user['is_win_directo']) && !empty($user['partner_id']) && Auth::can(Auth::PERM_OBSERVATION_RESPOND, $user);
     if (!$esRepresentantePartner && $user['rol'] !== Auth::ROLE_ADMINISTRADOR) {
         http_response_code(403); echo json_encode(['status'=>'error','message'=>'Solo el partner asignado puede responder este checklist.']); exit;
     }
@@ -194,18 +193,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'evaluar_checklist') {
     if(!$isAdmin&&!$isDirect){http_response_code(403);echo json_encode(['status'=>'error','message'=>'Solo el supervisor directo responsable puede evaluar este levantamiento.']);exit;}
     if($checklist['estado_respuesta']!=='En revisión'){http_response_code(422);echo json_encode(['status'=>'error','message'=>'El checklist no tiene un levantamiento pendiente de evaluación.']);exit;}
     $newState=$approve?'Validado':'Penalizado';$pdo->prepare("UPDATE checklists_tecnicos SET estado_respuesta=:estado,sustentacion_evaluacion=:comentario,fecha_evaluacion=NOW(),evaluado_por=:usuario WHERE id=:id")->execute([':estado'=>$newState,':comentario'=>$comment,':usuario'=>$user['id'],':id'=>$checklist['id']]);
-    $partnerUsers=$pdo->prepare("SELECT id FROM usuarios WHERE partner_id=:partner AND rol='Partner' AND activo=1");$partnerUsers->execute([':partner'=>$checklist['partner_id']]);$notify=$pdo->prepare("INSERT INTO notificaciones(usuario_id,titulo,mensaje,url_destino) VALUES(:uid,:titulo,:mensaje,'index.php?page=registro_observaciones')");foreach($partnerUsers->fetchAll(PDO::FETCH_COLUMN) as $partnerUserId)$notify->execute([':uid'=>$partnerUserId,':titulo'=>$approve?'Descargo validado':'Observación penalizada',':mensaje'=>'Resultado para '.$checklist['tecnico_nombre'].': '.$newState.'.']);echo json_encode(['status'=>'success','message'=>$approve?'El descargo fue validado.':'El descargo no fue aceptado y la observación pasó a Penalizado.']);exit;
+    $partnerUsers=$pdo->prepare("SELECT id FROM usuarios WHERE partner_id=:partner AND rol='Jefe de operaciones' AND activo=1");$partnerUsers->execute([':partner'=>$checklist['partner_id']]);$notify=$pdo->prepare("INSERT INTO notificaciones(usuario_id,titulo,mensaje,url_destino) VALUES(:uid,:titulo,:mensaje,'index.php?page=registro_observaciones')");foreach($partnerUsers->fetchAll(PDO::FETCH_COLUMN) as $partnerUserId)$notify->execute([':uid'=>$partnerUserId,':titulo'=>$approve?'Descargo validado':'Observación penalizada',':mensaje'=>'Resultado para '.$checklist['tecnico_nombre'].': '.$newState.'.']);echo json_encode(['status'=>'success','message'=>$approve?'El descargo fue validado.':'El descargo no fue aceptado y la observación pasó a Penalizado.']);exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'reabrir_checklist') {
     $input=json_decode(file_get_contents('php://input'),true)??[];$supervisionId=(int)($input['supervision_id']??0);$stmt=$pdo->prepare("SELECT ct.id,ct.supervisor_id,ct.estado_respuesta,ct.tecnico_nombre,s.partner_id FROM checklists_tecnicos ct JOIN supervisiones s ON s.id=ct.supervision_id WHERE ct.supervision_id=:sid ORDER BY ct.id DESC LIMIT 1");$stmt->execute([':sid'=>$supervisionId]);$checklist=$stmt->fetch();
     if(!$checklist){http_response_code(404);echo json_encode(['status'=>'error','message'=>'Checklist no encontrado.']);exit;}$isAdmin=$user['rol']===Auth::ROLE_ADMINISTRADOR;$isDirect=$user['rol']===Auth::ROLE_SUPERVISOR&&!empty($user['is_win_directo'])&&(int)$checklist['supervisor_id']===(int)$user['id'];if(!$isAdmin&&!$isDirect){http_response_code(403);echo json_encode(['status'=>'error','message'=>'No tiene permiso para reabrir esta observación.']);exit;}if($checklist['estado_respuesta']!=='Penalizado'){http_response_code(422);echo json_encode(['status'=>'error','message'=>'Solo se pueden reabrir observaciones penalizadas.']);exit;}
-    $pdo->prepare("UPDATE checklists_tecnicos SET estado_respuesta='Reabierto',fecha_limite_respuesta=CASE WEEKDAY(NOW()) WHEN 0 THEN DATE_ADD(NOW(),INTERVAL 3 DAY) WHEN 1 THEN DATE_ADD(NOW(),INTERVAL 3 DAY) WHEN 2 THEN DATE_ADD(NOW(),INTERVAL 3 DAY) WHEN 3 THEN DATE_ADD(NOW(),INTERVAL 4 DAY) WHEN 4 THEN DATE_ADD(NOW(),INTERVAL 4 DAY) WHEN 5 THEN DATE_ADD(NOW(),INTERVAL 4 DAY) ELSE DATE_ADD(NOW(),INTERVAL 3 DAY) END,sustentacion_evaluacion=NULL,fecha_evaluacion=NULL,evaluado_por=NULL WHERE id=:id")->execute([':id'=>$checklist['id']]);$partnerUsers=$pdo->prepare("SELECT id FROM usuarios WHERE partner_id=:partner AND rol='Partner' AND activo=1");$partnerUsers->execute([':partner'=>$checklist['partner_id']]);$notify=$pdo->prepare("INSERT INTO notificaciones(usuario_id,titulo,mensaje,url_destino) VALUES(:uid,'Observación reabierta',:mensaje,'index.php?page=registro_observaciones')");foreach($partnerUsers->fetchAll(PDO::FETCH_COLUMN) as $partnerUserId)$notify->execute([':uid'=>$partnerUserId,':mensaje'=>'Puede actualizar los descargos de '.$checklist['tecnico_nombre'].' dentro del nuevo plazo.']);echo json_encode(['status'=>'success','message'=>'La observación fue reabierta por 3 días hábiles.']);exit;
+    $pdo->prepare("UPDATE checklists_tecnicos SET estado_respuesta='Reabierto',fecha_limite_respuesta=CASE WEEKDAY(NOW()) WHEN 0 THEN DATE_ADD(NOW(),INTERVAL 3 DAY) WHEN 1 THEN DATE_ADD(NOW(),INTERVAL 3 DAY) WHEN 2 THEN DATE_ADD(NOW(),INTERVAL 3 DAY) WHEN 3 THEN DATE_ADD(NOW(),INTERVAL 4 DAY) WHEN 4 THEN DATE_ADD(NOW(),INTERVAL 4 DAY) WHEN 5 THEN DATE_ADD(NOW(),INTERVAL 4 DAY) ELSE DATE_ADD(NOW(),INTERVAL 3 DAY) END,sustentacion_evaluacion=NULL,fecha_evaluacion=NULL,evaluado_por=NULL WHERE id=:id")->execute([':id'=>$checklist['id']]);$partnerUsers=$pdo->prepare("SELECT id FROM usuarios WHERE partner_id=:partner AND rol='Jefe de operaciones' AND activo=1");$partnerUsers->execute([':partner'=>$checklist['partner_id']]);$notify=$pdo->prepare("INSERT INTO notificaciones(usuario_id,titulo,mensaje,url_destino) VALUES(:uid,'Observación reabierta',:mensaje,'index.php?page=registro_observaciones')");foreach($partnerUsers->fetchAll(PDO::FETCH_COLUMN) as $partnerUserId)$notify->execute([':uid'=>$partnerUserId,':mensaje'=>'Puede actualizar los descargos de '.$checklist['tecnico_nombre'].' dentro del nuevo plazo.']);echo json_encode(['status'=>'success','message'=>'La observación fue reabierta por 3 días hábiles.']);exit;
 }
 
 // 6. Respuesta del Partner a una Observación
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'responder_partner') {
-    $esRepresentantePartner = empty($user['is_win_directo']) && !empty($user['partner_id']);
+    // Personal del partner con el permiso de responder (el supervisor lo trae; al jefe de operaciones se le puede activar).
+    $esRepresentantePartner = empty($user['is_win_directo']) && !empty($user['partner_id']) && Auth::can(Auth::PERM_OBSERVATION_RESPOND, $user);
     if (!$esRepresentantePartner && $user['rol'] !== Auth::ROLE_ADMINISTRADOR) {
         echo json_encode(['status' => 'error', 'message' => 'Solo los representantes del Partner pueden responder observaciones.']);
         exit;
@@ -217,7 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'responder_partner') {
     $respuesta = trim($input['respuesta_partner'] ?? '');
 
     if ($obsId <= 0 || empty($respuesta)) {
-        echo json_encode(['status' => 'error', 'message' => 'Ingrese el texto de sustento/descargo.']);
+        echo json_encode(['status' => 'error', 'message' => 'Ingrese el comentario del levantamiento.']);
         exit;
     }
 
@@ -266,9 +266,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'responder_partner') {
             echo json_encode(['status' => 'error', 'message' => 'Adjunte las 3 fotos obligatorias del levantamiento.']);
             exit;
         }
-        $comentarioFoto=trim((string)($input['descargo_comentario_'.$i] ?? ''));
-        if($comentarioFoto===''){echo json_encode(['status'=>'error','message'=>'Ingrese el comentario de levantamiento para cada foto.']);exit;}
-        $comentariosDescargo[]=$comentarioFoto;
+        // 2026-10-12: el levantamiento lleva un solo comentario general; el de cada foto queda opcional.
+        $comentariosDescargo[] = trim((string)($input['descargo_comentario_'.$i] ?? '')) ?: null;
         try {
             $validated = validateUploadedFile($_FILES[$key], [
                 'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'

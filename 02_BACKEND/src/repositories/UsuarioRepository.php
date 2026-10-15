@@ -1,6 +1,6 @@
 <?php
 // 02_BACKEND/src/repositories/UsuarioRepository.php - Único lugar con SQL de usuarios, permisos y zonas.
-// Tablas: usuarios, partners, usuario_permisos, usuario_departamentos_acceso, sgs_usuario_perfil.
+// Tablas: usuarios, partners, usuario_permisos, usuario_departamentos_acceso.
 
 final class UsuarioRepository
 {
@@ -9,12 +9,10 @@ final class UsuarioRepository
     public function listar(array $f): array
     {
         $sql = "SELECT u.id, u.dni, u.nombres, u.apellidos, u.nombre_completo, u.usuario, u.email, u.telefono_personal,
-                       u.telefono_corporativo, u.rol, u.partner_id, p.nombre_partner, u.sede, u.zona, u.area_trabajo, u.activo,
-                       u.fecha_creacion, up.perfil_id, pf.nombre AS perfil_nombre
+                       u.telefono_corporativo, u.rol, u.partner_id, p.nombre_partner, u.sede, u.zona, u.area_trabajo, u.cargo, u.activo,
+                       u.fecha_creacion, u.ultimo_acceso, u.debe_cambiar_password
                 FROM usuarios u
                 LEFT JOIN partners p ON p.id = u.partner_id
-                LEFT JOIN sgs_usuario_perfil up ON up.usuario_id = u.id
-                LEFT JOIN sgs_perfil pf ON pf.id = up.perfil_id
                 WHERE 1=1";
         $params = [];
         if ($f['q'] !== '') {
@@ -22,8 +20,9 @@ final class UsuarioRepository
             foreach (['q1', 'q2', 'q3', 'q4'] as $k) $params[":$k"] = '%' . $f['q'] . '%';
         }
         if ($f['rol'] !== '') { $sql .= ' AND u.rol = :rol'; $params[':rol'] = $f['rol']; }
-        if ($f['estado'] === 'activos') $sql .= ' AND u.activo = 1';
-        if ($f['estado'] === 'inactivos') $sql .= ' AND u.activo = 0';
+        // "Activos" incluye al personal recién registrado que espera acceso (sin usuario), para que no se pierda de vista.
+        if ($f['estado'] === 'activos') $sql .= " AND (u.activo = 1 OR u.usuario IS NULL OR u.usuario = '')";
+        if ($f['estado'] === 'inactivos') $sql .= " AND u.activo = 0 AND u.usuario IS NOT NULL AND u.usuario <> ''";
         if ($f['organizacion'] === 'directo') $sql .= ' AND ' . sgsDirectStaffSql();
         elseif ($f['organizacion'] !== '' && ctype_digit($f['organizacion'])) { $sql .= ' AND u.partner_id = :pid'; $params[':pid'] = (int)$f['organizacion']; }
         $sql .= ' ORDER BY u.activo DESC, u.nombre_completo ASC';
@@ -43,9 +42,8 @@ final class UsuarioRepository
 
     public function obtener(int $id): ?array
     {
-        $st = $this->pdo->prepare("SELECT u.*, p.nombre_partner, up.perfil_id
-            FROM usuarios u LEFT JOIN partners p ON p.id = u.partner_id
-            LEFT JOIN sgs_usuario_perfil up ON up.usuario_id = u.id WHERE u.id = :id LIMIT 1");
+        $st = $this->pdo->prepare("SELECT u.*, p.nombre_partner
+            FROM usuarios u LEFT JOIN partners p ON p.id = u.partner_id WHERE u.id = :id LIMIT 1");
         $st->execute([':id' => $id]);
         $u = $st->fetch();
         return $u ?: null;
@@ -70,25 +68,68 @@ final class UsuarioRepository
     public function crear(array $d, string $hash): int
     {
         $st = $this->pdo->prepare("INSERT INTO usuarios (dni, nombres, apellidos, nombre_completo, usuario, email, telefono_personal,
-                telefono_corporativo, password_hash, rol, partner_id, sede, zona, area_trabajo, modalidad, turno, activo, fecha_creacion)
-            VALUES (:dni, :nom, :ape, :nc, :usr, :email, :tp, :tc, :hash, :rol, :pid, :sede, :zona, :area, :mod, :turno, 1, NOW())");
+                telefono_corporativo, password_hash, rol, partner_id, sede, zona, area_trabajo, cargo, procesos_copiados, modalidad, turno, activo, fecha_creacion)
+            VALUES (:dni, :nom, :ape, :nc, :usr, :email, :tp, :tc, :hash, :rol, :pid, :sede, :zona, :area, :cargo, :procesos, :mod, :turno, 1, NOW())");
         $st->execute($this->campos($d) + [':hash' => $hash]);
         return (int)$this->pdo->lastInsertId();
+    }
+
+    /**
+     * Trabajador registrado solo con sus datos personales (2026-10-12): sin usuario, con una contraseña imposible
+     * de adivinar e inactivo, hasta que el administrador le asigne usuario, contraseña, rol y zonas.
+     */
+    public function crearPersonal(array $d, string $hash): int
+    {
+        // Por defecto: turno Día y modalidad Presencial (el administrador puede cambiarlos al completar el acceso).
+        $st = $this->pdo->prepare("INSERT INTO usuarios (dni, nombres, apellidos, nombre_completo, usuario, email, telefono_personal,
+                telefono_corporativo, area_trabajo, cargo, turno, modalidad, password_hash, rol, partner_id, sede, zona, activo, fecha_creacion)
+            VALUES (:dni, :nom, :ape, :nc, NULL, :email, :tp, :tc, :area, :cargo, 'Día', 'PRESENCIAL', :hash, 'Supervisor', :pid, :sede, :zona, 0, NOW())");
+        $st->execute([':dni' => $d['dni'], ':nom' => $d['nombres'], ':ape' => $d['apellidos'], ':nc' => $d['nombres'] . ' ' . $d['apellidos'],
+            ':email' => $d['email'], ':tp' => $d['telefono_personal'] ?: null, ':tc' => $d['telefono_corporativo'] ?: null, ':area' => $d['area_trabajo'] ?: null,
+            ':cargo' => ($d['cargo'] ?? '') ?: null, ':hash' => $hash,
+            ':pid' => $d['partner_id'] ?: null, ':sede' => $d['sede'] ?: null,
+            ':zona' => $d['sede'] === '' ? 'Provincias' : mb_convert_case(mb_strtolower($d['sede']), MB_CASE_TITLE)]);
+        return (int)$this->pdo->lastInsertId();
+    }
+
+    /** Solo datos personales: no toca usuario, contraseña, rol, organización, zonas ni estado. */
+    public function actualizarPersonal(int $id, array $d): void
+    {
+        $this->pdo->prepare("UPDATE usuarios SET dni = :dni, nombres = :nom, apellidos = :ape, nombre_completo = :nc, email = :email,
+                telefono_personal = :tp, telefono_corporativo = :tc, area_trabajo = :area, cargo = :cargo WHERE id = :id")
+            ->execute([':dni' => $d['dni'], ':nom' => $d['nombres'], ':ape' => $d['apellidos'], ':nc' => $d['nombres'] . ' ' . $d['apellidos'],
+                ':email' => $d['email'], ':tp' => $d['telefono_personal'] ?: null, ':tc' => $d['telefono_corporativo'] ?: null,
+                ':area' => $d['area_trabajo'] ?: null, ':cargo' => ($d['cargo'] ?? '') ?: null, ':id' => $id]);
+    }
+
+    public function activar(int $id): void
+    {
+        $this->pdo->prepare('UPDATE usuarios SET activo = 1 WHERE id = :id')->execute([':id' => $id]);
+    }
+
+    /** Aviso a los administradores activos. */
+    public function notificarAdministradores(string $titulo, string $mensaje, string $url): void
+    {
+        $ins = $this->pdo->prepare('INSERT INTO notificaciones (usuario_id, titulo, mensaje, url_destino) VALUES (:u, :t, :m, :url)');
+        foreach ($this->pdo->query("SELECT id FROM usuarios WHERE rol = 'Administrador' AND activo = 1")->fetchAll(PDO::FETCH_COLUMN) as $adminId) {
+            $ins->execute([':u' => (int)$adminId, ':t' => $titulo, ':m' => $mensaje, ':url' => $url]);
+        }
     }
 
     public function actualizar(int $id, array $d): void
     {
         $st = $this->pdo->prepare("UPDATE usuarios SET dni = :dni, nombres = :nom, apellidos = :ape, nombre_completo = :nc, usuario = :usr,
                 email = :email, telefono_personal = :tp, telefono_corporativo = :tc, rol = :rol, partner_id = :pid, sede = :sede,
-                zona = :zona, area_trabajo = :area, modalidad = :mod, turno = :turno WHERE id = :id");
+                zona = :zona, area_trabajo = :area, cargo = :cargo, procesos_copiados = :procesos, modalidad = :mod, turno = :turno WHERE id = :id");
         $st->execute($this->campos($d) + [':id' => $id]);
     }
 
-    public function cambiarPassword(int $id, string $hash): void
+    /** $debeCambiar (2026-10-15): la persona tendrá que cambiarla al ingresar (contraseña puesta por el administrador). */
+    public function cambiarPassword(int $id, string $hash, bool $debeCambiar = false): void
     {
         // También se limpia la copia reversible heredada (password_admin_encrypted): SGS no la usa.
-        $this->pdo->prepare('UPDATE usuarios SET password_hash = :h, password_admin_encrypted = NULL WHERE id = :id')
-            ->execute([':h' => $hash, ':id' => $id]);
+        $this->pdo->prepare('UPDATE usuarios SET password_hash = :h, password_admin_encrypted = NULL, debe_cambiar_password = :d WHERE id = :id')
+            ->execute([':h' => $hash, ':d' => $debeCambiar ? 1 : 0, ':id' => $id]);
     }
 
     public function passwordHash(int $id): ?string
@@ -176,23 +217,6 @@ final class UsuarioRepository
         }
     }
 
-    public function asignarPerfil(int $userId, int $perfilId, int $asignadoPor): void
-    {
-        $this->pdo->prepare('REPLACE INTO sgs_usuario_perfil (usuario_id, perfil_id, asignado_por, fecha_asignacion) VALUES (:u, :p, :by, NOW())')
-            ->execute([':u' => $userId, ':p' => $perfilId, ':by' => $asignadoPor]);
-    }
-
-    public function quitarPerfil(int $userId): void
-    {
-        $this->pdo->prepare('DELETE FROM sgs_usuario_perfil WHERE usuario_id = :u')->execute([':u' => $userId]);
-    }
-
-    public function usuariosConPerfil(int $perfilId): array
-    {
-        $st = $this->pdo->prepare('SELECT usuario_id FROM sgs_usuario_perfil WHERE perfil_id = :p');
-        $st->execute([':p' => $perfilId]);
-        return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
-    }
 
     public function conteoPorRol(): array
     {
@@ -205,7 +229,8 @@ final class UsuarioRepository
             ':dni' => $d['dni'], ':nom' => $d['nombres'], ':ape' => $d['apellidos'], ':nc' => $d['nombres'] . ' ' . $d['apellidos'],
             ':usr' => $d['usuario'], ':email' => $d['email'], ':tp' => $d['telefono_personal'] ?: null, ':tc' => $d['telefono_corporativo'] ?: null,
             ':rol' => $d['rol'], ':pid' => $d['partner_id'] ?: null, ':sede' => $d['sede'] ?: null, ':zona' => $d['sede'] === 'PROVINCIAS' || $d['sede'] === '' ? 'Provincias' : mb_convert_case(mb_strtolower($d['sede']), MB_CASE_TITLE),
-            ':area' => $d['area_trabajo'] ?: null, ':mod' => $d['modalidad'] ?: null, ':turno' => $d['turno'] ?: null,
+            ':area' => $d['area_trabajo'] ?: null, ':cargo' => ($d['cargo'] ?? '') ?: null, ':procesos' => ($d['procesos_copiados'] ?? '') ?: null,
+            ':mod' => $d['modalidad'] ?: null, ':turno' => $d['turno'] ?: null,
         ];
     }
 }
