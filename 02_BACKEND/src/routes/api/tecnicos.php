@@ -15,10 +15,10 @@ try {
     if ($action === 'list' || $action === 'search') {
         $q = trim($_GET['q'] ?? '');
         if ($q !== '') {
-            $stmt = $pdo->prepare("SELECT t.id, t.nombre_tecnico, COALESCE(NULLIF(TRIM(t.dni), ''), '0') AS dni, t.tipo_tecnico, t.celular, t.observacion, t.estado_operativo, t.partner_id, t.vehiculo_id, v.placa AS unidad_placa, v.tipo AS unidad_tipo, v.estado_conservacion AS unidad_estado, t.apoyo_id, ta.nombre_tecnico AS apoyo_nombre, pp.nombre_partner FROM tecnicos t LEFT JOIN vehiculos v ON v.id=t.vehiculo_id LEFT JOIN tecnicos ta ON ta.id=t.apoyo_id LEFT JOIN partners pp ON pp.id=t.partner_id WHERE t.nombre_tecnico LIKE :q ORDER BY t.nombre_tecnico ASC LIMIT 50");
+            $stmt = $pdo->prepare("SELECT t.id, t.nombre_tecnico, COALESCE(NULLIF(TRIM(t.dni), ''), '0') AS dni, t.tipo_tecnico, t.celular, t.observacion, t.estado_operativo, t.partner_id, t.provincia, t.departamento, t.vehiculo_id, v.placa AS unidad_placa, v.tipo AS unidad_tipo, v.estado_conservacion AS unidad_estado, t.apoyo_id, ta.nombre_tecnico AS apoyo_nombre, pp.nombre_partner FROM tecnicos t LEFT JOIN vehiculos v ON v.id=t.vehiculo_id LEFT JOIN tecnicos ta ON ta.id=t.apoyo_id LEFT JOIN partners pp ON pp.id=t.partner_id WHERE t.nombre_tecnico LIKE :q ORDER BY t.nombre_tecnico ASC LIMIT 50");
             $stmt->execute([':q' => "%{$q}%"]);
         } else {
-            $stmt = $pdo->query("SELECT t.id, t.nombre_tecnico, COALESCE(NULLIF(TRIM(t.dni), ''), '0') AS dni, t.tipo_tecnico, t.celular, t.observacion, t.estado_operativo, t.partner_id, t.vehiculo_id, v.placa AS unidad_placa, v.tipo AS unidad_tipo, v.estado_conservacion AS unidad_estado, t.apoyo_id, ta.nombre_tecnico AS apoyo_nombre, pp.nombre_partner FROM tecnicos t LEFT JOIN vehiculos v ON v.id=t.vehiculo_id LEFT JOIN tecnicos ta ON ta.id=t.apoyo_id LEFT JOIN partners pp ON pp.id=t.partner_id ORDER BY t.nombre_tecnico ASC");
+            $stmt = $pdo->query("SELECT t.id, t.nombre_tecnico, COALESCE(NULLIF(TRIM(t.dni), ''), '0') AS dni, t.tipo_tecnico, t.celular, t.observacion, t.estado_operativo, t.partner_id, t.provincia, t.departamento, t.vehiculo_id, v.placa AS unidad_placa, v.tipo AS unidad_tipo, v.estado_conservacion AS unidad_estado, t.apoyo_id, ta.nombre_tecnico AS apoyo_nombre, pp.nombre_partner FROM tecnicos t LEFT JOIN vehiculos v ON v.id=t.vehiculo_id LEFT JOIN tecnicos ta ON ta.id=t.apoyo_id LEFT JOIN partners pp ON pp.id=t.partner_id ORDER BY t.nombre_tecnico ASC");
         }
         $tecnicos = $stmt->fetchAll();
         echo json_encode(['status' => 'success', 'data' => $tecnicos]);
@@ -41,7 +41,7 @@ try {
             $like = '%' . addcslashes($q, '%_\\') . '%';
             $params += [':q1' => $like, ':q2' => $like, ':q3' => $like, ':q4' => $like];
         }
-        $stmt = $pdo->prepare("SELECT t.id, t.nombre_tecnico, t.dni, t.estado_operativo, p.nombre_partner,
+        $stmt = $pdo->prepare("SELECT t.id, t.nombre_tecnico, t.dni, t.estado_operativo, t.provincia, t.departamento, p.nombre_partner,
                 ta.nombre_tecnico AS apoyo_nombre, v.placa, v.tipo AS vehiculo_tipo, v.estado_conservacion AS vehiculo_estado,
                 (SELECT COUNT(*) FROM supervisiones s WHERE s.tecnico1_id = t.id) AS supervisiones,
                 (SELECT MAX(s.fecha_registro) FROM supervisiones s WHERE s.tecnico1_id = t.id) AS ultima_supervision
@@ -158,6 +158,11 @@ try {
         $estadoVehiculo = in_array($_POST['vehiculo_estado'] ?? '', ['Mal estado', 'Regular', 'Buen estado'], true) ? $_POST['vehiculo_estado'] : null;
         $estadoOperativo = (string)($_POST['estado_operativo'] ?? '');
         if (!in_array($estadoOperativo, ['Habilitado', 'Inhabilitado', 'Blacklist'], true)) throw new Exception('Seleccione un estado operativo válido.');
+        // Zona (2026-10-15): se escribe la provincia y el sistema busca su departamento. Vacía = sin zona.
+        require_once __DIR__ . '/../../config/zonas_peru.php';
+        $provinciaTexto = mb_substr(trim((string)($_POST['provincia'] ?? '')), 0, 100);
+        $zona = $provinciaTexto !== '' ? sgsZonaDesdeProvincia($provinciaTexto, $pdo) : ['provincia' => null, 'departamento' => null];
+        if (!$zona) throw new Exception("No se reconoce la provincia \"{$provinciaTexto}\". Escríbala como en el mapa del Perú (p. ej. TRUJILLO, SANTA, CHICLAYO).");
 
         $pdo->beginTransaction();
         try {
@@ -184,8 +189,8 @@ try {
                 $vehiculoId = (int)$q->fetchColumn();
                 $pdo->prepare('UPDATE tecnicos SET vehiculo_id = NULL WHERE vehiculo_id = :v AND id <> :id')->execute([':v' => $vehiculoId, ':id' => $id]);
             }
-            $pdo->prepare('UPDATE tecnicos SET apoyo_id = :a, vehiculo_id = :v, estado_operativo = :e, fecha_actualizacion = NOW() WHERE id = :id')
-                ->execute([':a' => $apoyoId ?: null, ':v' => $vehiculoId, ':e' => $estadoOperativo, ':id' => $id]);
+            $pdo->prepare('UPDATE tecnicos SET apoyo_id = :a, vehiculo_id = :v, estado_operativo = :e, provincia = :prov, departamento = :dep, fecha_actualizacion = NOW() WHERE id = :id')
+                ->execute([':a' => $apoyoId ?: null, ':v' => $vehiculoId, ':e' => $estadoOperativo, ':prov' => $zona['provincia'], ':dep' => $zona['departamento'], ':id' => $id]);
             $pdo->commit();
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -220,10 +225,10 @@ try {
     if ($action === 'exportar_lideres') {
         if (!Auth::isAdministrative()) { http_response_code(403); throw new Exception('Solo el personal administrativo puede descargar la lista.'); }
         require_once __DIR__ . '/../../config/tecnicos_lideres.php';
-        $filas = [['TÉCNICO LÍDER', 'PARTNER']];
-        foreach ($pdo->query("SELECT t.nombre_tecnico, p.nombre_partner FROM tecnicos t LEFT JOIN partners p ON p.id = t.partner_id
+        $filas = [['TÉCNICO LÍDER', 'PARTNER', 'PROVINCIA']];
+        foreach ($pdo->query("SELECT t.nombre_tecnico, p.nombre_partner, COALESCE(NULLIF(t.provincia, ''), t.departamento) AS provincia FROM tecnicos t LEFT JOIN partners p ON p.id = t.partner_id
                 WHERE COALESCE(t.tipo_tecnico, 1) = 1 AND t.estado_operativo = 'Habilitado' ORDER BY p.nombre_partner, t.nombre_tecnico") as $f) {
-            $filas[] = [$f['nombre_tecnico'], $f['nombre_partner'] ?? ''];
+            $filas[] = [$f['nombre_tecnico'], $f['nombre_partner'] ?? '', $f['provincia'] ?? ''];
         }
         $bin = sgsEscribirXlsx($filas, 'Técnicos líderes');
         header_remove('Content-Type');

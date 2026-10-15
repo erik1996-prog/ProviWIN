@@ -68,19 +68,22 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
             <div class="col-6 col-md-3">
                 <div class="sgs-kpi p-3 h-100">
                     <small class="sgs-kpi-label">Partner destacado</small>
-                    <h6 class="mb-0 sgs-kpi-value is-text text-truncate" id="ind-stat-partner-top">—</h6>
+                    <h6 class="mb-0 sgs-kpi-value is-text" id="ind-stat-partner-top">—</h6>
+                    <small class="sgs-kpi-sub" id="ind-stat-partner-sub"></small>
                 </div>
             </div>
             <div class="col-6 col-md-3">
                 <div class="sgs-kpi p-3 h-100">
-                    <small class="sgs-kpi-label">Departamento / distrito principal</small>
-                    <h6 class="mb-0 sgs-kpi-value is-text text-truncate" id="ind-stat-distrito-top">—</h6>
+                    <small class="sgs-kpi-label">Distrito principal</small>
+                    <h6 class="mb-0 sgs-kpi-value is-text" id="ind-stat-distrito-top">—</h6>
+                    <small class="sgs-kpi-sub" id="ind-stat-distrito-sub"></small>
                 </div>
             </div>
             <div class="col-6 col-md-3">
                 <div class="sgs-kpi p-3 h-100">
                     <small class="sgs-kpi-label">Cuadrilla destacada</small>
-                    <h6 class="mb-0 sgs-kpi-value is-text text-truncate" id="ind-stat-cuadrilla-top">—</h6>
+                    <h6 class="mb-0 sgs-kpi-value is-text" id="ind-stat-cuadrilla-top">—</h6>
+                    <small class="sgs-kpi-sub" id="ind-stat-cuadrilla-sub"></small>
                 </div>
             </div>
         </div>
@@ -883,14 +886,20 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
             document.getElementById('ind-stat-total').textContent = tot.total_supervisiones || 0;
             pintarModalidad(data.modalidad);
 
-            const topP = data.top_partners && data.top_partners.length > 0 ? data.top_partners[0].nombre_partner : '—';
-            document.getElementById('ind-stat-partner-top').textContent = topP;
-
-            const topD = data.top_distritos && data.top_distritos.length > 0 ? `${data.top_distritos[0].distrito} (${data.top_distritos[0].total})` : '—';
-            document.getElementById('ind-stat-distrito-top').textContent = topD;
-
-            const topC = data.top_cuadrillas && data.top_cuadrillas.length > 0 ? `${data.top_cuadrillas[0].tecnico} (${data.top_cuadrillas[0].total})` : '—';
-            document.getElementById('ind-stat-cuadrilla-top').textContent = topC;
+            // Indicadores de texto: el nombre arriba (hasta 2 líneas) y el detalle con la cantidad debajo, en gris.
+            const pintarDestacado = (clave, nombre, detalle) => {
+                const valor = document.getElementById(`ind-stat-${clave}-top`);
+                valor.textContent = nombre || '—';
+                valor.title = nombre || '';
+                document.getElementById(`ind-stat-${clave}-sub`).textContent = detalle || '';
+            };
+            const nSup = n => `${Number(n || 0).toLocaleString('es-PE')} ${Number(n) === 1 ? 'supervisión' : 'supervisiones'}`;
+            const p0 = (data.top_partners || [])[0];
+            pintarDestacado('partner', p0?.nombre_partner, p0 ? nSup(p0.total) : '');
+            const d0 = (data.top_distritos || [])[0];
+            pintarDestacado('distrito', d0?.distrito, d0 ? [d0.departamento, nSup(d0.total)].filter(Boolean).join(' · ') : '');
+            const c0 = (data.top_cuadrillas || [])[0];
+            pintarDestacado('cuadrilla', c0?.tecnico, c0 ? [c0.nombre_partner, nSup(c0.total)].filter(Boolean).join(' · ') : '');
 
             // 1. MAPA GEOGRÁFICO INTERACTIVO LEAFLET CON PUNTOS ROJOS
             renderLeafletHeatmap(data.map_points);

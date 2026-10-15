@@ -187,6 +187,8 @@ Técnicos por partner: líderes (T1) y de apoyo (T2) · Depende de: `partners`, 
 | `fecha_registro` | datetime | sí |  |  |
 | `fecha_actualizacion` | datetime | sí |  |  |
 | `partner_id` | int(11) | sí | FK → `partners` |  |
+| `provincia` | varchar(100) | sí |  | Provincia de trabajo (tal como viene en el Excel de técnicos líderes) |
+| `departamento` | varchar(100) | sí |  | Zona: departamento de la provincia; filtra los técnicos en el formulario de supervisión |
 | `usuario_id` | int(11) | sí | FK → `usuarios` |  |
 | `vehiculo_id` | int(11) | sí | FK → `vehiculos` |  |
 | `apoyo_id` | int(11) | sí | FK → `tecnicos` | Técnico de apoyo (T2) habitual del líder: sale por defecto en la siguiente supervisión |

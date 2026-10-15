@@ -39,7 +39,7 @@ try {
             ->execute([':n' => $nombre, ':d' => $dni, ':t' => $tipo, ':p' => $partner]);
         return (int)$pdo->lastInsertId();
     };
-    $fila = fn(int $id) => $pdo->query("SELECT t.nombre_tecnico, t.partner_id, t.apoyo_id, t.vehiculo_id, t.estado_operativo FROM tecnicos t WHERE t.id = $id")->fetch(PDO::FETCH_ASSOC);
+    $fila = fn(int $id) => $pdo->query("SELECT t.nombre_tecnico, t.partner_id, t.apoyo_id, t.vehiculo_id, t.estado_operativo, t.provincia, t.departamento FROM tecnicos t WHERE t.id = $id")->fetch(PDO::FETCH_ASSOC);
 
     echo "Cuadrilla al cerrar la supervisión (servicio, sin dejar cambios)\n";
     $pdo->beginTransaction();
@@ -88,6 +88,29 @@ try {
         $check('aplicar: inhabilita al ausente (no lo borra; conserva su cuadrilla)', $fila($b)['estado_operativo'] === 'Inhabilitado' && (int)$fila($b)['apoyo_id'] === $x, $fila($b));
         $r = sgsImportarLideres($pdo, array_merge($filas, [['fila' => 99, 'nombre' => 'P 2 PRUEBACUAD SGI LIDER DOS PRUEBA', 'partner' => $p1['nombre_partner']]]), true, 0);
         $check('si vuelve en un archivo posterior, se reactiva', $fila($b)['estado_operativo'] === 'Habilitado' && count($r['reactivados']) === 1, $r['reactivados']);
+
+        echo "Zona de los técnicos: la provincia del Excel → departamento (2026-10-15)\n";
+        $conZona = function (array $provincias, array $extra = []) use ($filas, $p1): array {
+            $salida = array_merge($filas, [['fila' => 99, 'nombre' => 'P 2 PRUEBACUAD SGI LIDER DOS PRUEBA', 'partner' => $p1['nombre_partner']]], $extra);
+            foreach ($salida as &$z) $z['provincia'] = $provincias[$z['nombre']] ?? ($z['provincia'] ?? '');
+            return $salida;
+        };
+        $nuevoZona = ['fila' => 100, 'nombre' => 'P 8 PRUEBACUAD SGI ZONA NUEVA PRUEBA', 'partner' => $p1['nombre_partner'], 'provincia' => 'Sullana'];
+        $prov = ['P 9 PRUEBACUAD SGA LIDER UNO PRUEBA' => 'Trujillo', 'P 2 PRUEBACUAD SGI LIDER DOS PRUEBA' => 'chimbote', 'P 4 PRUEBACUAD SGI ROSA MARIA QUISPE PRUEBA' => 'Narnia'];
+        $r = sgsImportarLideres($pdo, $conZona($prov, [$nuevoZona]), false, 0);
+        $cambio = array_column($r['cambios_zona'], 'zona', 'nombre');
+        $check('vista previa: detecta el departamento de cada provincia (Trujillo → LA LIBERTAD, Chimbote → ÁNCASH)',
+            ($cambio['P 9 PRUEBACUAD SGA LIDER UNO PRUEBA'] ?? '') === 'TRUJILLO · LA LIBERTAD' && ($cambio['P 2 PRUEBACUAD SGI LIDER DOS PRUEBA'] ?? '') === 'SANTA · ÁNCASH', $r['cambios_zona']);
+        $check('vista previa: una provincia que no existe se avisa y no se aplica', count($r['zona_no_reconocida']) === 1 && $r['zona_no_reconocida'][0]['provincia'] === 'Narnia', $r['zona_no_reconocida']);
+        $check('vista previa: el técnico nuevo trae su zona', ($r['nuevos'][0]['zona'] ?? '') === 'SULLANA · PIURA', $r['nuevos']);
+        sgsImportarLideres($pdo, $conZona($prov, [$nuevoZona]), true, 0);
+        $check('aplicar: guarda provincia y departamento', $fila($a)['provincia'] === 'TRUJILLO' && $fila($a)['departamento'] === 'LA LIBERTAD' && $fila($b)['departamento'] === 'ÁNCASH', [$fila($a), $fila($b)]);
+        $check('aplicar: la provincia no reconocida deja la zona como estaba (vacía)', $fila($c)['departamento'] === null, $fila($c));
+        $check('aplicar: el nuevo queda en PIURA', $pdo->query("SELECT departamento FROM tecnicos WHERE nombre_tecnico = 'P 8 PRUEBACUAD SGI ZONA NUEVA PRUEBA'")->fetchColumn() === 'PIURA');
+        $r = sgsImportarLideres($pdo, $conZona(['P 9 PRUEBACUAD SGA LIDER UNO PRUEBA' => 'Chiclayo', 'P 2 PRUEBACUAD SGI LIDER DOS PRUEBA' => 'chimbote'], [$nuevoZona]), true, 0);
+        $check('si el técnico se mueve, la nueva carga cambia su zona', $fila($a)['departamento'] === 'LAMBAYEQUE' && count($r['cambios_zona']) === 1, [$fila($a), $r['cambios_zona']]);
+        $r = sgsImportarLideres($pdo, $conZona([], [$nuevoZona]), false, 0);
+        $check('sin provincia en el archivo, la zona no cambia', count($r['cambios_zona']) === 0 && $fila($a)['departamento'] === 'LAMBAYEQUE', $r['cambios_zona']);
     } finally {
         $pdo->rollBack();
     }
@@ -119,7 +142,7 @@ try {
         CURLOPT_POSTFIELDS => ['modo' => 'previsualizar', 'archivo' => new CURLFile($xlsx, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'lideres.xlsx')]]);
     $d = $j['data'] ?? [];
     $check('subir la misma lista: nada que agregar ni inhabilitar', ($j['status'] ?? '') === 'success' && !($j['aplicado'] ?? true)
-        && count($d['nuevos'] ?? [1]) === 0 && count($d['desactivar'] ?? [1]) === 0 && count($d['actualizados'] ?? [1]) === 0, $j['message'] ?? $d);
+        && count($d['nuevos'] ?? [1]) === 0 && count($d['desactivar'] ?? [1]) === 0 && count($d['actualizados'] ?? [1]) === 0 && count($d['cambios_zona'] ?? [1]) === 0, $j['message'] ?? $d);
 
     $lider = $tec('P 7 PRUEBACUAD SGI LIDER HTTP PRUEBA', '99999936', 1, (int)$p1['id']);
     $guardar = fn(array $campos) => $http("$base/api/tecnicos.php?action=cuadrilla_guardar", [CURLOPT_POST => true, CURLOPT_HTTPHEADER => $csrf, CURLOPT_POSTFIELDS => $campos])[1];
@@ -130,6 +153,13 @@ try {
     $check('editar cuadrilla: sin placa queda sin vehículo y cambia el estado del líder', ($j['status'] ?? '') === 'success' && $fila($lider)['vehiculo_id'] === null && $fila($lider)['estado_operativo'] === 'Inhabilitado', $fila($lider));
     $j = $guardar(['id' => $lider, 'apoyo_id' => 0, 'placa' => 'NO VALIDA !!', 'estado_operativo' => 'Habilitado']);
     $check('editar cuadrilla: rechaza una placa inválida', ($j['status'] ?? '') === 'error', $j);
+    $j = $guardar(['id' => $lider, 'apoyo_id' => 0, 'placa' => '', 'estado_operativo' => 'Habilitado', 'provincia' => 'huancayo']);
+    $check('editar cuadrilla: la provincia escrita a mano pone su departamento (HUANCAYO → JUNÍN)', ($j['status'] ?? '') === 'success' && $fila($lider)['departamento'] === 'JUNÍN' && $fila($lider)['provincia'] === 'HUANCAYO', [$j, $fila($lider)]);
+    $j = $guardar(['id' => $lider, 'apoyo_id' => 0, 'placa' => '', 'estado_operativo' => 'Habilitado', 'provincia' => 'Narnia']);
+    $check('editar cuadrilla: rechaza una provincia que no existe', ($j['status'] ?? '') === 'error' && $fila($lider)['departamento'] === 'JUNÍN', $j);
+    [, $j] = $http("$base/api/tecnicos.php?action=list");
+    $enLista = array_values(array_filter($j['data'] ?? [], fn($t) => (int)$t['id'] === $lider))[0] ?? [];
+    $check('la lista del formulario trae la zona de cada técnico', ($enLista['departamento'] ?? '') === 'JUNÍN', $enLista);
 } finally {
     $cleanup();
 }

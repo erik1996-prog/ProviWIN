@@ -4,6 +4,40 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Zona de los técnicos líderes (2026-10-15)
+- **Cada técnico líder tiene su zona** (provincia y departamento). Cambio de base `2026-10-15_04_zona_del_tecnico_provincia_y_departamento`: columnas nuevas `tecnicos.provincia` y `tecnicos.departamento`.
+- **Carga por Excel con PROVINCIA**: el Excel de técnicos líderes acepta una tercera columna **PROVINCIA**, en cualquier orden si trae encabezados.
+  - El sistema busca a qué departamento pertenece con la lista oficial de las 196 provincias del Perú (`config/zonas_peru.php`). También reconoce ciudades como CHIMBOTE, letras sin tildes y "Provincia de …".
+  - Si el técnico se movió, la nueva carga cambia su zona. Sin provincia, la zona no se toca.
+  - La vista previa muestra las zonas del archivo, quién **cambia de zona** y las provincias que no se reconocen (esas filas no cambian de zona).
+  - "Descargar lista (Excel)" ya trae la columna PROVINCIA.
+- **Formulario de supervisión**: en el técnico líder (T1) solo aparecen los del **departamento elegido**. Los que aún no tienen zona salen al final, marcados "· sin zona", hasta que se les asigne. En una corrección, el T1 ya elegido se conserva aunque sea de otra zona.
+- **Cuadrillas**:
+  - filtro **Zona** (incluye "Sin zona"); la zona se muestra bajo el partner;
+  - aviso con cuántos técnicos líderes no tienen zona;
+  - en el lápiz se escribe la **provincia** (con sugerencias) y el departamento se pone solo;
+  - barra de filtros pasada al patrón de la sección 38 (una sola fila).
+- Prueba `cuadrillas_carga_test.php` ampliada (34/34).
+- **Cuadro de Cuadrillas ordenado**: pasa de 8 a 6 columnas.
+  - El vehículo muestra placa, tipo y estado en una sola celda.
+  - "Supervisiones" lleva la fecha de la última debajo.
+  - El técnico líder tiene más espacio y su nombre ya no se parte en 3 líneas.
+- **Tablas anchas que se arrastran (todo el sistema)**: si una tabla no entra a lo ancho, en la PC aparece la **mano** y se mueve hacia los lados arrastrando con el mouse, sin bajar a buscar la barra.
+  - En celular se desliza con el dedo.
+  - El borde se desvanece del lado donde hay más columnas.
+  - Los clics en botones, enlaces y filas siguen funcionando igual (un arrastre no abre nada).
+  - `main.js` y sección 48 de `sgs-theme.css`.
+
+### Pantalla de partners, manual del supervisor directo y ajuste en celular (2026-10-15)
+- **Nueva pantalla Partners** (Administración → Partners, solo administrador): registrar contratas con nombre (se guarda en mayúsculas) y RUC opcional (11 dígitos, empieza en 10, 15, 17 o 20). El nombre y el RUC no se pueden repetir.
+  - Muestra por partner cuántos técnicos líderes, técnicos de apoyo, supervisores y supervisiones tiene.
+  - Se puede **editar**, **desactivar** (deja de aparecer para elegir, pero conserva su historial) y **eliminar** (solo si no tiene nada registrado).
+  - WIN DIRECTO (personal propio) no se puede renombrar ni desactivar.
+  - API `api/partners.php` (auditoría `audit_partner_*`). Prueba nueva `partners_test.php` (13/13). Revisada a 1366 px, 1100 px y 375 px.
+- **Manual del supervisor directo** en PDF (`01_DOCUMENTACION/09_MANUALES/Manual_Supervisor_Directo_SGS.pdf`), con capturas en modo celular.
+- **Corregido en celular**: el cuadro de validación de cancelaciones se salía de la pantalla. Estilos: sección 46 de `sgs-theme.css`.
+- **Dashboard: indicadores destacados más livianos**: partner, distrito y cuadrilla destacados salían a 24 px y cortados con "…" (una regla de la tipografía v2 pisaba el tamaño de los textos). Ahora el nombre va a 15.5 px en hasta 2 líneas y debajo, en gris, el detalle: cantidad de supervisiones, departamento o partner. "Departamento / distrito principal" pasa a "Distrito principal". Estilos: sección 47 de `sgs-theme.css`.
+
 ### Cuadrillas editables, carga de técnicos líderes y dirección en cancelaciones (2026-10-15)
 - **La cuadrilla se actualiza al cerrar la supervisión**: el T2, el vehículo y su tipo y estado pasan a la ficha del técnico líder solo cuando la supervisión se **finaliza** (con "Guardar el T2 y el vehículo" marcada). Así, un vehículo reparado queda en "Buen estado" y un cambio de vehículo se registra. Mientras está en proceso, la ficha no cambia.
 - **Los T2 rotan**: en el formulario se puede buscar y elegir a cualquier técnico de apoyo, también de otra cuadrilla o partner (se indica de dónde viene). Si no existe, se registra ahí mismo como antes. Al cerrar, el T2 sale de su cuadrilla anterior y pasa a la del líder y a su partner. Lo mismo con el vehículo: es de una sola cuadrilla.

@@ -2017,15 +2017,30 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     return tecnicosRequest;
   }
 
+  // Zona (2026-10-15): el T1 se elige solo entre los técnicos líderes del departamento de la supervisión (su zona se
+  // carga con la PROVINCIA en el Excel de Cuadrillas). Los que aún no tienen zona salen en todas, al final y marcados.
+  // "HUANCAYO" figura como departamento en el catálogo de ubicaciones: equivale a JUNÍN.
+  const normalizarZona = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim().replace(/^HUANCAYO$/, 'JUNIN');
+  function lideresDeZona(partnerId, departamento, actual = '') {
+    const dep = normalizarZona(departamento);
+    return listaTecnicos
+      .filter(t => String(t.partner_id) === String(partnerId) && (t.tipo_tecnico == 1 || !t.tipo_tecnico))
+      .filter(t => !dep || !t.departamento || normalizarZona(t.departamento) === dep || (actual && t.nombre_tecnico === actual))
+      .sort((a, b) => (a.departamento ? 0 : 1) - (b.departamento ? 0 : 1) || String(a.nombre_tecnico).localeCompare(String(b.nombre_tecnico), 'es'));
+  }
+  const textoLider = t => t.nombre_tecnico + (t.departamento ? '' : ' · sin zona');
+
   function poblarSelectsTecnicos() {
-    // TÉCNICO LÍDER (T1): Cargar todos los de la lista maestra (tipo 1)
+    // TÉCNICO LÍDER (T1): los del partner y de la zona (departamento) elegidos.
     if (newTec1Nom) {
       const currentVal1 = newTec1Nom.value;
-      newTec1Nom.innerHTML = '<option value="">Seleccione / busque técnico líder (T1)</option>';
-      const t1List = listaTecnicos.filter(t => String(t.partner_id) === newPartner.value && (t.tipo_tecnico == 1 || !t.tipo_tecnico));
+      const dep = document.getElementById('new_dep')?.value || '';
+      const t1List = lideresDeZona(newPartner.value, dep);
+      const vacio = newPartner.value && dep && !t1List.length ? `No hay técnicos líderes de este partner en ${dep}` : 'Seleccione / busque técnico líder (T1)';
+      newTec1Nom.innerHTML = `<option value="">${escapeHtml(vacio)}</option>`;
       t1List.forEach(t => {
         const isSel = (t.nombre_tecnico === currentVal1) ? 'selected' : '';
-        newTec1Nom.innerHTML += `<option value="${escapeHtml(t.nombre_tecnico)}" data-id="${t.id}" ${isSel}>${escapeHtml(t.nombre_tecnico)}</option>`;
+        newTec1Nom.innerHTML += `<option value="${escapeHtml(t.nombre_tecnico)}" data-id="${t.id}" ${isSel}>${escapeHtml(textoLider(t))}</option>`;
       });
     }
 
@@ -2074,6 +2089,13 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
   newPartner?.addEventListener('change', () => {
     poblarSelectsTecnicos();
     [newTec1Nom,newTec2Nom].forEach(el => el?.dispatchEvent(new Event('change')));
+  });
+  // Al cambiar el departamento, la lista de T1 se limita a esa zona.
+  document.getElementById('new_dep')?.addEventListener('change', () => {
+    if (!listaTecnicos.length) return;
+    const antes = newTec1Nom?.value || '';
+    poblarSelectsTecnicos();
+    if (newTec1Nom && newTec1Nom.value !== antes) newTec1Nom.dispatchEvent(new Event('change'));
   });
 
   // Manejador de selección y autocompletado de DNI para Técnico Líder (T1)
@@ -3596,10 +3618,10 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
     });
 
     let tec1OptionsHtml = '<option value="">Seleccione / busque técnico líder</option>';
-    const t1List = listaTecnicos.filter(t => String(t.partner_id) === String(rec.partner_id) && (t.tipo_tecnico == 1 || !t.tipo_tecnico));
+    const t1List = lideresDeZona(rec.partner_id, rec.departamento, rec.tecnico1_nombre); // el ya elegido se conserva aunque sea de otra zona
     t1List.forEach(t => {
       const sel = (t.nombre_tecnico === rec.tecnico1_nombre) ? 'selected' : '';
-      tec1OptionsHtml += `<option value="${escapeHtml(t.nombre_tecnico)}" ${sel}>${escapeHtml(t.nombre_tecnico)}</option>`;
+      tec1OptionsHtml += `<option value="${escapeHtml(t.nombre_tecnico)}" ${sel}>${escapeHtml(textoLider(t))}</option>`;
     });
     let tec2OptionsHtml = '<option value="">Sin técnico de apoyo (T2)</option>' + opcionesApoyo(rec.partner_id, rec.tecnico2_nombre);
 
@@ -4117,8 +4139,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
         if (!select) return;
         if (index === 1) { select.innerHTML = '<option value="">Sin técnico de apoyo (T2)</option>' + opcionesApoyo(this.value, ''); select.dispatchEvent(new Event('change')); return; }
         select.innerHTML = '<option value="">Seleccione técnico</option>';
-        listaTecnicos.filter(t => String(t.partner_id) === this.value && Number(t.tipo_tecnico || 1) === index+1)
-          .forEach(t => select.add(new Option(t.nombre_tecnico,t.nombre_tecnico)));
+        lideresDeZona(this.value, rec.departamento).forEach(t => select.add(new Option(textoLider(t), t.nombre_tecnico)));
         select.dispatchEvent(new Event('change'));
       });
     });

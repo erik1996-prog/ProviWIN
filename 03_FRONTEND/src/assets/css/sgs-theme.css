@@ -4056,3 +4056,34 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 { font-family: var(--sgs-fo
 .usr-insignias { display: flex; flex-wrap: wrap; gap: 4px; }
 .usr-ingreso { font-size: 12px; color: var(--sgs-muted); white-space: nowrap; }
 @media (max-width: 767.98px) { .usr-celda-doble { align-items: flex-end; text-align: right; } }
+
+/* 46. Formularios de supervisión en celular (2026-10-15): un campo con texto largo (p. ej. "Seleccione el resultado de
+   la validación") ensanchaba su columna de la rejilla y el recuadro se salía por la derecha. */
+.grid-bitacora > *, .cancel-validation-grid > * { min-width: 0; }
+.field-bitacora select, .field-bitacora input, .field-bitacora textarea { max-width: 100%; min-width: 0; }
+.field-bitacora select { text-overflow: ellipsis; }
+
+/* 47. Indicadores con texto (2026-10-15): la regla de la sección 43 (#main-content-area … 24px) pisaba a .is-text y los
+   nombres (partner, distrito, cuadrilla) salían enormes y cortados con "…". Ahora: nombre a 15.5px en hasta 2 líneas
+   y el detalle (cantidad, departamento) debajo en gris con .sgs-kpi-sub. */
+#main-content-area .sgs-kpi .sgs-kpi-value.is-text {
+    font-size: 15.5px !important; line-height: 1.3; letter-spacing: 0;
+    white-space: normal; overflow-wrap: anywhere; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.sgs-kpi-sub { display: block; margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--sgs-muted); line-height: 1.35; }
+
+/* 48. Tablas anchas que se arrastran (2026-10-15): si una tabla no entra, en la PC se mueve hacia los lados arrastrando
+   con el mouse (mano), sin bajar a buscar la barra (main.js marca .sgs-desplazable). En celular el dedo ya la desliza.
+   El borde se desvanece del lado donde hay más columnas. */
+.table-responsive.sgs-desplazable { cursor: grab; }
+.table-responsive.sgs-arrastrando { cursor: grabbing; user-select: none; }
+.table-responsive.sgs-arrastrando * { cursor: grabbing !important; }
+.table-responsive.sgs-mas-derecha { -webkit-mask-image: linear-gradient(to right, black calc(100% - 36px), transparent); mask-image: linear-gradient(to right, black calc(100% - 36px), transparent); }
+.table-responsive.sgs-mas-izquierda { -webkit-mask-image: linear-gradient(to left, black calc(100% - 36px), transparent); mask-image: linear-gradient(to left, black calc(100% - 36px), transparent); }
+.table-responsive.sgs-mas-izquierda.sgs-mas-derecha { -webkit-mask-image: linear-gradient(to right, transparent, black 36px, black calc(100% - 36px), transparent); mask-image: linear-gradient(to right, transparent, black 36px, black calc(100% - 36px), transparent); }
+
+/* Cuadrillas (2026-10-15): 6 columnas; el vehículo lleva su estado debajo y "Supervisiones" la última fecha. */
+.cuad-tabla th:first-child { min-width: 230px; }
+.cuad-celda { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+@media (max-width: 767.98px) { .cuad-celda { align-items: flex-end; } .cuad-tabla th:first-child { min-width: 0; } }

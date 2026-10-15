@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Manual del supervisor directo · SGS</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap">
+<style>
+  @page { size: A4; margin: 15mm 15mm 15mm 15mm; }
+  :root { --o:#FF5A0A; --od:#D8450B; --os:#FFEFE6; --ink:#141414; --ink2:#2B2B2B; --mut:#6B6D70; --bd:#EDE4DE; --alt:#FAF9F7; --was:#FFF6D6; --oks:#E7F6EE; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Nunito', 'Segoe UI', sans-serif; font-weight: 500; color: var(--ink2); font-size: 10.5pt; line-height: 1.5; margin: 0; }
+  h1, h2, h3 { color: var(--ink); font-weight: 700; margin: 0; }
+  h2 { font-size: 17pt; margin: 0 0 4mm; display: flex; align-items: center; gap: 3mm; }
+  h2 .n { display: inline-grid; place-items: center; width: 9mm; height: 9mm; border-radius: 50%; background: var(--o); color: #fff; font-size: 11pt; flex: 0 0 9mm; }
+  h3 { font-size: 12pt; margin: 4mm 0 2mm; }
+  p { margin: 0 0 2.5mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 5.5mm; }
+  li { margin-bottom: 1.2mm; }
+  strong { font-weight: 700; color: var(--ink); }
+  .seccion { page-break-before: always; }
+  .portada { height: 265mm; display: flex; flex-direction: column; justify-content: space-between; page-break-after: always; }
+  .portada-banda { background: linear-gradient(135deg, #FF6A1F, var(--o) 55%, var(--od)); color: #fff; border-radius: 6mm; padding: 16mm 14mm; display: grid; grid-template-columns: 1fr 50mm; gap: 8mm; align-items: center; }
+  .portada-banda .logo { width: 40mm; display: block; margin-bottom: 9mm; }
+  .portada-banda .sistema { text-transform: uppercase; letter-spacing: .12em; font-size: 8.5pt; font-weight: 700; opacity: .9; }
+  .portada-banda h1 { color: #fff; font-size: 28pt; line-height: 1.1; margin: 3mm 0 4mm; }
+  .portada-banda .bajada { font-size: 11.5pt; opacity: .95; }
+  .portada-pie { display: flex; justify-content: space-between; color: var(--mut); font-size: 9.5pt; border-top: 1px solid var(--bd); padding-top: 4mm; }
+  .indice { columns: 2; column-gap: 10mm; padding: 0; list-style: none; }
+  .indice li { break-inside: avoid; display: flex; gap: 3mm; padding: 2mm 0; border-bottom: 1px solid var(--bd); }
+  .indice b { color: var(--o); min-width: 7mm; }
+  .movil { margin: 0; break-inside: avoid; text-align: center; }
+  .movil img { width: 52mm; border: 2mm solid #1E1E1E; border-radius: 6mm; display: block; margin: 0 auto; }
+  .movil figcaption { font-size: 8.5pt; color: var(--mut); margin-top: 1.8mm; }
+  .con-pantalla { display: grid; grid-template-columns: 1fr 56mm; gap: 7mm; align-items: start; margin-bottom: 3mm; }
+  .pantallas { display: flex; justify-content: center; gap: 10mm; margin: 2mm 0 4mm; }
+  .nota, .ojo, .regla { border-radius: 3mm; padding: 3mm 4mm; margin: 3mm 0; break-inside: avoid; border-left: 1.2mm solid; }
+  .nota { background: var(--os); border-color: var(--o); }
+  .ojo { background: var(--was); border-color: #FFC200; }
+  .regla { background: var(--oks); border-color: #12A150; }
+  .nota b, .ojo b, .regla b { display: block; margin-bottom: 1mm; }
+  table { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; font-size: 9.5pt; break-inside: avoid; }
+  th { text-align: left; background: var(--alt); color: var(--mut); font-size: 8pt; text-transform: uppercase; letter-spacing: .04em; padding: 2mm 3mm; border-bottom: 1px solid var(--bd); }
+  td { padding: 2mm 3mm; border-bottom: 1px solid var(--bd); vertical-align: top; }
+  .boton { display: inline-block; padding: .2mm 2.2mm; border-radius: 2mm; background: var(--o); color: #fff; font-weight: 700; font-size: 9pt; white-space: nowrap; }
+  .boton.sec { background: #fff; color: var(--ink2); border: 1px solid #D9D2CC; }
+  .pasos { counter-reset: paso; list-style: none; padding: 0; }
+  .pasos > li { counter-increment: paso; position: relative; padding-left: 8.5mm; margin-bottom: 2.5mm; }
+  .pasos > li::before { content: counter(paso); position: absolute; left: 0; top: .2mm; width: 6mm; height: 6mm; border-radius: 50%; background: var(--os); color: var(--od); font-weight: 700; font-size: 8.5pt; display: grid; place-items: center; }
+</style>
+</head>
+<body>
+
+<div class="portada">
+  <div class="portada-banda">
+    <div>
+      <img class="logo" src="../../03_FRONTEND/src/assets/img/win-wordmark-white.png" alt="WIN">
+      <div class="sistema">SGS · Sistema de Gestión de Supervisión</div>
+      <h1>Manual del<br>supervisor directo</h1>
+      <div class="bajada">Uso del sistema desde el celular: turno, pendientes, supervisiones en campo y remotas, validación de cancelaciones, rescates, cuadrillas y observaciones.</div>
+    </div>
+    <figure class="movil"><img src="img_supervisor_directo/m05_lista.png" alt="SGS en el celular"></figure>
+  </div>
+  <div class="portada-pie"><span>Versión del sistema 0.10.1</span><span>Octubre de 2026</span><span>Uso interno · WIN</span></div>
+</div>
+
+<h2>Contenido</h2>
+<ul class="indice">
+  <li><b>1</b>Ingresar al sistema</li>
+  <li><b>2</b>El menú</li>
+  <li><b>3</b>Mi turno</li>
+  <li><b>4</b>Tus supervisiones y la bolsa de pendientes</li>
+  <li><b>5</b>Registrar una supervisión nueva</li>
+  <li><b>6</b>Supervisión remota (videollamada)</li>
+  <li><b>7</b>Validar una cancelación cargada</li>
+  <li><b>8</b>Rescate de una pendiente</li>
+  <li><b>9</b>Asignar una pendiente a un partner</li>
+  <li><b>10</b>Cuadrillas</li>
+  <li><b>11</b>Observaciones</li>
+  <li><b>12</b>Mi información y contraseña</li>
+  <li><b>13</b>Preguntas frecuentes</li>
+</ul>
+<div class="regla"><b>Las tres reglas de oro</b>
+  <ol style="margin:0">
+    <li><strong>Sin turno iniciado no puedes registrar supervisiones.</strong> Empieza siempre por <em>Mi turno</em>.</li>
+    <li><strong>El GPS del celular debe estar encendido</strong> y con permiso de ubicación para el sistema.</li>
+    <li><strong>Solo puedes tener una supervisión en proceso a la vez.</strong> Finalízala antes de iniciar otra (los rescates no cuentan).</li>
+  </ol>
+</div>
+<div class="nota"><b>Consejo</b>Guarda la dirección del sistema en la pantalla de inicio de tu celular (menú del navegador › <em>Agregar a la pantalla de inicio</em>) para abrirlo como una aplicación.</div>
+
+<div class="seccion">
+<h2><span class="n">1</span>Ingresar al sistema</h2>
+<div class="con-pantalla">
+  <div>
+    <ol class="pasos">
+      <li>Abre la dirección del sistema en el navegador de tu celular.</li>
+      <li>En <strong>Usuario</strong> escribe tu DNI, tu usuario o tu correo.</li>
+      <li>Escribe tu <strong>contraseña</strong>. Con <span class="boton sec">Ver</span> puedes comprobar lo que escribiste.</li>
+      <li>Toca <span class="boton">Iniciar sesión</span>.</li>
+    </ol>
+    <h3>Primer ingreso</h3>
+    <p>Si el administrador te dio la contraseña, el sistema te pedirá <strong>crear la tuya</strong> antes de continuar: escribe la que te dieron, luego la nueva (mínimo 10 caracteres, con letras y números) y repítela. Una barra te indica si es <em>Débil</em>, <em>Aceptable</em>, <em>Buena</em> o <em>Fuerte</em>.</p>
+    <div class="ojo"><b>Cuidado con los intentos</b>Si escribes mal la contraseña <strong>3 veces seguidas</strong>, tu usuario se bloquea y solo el administrador puede liberarlo. Si la olvidaste, pídele que la restablezca.</div>
+    <div class="nota"><b>Permiso de ubicación</b>Al entrar, el sistema revisa tu GPS. Si ves <em>"Permite el acceso a tu ubicación"</em> o <em>"Enciende el GPS"</em>, sigue los pasos que muestra y toca <span class="boton">Reintentar</span>.</div>
+  </div>
+  <figure class="movil"><img src="img_supervisor_directo/m01_ingreso.png"><figcaption>Pantalla de ingreso</figcaption></figure>
+</div>
+</div>
+
+<div class="seccion">
+<h2><span class="n">2</span>El menú</h2>
+<div class="con-pantalla">
+  <div>
+    <p>Toca el botón <strong>☰</strong> (arriba a la izquierda) para abrir el menú y la <strong>×</strong> para cerrarlo. Las opciones con flecha son <strong>secciones</strong>: se despliegan con un toque.</p>
+    <table>
+      <tr><th>Opción</th><th>Para qué sirve</th></tr>
+      <tr><td><strong>Mi turno</strong></td><td>Iniciar y finalizar tu jornada y registrar almuerzo, reuniones, capacitación o trabajo remoto.</td></tr>
+      <tr><td><strong>Supervisiones › Supervisiones</strong></td><td>Tu lista de trabajo: pendientes de tu zona, en proceso, finalizadas y rescates.</td></tr>
+      <tr><td><strong>Supervisiones › Cuadrillas</strong></td><td>Cada técnico líder con su técnico de apoyo (T2) y su vehículo.</td></tr>
+      <tr><td><strong>Observaciones</strong></td><td>Hallazgos registrados, con descargos y plazos.</td></tr>
+      <tr><td><strong>Mi información</strong></td><td>Tus datos, tu foto, tu actividad y tu contraseña.</td></tr>
+      <tr><td><strong>Cerrar sesión</strong></td><td>Salir del sistema.</td></tr>
+    </table>
+    <p>Arriba de cada pantalla verás su nombre y la <strong>campana</strong> de avisos (pendientes nuevas, propuestas de rescate y otros).</p>
+  </div>
+  <figure class="movil"><img src="img_supervisor_directo/m02_menu.png"><figcaption>Menú abierto</figcaption></figure>
+</div>
+</div>
+
+<div class="seccion">
+<h2><span class="n">3</span>Mi turno</h2>
+<p>Tu jornada empieza y termina aquí. <strong>Sin turno iniciado no puedes registrar supervisiones.</strong></p>
+<div class="pantallas">
+  <figure class="movil"><img src="img_supervisor_directo/m03_turno_fuera.png"><figcaption>Antes de empezar: "Fuera de turno"</figcaption></figure>
+  <figure class="movil"><img src="img_supervisor_directo/m04_turno_en_curso.png"><figcaption>Con el turno iniciado: "En turno"</figcaption></figure>
+</div>
+<ol class="pasos">
+  <li>Toca <span class="boton">Iniciar turno</span>. Se guardan la hora y tu ubicación.</li>
+  <li>El estado cambia a <strong>En turno</strong> y empieza a correr el tiempo. En <em>Historial del día</em> queda la hora de inicio.</li>
+  <li>Registra tus <strong>actividades</strong>: <span class="boton sec">Almuerzo</span> <span class="boton sec">Reunión</span> <span class="boton sec">Capacitación</span> <span class="boton sec">Trabajo remoto</span>. Toca el mismo botón al terminar cada una.</li>
+  <li>Al terminar tu jornada toca <span class="boton sec">Finalizar turno</span>.</li>
+</ol>
+<div class="ojo"><b>Si olvidas finalizar el turno</b>El sistema lo cierra solo a las 23:59, pero tus horas de ese día pueden quedar mal. Avisa a tu coordinador.</div>
+</div>
+
+<div class="seccion">
+<h2><span class="n">4</span>Tus supervisiones y la bolsa de pendientes</h2>
+<div class="con-pantalla">
+  <div>
+    <ul>
+      <li><span class="boton">+ Nueva supervisión</span>: registrar una supervisión en campo.</li>
+      <li><span class="boton sec">Ver rutas</span>: mapa con las pendientes de tu zona, numeradas desde la más cercana a ti.</li>
+      <li><strong>Pestañas</strong> con su cantidad: <em>Todas</em>, <em>En proceso</em>, <em>Finalizadas</em>, <em>Pendientes</em> y <em>En rescate</em>.</li>
+      <li><strong>Filtros:</strong> por pedido o ticket y por fechas. <span class="boton sec">Limpiar</span> los quita.</li>
+      <li>Cada orden se ve como una <strong>tarjeta</strong>: tócala para abrirla.</li>
+    </ul>
+    <h3>La bolsa común de pendientes</h3>
+    <p>Las órdenes que carga el administrador (por ejemplo, cancelaciones) llegan como <strong>Pendientes</strong> a <strong>todos los supervisores directos de la zona</strong>. Mientras nadie la tome, en <em>Responsable</em> aparecen todos (por ejemplo <em>"ROGER VASQUEZ / YELSIN RUIZ"</em>).</p>
+    <div class="regla"><b>Quien la inicia, se la queda</b>Al iniciar una pendiente pasa a tu nombre y desaparece de la lista de tus compañeros. Si alguien la tomó un momento antes, el sistema te avisa: actualiza la lista.</div>
+  </div>
+  <figure class="movil"><img src="img_supervisor_directo/m05_lista.png"><figcaption>Supervisiones en el celular</figcaption></figure>
+</div>
+</div>
+
+<div class="seccion">
+<h2><span class="n">5</span>Registrar una supervisión nueva</h2>
+<div class="con-pantalla">
+  <div>
+    <p>Toca <span class="boton">+ Nueva supervisión</span>. El formulario tiene cinco secciones; ve bajando y completando:</p>
+    <table>
+      <tr><th>Sección</th><th>Qué completar</th></tr>
+      <tr><td><strong>1. Información general</strong></td><td>Gestión, origen, segmento, <strong>modalidad</strong> (En caliente, En frío o Remota) y ubicación.</td></tr>
+      <tr><td><strong>2. Identificación</strong></td><td>Código de pedido o ticket.</td></tr>
+      <tr><td><strong>3. Partner y cuadrilla</strong></td><td>Partner, técnico líder (T1), técnico de apoyo (T2) y vehículo.</td></tr>
+      <tr><td><strong>4. Resultado y evidencias</strong></td><td>Ubicación GPS, hasta 3 fotos y el resumen.</td></tr>
+      <tr><td><strong>5. Hallazgos</strong></td><td>Opcional: un hallazgo o incumplimiento con detalle y fotos.</td></tr>
+    </table>
+    <div class="nota"><b>El botón de abajo te guía</b>El botón fijo en la parte inferior te dice qué falta (por ejemplo, <em>"Complete la sección 1"</em>) y cambia a <span class="boton">Iniciar supervisión</span> o <span class="boton">Finalizar supervisión</span> cuando corresponde. No necesitas bajar hasta el final para guardar.</div>
+  </div>
+  <figure class="movil"><img src="img_supervisor_directo/m06_nueva_sec1.png"><figcaption>Sección 1 del formulario</figcaption></figure>
+</div>
+</div>
+
+<div class="seccion">
+<h3 style="margin-top:0">Sección 3: partner, técnicos y vehículo</h3>
+<div class="con-pantalla">
+  <div>
+    <ul>
+      <li>Elige el <strong>partner</strong> y busca al <strong>técnico líder (T1)</strong> escribiendo parte de su nombre. Su DNI se completa solo.</li>
+      <li>Al elegir el T1 salen <strong>su T2 y su vehículo habituales</strong> (tipo, placa y estado). Si hoy son otros, cámbialos.</li>
+      <li>El <strong>T2</strong> se busca igual. Puede venir de otra cuadrilla o partner (se indica de dónde). Si no existe, elige <em>"Registrar … como técnico de apoyo"</em> y escribe su DNI.</li>
+      <li>La casilla <strong>"Guardar el T2 y el vehículo"</strong> (marcada) actualiza la cuadrilla del líder <strong>al cerrar</strong> la supervisión. Así, la próxima vez sale todo listo.</li>
+    </ul>
+  </div>
+  <figure class="movil"><img src="img_supervisor_directo/m07_nueva_sec3.png"><figcaption>Partner, técnicos y vehículo</figcaption></figure>
+</div>
+<h3>Sección 4: ubicación, fotos y resumen</h3>
+<div class="con-pantalla">
+  <div>
+    <ul>
+      <li><strong>Ubicación:</strong> se toma sola al abrir el formulario. El sistema escucha el GPS unos segundos y se queda con la lectura más precisa (<em>"Afinando ubicación… ±X m"</em>).
+        <ul>
+          <li><strong>En verde:</strong> precisión buena.</li>
+          <li><strong>En amarillo:</strong> precisión baja. Sal a un lugar abierto y toca <span class="boton sec">Actualizar ubicación</span>.</li>
+        </ul>
+        En las supervisiones presenciales las coordenadas <strong>no se escriben a mano</strong>.</li>
+      <li><strong>Fotos:</strong> hasta 3, tomadas con la cámara o de la galería. Se comprimen solas antes de subir: se ven igual y suben más rápido con datos. <strong>Al menos una es obligatoria para finalizar.</strong></li>
+      <li><strong>Resumen:</strong> lo verificado en campo. Obligatorio para finalizar.</li>
+    </ul>
+    <h3>Guardar y finalizar</h3>
+    <ul>
+      <li><span class="boton">Iniciar supervisión</span>: la deja <strong>en proceso</strong>.</li>
+      <li><span class="boton sec">Guardar avance y volver al listado</span>: si aún falta información.</li>
+      <li><span class="boton">Finalizar supervisión</span>: cuando todo lo obligatorio está completo. Una supervisión finalizada ya no se modifica; solo el administrador puede corregirla.</li>
+    </ul>
+    <p>Para continuar una supervisión en proceso, búscala en la pestaña <em>En proceso</em> y tócala.</p>
+  </div>
+  <figure class="movil"><img src="img_supervisor_directo/m08_nueva_sec4.png"><figcaption>Ubicación tomada con ±9 m de precisión y fotos</figcaption></figure>
+</div>
+</div>
+
+<div class="seccion">
+<h2><span class="n">6</span>Supervisión remota (videollamada)</h2>
+<p>Cuando supervisas por videollamada, elige la modalidad <strong>Remota</strong> en la sección 1.</p>
+<ul>
+  <li>Solo se pide el <strong>partner</strong>: no hacen falta técnicos ni vehículo.</li>
+  <li>La ubicación se toma igual al iniciar, pero en la remota <strong>sí puedes corregirla a mano</strong> o pegar las coordenadas del cliente. Puedes pegarlas juntas, como las copia Google Maps (<em>-8.139075, -79.055686</em>), y se separan solas.</li>
+  <li>Para finalizar es obligatoria la <strong>captura de pantalla de la videollamada</strong> como foto de evidencia.</li>
+  <li>Cuenta para tu meta igual que una presencial.</li>
+</ul>
+</div>
+
+<div class="seccion">
+<h2><span class="n">7</span>Validar una cancelación cargada</h2>
+<div class="con-pantalla">
+  <div>
+    <p>Las cancelaciones que carga el administrador llegan como <strong>Pendientes</strong>. Al abrir una ves su información de origen (ubicación, dirección, ticket, partner y tipificación), que no se modifica.</p>
+    <ol class="pasos">
+      <li>Abre la pendiente y toca <span class="boton">Iniciar supervisión</span>: pasa a tu nombre.</li>
+      <li>Ve al lugar, toma la ubicación, sube las fotos y escribe el resumen.</li>
+      <li>Elige el <strong>Resultado de la validación</strong>. Aparece en amarillo con la marca <em>Pendiente</em> hasta que lo elijas, y es obligatorio para finalizar.</li>
+      <li>Toca <span class="boton">Finalizar supervisión</span>.</li>
+    </ol>
+    <table>
+      <tr><th>Resultado</th><th>Qué pasa</th></tr>
+      <tr><td><strong>Cancelación correcta</strong></td><td>La cancelación está bien hecha: se valida y se finaliza.</td></tr>
+      <tr><td><strong>En proceso de rescate</strong></td><td>El servicio aún se puede recuperar. El botón cambia a <span class="boton">Pasar a rescate</span> y la orden queda a tu cargo (ver punto 8).</td></tr>
+      <tr><td><strong>Rescate</strong></td><td>Recuperaste el servicio en la misma visita: se finaliza como rescatada.</td></tr>
+    </table>
+    <div class="ojo"><b>Si el botón dice "Seleccione el resultado de la validación"</b>Te falta elegirlo. Al tocar el botón, el sistema te lleva al campo y lo marca en rojo.</div>
+  </div>
+  <figure class="movil"><img src="img_supervisor_directo/m09_resultado.png"><figcaption>"Resultado de la validación" pendiente</figcaption></figure>
+</div>
+</div>
+
+<div class="seccion">
+<h2><span class="n">8</span>Rescate de una pendiente</h2>
+<p>Un rescate es el seguimiento de una orden cancelada que todavía se puede recuperar. Mientras está <strong>En rescate</strong>:</p>
+<ul>
+  <li>Aparece en la pestaña <strong>En rescate</strong> y es solo tuya (sale de la bolsa común).</li>
+  <li><strong>No ocupa tu "supervisión en proceso"</strong>: puedes seguir trabajando otras órdenes.</li>
+  <li>No tiene plazo. Registra cada gestión con <span class="boton sec">Registrar avance</span> (comentario y foto opcional). Todo queda en el historial.</li>
+</ul>
+<h3>Cerrar el rescate</h3>
+<p>Ciérralo con uno de estos dos resultados, con un comentario obligatorio:</p>
+<ul>
+  <li><strong>Rescate:</strong> el cliente se quedó con el servicio.</li>
+  <li><strong>Cancelación correcta:</strong> no se pudo recuperar; la cancelación queda validada.</li>
+</ul>
+<h3>Cuando lo propone el partner</h3>
+<p>Si asignaste una orden a un partner y su supervisor indica que <strong>se puede rescatar</strong> (con sus fotos), te llega un aviso. En la orden verás su propuesta y el botón <span class="boton">Pasar a rescate</span>: solo tú, que la asignaste, decides.</p>
+<div class="nota"><b>Reasignar</b>Si no puedes seguir un rescate, el administrador puede pasarlo a otro supervisor de la zona.</div>
+</div>
+
+<div class="seccion">
+<h2><span class="n">9</span>Asignar una pendiente a un partner</h2>
+<p>Puedes enviar una pendiente al supervisor de un partner para que la atienda.</p>
+<ol class="pasos">
+  <li>En la tarjeta de la pendiente, toca <span class="boton sec">Asignar Partner</span> (puedes verlo en la captura de la sección 4).</li>
+  <li>Elige al supervisor del partner y confirma.</li>
+</ol>
+<ul>
+  <li>El partner tiene <strong>24 horas</strong> para atenderla. Si vence el plazo, se bloquea y cuenta como incumplimiento del partner.</li>
+  <li>La orden <strong>sigue contando como tuya</strong>: tú asignaste y tú ves su atención (GPS, fotos y comentarios del partner).</li>
+  <li>Si el partner propone un rescate, tú decides (ver punto 8).</li>
+</ul>
+</div>
+
+<div class="seccion">
+<h2><span class="n">10</span>Cuadrillas</h2>
+<p>Muestra cada <strong>técnico líder</strong> con su <strong>técnico de apoyo (T2)</strong>, su <strong>vehículo</strong>, el estado del vehículo, cuántas supervisiones tiene y la última. Es solo de consulta.</p>
+<div class="pantallas">
+  <figure class="movil"><img src="img_supervisor_directo/m10_cuadrillas_filtros.png"><figcaption>Indicadores y filtros</figcaption></figure>
+  <figure class="movil"><img src="img_supervisor_directo/m11_cuadrillas_lista.png"><figcaption>Cada cuadrilla como tarjeta</figcaption></figure>
+</div>
+<p>Las cuadrillas <strong>se completan solas</strong>: cada vez que cierras una supervisión con <em>"Guardar el T2 y el vehículo"</em> marcada, se actualiza la del técnico líder. Si el T2 o el vehículo pasaron a otra cuadrilla, salen de la anterior. Si ves un error, avisa al administrador: él puede corregirla.</p>
+</div>
+
+<div class="seccion">
+<h2><span class="n">11</span>Observaciones</h2>
+<div class="con-pantalla">
+  <div>
+    <p>Aquí están los hallazgos registrados (desde la sección 5 del formulario o desde el checklist), con el <strong>descargo</strong> del partner y su <strong>plazo</strong>.</p>
+    <ul>
+      <li>Elige el tipo: <em>Todas</em>, <em>Checklist</em> u <em>Observaciones en campo</em> (desliza las pestañas hacia los lados si no se ven todas).</li>
+      <li>Filtra por pedido o ticket, estado y fechas.</li>
+      <li><span class="boton">Descargar</span> exporta la lista.</li>
+    </ul>
+  </div>
+  <figure class="movil"><img src="img_supervisor_directo/m12_observaciones.png"><figcaption>Observaciones</figcaption></figure>
+</div>
+</div>
+
+<div class="seccion">
+<h2><span class="n">12</span>Mi información y contraseña</h2>
+<div class="con-pantalla">
+  <div>
+    <ul>
+      <li><strong>Mi actividad:</strong> estado de tu turno, supervisiones de hoy y del mes, y las finalizadas. <span class="boton">Ir a mi turno</span> te lleva a Mi turno.</li>
+      <li><strong>Foto de perfil:</strong> toca la cámara junto a tu foto, ajústala y guárdala.</li>
+      <li><strong>Tus datos</strong> son de consulta. Si algo está mal, pide la corrección al administrador.</li>
+      <li><strong>Cambiar contraseña:</strong> al final de la pantalla. Escribe la actual, la nueva (mínimo 10 caracteres, con letras y números) y repítela. La barra de seguridad te ayuda a elegir una fuerte.</li>
+    </ul>
+  </div>
+  <figure class="movil"><img src="img_supervisor_directo/m13_mi_informacion.png"><figcaption>Mi información</figcaption></figure>
+</div>
+</div>
+
+<div class="seccion">
+<h2><span class="n">13</span>Preguntas frecuentes</h2>
+<table>
+  <tr><th>Si te pasa esto…</th><th>Haz esto</th></tr>
+  <tr><td>"No puedes iniciar ni trabajar en una supervisión porque no has iniciado tu turno de hoy"</td><td>Ve a <strong>Mi turno</strong> y toca <span class="boton">Iniciar turno</span>.</td></tr>
+  <tr><td>"Ya tienes una supervisión en proceso"</td><td>Abre la pestaña <em>En proceso</em>, termínala y finalízala. Solo puedes tener una a la vez (los rescates no cuentan).</td></tr>
+  <tr><td>La ubicación sale con "precisión baja"</td><td>Sal a un lugar abierto, lejos de techos y edificios, espera unos segundos y toca <span class="boton sec">Actualizar ubicación</span>.</td></tr>
+  <tr><td>"El celular no dio permiso de ubicación"</td><td>Toca el candado junto a la dirección del sistema, permite la <strong>Ubicación</strong> y vuelve a intentar. Revisa también que el GPS del celular esté encendido.</td></tr>
+  <tr><td>El botón dice "Complete la sección 1"</td><td>Falta un dato obligatorio de la sección 1. Revisa los campos con asterisco (*).</td></tr>
+  <tr><td>El botón dice "Seleccione el resultado de la validación"</td><td>En una cancelación cargada, elige si es correcta, si pasa a rescate o si se rescató.</td></tr>
+  <tr><td>"Esta orden ya fue tomada por otro supervisor"</td><td>Un compañero la inició antes. Actualiza la lista y elige otra pendiente.</td></tr>
+  <tr><td>Me equivoqué en una supervisión finalizada</td><td>Pide la corrección al administrador. Él puede corregirla y sigue quedando a tu nombre.</td></tr>
+  <tr><td>Mi usuario quedó bloqueado</td><td>Comunícate con el administrador para que lo libere.</td></tr>
+  <tr><td>La pantalla se ve rara después de una actualización</td><td>Cierra la pestaña del navegador y vuelve a abrir el sistema.</td></tr>
+</table>
+<div class="nota"><b>¿Necesitas ayuda?</b>Comunícate con tu coordinador o con el administrador del sistema. Indica siempre el <strong>código de la supervisión o el ticket</strong> y, si apareció un error, el <strong>código de seguimiento</strong> que muestra el mensaje.</div>
+</div>
+
+</body>
+</html>

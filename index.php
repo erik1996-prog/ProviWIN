@@ -39,6 +39,7 @@ $allowedViews = [
     'observaciones_partner'  => ['file' => 'registro_observaciones.php', 'title' => 'Observaciones',            'perm' => Auth::PERM_OBSERVATION_VIEW],
     'control_observaciones'  => ['file' => 'control_observaciones.php',  'title' => 'Control de observaciones', 'perm' => Auth::PERM_OBSERVATION_REVIEW],
     // Usuarios: basta con uno de los tres permisos; la pantalla muestra solo lo que cada uno puede hacer.
+    'partners'               => ['file' => 'partners.php',               'title' => 'Partners',                 'perm' => Auth::PERM_USERS_MANAGE],
     'usuarios'               => ['file' => 'usuarios.php',               'title' => 'Usuarios y roles',         'perm' => [Auth::PERM_USERS_MANAGE, Auth::PERM_STAFF_MANAGE, Auth::PERM_USERS_VIEW]],
     'asistencia'             => ['file' => 'asistencia.php',             'title' => 'Inicio de turno',          'perm' => null],
     'mi_informacion'         => ['file' => 'mi_informacion.php',         'title' => 'Mi información',           'perm' => null],
@@ -101,6 +102,7 @@ $pageDescriptions = [
         : 'Estado de los turnos del personal directo en tiempo real.',
     'mi_informacion' => 'Tus datos personales y laborales.',
     'usuarios' => 'Crea y administra usuarios, sus roles y permisos.',
+    'partners' => 'Contratas que trabajan con WIN: registro, RUC y estado.',
 ];
 $pageDescriptions['supervision_registro'] = $pageDescriptions['supervision_lista'];
 $pageDescriptions['observaciones_partner'] = $pageDescriptions['registro_observaciones'];

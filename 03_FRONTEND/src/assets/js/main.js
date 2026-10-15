@@ -688,3 +688,72 @@ window.winFetchJson = async (resource, options = {}) => {
         }
     });
 })();
+
+// Tablas anchas (2026-10-15): si una tabla no entra a lo ancho, en la PC se recorre arrastrando con el mouse (cursor de
+// mano), sin bajar al final a buscar la barra. En celular el dedo ya la desliza. Clases (sgs-theme.css, sección 48):
+// .sgs-desplazable (hay más columnas), .sgs-mas-izquierda / .sgs-mas-derecha (borde desvanecido), .sgs-arrastrando.
+// No se arrastra desde enlaces, botones ni campos; un arrastre no cuenta como clic sobre la fila.
+(() => {
+    const NO_ARRASTRAR = 'a, button, input, select, textarea, label, summary, [contenteditable], .dropdown-menu, [data-no-arrastrar]';
+    const actualizar = (region) => {
+        const maximo = region.scrollWidth - region.clientWidth;
+        const desborda = maximo > 2;
+        region.classList.toggle('sgs-desplazable', desborda);
+        region.classList.toggle('sgs-mas-izquierda', desborda && region.scrollLeft > 2);
+        region.classList.toggle('sgs-mas-derecha', desborda && region.scrollLeft < maximo - 2);
+    };
+    const vistas = new WeakSet();
+    const observador = 'ResizeObserver' in window ? new ResizeObserver((entradas) => entradas.forEach((e) => {
+        const region = e.target.closest('.table-responsive') || e.target;
+        actualizar(region);
+    })) : null;
+    const preparar = () => document.querySelectorAll('.table-responsive').forEach((region) => {
+        if (!vistas.has(region)) {
+            vistas.add(region);
+            region.addEventListener('scroll', () => actualizar(region), { passive: true });
+            observador?.observe(region);
+            const tabla = region.querySelector('table');
+            if (tabla) observador?.observe(tabla); // filas agregadas después (listas que se cargan con fetch)
+        }
+        actualizar(region);
+    });
+    let pendiente = false;
+    new MutationObserver(() => {
+        if (pendiente) return;
+        pendiente = true;
+        requestAnimationFrame(() => { pendiente = false; preparar(); });
+    }).observe(document.body, { childList: true, subtree: true });
+    window.addEventListener('resize', preparar);
+    preparar();
+
+    let arrastre = null;
+    document.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        const region = e.target.closest('.table-responsive.sgs-desplazable');
+        if (!region || e.target.closest(NO_ARRASTRAR)) return;
+        arrastre = { region, x: e.clientX, inicio: region.scrollLeft, movio: false };
+    });
+    document.addEventListener('mousemove', (e) => {
+        if (!arrastre) return;
+        const dx = e.clientX - arrastre.x;
+        if (!arrastre.movio) {
+            if (Math.abs(dx) < 5) return; // un clic normal no es arrastre
+            arrastre.movio = true;
+            arrastre.region.classList.add('sgs-arrastrando');
+            window.getSelection()?.removeAllRanges();
+        }
+        e.preventDefault();
+        arrastre.region.scrollLeft = arrastre.inicio - dx;
+    });
+    document.addEventListener('mouseup', () => {
+        if (!arrastre) return;
+        const { region, movio } = arrastre;
+        arrastre = null;
+        region.classList.remove('sgs-arrastrando');
+        if (!movio) return;
+        // El clic que sigue al arrastre no debe abrir la fila.
+        const bloquear = (ev) => { ev.stopPropagation(); ev.preventDefault(); };
+        document.addEventListener('click', bloquear, { capture: true, once: true });
+        setTimeout(() => document.removeEventListener('click', bloquear, { capture: true }), 0);
+    });
+})();

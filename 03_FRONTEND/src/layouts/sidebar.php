@@ -111,6 +111,7 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
         ]],
         ['Administración', 'bi-gear', [
             [$canSeeStaff, 'index.php?page=usuarios', ['usuarios'], 'bi-people', $canManageUsers ? 'Usuarios y roles' : 'Personal'],
+            [$canManageUsers, 'index.php?page=partners', ['partners'], 'bi-buildings', 'Partners'],
         ]],
     ];
     ?>

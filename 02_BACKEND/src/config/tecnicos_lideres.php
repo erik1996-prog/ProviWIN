@@ -6,7 +6,10 @@
 //   - No existe                            → se agrega como técnico líder habilitado.
 //   - Habilitado en el sistema y ausente del archivo → se inhabilita (no se borra: conserva su historial).
 // Lista negra no se toca. Primero se muestra la vista previa; se aplica solo cuando el administrador confirma.
+// Zona (2026-10-15): tercera columna opcional PROVINCIA. Se busca su departamento (config/zonas_peru.php) y se guardan los
+// dos; si el técnico ya tenía otra zona, se actualiza (los técnicos cambian de zona). Sin provincia, la zona no se toca.
 require_once __DIR__ . '/excel_lector.php';
+require_once __DIR__ . '/zonas_peru.php';
 
 /** Nombre tal como se guarda: mayúsculas y un solo espacio. */
 function sgsNombreLider(string $nombre): string {
@@ -24,19 +27,20 @@ function sgsPersonaLider(string $nombre): string {
     return trim($sinPrefijo) !== '' ? trim($sinPrefijo) : $n;
 }
 
-/** Filas del Excel → [['fila' => n, 'nombre' => …, 'partner' => …]]. Reconoce encabezados o toma las dos primeras columnas. */
+/** Filas del Excel → [['fila' => n, 'nombre' => …, 'partner' => …, 'provincia' => …]]. Reconoce encabezados o toma las tres primeras columnas. */
 function sgsLeerExcelLideres(string $ruta): array {
     $filas = readXlsxRows($ruta);
-    $colNombre = 0; $colPartner = 1; $inicio = null;
+    $colNombre = 0; $colPartner = 1; $colZona = 2; $inicio = null;
     foreach (array_slice($filas, 0, 10, true) as $num => $valores) {
-        $nombre = $partner = null;
+        $nombre = $partner = $zona = null;
         foreach ($valores as $c => $v) {
             $t = normalizeImportText((string)$v);
             if ($t === '') continue;
             if ($partner === null && preg_match('/PARTNER|PROVEEDOR|PROVEEDEOR|EMPRESA|CONTRATA/', $t)) $partner = $c;
+            elseif ($zona === null && preg_match('/PROVINCIA|ZONA|DEPARTAMENTO|SEDE|CIUDAD|UBICACION/', $t)) $zona = $c;
             elseif ($nombre === null && preg_match('/TECNICO|CUADRILLA|NOMBRE|LIDER|T1/', $t)) $nombre = $c;
         }
-        if ($nombre !== null && $partner !== null) { $colNombre = $nombre; $colPartner = $partner; $inicio = $num; break; }
+        if ($nombre !== null && $partner !== null) { $colNombre = $nombre; $colPartner = $partner; $colZona = $zona; $inicio = $num; break; }
     }
     $resultado = [];
     foreach ($filas as $num => $valores) {
@@ -47,7 +51,8 @@ function sgsLeerExcelLideres(string $ruta): array {
         if ($inicio === null && preg_match('/^P\s*\d+\s/i', $b) && !preg_match('/^P\s*\d+\s/i', $a)) [$a, $b] = [$b, $a];
         // Una primera fila de títulos que no se reconoció.
         if ($inicio === null && !$resultado && preg_match('/TECNICO|CUADRILLA|NOMBRE|LIDER/', normalizeImportText($a))) continue;
-        $resultado[] = ['fila' => (int)$num, 'nombre' => sgsNombreLider($a), 'partner' => trim($b)];
+        $z = $colZona !== null ? trim((string)($valores[$colZona] ?? '')) : '';
+        $resultado[] = ['fila' => (int)$num, 'nombre' => sgsNombreLider($a), 'partner' => trim($b), 'provincia' => $z];
     }
     return $resultado;
 }
@@ -64,10 +69,17 @@ function sgsPartnerPorNombre(array $partners, string $texto): ?array {
     return count($parecidos) === 1 ? $parecidos[0] : null;
 }
 
+/** "TRUJILLO · LA LIBERTAD" (solo el departamento si la provincia se llama igual o falta; — si no tiene zona). */
+function sgsTextoZona(?string $provincia, ?string $departamento): string {
+    $p = trim((string)$provincia); $d = trim((string)$departamento);
+    if ($d === '') return '—';
+    return $p !== '' && normalizeImportText($p) !== normalizeImportText($d) ? "$p · $d" : $d;
+}
+
 /** Calcula (y si $aplicar, ejecuta) los cambios. Devuelve el resumen para la vista previa. */
 function sgsImportarLideres(PDO $pdo, array $filas, bool $aplicar, int $actorId): array {
     $partners = $pdo->query("SELECT id, nombre_partner FROM partners WHERE estado = 1")->fetchAll(PDO::FETCH_ASSOC);
-    $lideres = $pdo->query("SELECT t.id, t.nombre_tecnico, t.partner_id, t.estado_operativo, p.nombre_partner
+    $lideres = $pdo->query("SELECT t.id, t.nombre_tecnico, t.partner_id, t.estado_operativo, t.provincia, t.departamento, p.nombre_partner
         FROM tecnicos t LEFT JOIN partners p ON p.id = t.partner_id WHERE COALESCE(t.tipo_tecnico, 1) = 1")->fetchAll(PDO::FETCH_ASSOC);
     $otrosNombres = array_flip(array_map('sgsNombreLider', $pdo->query("SELECT nombre_tecnico FROM tecnicos WHERE tipo_tecnico = 2")->fetchAll(PDO::FETCH_COLUMN)));
     $porNombre = []; $porPersona = [];
@@ -76,7 +88,9 @@ function sgsImportarLideres(PDO $pdo, array $filas, bool $aplicar, int $actorId)
         $porPersona[sgsPersonaLider($l['nombre_tecnico'])][] = $l;
     }
 
-    $r = ['nuevos' => [], 'actualizados' => [], 'reactivados' => [], 'desactivar' => [], 'lista_negra' => [], 'observadas' => [], 'sin_cambios' => 0, 'validas' => 0];
+    $r = ['nuevos' => [], 'actualizados' => [], 'reactivados' => [], 'desactivar' => [], 'lista_negra' => [], 'observadas' => [], 'sin_cambios' => 0, 'validas' => 0,
+        'cambios_zona' => [], 'zona_no_reconocida' => [], 'por_departamento' => [], 'sin_zona' => 0];
+    $zonas = []; // provincia normalizada => zona (o null), para no buscar dos veces
     $usados = []; $vistos = []; $acciones = [];
     $enArchivo = array_flip(array_column($filas, 'nombre'));
     foreach ($filas as $f) {
@@ -91,6 +105,16 @@ function sgsImportarLideres(PDO $pdo, array $filas, bool $aplicar, int $actorId)
         if (!$partner) { $r['observadas'][] = ['fila' => $f['fila'], 'nombre' => $nombre, 'motivo' => $f['partner'] === '' ? 'Falta el partner.' : "El partner \"{$f['partner']}\" no está registrado."]; continue; }
         if (isset($vistos[$nombre])) { $r['observadas'][] = ['fila' => $f['fila'], 'nombre' => $nombre, 'motivo' => "Repetido en el archivo (fila {$vistos[$nombre]})."]; continue; }
         $vistos[$nombre] = $f['fila'];
+        // Zona de la fila: null = no trae provincia o no se reconoce (la zona del técnico no se toca).
+        $zona = null; $prov = trim((string)($f['provincia'] ?? ''));
+        if ($prov !== '') {
+            $clave = normalizeImportText($prov);
+            if (!array_key_exists($clave, $zonas)) $zonas[$clave] = sgsZonaDesdeProvincia($prov, $pdo);
+            $zona = $zonas[$clave];
+            if (!$zona) $r['zona_no_reconocida'][] = ['fila' => $f['fila'], 'nombre' => $nombre, 'provincia' => $prov];
+        }
+        if ($zona) $r['por_departamento'][$zona['departamento']] = ($r['por_departamento'][$zona['departamento']] ?? 0) + 1;
+        else $r['sin_zona']++;
 
         $existente = $porNombre[$nombre] ?? null;
         if (!$existente) {
@@ -114,8 +138,8 @@ function sgsImportarLideres(PDO $pdo, array $filas, bool $aplicar, int $actorId)
         if ($existente && isset($usados[$existente['id']])) { $r['observadas'][] = ['fila' => $f['fila'], 'nombre' => $nombre, 'motivo' => 'Corresponde al mismo técnico que otra fila del archivo.']; continue; }
         if (!$existente) {
             if (isset($otrosNombres[$nombre])) { $r['observadas'][] = ['fila' => $f['fila'], 'nombre' => $nombre, 'motivo' => 'Ese nombre ya está registrado como técnico de apoyo (T2).']; continue; }
-            $r['nuevos'][] = ['fila' => $f['fila'], 'nombre' => $nombre, 'partner' => $partner['nombre_partner']];
-            $acciones[] = ['insertar', $nombre, (int)$partner['id']];
+            $r['nuevos'][] = ['fila' => $f['fila'], 'nombre' => $nombre, 'partner' => $partner['nombre_partner'], 'zona' => $zona ? sgsTextoZona($zona['provincia'], $zona['departamento']) : null];
+            $acciones[] = ['insertar', $nombre, (int)$partner['id'], $zona];
             $r['validas']++;
             continue;
         }
@@ -127,6 +151,10 @@ function sgsImportarLideres(PDO $pdo, array $filas, bool $aplicar, int $actorId)
         }
         $renombrar = sgsNombreLider($existente['nombre_tecnico']) !== $nombre;
         $cambiaPartner = (int)$existente['partner_id'] !== (int)$partner['id'];
+        $cambiaZona = $zona && (sgsDepartamentoOficial((string)$existente['departamento']) !== $zona['departamento']
+            || normalizeImportText((string)$existente['provincia']) !== normalizeImportText((string)$zona['provincia']));
+        if ($cambiaZona) $r['cambios_zona'][] = ['fila' => $f['fila'], 'nombre' => $nombre,
+            'antes' => sgsTextoZona($existente['provincia'], $existente['departamento']), 'zona' => sgsTextoZona($zona['provincia'], $zona['departamento'])];
         if ($renombrar && isset($porNombre[$nombre])) { $r['observadas'][] = ['fila' => $f['fila'], 'nombre' => $nombre, 'motivo' => 'Ya existe otro técnico con ese nombre.']; continue; }
         $r['validas']++;
         if ($renombrar || $cambiaPartner) {
@@ -134,8 +162,8 @@ function sgsImportarLideres(PDO $pdo, array $filas, bool $aplicar, int $actorId)
                 'partner_antes' => $existente['nombre_partner'] ?? '—', 'partner' => $partner['nombre_partner']];
         }
         if ($existente['estado_operativo'] === 'Inhabilitado') $r['reactivados'][] = ['fila' => $f['fila'], 'nombre' => $nombre];
-        if (!$renombrar && !$cambiaPartner && $existente['estado_operativo'] === 'Habilitado') $r['sin_cambios']++;
-        else $acciones[] = ['actualizar', (int)$existente['id'], $nombre, $partner['id'] ? (int)$partner['id'] : null];
+        if (!$renombrar && !$cambiaPartner && !$cambiaZona && $existente['estado_operativo'] === 'Habilitado') $r['sin_cambios']++;
+        else $acciones[] = ['actualizar', (int)$existente['id'], $nombre, $partner['id'] ? (int)$partner['id'] : null, $zona];
     }
     foreach ($lideres as $l) {
         if (!isset($usados[$l['id']]) && $l['estado_operativo'] === 'Habilitado') {
@@ -152,12 +180,15 @@ function sgsImportarLideres(PDO $pdo, array $filas, bool $aplicar, int $actorId)
         $propia = !$pdo->inTransaction(); // las pruebas la llaman dentro de una transacción que luego deshacen
         if ($propia) $pdo->beginTransaction();
         try {
-            $ins = $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, tipo_tecnico, estado_operativo, partner_id, fecha_registro) VALUES (:n, 1, 'Habilitado', :p, NOW())");
-            $upd = $pdo->prepare("UPDATE tecnicos SET nombre_tecnico = :n, partner_id = :p, estado_operativo = 'Habilitado', fecha_actualizacion = NOW() WHERE id = :id");
+            $ins = $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, tipo_tecnico, estado_operativo, partner_id, provincia, departamento, fecha_registro) VALUES (:n, 1, 'Habilitado', :p, :prov, :dep, NOW())");
+            // Sin zona en la fila (:dep NULL) se conserva la que tenía.
+            $upd = $pdo->prepare("UPDATE tecnicos SET nombre_tecnico = :n, partner_id = :p, estado_operativo = 'Habilitado',
+                provincia = IF(:dep1 IS NULL, provincia, :prov), departamento = COALESCE(:dep2, departamento), fecha_actualizacion = NOW() WHERE id = :id");
             $off = $pdo->prepare("UPDATE tecnicos SET estado_operativo = 'Inhabilitado', fecha_actualizacion = NOW() WHERE id = :id AND estado_operativo = 'Habilitado'");
             foreach ($acciones as $a) {
-                if ($a[0] === 'insertar') $ins->execute([':n' => $a[1], ':p' => $a[2]]);
-                elseif ($a[0] === 'actualizar') $upd->execute([':n' => $a[2], ':p' => $a[3], ':id' => $a[1]]);
+                if ($a[0] === 'insertar') $ins->execute([':n' => $a[1], ':p' => $a[2], ':prov' => $a[3]['provincia'] ?? null, ':dep' => $a[3]['departamento'] ?? null]);
+                elseif ($a[0] === 'actualizar') $upd->execute([':n' => $a[2], ':p' => $a[3], ':id' => $a[1],
+                    ':prov' => $a[4]['provincia'] ?? null, ':dep1' => $a[4]['departamento'] ?? null, ':dep2' => $a[4]['departamento'] ?? null]);
                 else $off->execute([':id' => $a[1]]);
             }
             if ($propia) $pdo->commit();
@@ -166,7 +197,8 @@ function sgsImportarLideres(PDO $pdo, array $filas, bool $aplicar, int $actorId)
             throw $e;
         }
         win_log_error('audit_leaders_import', 'Carga de técnicos líderes por Excel', ['actor_id' => $actorId,
-            'nuevos' => count($r['nuevos']), 'actualizados' => count($r['actualizados']), 'reactivados' => count($r['reactivados']), 'inhabilitados' => count($r['desactivar'])]);
+            'nuevos' => count($r['nuevos']), 'actualizados' => count($r['actualizados']), 'reactivados' => count($r['reactivados']), 'inhabilitados' => count($r['desactivar']),
+            'cambios_zona' => count($r['cambios_zona'])]);
     }
     return $r;
 }
@@ -189,7 +221,7 @@ function sgsEscribirXlsx(array $filas, string $hoja = 'Hoja1'): string {
         'xl/workbook.xml' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="' . $x(mb_substr($hoja, 0, 31)) . '" sheetId="1" r:id="rId1"/></sheets></workbook>',
         'xl/_rels/workbook.xml.rels' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>',
         'xl/styles.xml' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="2"><xf/><xf fontId="1" applyFont="1"/></cellXfs></styleSheet>',
-        'xl/worksheets/sheet1.xml' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="1" width="60" customWidth="1"/><col min="2" max="2" width="24" customWidth="1"/></cols><sheetData>' . $datos . '</sheetData></worksheet>',
+        'xl/worksheets/sheet1.xml' => '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="1" width="60" customWidth="1"/><col min="2" max="2" width="24" customWidth="1"/><col min="3" max="3" width="22" customWidth="1"/></cols><sheetData>' . $datos . '</sheetData></worksheet>',
     ];
     return sgsEmpaquetarZip($archivos); // zip propio: ZipArchive puede faltar y PharData genera archivos que Excel no abre
 }
