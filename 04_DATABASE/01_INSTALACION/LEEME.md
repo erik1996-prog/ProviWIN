@@ -8,7 +8,7 @@ O, si se prefiere por partes, ejecutar **en orden de número**, uno por uno: php
 Los scripts **no fijan el nombre de la base**. `01_crear_base.sql` solo hace falta si la base no existe; en un hosting la base se crea desde el panel y ese paso se omite.
 Cada tabla va después de las tablas de las que depende, por eso el orden importa. Cada archivo indica en su cabecera de cuáles depende.
 
-Se instalan **23 tablas**: con sus datos actuales (usuarios, permisos, partners, técnicos, vehículos, catálogos y penalidades) y **vacías** las de ingresos (supervisiones, observaciones, checklists, turnos, notificaciones).
+Se instalan **24 tablas**: con sus datos actuales (usuarios, permisos, partners, técnicos, vehículos, catálogos y penalidades) y **vacías** las de ingresos (supervisiones, observaciones, checklists, turnos, notificaciones).
 
 | Archivo | Tabla | Datos |
 |---|---|---|
@@ -20,7 +20,7 @@ Se instalan **23 tablas**: con sus datos actuales (usuarios, permisos, partners,
 | `06_tabla_tipificaciones_cancelacion.sql` | `tipificaciones_cancelacion`: Motivos de cancelación (los del Excel de pendientes se agregan solos) | 6 registros |
 | `07_tabla_ubigeo.sql` | `ubigeo`: Departamentos, provincias y distritos de operación | 47 registros |
 | `08_tabla_vehiculos.sql` | `vehiculos`: Vehículos de las cuadrillas | 2 registros |
-| `09_tabla_subopciones_observacion.sql` | `subopciones_observacion`: Tipificaciones de observación con gravedad y penalidad | 83 registros |
+| `09_tabla_subopciones_observacion.sql` | `subopciones_observacion`: Tipificaciones de observación con gravedad y penalidad | 84 registros |
 | `10_tabla_usuarios.sql` | `usuarios`: Usuarios del sistema (personal WIN y de partners) | 10 registros |
 | `11_tabla_asistencia_supervisores.sql` | `asistencia_supervisores`: Turnos de los supervisores: inicio, fin y horas | vacía |
 | `12_tabla_tecnicos.sql` | `tecnicos`: Técnicos por partner: líderes (T1) y de apoyo (T2) | 196 registros |
@@ -30,17 +30,18 @@ Se instalan **23 tablas**: con sus datos actuales (usuarios, permisos, partners,
 | `16_tabla_examen_enlaces.sql` | `examen_enlaces`: Links de examen enviados a los técnicos | vacía |
 | `17_tabla_supervisiones.sql` | `supervisiones`: Supervisiones de campo y órdenes pendientes asignadas | vacía |
 | `18_tabla_checklists_tecnicos.sql` | `checklists_tecnicos`: Checklist de cuadrilla por supervisión | vacía |
-| `19_tabla_observaciones_supervision.sql` | `observaciones_supervision`: Observaciones en campo, descargos del partner y plazos | vacía |
-| `20_tabla_rescate_seguimientos.sql` | `rescate_seguimientos`: Historial del rescate de cada pendiente (inicio, avances, reasignación y cierre) | vacía |
-| `21_tabla_supervision_coordenadas_historial.sql` | `supervision_coordenadas_historial`: Cambios de ubicación GPS de cada supervisión | vacía |
-| `22_tabla_supervision_estado_historial.sql` | `supervision_estado_historial`: Cambios de estado de cada supervisión (horas reales de inicio y fin) | vacía |
-| `23_tabla_checklist_respuestas.sql` | `checklist_respuestas`: Criterios evaluados en cada checklist | vacía |
-| `24_tabla_notificaciones.sql` | `notificaciones`: Avisos a los usuarios | vacía |
+| `19_tabla_documentos_vencimiento.sql` | `documentos_vencimiento`: Vencimientos de la cuadrilla: SOAT, revisión técnica, extintor (vehículo) y brevete (técnico líder), con historial | vacía |
+| `20_tabla_observaciones_supervision.sql` | `observaciones_supervision`: Observaciones en campo, descargos del partner y plazos | vacía |
+| `21_tabla_rescate_seguimientos.sql` | `rescate_seguimientos`: Historial del rescate de cada pendiente (inicio, avances, reasignación y cierre) | vacía |
+| `22_tabla_supervision_coordenadas_historial.sql` | `supervision_coordenadas_historial`: Cambios de ubicación GPS de cada supervisión | vacía |
+| `23_tabla_supervision_estado_historial.sql` | `supervision_estado_historial`: Cambios de estado de cada supervisión (horas reales de inicio y fin) | vacía |
+| `24_tabla_checklist_respuestas.sql` | `checklist_respuestas`: Criterios evaluados en cada checklist | vacía |
+| `25_tabla_notificaciones.sql` | `notificaciones`: Avisos a los usuarios | vacía |
 
 Si la base no trae ningún administrador, crear el primero (no es SQL), desde la carpeta del sistema:
 `php 07_SCRIPTS/crear_administrador.php <DNI> <usuario> <correo> "<Nombres>" "<Apellidos>"`
 
-**Verificar:** `php 07_SCRIPTS/auditar_bd.php` → 23 tablas y ALTO: 0.
+**Verificar:** `php 07_SCRIPTS/auditar_bd.php` → 24 tablas y ALTO: 0.
 
 **Importante:** solo para una base **nueva**. En una base con datos, los cambios se aplican con `php 07_SCRIPTS/migrar.php`.
 Los `.sql` de esta carpeta llevan datos reales (usuarios, DNI) y no se suben a git. Se regeneran con `php 07_SCRIPTS/generar_instalacion.php`.

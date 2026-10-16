@@ -4109,3 +4109,73 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 { font-family: var(--sgs-fo
    fuera de la pantalla (Editar cuadrilla, Partners…). El form pasa a ser la columna flexible de la ventana. */
 .modal-dialog-scrollable .modal-content > form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; max-height: 100%; overflow: hidden; }
 .modal-dialog-scrollable .modal-content > form > .modal-body { overflow-y: auto; min-height: 0; }
+
+/* 51. Vencimientos de la cuadrilla (2026-10-15): SOAT, revisión técnica, extintor y brevete (vencimientos.js).
+   El borde izquierdo indica el estado: verde vigente, amarillo por vencer, rojo vencido, gris sin registrar. */
+.venc-items { display: grid; gap: 12px; }
+.venc-item { border: 1px solid var(--sgs-border); border-left: 4px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); padding: 12px 14px; background: var(--sgs-surface); display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.venc-item.venc-bueno { border-left-color: var(--sgs-success); }
+.venc-item.venc-regular { border-left-color: var(--sgs-warning); }
+.venc-item.venc-malo { border-left-color: var(--sgs-danger); }
+.venc-cabecera { display: flex; align-items: center; gap: 10px; width: 100%; }
+.venc-icono { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--sgs-orange-soft); color: var(--sgs-orange); flex: 0 0 auto; }
+.venc-titulo { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; line-height: 1.25; }
+.venc-datos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 16px; width: 100%; font-size: 13.5px; }
+.venc-datos > span { display: flex; flex-direction: column; }
+.venc-datos small { font-size: 11.5px; font-weight: 600; }
+.venc-form { width: 100%; }
+.venc-historial { width: 100%; font-size: 13px; }
+.venc-historial summary { cursor: pointer; font-weight: 600; color: var(--sgs-muted); }
+.venc-historial ul { list-style: none; margin: 6px 0 0; padding: 0; }
+.venc-historial li { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--sgs-border); }
+.venc-quien { line-height: 1.35; }
+@media (max-width: 575.98px) { .venc-datos { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Checklist: SOAT, revisión técnica, extintor y brevete se llenan solos (estado + vencimiento + botón de fechas). */
+.checklist-venc-estado { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-height: 40px; justify-content: center; }
+.checklist-venc-estado small { font-size: 12.5px; }
+.checklist-venc .checklist-venc-actualizar { height: 40px; }
+/* Cuadrillas (2026-10-15): documentos de la cuadrilla dentro de la columna Vehículo, un color por estado. */
+.venc-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; max-width: 210px; }
+.venc-chip { border: 1px solid var(--sgs-border); border-radius: 999px; padding: 1px 9px; font-size: 11.5px; font-weight: 600; line-height: 1.7; background: var(--sgs-surface-alt); color: var(--sgs-muted); cursor: pointer; white-space: nowrap; }
+.venc-chip:hover { filter: brightness(.95); }
+.venc-chip--bueno { background: var(--sgs-success-soft); border-color: var(--sgs-success-soft); color: var(--sgs-success-dark); }
+.venc-chip--regular { background: var(--sgs-warning-soft); border-color: var(--sgs-warning-soft); color: var(--sgs-warning-dark); }
+.venc-chip--malo { background: var(--sgs-danger-soft); border-color: var(--sgs-danger); color: var(--sgs-danger-dark); }
+.venc-chip--sin_registrar { border-style: dashed; }
+.cuad-docs-ayuda { align-self: center; }
+@media (max-width: 767.98px) { .venc-chips { justify-content: flex-end; max-width: none; } .cuad-docs-ayuda { display: none; } }
+.sgs-segmented a.filter-tab-btn { text-decoration: none; }
+a.sgs-kpi { color: inherit; }
+a.sgs-kpi:hover { border-color: var(--sgs-orange); }
+/* Checklist (2026-10-15): campos de fechas del documento dentro de la fila (inicio, vence, foto). */
+.checklist-venc-campos { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; padding: 12px; border: 1px dashed var(--sgs-border); border-radius: var(--sgs-radius-sm); background: var(--sgs-surface-alt); }
+.checklist-venc-campos input[type=file] { font-size: 12px; padding: 7px; }
+@media (max-width: 700px) { .checklist-venc-campos { grid-template-columns: 1fr; margin-top: 8px; } }
+/* Campo bloqueado sin desactivar (2026-10-16): se ve y se envía al guardar, pero no se puede cambiar (datos de la carga). */
+.field-bitacora .sgs-campo-bloqueado { pointer-events: none; background-color: var(--sgs-surface-alt); color: var(--sgs-muted); }
+
+/* 52. Guardado automático de la supervisión (2026-10-16): abajo solo "Cancelar" y "Finalizar", con el aviso
+   "Guardando… / Guardado HH:MM". Mismo aspecto que los botones flotantes de la sección 36. */
+#view-new .sgs-acciones-supervision {
+    position: fixed; right: 20px; bottom: 20px; z-index: 1030; display: flex; align-items: center; justify-content: flex-end;
+    gap: 10px; flex-wrap: wrap; padding: 10px 12px; max-width: calc(100vw - 40px);
+    background: var(--sgs-surface); border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius); box-shadow: var(--sgs-shadow);
+}
+#view-new .sgs-acciones-supervision #startBtn { position: static; margin: 0; }
+.sgs-autoguardado { font-size: 12.5px; font-weight: 600; color: var(--sgs-muted); max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sgs-autoguardado:empty { display: none; }
+.sgs-autoguardado[data-estado="ok"] { color: var(--sgs-success-dark); }
+.sgs-autoguardado[data-estado="error"] { color: var(--sgs-danger-dark); }
+@media (max-width: 767.98px) {
+    #view-new .sgs-acciones-supervision { left: 0; right: 0; bottom: 0; max-width: none; border-radius: var(--sgs-radius) var(--sgs-radius) 0 0; }
+    #view-new .sgs-acciones-supervision .btn-bitacora { flex: 1 1 0; justify-content: center; }
+    .sgs-acciones-supervision .sgs-autoguardado, #form-edit-detail .form-actions-bitacora .sgs-autoguardado { flex-basis: 100%; max-width: none; text-align: center; order: 3; }
+}
+/* Lista de lo que falta para finalizar */
+.sgs-faltantes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sgs-faltantes button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; text-align: left; font-size: 13.5px; font-weight: 600;
+    color: var(--sgs-ink-2); background: var(--sgs-surface); border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); }
+.sgs-faltantes button:hover, .sgs-faltantes button:focus-visible { border-color: var(--sgs-orange); background: var(--sgs-orange-soft); }
+.sgs-faltantes .bi-exclamation-circle { color: var(--sgs-danger-dark); }
+.sgs-faltantes .bi-chevron-right { color: var(--sgs-muted); }
+.field-bitacora.is-alerta { outline: 2px solid var(--sgs-danger); outline-offset: 4px; border-radius: var(--sgs-radius-sm); }

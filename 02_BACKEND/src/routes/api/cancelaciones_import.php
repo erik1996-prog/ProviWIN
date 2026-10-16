@@ -8,6 +8,7 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/uploads.php';
 require_once __DIR__ . '/../../config/asignacion_cancelaciones.php';
 require_once __DIR__ . '/../../config/excel_lector.php';
+require_once __DIR__ . '/../../config/tecnicos_lideres.php'; // sgsNombreLider / sgsPersonaLider: reconocer al técnico de la columna CUADRILLA
 
 Auth::requireLogin();
 Auth::requireCsrf();
@@ -125,6 +126,8 @@ try {
         'reason' => ['MOTIVO CANCELACION', 'MOTIVO DE CANCELACION', 'CANCELACION', 'MOTIVO'],
         'coordinates' => ['COORDENADAS DE VENTA', 'GEOREFERENCIA', 'COORDENADAS', 'LATITUD/LONGITUD'],
         'prior_observation' => ['OBSERVACION PREVIA', 'OBSERVACIONES', 'OBSERVACION'],
+        // 2026-10-16: técnico líder que atendió la orden (columna CUADRILLA de la plantilla; opcional).
+        'crew' => ['CUADRILLA', 'TECNICO LIDER', 'TECNICO', 'LIDER', 'TECNICO 1'],
         // 2026-10-15: dirección del cliente (opcional).
         'address' => ['DIRECCION', 'DIRECCION DEL CLIENTE', 'DIRECCION CLIENTE', 'DIRECCION DE INSTALACION', 'DIRECCION DE VENTA'],
     ];
@@ -193,6 +196,25 @@ try {
         if ($clave !== '' && !isset($existentes[$clave])) $existentes[$clave] = $sup;
     }
 
+    // Técnicos líderes registrados (2026-10-16): la columna CUADRILLA se reconoce por el nombre exacto o, si cambió la
+    // nomenclatura ("P 4 DOMINION SGI JUAN PÉREZ" ↔ "P 9 OLMA SGA JUAN PÉREZ"), por la persona; si hay varios, el del
+    // mismo partner. Si no se reconoce, la pendiente se carga con el nombre tal cual y se avisa al final.
+    $lideresCarga = $pdo->query("SELECT id, nombre_tecnico, dni, partner_id FROM tecnicos WHERE COALESCE(tipo_tecnico, 1) = 1")->fetchAll(PDO::FETCH_ASSOC);
+    $liderPorNombre = []; $liderPorPersona = [];
+    foreach ($lideresCarga as $l) {
+        $liderPorNombre[sgsNombreLider($l['nombre_tecnico'])] = $l;
+        $liderPorPersona[sgsPersonaLider($l['nombre_tecnico'])][] = $l;
+    }
+    $buscarLider = static function (string $texto, ?int $partnerId) use ($liderPorNombre, $liderPorPersona): ?array {
+        $nombre = sgsNombreLider($texto);
+        if ($nombre === '') return null;
+        if (isset($liderPorNombre[$nombre])) return $liderPorNombre[$nombre];
+        $candidatos = $liderPorPersona[sgsPersonaLider($nombre)] ?? [];
+        if (count($candidatos) > 1 && $partnerId) $candidatos = array_values(array_filter($candidatos, static fn($l) => (int)$l['partner_id'] === $partnerId)) ?: $candidatos;
+        return count($candidatos) === 1 ? $candidatos[0] : null;
+    };
+    $cuadrillasNoRegistradas = [];
+
     $pdo->beginTransaction();
 
     $zoneMap = [
@@ -231,8 +253,8 @@ try {
         $partnerName = $cell('partner');
         $supervisionTypeRaw = $cell('supervision_type');
         
-        // La cuadrilla la completa el supervisor en campo (con DNI); la columna CUADRILLA del Excel es referencial.
-        $crewRaw = '';
+        // Técnico líder que atendió la orden (columna CUADRILLA). Sus observaciones quedan vinculadas a esa cuadrilla.
+        $crewRaw = mb_substr(trim(preg_replace('/\s+/u', ' ', $cell('crew'))), 0, 200);
         $priorObservation = $cell('prior_observation'); // "OBSERVACIÓN PREVIA" de la plantilla (antes se descartaba)
 
         $rowErrors = [];
@@ -272,9 +294,11 @@ try {
             }
         }
 
-        // Technician lookup skipped since it will be filled by the supervisor later
-        $techName = null;
-        $techDni = null;
+        // Técnico líder de la columna CUADRILLA: el registrado (con su nombre actual) o, si no se reconoce, el texto tal cual.
+        $lider = $crewRaw !== '' ? $buscarLider($crewRaw, $partner ? (int)$partner['id'] : null) : null;
+        $techId = $lider ? (int)$lider['id'] : null;
+        $techName = $lider ? $lider['nombre_tecnico'] : ($crewRaw !== '' ? sgsNombreLider($crewRaw) : null);
+        $techDni = $lider && preg_match('/^\d{8}$/', (string)$lider['dni']) ? $lider['dni'] : null;
 
         // Zone Auto-Recognition
         $normProv = normalizeImportText($province);
@@ -347,7 +371,7 @@ try {
             codigo_supervision, fecha_registro, fecha_carga, supervisor_id, asignado_por, zona_asignacion,
             derivacion_orden, tipo_servicio, departamento, provincia, distrito, direccion,
             cliente_nombre, cliente_dni, ticket_codigo, fecha_cancelacion, tipo_supervision_inicial,
-            partner_id, tecnico1_nombre, tecnico1_dni, tecnico2_nombre, tecnico2_dni,
+            partner_id, tecnico1_id, tecnico1_nombre, tecnico1_dni, tecnico2_nombre, tecnico2_dni,
             brevete_poseedor, unidad_tipo, unidad_placa, unidad_estado_conservacion,
             clasificacion_supervision, area_servicio, sub_tipo_atencion, observacion_servicio,
             estado_servicio_caliente, es_cancelacion, tipificacion_cancelacion,
@@ -358,7 +382,7 @@ try {
             :code, NOW(), NOW(), :uploader, :assigned_by, :zone,
             'Líder', 'Regular', :dep, :prov, :dist, :direccion,
             NULL, NULL, :ticket, :cancel_date, 'En frío',
-            :partner, NULL, NULL, NULL, NULL,
+            :partner, :tec1_id, :tec1_nombre, :tec1_dni, NULL, NULL,
             'Ninguno', NULL, NULL, NULL,
             :supervision_type1, :supervision_type2, NULL, '',
             'Cancelada', 1, :reason,
@@ -379,6 +403,9 @@ try {
             ':ticket' => $ticket,
             ':cancel_date' => $cancelDate,
             ':partner' => $partner['id'],
+            ':tec1_id' => $techId,
+            ':tec1_nombre' => $techName,
+            ':tec1_dni' => $techDni,
             ':reason' => $reason,
             ':supervision_type1' => $supervisionType,
             ':supervision_type2' => $supervisionType,
@@ -388,6 +415,7 @@ try {
         ]);
 
         $newId = (int)$pdo->lastInsertId();
+        if ($crewRaw !== '' && !$techId) $cuadrillasNoRegistradas[] = ['fila' => $rowNumber, 'ticket' => $ticket, 'cuadrilla' => $techName];
         $pdo->prepare('UPDATE supervisiones SET fecha_asignacion=NOW() WHERE id=:id')->execute([':id'=>$newId]);
         // Bolsa común (2026-10-11): la pendiente no se reparte; se avisa a todos los supervisores de la zona
         // y el primero que la inicia se queda con ella.
@@ -436,7 +464,8 @@ try {
         'creadas' => $created,
         'observadas' => $errors,
         'ya_supervisados' => $yaSupervisados,
-        'repetidos_archivo' => $repetidosArchivo
+        'repetidos_archivo' => $repetidosArchivo,
+        'cuadrillas_no_registradas' => $cuadrillasNoRegistradas
     ], JSON_UNESCAPED_UNICODE);
 
 } catch (Throwable $error) {

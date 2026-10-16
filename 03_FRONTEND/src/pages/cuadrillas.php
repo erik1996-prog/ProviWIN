@@ -5,6 +5,8 @@
 // Zona (2026-10-15): cada técnico líder tiene provincia y departamento; filtra la lista en el formulario de supervisión.
 // Editor (2026-10-15): datos del T1 y del T2 (DNI, celular), cambiar de T2 o registrar uno nuevo.
 // Link de examen (2026-10-15): para el T1 o el T2 de cada fila; se envía por WhatsApp o se copia (api/examenes.php).
+// Vencimientos (2026-10-15): SOAT, revisión técnica, extintor y brevete van en la columna Vehículo con su color; al tocarlos
+// se abre su historial y se actualizan fechas (vencimientos.js, api/vencimientos.php). Filtro "docs" por estado de documentos.
 Auth::requireLogin();
 $user = Auth::getLoggedInUser();
 $esDirecto = ($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($user['is_win_directo']);
@@ -19,6 +21,7 @@ $busqueda = mb_substr(trim((string)($_GET['q'] ?? '')), 0, 60);
 $estadoFiltro = in_array($_GET['estado'] ?? '', ['completas', 'incompletas'], true) ? $_GET['estado'] : '';
 $operativoFiltro = in_array($_GET['operativo'] ?? '', ['todos', 'Inhabilitado', 'Blacklist'], true) ? $_GET['operativo'] : '';
 $zonaFiltro = mb_substr(trim((string)($_GET['zona'] ?? '')), 0, 100);
+$docsFiltro = in_array($_GET['docs'] ?? '', ['alerta', 'malo', 'regular', 'sin_registrar'], true) ? $_GET['docs'] : '';
 $zonasRegistradas = $pdo->query("SELECT DISTINCT departamento FROM tecnicos WHERE COALESCE(tipo_tecnico, 1) = 1 AND departamento IS NOT NULL AND departamento <> '' ORDER BY departamento")->fetchAll(PDO::FETCH_COLUMN);
 $partners = $pdo->query("SELECT id, nombre_partner FROM partners WHERE estado = 1 AND UPPER(nombre_partner) NOT LIKE 'WIN%' ORDER BY nombre_partner")->fetchAll();
 
@@ -43,7 +46,7 @@ if ($busqueda !== '') {
     $like = '%' . addcslashes($busqueda, '%_\\') . '%';
     $params += [':q1' => $like, ':q2' => $like, ':q3' => $like, ':q4' => $like];
 }
-$stmt = $pdo->prepare("SELECT t.id, t.nombre_tecnico, t.dni, t.celular, t.estado_operativo, t.apoyo_id, t.provincia, t.departamento, p.nombre_partner,
+$stmt = $pdo->prepare("SELECT t.id, t.nombre_tecnico, t.dni, t.celular, t.estado_operativo, t.apoyo_id, t.vehiculo_id, t.provincia, t.departamento, p.nombre_partner,
         ta.nombre_tecnico AS apoyo_nombre, ta.dni AS apoyo_dni, ta.celular AS apoyo_celular, v.placa, v.tipo AS vehiculo_tipo, v.estado_conservacion AS vehiculo_estado,
         (SELECT COUNT(*) FROM supervisiones s WHERE s.tecnico1_id = t.id) AS supervisiones,
         (SELECT MAX(s.fecha_registro) FROM supervisiones s WHERE s.tecnico1_id = t.id) AS ultima_supervision
@@ -58,14 +61,41 @@ $stmt->execute($params);
 $filas = $stmt->fetchAll();
 $total = count($filas);
 $completas = count(array_filter($filas, static fn($f) => $f['apoyo_nombre'] && $f['placa']));
+// Documentos de cada cuadrilla: SOAT, revisión técnica y extintor del vehículo; brevete del técnico líder.
+require_once BACKEND_PATH . '/config/vencimientos.php';
+$vigentes = sgsDocumentosVigentes($pdo, array_column($filas, 'vehiculo_id'), array_column($filas, 'id'));
+foreach ($filas as &$fila) {
+    $fila['docs'] = [];
+    foreach (SGS_VENCIMIENTOS as $tipo => $cfg) {
+        $id = $cfg['sujeto'] === 'vehiculo' ? (int)$fila['vehiculo_id'] : (int)$fila['id'];
+        if (!$id) continue; // sin vehículo no hay SOAT, revisión técnica ni extintor que controlar
+        $d = $vigentes[$tipo . '|' . ($cfg['sujeto'] === 'vehiculo' ? 'v' : 't') . $id] ?? null;
+        $fila['docs'][$tipo] = sgsEstadoVencimiento($tipo, $d['fecha_inicio'] ?? null, $d['fecha_vencimiento'] ?? null) + ['vence' => $d['fecha_vencimiento'] ?? null];
+    }
+    $fila['docs_estados'] = array_column($fila['docs'], 'estado');
+}
+unset($fila);
+$conVencidos = count(array_filter($filas, static fn($f) => in_array('malo', $f['docs_estados'], true)));
 if ($estadoFiltro !== '') {
     $filas = array_values(array_filter($filas, static fn($f) => ($estadoFiltro === 'completas') === (bool)($f['apoyo_nombre'] && $f['placa'])));
 }
+$cumpleDocs = static fn(array $f, string $filtro): bool => $filtro === '' || ($filtro === 'alerta'
+    ? (in_array('malo', $f['docs_estados'], true) || in_array('regular', $f['docs_estados'], true))
+    : in_array($filtro, $f['docs_estados'], true));
+$cuentaDocs = [];
+foreach (['', 'alerta', 'malo', 'regular', 'sin_registrar'] as $filtro) $cuentaDocs[$filtro] = count(array_filter($filas, static fn($f) => $cumpleDocs($f, $filtro)));
+if ($docsFiltro !== '') $filas = array_values(array_filter($filas, static fn($f) => $cumpleDocs($f, $docsFiltro)));
 $apoyos = $puedeEditar ? $pdo->query("SELECT t.id, t.nombre_tecnico, t.dni, t.celular, p.nombre_partner FROM tecnicos t LEFT JOIN partners p ON p.id = t.partner_id
     WHERE t.tipo_tecnico = 2 AND t.estado_operativo <> 'Blacklist' ORDER BY t.nombre_tecnico")->fetchAll() : [];
 $e = static fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 require_once BACKEND_PATH . '/config/tecnicos_lideres.php'; // sgsTextoZona y la lista de provincias
 $sinZona = count(array_filter($filas, static fn($f) => trim((string)$f['departamento']) === ''));
+$etiquetaDoc = ['SOAT' => 'SOAT', 'Revisión técnica' => 'Rev. técnica', 'Extintor' => 'Extintor', 'Brevete' => 'Brevete'];
+$urlDocs = static function (string $filtro): string {
+    $q = $_GET; $q['page'] = 'cuadrillas';
+    if ($filtro === '') unset($q['docs']); else $q['docs'] = $filtro;
+    return 'index.php?' . http_build_query($q);
+};
 $claseVehiculo = ['Buen estado' => 'bg-success', 'Regular' => 'bg-warning', 'Mal estado' => 'bg-danger'];
 $claseOperativo = ['Habilitado' => 'bg-success', 'Inhabilitado' => 'bg-secondary', 'Blacklist' => 'bg-danger'];
 $columnas = 6;
@@ -93,16 +123,25 @@ $columnas = 6;
       <small class="sgs-kpi-label">Por completar</small>
       <h3 class="mb-0 sgs-kpi-value"><?= $total - $completas ?></h3>
     </div></div>
-    <div class="col-6 col-lg-3"><div class="sgs-kpi p-3 h-100">
-      <span class="sgs-kpi-icon" aria-hidden="true"><i class="bi bi-pie-chart"></i></span>
-      <small class="sgs-kpi-label">Avance</small>
-      <h3 class="mb-0 sgs-kpi-value"><?= $total ? round($completas * 100 / $total) : 0 ?>%</h3>
-    </div></div>
+    <div class="col-6 col-lg-3"><a class="sgs-kpi <?= $conVencidos ? 'sgs-kpi--danger' : '' ?> p-3 h-100 d-block text-decoration-none" href="<?= $e($urlDocs('malo')) ?>" title="Ver las cuadrillas con documentos vencidos">
+      <span class="sgs-kpi-icon" aria-hidden="true"><i class="bi bi-calendar-x"></i></span>
+      <small class="sgs-kpi-label">Con documentos vencidos</small>
+      <h3 class="mb-0 sgs-kpi-value"><?= $conVencidos ?></h3>
+    </a></div>
   </div>
 
   <form class="card sgs-toolbar-card p-3 mb-3" method="get">
     <input type="hidden" name="page" value="cuadrillas">
-    <div class="sgs-filtros">
+    <?php if ($docsFiltro !== ''): ?><input type="hidden" name="docs" value="<?= $e($docsFiltro) ?>"><?php endif; ?>
+    <div class="sgs-toolbar">
+      <div class="sgs-segmented" role="group" aria-label="Documentos (SOAT, revisión técnica, extintor, brevete)">
+        <?php foreach (['' => 'Todas', 'alerta' => 'Con alerta', 'malo' => 'Vencidos', 'regular' => 'Por vencer', 'sin_registrar' => 'Sin registrar'] as $clave => $texto): ?>
+        <a class="filter-tab-btn <?= $docsFiltro === $clave ? 'active' : '' ?>" href="<?= $e($urlDocs($clave)) ?>"><?= $texto ?> <span class="sgs-seg-count"><?= $cuentaDocs[$clave] ?></span></a>
+        <?php endforeach; ?>
+      </div>
+      <small class="text-muted cuad-docs-ayuda"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Documentos: SOAT, revisión técnica, extintor y brevete</small>
+    </div>
+    <div class="sgs-toolbar-row"><div class="sgs-filtros">
       <div class="sgs-filtro"><label class="form-label" for="cuadQ">Buscar</label>
         <div class="sgs-filtro-busqueda"><i class="bi bi-search" aria-hidden="true"></i><input type="search" class="form-control" id="cuadQ" name="q" maxlength="60" value="<?= $e($busqueda) ?>" placeholder="Técnico, DNI o placa"></div></div>
       <div class="sgs-filtro"><label class="form-label" for="cuadPartner">Partner</label>
@@ -135,7 +174,7 @@ $columnas = 6;
         </select></div>
       <button type="submit" class="btn btn-outline-secondary sgs-filtro-limpiar"><i class="bi bi-funnel me-1"></i>Filtrar</button>
       <a class="btn btn-outline-secondary sgs-filtro-limpiar" href="index.php?page=cuadrillas"><i class="bi bi-x-lg me-1"></i>Limpiar</a>
-    </div>
+    </div></div>
   </form>
 
   <div class="card p-3 p-md-4">
@@ -160,8 +199,14 @@ $columnas = 6;
           <td data-label="Partner y zona"><div><div><?= $e($f['nombre_partner'] ?: '—') ?></div>
             <small class="<?= trim((string)$f['departamento']) === '' ? 'text-warning-emphasis' : 'text-muted' ?>"><i class="bi bi-geo-alt me-1"></i><?= trim((string)$f['departamento']) === '' ? 'Sin zona' : $e(sgsTextoZona($f['provincia'], $f['departamento'])) ?></small></div></td>
           <td data-label="Técnico de apoyo (T2)"><?= $f['apoyo_nombre'] ? $e($f['apoyo_nombre']) : '<span class="text-muted">Por definir</span>' ?></td>
-          <td data-label="Vehículo"><?php if ($f['placa']): ?><div class="cuad-celda"><span class="fw-bold text-nowrap"><?= $e($f['placa']) ?></span><?= $f['vehiculo_tipo'] ? '<small class="text-muted">' . $e($f['vehiculo_tipo']) . '</small>' : '' ?>
-            <?= $f['vehiculo_estado'] ? '<span class="badge ' . ($claseVehiculo[$f['vehiculo_estado']] ?? 'bg-secondary') . '">' . $e($f['vehiculo_estado']) . '</span>' : '' ?></div><?php else: ?><span class="text-muted">Por definir</span><?php endif; ?></td>
+          <td data-label="Vehículo"><div class="cuad-celda"><?php if ($f['placa']): ?><span class="fw-bold text-nowrap"><?= $e($f['placa']) ?><?= $f['vehiculo_tipo'] ? ' <small class="text-muted fw-normal">· ' . $e($f['vehiculo_tipo']) . '</small>' : '' ?></span>
+            <?= $f['vehiculo_estado'] ? '<span class="badge ' . ($claseVehiculo[$f['vehiculo_estado']] ?? 'bg-secondary') . '">' . $e($f['vehiculo_estado']) . '</span>' : '' ?><?php else: ?><span class="text-muted">Sin vehículo</span><?php endif; ?>
+            <div class="venc-chips" role="group" aria-label="Documentos de la cuadrilla">
+              <?php foreach ($f['docs'] as $tipo => $doc): ?>
+              <button type="button" class="venc-chip venc-chip--<?= $doc['estado'] ?>" data-vencimientos="<?= (int)$f['id'] ?>"
+                title="<?= $e($tipo . ' · ' . SGS_VENC_ETIQUETAS[$doc['estado']] . ($doc['vence'] ? ' · vence el ' . date('d/m/Y', strtotime($doc['vence'])) . ' (' . $doc['texto'] . ')' : '')) ?>"><?= $e($etiquetaDoc[$tipo]) ?></button>
+              <?php endforeach; ?>
+            </div></div></td>
           <td data-label="Supervisiones"><div class="cuad-celda"><span class="fw-bold"><?= (int)$f['supervisiones'] ?></span>
             <?php if ($f['ultima_supervision']): ?><small class="text-muted text-nowrap" title="Última supervisión">Última: <?= date('d/m/Y', strtotime($f['ultima_supervision'])) ?></small><?php endif; ?></div></td>
           <td class="text-end"><div class="sgs-row-actions justify-content-end">
@@ -312,6 +357,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const enviar = (accion, datos) => llamar('tecnicos', accion, datos);
   const fechaHora = (v) => { if (!v) return '—'; const d = new Date(String(v).replace(' ', 'T')); return d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false }); };
   const tabla = document.querySelector('.cuad-tabla');
+
+  // ---------- Vencimientos de la cuadrilla ----------
+  tabla?.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-vencimientos]'); if (!b) return;
+    let cambio = false;
+    window.SgsVencimientos?.abrir({ liderId: b.dataset.vencimientos, alActualizar: () => { cambio = true; } });
+    document.getElementById('mVencimientos')?.addEventListener('hidden.bs.modal', () => { if (cambio) location.reload(); }, { once: true });
+  });
 
   // ---------- Link de examen (T1 o T2 de la cuadrilla) ----------
   const mExamen = bootstrap.Modal.getOrCreateInstance($('mExamen'));

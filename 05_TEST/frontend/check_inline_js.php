@@ -1,5 +1,6 @@
 <?php
-// 05_TEST/frontend/check_inline_js.php - Valida la sintaxis del JavaScript incrustado en cada pantalla (requiere Node.js).
+// 05_TEST/frontend/check_inline_js.php - Valida la sintaxis del JavaScript incrustado en cada pantalla y de los archivos
+// assets/js/*.js (requiere Node.js). 2026-10-16: el de Supervisiones pasó a supervision_lista.js.
 // Uso (solo CLI): php 05_TEST/frontend/check_inline_js.php [Rol]
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 $role = $argv[1] ?? 'Administrador';
@@ -24,5 +25,13 @@ foreach ($pages as $page) {
     $fail += count($errors);
     printf("%-24s %2d scripts  %s\n", $page, count($m[1]), $errors ? 'ERROR' : 'OK');
     foreach ($errors as $e) echo "    $e\n";
+}
+foreach (glob($root . '/03_FRONTEND/src/assets/js/*.js') ?: [] as $archivo) {
+    $out = trim((string)shell_exec('node --check ' . escapeshellarg($archivo) . ' 2>&1'));
+    if ($out !== '') $fail++;
+    printf("%-24s archivo    %s
+", basename($archivo), $out !== '' ? 'ERROR' : 'OK');
+    if ($out !== '') echo '    ' . preg_replace('/\s+/', ' ', substr($out, 0, 400)) . "
+";
 }
 exit($fail ? 1 : 0);

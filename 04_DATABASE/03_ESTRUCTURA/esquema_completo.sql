@@ -1,6 +1,6 @@
 -- 04_DATABASE/03_ESTRUCTURA/esquema_completo.sql
--- Estructura de SGS: 23 tablas en orden de dependencias, sin datos ni DROP.
--- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-10-15. No editar a mano: los cambios van como migración en 02_CAMBIOS.
+-- Estructura de SGS: 24 tablas en orden de dependencias, sin datos ni DROP.
+-- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-10-16. No editar a mano: los cambios van como migración en 02_CAMBIOS.
 
 SET NAMES utf8mb4;
 
@@ -323,6 +323,7 @@ CREATE TABLE IF NOT EXISTS `supervisiones` (
   `tecnico1_id` int(11) DEFAULT NULL,
   `tecnico2_id` int(11) DEFAULT NULL,
   `vehiculo_id` int(11) DEFAULT NULL,
+  `datos_pendiente` longtext DEFAULT NULL COMMENT 'Copia (JSON) de la pendiente al iniciarla: si se cancela, vuelve a este estado. Se borra al finalizar.',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_supervisiones_codigo_supervision` (`codigo_supervision`),
   KEY `idx_supervisiones_partner_id` (`partner_id`),
@@ -384,6 +385,37 @@ CREATE TABLE IF NOT EXISTS `checklists_tecnicos` (
   CONSTRAINT `fk_checklists_tecnicos_supervision_id` FOREIGN KEY (`supervision_id`) REFERENCES `supervisiones` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_checklists_tecnicos_supervisor_id` FOREIGN KEY (`supervisor_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Checklist de cuadrilla por supervisión';
+
+-- Tabla `documentos_vencimiento`: Vencimientos de la cuadrilla: SOAT, revisión técnica, extintor (vehículo) y brevete (técnico líder), con historial (depende de: tecnicos, usuarios, supervisiones, vehiculos)
+CREATE TABLE IF NOT EXISTS `documentos_vencimiento` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tipo` enum('SOAT','Revisión técnica','Extintor','Brevete') NOT NULL,
+  `vehiculo_id` int(11) DEFAULT NULL COMMENT 'SOAT, revisión técnica y extintor',
+  `tecnico_id` int(11) DEFAULT NULL COMMENT 'Brevete (técnico líder)',
+  `fecha_inicio` date NOT NULL COMMENT 'Emisión del documento o última recarga del extintor',
+  `fecha_vencimiento` date NOT NULL,
+  `foto` varchar(255) NOT NULL COMMENT 'Foto del documento (evidencia)',
+  `origen` enum('Supervisión','Cuadrillas') NOT NULL DEFAULT 'Cuadrillas',
+  `supervision_id` int(11) DEFAULT NULL COMMENT 'Supervisión en la que se actualizó (si fue desde el checklist)',
+  `aplicado` tinyint(1) NOT NULL DEFAULT 1 COMMENT '0 = registrado en una supervisión en proceso: se asigna a la cuadrilla al finalizarla',
+  `lider_id` int(11) DEFAULT NULL COMMENT 'Cuadrilla (técnico líder) en ese momento',
+  `departamento` varchar(100) DEFAULT NULL COMMENT 'Zona en ese momento',
+  `registrado_por` int(11) DEFAULT NULL,
+  `registrado_en` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_documentos_vencimiento_vehiculo` (`vehiculo_id`,`tipo`,`id`),
+  KEY `idx_documentos_vencimiento_tecnico` (`tecnico_id`,`tipo`,`id`),
+  KEY `idx_documentos_vencimiento_vence` (`fecha_vencimiento`),
+  KEY `fk_documentos_vencimiento_supervision` (`supervision_id`),
+  KEY `fk_documentos_vencimiento_lider` (`lider_id`),
+  KEY `fk_documentos_vencimiento_registrado_por` (`registrado_por`),
+  KEY `idx_documentos_vencimiento_supervision_aplicado` (`supervision_id`,`aplicado`),
+  CONSTRAINT `fk_documentos_vencimiento_lider_id` FOREIGN KEY (`lider_id`) REFERENCES `tecnicos` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_documentos_vencimiento_registrado_por` FOREIGN KEY (`registrado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_documentos_vencimiento_supervision_id` FOREIGN KEY (`supervision_id`) REFERENCES `supervisiones` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_documentos_vencimiento_tecnico_id` FOREIGN KEY (`tecnico_id`) REFERENCES `tecnicos` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_documentos_vencimiento_vehiculo_id` FOREIGN KEY (`vehiculo_id`) REFERENCES `vehiculos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Vencimientos de la cuadrilla: SOAT, revisión técnica, extintor (vehículo) y brevete (técnico líder), con historial';
 
 -- Tabla `observaciones_supervision`: Observaciones en campo, descargos del partner y plazos (depende de: categorias_observacion, usuarios, subopciones_observacion, supervisiones)
 CREATE TABLE IF NOT EXISTS `observaciones_supervision` (

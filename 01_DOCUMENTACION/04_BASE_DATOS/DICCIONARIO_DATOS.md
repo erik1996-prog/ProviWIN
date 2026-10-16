@@ -1,6 +1,6 @@
 # Diccionario de datos — SGS
 
-Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-10-15 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
+Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-10-16 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
 Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 
 | # | Tabla | Para qué sirve | En la instalación |
@@ -12,7 +12,7 @@ Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 | 5 | [`tipificaciones_cancelacion`](#tipificaciones_cancelacion) | Motivos de cancelación (los del Excel de pendientes se agregan solos) | 6 registros |
 | 6 | [`ubigeo`](#ubigeo) | Departamentos, provincias y distritos de operación | 47 registros |
 | 7 | [`vehiculos`](#vehiculos) | Vehículos de las cuadrillas | 2 registros |
-| 8 | [`subopciones_observacion`](#subopciones_observacion) | Tipificaciones de observación con gravedad y penalidad | 83 registros |
+| 8 | [`subopciones_observacion`](#subopciones_observacion) | Tipificaciones de observación con gravedad y penalidad | 84 registros |
 | 9 | [`usuarios`](#usuarios) | Usuarios del sistema (personal WIN y de partners) | 10 registros |
 | 10 | [`asistencia_supervisores`](#asistencia_supervisores) | Turnos de los supervisores: inicio, fin y horas | vacía |
 | 11 | [`tecnicos`](#tecnicos) | Técnicos por partner: líderes (T1) y de apoyo (T2) | 196 registros |
@@ -22,12 +22,13 @@ Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 | 15 | [`examen_enlaces`](#examen_enlaces) | Links de examen enviados a los técnicos | vacía |
 | 16 | [`supervisiones`](#supervisiones) | Supervisiones de campo y órdenes pendientes asignadas | vacía |
 | 17 | [`checklists_tecnicos`](#checklists_tecnicos) | Checklist de cuadrilla por supervisión | vacía |
-| 18 | [`observaciones_supervision`](#observaciones_supervision) | Observaciones en campo, descargos del partner y plazos | vacía |
-| 19 | [`rescate_seguimientos`](#rescate_seguimientos) | Historial del rescate de cada pendiente (inicio, avances, reasignación y cierre) | vacía |
-| 20 | [`supervision_coordenadas_historial`](#supervision_coordenadas_historial) | Cambios de ubicación GPS de cada supervisión | vacía |
-| 21 | [`supervision_estado_historial`](#supervision_estado_historial) | Cambios de estado de cada supervisión (horas reales de inicio y fin) | vacía |
-| 22 | [`checklist_respuestas`](#checklist_respuestas) | Criterios evaluados en cada checklist | vacía |
-| 23 | [`notificaciones`](#notificaciones) | Avisos a los usuarios | vacía |
+| 18 | [`documentos_vencimiento`](#documentos_vencimiento) | Vencimientos de la cuadrilla: SOAT, revisión técnica, extintor (vehículo) y brevete (técnico líder), con historial | vacía |
+| 19 | [`observaciones_supervision`](#observaciones_supervision) | Observaciones en campo, descargos del partner y plazos | vacía |
+| 20 | [`rescate_seguimientos`](#rescate_seguimientos) | Historial del rescate de cada pendiente (inicio, avances, reasignación y cierre) | vacía |
+| 21 | [`supervision_coordenadas_historial`](#supervision_coordenadas_historial) | Cambios de ubicación GPS de cada supervisión | vacía |
+| 22 | [`supervision_estado_historial`](#supervision_estado_historial) | Cambios de estado de cada supervisión (horas reales de inicio y fin) | vacía |
+| 23 | [`checklist_respuestas`](#checklist_respuestas) | Criterios evaluados en cada checklist | vacía |
+| 24 | [`notificaciones`](#notificaciones) | Avisos a los usuarios | vacía |
 
 ### `categorias_observacion`
 Categorías de observación
@@ -320,6 +321,7 @@ Supervisiones de campo y órdenes pendientes asignadas · Depende de: `usuarios`
 | `tecnico1_id` | int(11) | sí | FK → `tecnicos` |  |
 | `tecnico2_id` | int(11) | sí | FK → `tecnicos` |  |
 | `vehiculo_id` | int(11) | sí | FK → `vehiculos` |  |
+| `datos_pendiente` | longtext | sí |  | Copia (JSON) de la pendiente al iniciarla: si se cancela, vuelve a este estado. Se borra al finalizar. |
 
 ### `checklists_tecnicos`
 Checklist de cuadrilla por supervisión · Depende de: `supervisiones`, `usuarios`
@@ -345,6 +347,26 @@ Checklist de cuadrilla por supervisión · Depende de: `supervisiones`, `usuario
 | `evaluado_por` | int(11) | sí |  |  |
 | `fecha_registro` | datetime | sí |  |  |
 | `fecha_limite_respuesta` | datetime | sí |  |  |
+
+### `documentos_vencimiento`
+Vencimientos de la cuadrilla: SOAT, revisión técnica, extintor (vehículo) y brevete (técnico líder), con historial · Depende de: `tecnicos`, `usuarios`, `supervisiones`, `vehiculos`
+
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `tipo` | enum('SOAT','Revisión técnica','Extintor','Brevete') | no |  |  |
+| `vehiculo_id` | int(11) | sí | FK → `vehiculos` | SOAT, revisión técnica y extintor |
+| `tecnico_id` | int(11) | sí | FK → `tecnicos` | Brevete (técnico líder) |
+| `fecha_inicio` | date | no |  | Emisión del documento o última recarga del extintor |
+| `fecha_vencimiento` | date | no |  |  |
+| `foto` | varchar(255) | no |  | Foto del documento (evidencia) |
+| `origen` | enum('Supervisión','Cuadrillas') | no |  |  |
+| `supervision_id` | int(11) | sí | FK → `supervisiones` | Supervisión en la que se actualizó (si fue desde el checklist) |
+| `aplicado` | tinyint(1) | no |  | 0 = registrado en una supervisión en proceso: se asigna a la cuadrilla al finalizarla |
+| `lider_id` | int(11) | sí | FK → `tecnicos` | Cuadrilla (técnico líder) en ese momento |
+| `departamento` | varchar(100) | sí |  | Zona en ese momento |
+| `registrado_por` | int(11) | sí | FK → `usuarios` |  |
+| `registrado_en` | datetime | no |  |  |
 
 ### `observaciones_supervision`
 Observaciones en campo, descargos del partner y plazos · Depende de: `categorias_observacion`, `usuarios`, `subopciones_observacion`, `supervisiones`

@@ -4,6 +4,100 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Carga más liviana (2026-10-16)
+- **Supervisiones**: su programa (247 KB) y sus estilos (24 KB) iban escritos dentro de la página y se descargaban completos en cada visita. Ahora están en `assets/js/supervision_lista.js` y `assets/css/supervision_lista.css`, que el navegador guarda. La página baja de 406 KB a 136 KB por visita (sin comprimir); lo que ve el usuario no cambia. Los datos del servidor llegan en `window.SGS_SUPERVISION`.
+- La letra Nunito ya no pide el grosor 800, que no se usa en ninguna parte.
+- El **Monitor de turnos** no consulta al servidor con la pestaña en segundo plano; al volver a ella se actualiza.
+- Cancelar una supervisión que ya se canceló en otro equipo: avisa y cierra la pantalla (antes decía "Solo quien trabaja la supervisión puede cancelarla").
+
+### Supervisión que se guarda sola: solo "Cancelar" y "Finalizar" (2026-10-16)
+- **"Nueva supervisión" la crea al instante En proceso**, con su código interno (SUP-…, no es el ticket) y toma el GPS. Ya no hay que llenar la sección 1 para empezar.
+- **Todo se guarda solo** mientras se llena: abajo se ve "Guardando…" / "Guardado HH:MM". También al volver al listado o si el celular pasa a segundo plano. Sin señal, avisa y reintenta cuando vuelve.
+- **Las fotos del servicio se suben apenas se eligen.** El checklist, la firma y la observación quedan guardados en el celular hasta finalizar (si se cierra la pantalla, se recuperan al retomarla).
+- Abajo quedan **solo dos botones**. Desaparecen "Guardar supervisión" y "Guardar avance".
+  - **Finalizar**: si falta algo, muestra la **lista de lo que falta** y lleva al primer campo.
+  - **Cancelar** (solo pide confirmar): una supervisión nueva **se elimina** con sus fotos; una **pendiente iniciada vuelve a Pendientes con sus datos originales** (se descarta lo avanzado, sus fotos y observaciones).
+- **Una a la vez**: el botón del listado dice "Continuar supervisión" y abre la que está en proceso. Sigue siendo obligatorio tener el turno iniciado.
+- **Pendientes**: después de "Iniciar supervisión" funcionan igual (se guardan solas, Cancelar y Finalizar). Su ticket y su partner de la carga no cambian.
+- **Corregido**: una supervisión sin ubicación se mostraba y se guardaba como "LIMA".
+- Base de datos: columna `supervisiones.datos_pendiente` (copia de la pendiente al iniciarla), cambio `2026-10-16_01`.
+- Prueba nueva `autoguardado_supervision_test.php` (15/15).
+
+### Respaldos fuera de las visitas: corrige el error 504 en el hosting (2026-10-16)
+- **Causa probable del 504 (Cloudflare)**: cada 24 h, una visita de un usuario comprimía el sistema completo **con todas las fotos** dentro de la petición web. Eso tardaba minutos, ocupaba procesos del hosting y, si el hosting lo cortaba, se volvía a empezar en la siguiente visita. Con varios usuarios conectados, el servidor dejaba de responder.
+- **Ahora las visitas no hacen respaldos.** Los hace una **tarea programada (cron) de cPanel** cada 6 h con `php 07_SCRIPTS/respaldar.php automatico`:
+  - la base, en cada corrida;
+  - el sistema **sin fotos**, una vez al día y solo de madrugada;
+  - las **fotos aparte**, una vez por semana y de madrugada (`10_RESPALDOS/fotos`).
+- Desde la web solo queda el respaldo liviano de la **base** cuando vuelve después de una caída.
+- Se conservan solo los recientes, para no llenar el disco: base 7 días (mínimo 5), sistema 3, fotos 2.
+- En esta PC, el respaldo del sistema pasó de 36 MB a 4 MB; las fotos (32 MB) van aparte.
+- `respaldar.php` admite `automatico | todo | base | sistema | fotos`. Guía actualizada en `10_RESPALDOS/LEEME.md`. `10_RESPALDOS/fotos` queda fuera de git.
+- **Hay que crear la tarea programada en cPanel**; sin ella no se crean respaldos nuevos (el sistema funciona igual).
+
+### Pendientes: solo lectura hasta iniciar, y su cuadrilla desde el Excel (2026-10-16)
+- **Pendiente sin iniciar** (cancelación cargada, en frío): todo queda en solo lectura y solo funciona **"Iniciar supervisión"**. Antes se podían llenar el resultado de la validación, el resumen, las fotos, la ubicación y las observaciones sin haberla iniciado.
+- **Al iniciar** pasa a En proceso, el formulario se reabre solo y se habilitan **exactamente** esos campos. Los datos de la orden que vienen del Excel (gestión, derivación, tipo de servicio, ticket y partner) siguen bloqueados; se envían al guardar, pero no se pueden cambiar.
+- **Cuadrilla de la carga**: la columna **CUADRILLA** del Excel de cancelaciones (antes se ignoraba) se toma como el **técnico líder** que atendió la orden. Se reconoce al registrado en Cuadrillas aunque cambie la nomenclatura; si hay varios, el del mismo partner.
+  - Se muestra bloqueado en la sección 3 de la pendiente.
+  - Toda observación de esa cancelación queda **vinculada a esa cuadrilla** (registro de observaciones y Control y recurrencia).
+  - Si no está registrado, se carga con el nombre tal cual y el resultado de la carga lo lista en **"Técnicos no registrados"**.
+- **Corregido**: al guardar una cancelación cargada se vaciaba el técnico; ahora se conserva.
+- Prueba `importar_cancelaciones_test.php` ampliada (18/18).
+
+### GPS más preciso en las supervisiones (2026-10-16)
+- La precisión del celular es un radio con **95 % de confianza** ("±8 m" = 95 % de probabilidad de estar a menos de 8 m). Para acercarlo al máximo:
+  - se escucha el GPS hasta **45 s** (antes 25 s);
+  - se descartan las lecturas de red o wifi (peor que ±100 m) y las que se alejan del resto;
+  - se **promedian las lecturas buenas**, y pesa más la más precisa: así se quita el "salto" del GPS.
+- Termina antes solo cuando junta **5 lecturas de ±10 m o mejor**.
+- Avisa si queda peor que **±30 m** (antes ±50 m), con el consejo de salir a un lugar abierto. Muestra cuántas lecturas promedió.
+- En una prueba simulada, con lecturas finas de 6 a 8 m de error, el resultado quedó a 0,4 m del punto real.
+
+### Cuadrilla automática al finalizar y checklist sin datos repetidos (2026-10-16)
+- **Se quitó la casilla "Guardar el T2 y el vehículo…"**: al **finalizar** la supervisión, la cuadrilla del técnico líder se actualiza sola. Si el T2 o el vehículo cambiaron, queda lo nuevo; si son los mismos, no cambia nada. Cuando el administrador corrige una supervisión ya finalizada, la cuadrilla actual no se toca.
+- **"Estado del vehículo" del checklist**: sale marcado con el estado ya registrado en la sección 3 (el de la cuadrilla); si se cambia en uno, se cambia en el otro.
+- **Corregido (venía desde v0.10.0)**: al ocultar el checklist, el formulario de una supervisión nueva borraba los campos ocultos con el **nombre de cada ítem**, así que el checklist podía guardarse sin nombres. Ahora no se borran (la firma sí se limpia aparte) y el servidor rechaza un checklist con ítems sin nombre.
+
+### Vencimientos de la cuadrilla: SOAT, revisión técnica, extintor y brevete (2026-10-15)
+- **Qué se controla**:
+  - SOAT, revisión técnica y extintor, pegados al **vehículo** (placa).
+  - Brevete, pegado al **técnico líder**.
+  - Si el vehículo pasa a otra cuadrilla o zona, sus fechas lo acompañan. Su zona es la de la cuadrilla donde está hoy y el historial guarda dónde estaba.
+- **Estado**:
+  - **Vigente**.
+  - **Por vencer**: últimos 30 días (SOAT y revisión técnica), 60 días (brevete) o pasada la mitad de su vigencia (extintor).
+  - **Vencido**: desde el día siguiente al vencimiento.
+  - **Sin registrar**: si faltan las fechas.
+- **Registrar fechas** (inicio y vencimiento) con **foto del documento obligatoria** (imagen o PDF):
+  - desde Cuadrillas (botón de calendario o la insignia de la fila);
+  - desde el dashboard;
+  - desde el checklist de la supervisión.
+  - Lo hacen la administración y los supervisores directos (estos, en su zona). Cada actualización queda en el historial: fechas, foto, quién, cuándo, desde dónde, cuadrilla y zona.
+- **Checklist**:
+  - se agregan **Extintor** y **Brevete** a la sección Vehículo;
+  - los cuatro documentos ya no se marcan a mano: se muestran con su estado y su vencimiento, y con el botón "Actualizar fechas";
+  - el servidor recalcula el estado al guardar.
+- **Observación automática**:
+  - si al guardar el checklist algún documento está vencido, la supervisión recibe la observación con la falta del catálogo (una por documento, sin repetirse) y se avisa al partner como con cualquier observación;
+  - SOAT → "Vehículo no tiene SOAT"; brevete → "No portar la licencia de conducir vigente" (las dos Muy graves: penalidad directa); extintor → "No contar con kit de emergencias extintor…" (Media);
+  - revisión técnica → falta nueva **"Vehículo con revisión técnica vencida"** (Grave, penalidad 0; el monto se puede ajustar en el catálogo).
+- **En Cuadrillas**, dentro de la columna **Vehículo**: SOAT, revisión técnica, extintor y brevete, cada uno con su color (verde vigente, amarillo por vencer, rojo vencido, gris sin registrar). Al tocarlos se abre su historial y se actualizan las fechas.
+  - Filtro de documentos con contadores: Todas · Con alerta · Vencidos · Por vencer · Sin registrar.
+  - El indicador "Avance" pasa a **"Con documentos vencidos"**; al tocarlo, filtra esas cuadrillas.
+  - El supervisor ve las de su zona, como en el resto de Cuadrillas.
+  - Se retiró la pantalla aparte "Vencimientos" (quedaba duplicada); su dirección antigua lleva a Cuadrillas con "Con alerta".
+- Cambio de base `2026-10-15_06_vencimientos_de_documentos_de_la_cuadrilla`: tabla nueva `documentos_vencimiento` y la falta nueva.
+- Archivos: API `api/vencimientos.php`; lógica en `config/vencimientos.php`; ventana compartida `assets/js/vencimientos.js`; estilos en la sección 51 de `sgs-theme.css`.
+- **Fechas registradas en el propio checklist**: en cada documento (SOAT, revisión técnica, extintor, brevete), "Registrar fechas" despliega ahí mismo inicio, vence y foto (ya no abre una ventana aparte).
+  - Las fechas viajan con la supervisión, con su técnico líder y su placa, aunque la placa sea nueva.
+  - Mientras la supervisión está en proceso quedan **pendientes**: no cambian la cuadrilla.
+  - **Al finalizar** se asignan al vehículo y al técnico líder, y en la siguiente supervisión ya salen solas.
+  - El estado se ve al momento con las fechas escritas. El estado del checklist y la observación automática toman en cuenta lo registrado en la visita: si renovó el documento, ya no se marca vencido.
+  - Cambio de base `2026-10-15_07_fechas_de_documentos_pendientes_hasta_finalizar_la_supervisi` (columna `documentos_vencimiento.aplicado`).
+- Prueba `vencimientos_test.php` ampliada: incluye el flujo real por HTTP (registrar en el checklist con placa nueva y finalizar) (29/29).
+- **Corregido**: en el formulario de una supervisión nueva, los documentos del checklist se quedaban en "Elija el técnico líder y la placa" y el botón "Actualizar fechas" no respondía. El script del formulario se ejecuta antes que `vencimientos.js` y la parte de vencimientos se apagaba; ahora espera a que cargue. En la corrección de una supervisión ya funcionaba.
+
 ### Editor de cuadrillas con T1 y T2, y links de examen (2026-10-15)
 - **Editar cuadrilla, por secciones**: Técnico líder (T1), Técnico de apoyo (T2), Vehículo, Zona y estado.
   - DNI y celular del T1 y del T2.

@@ -22,7 +22,7 @@ if (Auth::mustChangePassword()) {
 win_run_periodic_task('log-retention', 86400, 'sgs_purge_old_logs');
 require_once BACKEND_PATH . '/config/turnos.php';
 win_run_periodic_task('cierre-turnos', 300, static fn() => sgsCerrarTurnosVencidos(Database::getConnection())); // turnos olvidados: se cierran a las 23:59
-sgsProgramarRespaldo(); // respaldo automático: base cada 6 h, sistema cada 24 h (después de enviar la página)
+// Respaldos (2026-10-16): ya no se hacen en las visitas; los hace la tarea programada (07_SCRIPTS/respaldar.php automatico).
 // Cada usuario trabaja con su propia cuenta y rol (la "vista provisional" se retiró el 2026-10-06).
 $rol = $user['rol'] ?? '';
 $isWinDirecto = !empty($user['is_win_directo']);
@@ -50,6 +50,11 @@ $allowedViews = [
 // sin turno activo la API no le permite registrar supervisiones.
 $isDirectSupervisorView = $rol === Auth::ROLE_SUPERVISOR && $isWinDirecto;
 $canMonitorShifts = in_array($rol, [Auth::ROLE_ADMINISTRADOR, Auth::ROLE_GERENTE, Auth::ROLE_COORDINADOR], true); // 2026-10-12: también el administrador
+// Vencimientos (2026-10-15): quedaron dentro de Cuadrillas; la dirección antigua lleva a las cuadrillas con alertas.
+if ($page === 'vencimientos') {
+    header('Location: index.php?page=cuadrillas&docs=alerta');
+    exit;
+}
 if (!array_key_exists($page, $allowedViews)) {
     $page = $isDirectSupervisorView ? 'asistencia' : 'supervision_lista';
 }
@@ -93,7 +98,7 @@ $pageDescriptions = [
         : 'Bitácora de supervisiones de campo: registro, asignación a partners y seguimiento.',
     'registro_observaciones' => 'Hallazgos de campo y de checklist, con sus descargos y plazos de respuesta.',
     'admin_dashboard' => 'Indicadores de supervisión, cobertura geográfica y cumplimiento de partners.',
-    'cuadrillas' => 'Cada técnico líder con su técnico de apoyo y su vehículo. Se arman solas al registrar supervisiones.',
+    'cuadrillas' => 'Cada técnico líder con su técnico de apoyo, su vehículo y sus documentos (SOAT, revisión técnica, extintor, brevete).',
     'timeline_supervisores' => 'Jornada del personal directo: turno, supervisiones, traslados y pausas.',
     'control_observaciones' => 'Recurrencia de observaciones y desempeño de técnicos.',
     'guia_estilo' => 'Colores, tipografía y componentes oficiales de SGS. Referencia para crear nuevas secciones.',
@@ -126,7 +131,7 @@ $needsLeaflet = $page === 'admin_dashboard'
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <?php if ($needsLeaflet): ?>
@@ -163,6 +168,7 @@ $needsLeaflet = $page === 'admin_dashboard'
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="<?= $assets ?>/js/main.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
     <?php if (in_array($page, ['mi_informacion', 'usuarios'], true)): ?><script src="<?= $assets ?>/js/password-meter.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
+    <?php if (in_array($page, ['cuadrillas', 'supervision_lista'], true)): ?><script src="<?= $assets ?>/js/vencimientos.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
     <script src="<?= $assets ?>/js/error-monitor.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
 </body>
 </html>

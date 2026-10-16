@@ -389,6 +389,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
     $requestedWorkflowState = (string)($input['estado_supervision'] ?? 'En proceso');
     if ($esCorreccionAdmin) $requestedWorkflowState = 'Finalizada'; // la corrección no reabre la supervisión
     if (in_array($requestedWorkflowState, ['Culminada','Finalizado'], true)) $requestedWorkflowState = 'Finalizada';
+    // Guardado automático (2026-10-16): mientras está En proceso se guarda lo que haya (sin exigir ticket ni partner);
+    // todo lo obligatorio se exige al finalizar.
+    $esGuardadoParcial = $requestedWorkflowState === 'En proceso';
     $isInitialMinimalSave = $requestedWorkflowState === 'En proceso'
         && (int)($input['supervision_id_edit'] ?? $input['supervision_id'] ?? 0) === 0;
 
@@ -405,6 +408,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
         if (($targetRecord['rescate_estado'] ?? '') === 'En rescate') {
             http_response_code(409);
             echo json_encode(['status'=>'error','message'=>'Esta pendiente está en rescate: registre los avances o ciérrela desde el rescate.']); exit;
+        }
+    }
+
+    // Guardado automático de una supervisión ya creada: lo que aún no se eligió en la sección 1 conserva lo guardado.
+    if ($esGuardadoParcial && $targetRecord) {
+        $desdeRegistro = ['tipo_supervision' => 'clasificacion_supervision', 'derivacion_orden' => 'derivacion_orden', 'tipo_servicio' => 'tipo_servicio',
+            'tipo_supervision_inicial' => 'tipo_supervision_inicial', 'departamento' => 'departamento', 'provincia' => 'provincia', 'distrito' => 'distrito'];
+        // Orden cargada por Excel: su ticket y su partner no cambian.
+        if (!empty($targetRecord['es_cancelacion']) && !empty($targetRecord['origen_importacion'])) $desdeRegistro += ['ticket_codigo' => 'ticket_codigo', 'partner_id' => 'partner_id'];
+        foreach ($desdeRegistro as $campo => $columna) {
+            if (trim((string)($input[$campo] ?? '')) === '') $input[$campo] = (string)($targetRecord[$columna] ?? '');
         }
     }
 
@@ -483,6 +497,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
         'distrito'
     ];
     foreach ($camposGeneralesObligatorios as $campoGeneral) {
+        if ($esGuardadoParcial && $targetRecord) break; // se completa al finalizar
         if (trim((string)($input[$campoGeneral] ?? '')) === '') {
             echo json_encode([
                 'status' => 'error',
@@ -491,7 +506,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
             exit;
         }
     }
-    if (!in_array($tipoSolicitado, ['Checklist', 'Visita partner por capacitación'], true)
+    if (!in_array($tipoSolicitado, ['Checklist', 'Visita partner por capacitación'], true) && !($esGuardadoParcial && $targetRecord)
         && trim((string)($input['tipo_supervision_inicial'] ?? '')) === '') {
         echo json_encode([
             'status' => 'error',
@@ -500,7 +515,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
         exit;
     }
 
-    if (!$isInitialMinimalSave && !in_array($tipoSolicitado, $tiposSinPedido, true) && empty($ticketCodigo)) {
+    if (!$esGuardadoParcial && !in_array($tipoSolicitado, $tiposSinPedido, true) && empty($ticketCodigo)) {
         echo json_encode([
             'status' => 'error',
             'message' => 'Coloque el número de pedido o ticket para iniciar la supervisión.'
@@ -563,7 +578,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
     $partnerId = intval($input['partner_id'] ?? 0);
     if (in_array($tipoSolicitado, $tiposSinPartner, true)) {
         $partnerId = null;
-    } elseif ($partnerId <= 0 && !$isInitialMinimalSave) {
+    } elseif ($partnerId <= 0 && !$esGuardadoParcial) {
         echo json_encode(['status' => 'error', 'message' => 'Seleccione el partner o contrata para este tipo de supervisión.']);
         exit;
     } elseif ($partnerId <= 0) {
@@ -590,7 +605,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
     $clasificacion = $rawTipoSup;
     $areaServicio = $rawTipoSup;
     $subTipoAtencion = trim($input['sub_tipo_atencion'] ?? '') ?: null;
-    if ($rawTipoSup === 'Postventa' && $subTipoAtencion === null && !$isImportedCancellationEdit) {
+    if ($rawTipoSup === 'Postventa' && $subTipoAtencion === null && !$isImportedCancellationEdit && !$esGuardadoParcial) {
         echo json_encode(['status' => 'error', 'message' => 'Seleccione el trabajo de Postventa.']);
         exit;
     }
@@ -769,6 +784,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
             $stmtGet->execute([':id' => $editId]);
             $existingSupervision = $stmtGet->fetch();
             $allowPendingPool = $existingSupervision && ($existingSupervision['estado_supervision'] ?? '') === 'Pendiente';
+            // Pendiente que se inicia (2026-10-16): se guarda su copia original; "Cancelar" la devuelve a este estado.
+            if ($existingSupervision && ($existingSupervision['estado_supervision'] ?? '') === 'Pendiente' && $requestedWorkflowState !== 'Pendiente'
+                && empty($existingSupervision['datos_pendiente'])) {
+                $copiaPendiente = $existingSupervision;
+                unset($copiaPendiente['datos_pendiente']);
+                $copiaPendiente['__inicio'] = date('Y-m-d H:i:s');
+                $pdo->prepare('UPDATE supervisiones SET datos_pendiente = :d WHERE id = :id')
+                    ->execute([':d' => json_encode($copiaPendiente, JSON_UNESCAPED_UNICODE), ':id' => $editId]);
+            }
+            // Guardado automático: la ubicación que aún no se eligió conserva la guardada (antes quedaba "LIMA").
+            if ($existingSupervision && $esGuardadoParcial) {
+                foreach (['departamento', 'provincia', 'distrito'] as $campoUbicacion) {
+                    if (empty($input[$campoUbicacion])) $$campoUbicacion = (string)$existingSupervision[$campoUbicacion];
+                }
+            }
             if (!$existingSupervision || !canAccessSupervision($user, $existingSupervision, $allowPendingPool)) {
                 $pdo->rollBack();
                 http_response_code(403);
@@ -869,6 +899,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
                 // técnico presente y nunca corresponde abrir un checklist técnico.
                 $tipoSupervisionInicial = 'En frío';
                 $tecnico1Nombre = $tecnico1Dni = $tecnico2Nombre = $tecnico2Dni = null;
+                // Cancelación cargada (2026-10-16): conserva el técnico líder de la columna CUADRILLA del Excel, para que
+                // sus observaciones queden vinculadas a esa cuadrilla.
+                if (!empty($existingSupervision['origen_importacion']) && !empty($existingSupervision['es_cancelacion'])) {
+                    $tecnico1Nombre = $existingSupervision['tecnico1_nombre'];
+                    $tecnico1Dni = $existingSupervision['tecnico1_dni'];
+                }
                 $unidadTipo = $unidadPlaca = $unidadSoat = $unidadRevisionTecnica = $unidadEstado = null;
                 $brevetePoseedor = 'Ninguno';
             }
@@ -1106,13 +1142,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
             $supervisionId = $pdo->lastInsertId();
         }
 
-        if (!$sinCuadrilla) {
+        if (!empty($esCancelacionImportada)) {
+            // Cancelación cargada (2026-10-16, en frío): su técnico líder viene de la columna CUADRILLA del Excel; no hay
+            // personal ni vehículo en la visita, así que no se toca (tampoco se borra).
+        } elseif (!$sinCuadrilla) {
             guardarPersonalSupervision($pdo, (int)$supervisionId, $partnerId, [
                 ['id'=>$input['tecnico1_id'] ?? null, 'nombre'=>$tecnico1Nombre, 'dni'=>$tecnico1Dni],
                 ['id'=>$input['tecnico2_id'] ?? null, 'nombre'=>$tecnico2Nombre, 'dni'=>$tecnico2Dni]
             ], ['placa'=>$unidadPlaca, 'tipo'=>$unidadTipo, 'estado'=>$unidadEstado, 'soat'=>$unidadSoat, 'revision'=>$unidadRevisionTecnica],
-                // La ficha del líder (T2, vehículo y su estado) se actualiza al CERRAR la supervisión, si quedó marcada la casilla.
-                $esCierreDefinitivo && ($input['recordar_cuadrilla'] ?? '1') !== '0');
+                // La ficha del líder (T2, vehículo y su estado) se actualiza sola al CERRAR la supervisión (2026-10-16: sin casilla):
+                // si cambió, queda lo nuevo; si es lo mismo, no cambia nada. Corregir una ya finalizada no toca la cuadrilla actual.
+                $esCierreDefinitivo && empty($esCorreccionAdmin));
         } elseif (empty($conservarHistorico)) {
             $pdo->prepare('UPDATE supervisiones SET tecnico1_id=NULL,tecnico2_id=NULL,vehiculo_id=NULL WHERE id=:id')->execute([':id'=>$supervisionId]);
         }
@@ -1217,6 +1257,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
                     throw new Exception('Seleccione un estado válido en todos los criterios del checklist.');
                 }
             }
+            // Cada respuesta debe llevar el nombre de su ítem (2026-10-16: el formulario los borraba al ocultar el checklist).
+            foreach ($criterios as $criterioItem) {
+                if (trim((string)$criterioItem) === '') throw new Exception('El checklist llegó sin el nombre de sus ítems. Recargue la página (Ctrl + F5) y vuelva a llenarlo.');
+            }
 
             $observacionGeneralChecklist = trim((string)($input['checklist_observacion_general'] ?? ''));
             if ($observacionGeneralChecklist === '') {
@@ -1239,6 +1283,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
             $stmtChecklist->execute([':sid'=>$supervisionId, ':uid'=>$user['id'], ':nom'=>$tecnico1Nombre, ':dni'=>$tecnico1Dni, ':tipo'=>$unidadTipo, ':placa'=>$unidadPlaca, ':brevete'=>$brevetePoseedor, ':obs_general'=>$observacionGeneralChecklist, ':firma'=>$firmaChecklist]);
             $checklistId = (int)$pdo->lastInsertId();
             $stmtRespuesta = $pdo->prepare("INSERT INTO checklist_respuestas (checklist_id,criterio,estado,observacion,foto_evidencia) VALUES (:cid,:criterio,:estado,:obs,:foto)");
+            // Vencimientos (2026-10-15): SOAT, revisión técnica, extintor y brevete no se marcan a mano: su estado sale de
+            // las fechas registradas del vehículo y del técnico líder de esta supervisión (sin fechas = "No revisado").
+            require_once __DIR__ . '/../../config/vencimientos.php';
+            $stCuadrilla = $pdo->prepare('SELECT tecnico1_id, vehiculo_id, partner_id FROM supervisiones WHERE id = :id');
+            $stCuadrilla->execute([':id' => $supervisionId]);
+            $cuadrillaSup = $stCuadrilla->fetch(PDO::FETCH_ASSOC) ?: [];
+            // Fechas registradas en el propio checklist (inicio, vence y foto): quedan pendientes con esta supervisión y
+            // pasan a la cuadrilla al finalizarla (más abajo). Una fila sin datos no cambia nada.
+            foreach (SGS_VENCIMIENTOS as $tipoVenc => $cfgVenc) {
+                $iniVenc = trim((string)($input['venc_inicio'][$tipoVenc] ?? ''));
+                $finVenc = trim((string)($input['venc_fin'][$tipoVenc] ?? ''));
+                $errFoto = $_FILES['venc_foto']['error'][$tipoVenc] ?? UPLOAD_ERR_NO_FILE;
+                if ($iniVenc === '' && $finVenc === '' && $errFoto === UPLOAD_ERR_NO_FILE) continue;
+                $sujetoVenc = $cfgVenc['sujeto'] === 'vehiculo' ? (int)($cuadrillaSup['vehiculo_id'] ?? 0) : (int)($cuadrillaSup['tecnico1_id'] ?? 0);
+                if (!$sujetoVenc) {
+                    throw new Exception($cfgVenc['sujeto'] === 'vehiculo' ? "Registre la placa del vehículo para guardar las fechas del {$tipoVenc}." : 'Seleccione al técnico líder para guardar las fechas del brevete.');
+                }
+                $archivoVenc = $errFoto === UPLOAD_ERR_NO_FILE ? null : ['name' => $_FILES['venc_foto']['name'][$tipoVenc], 'type' => $_FILES['venc_foto']['type'][$tipoVenc],
+                    'tmp_name' => $_FILES['venc_foto']['tmp_name'][$tipoVenc], 'error' => $errFoto, 'size' => $_FILES['venc_foto']['size'][$tipoVenc]];
+                try {
+                    sgsRegistrarVencimiento($pdo, $tipoVenc, $sujetoVenc, $iniVenc, $finVenc, $archivoVenc, 'Supervisión', (int)$supervisionId, (int)($user['id'] ?? 0), false);
+                } catch (Exception $e) {
+                    throw new Exception("{$tipoVenc}: " . $e->getMessage());
+                }
+            }
+            $estadoVenc = [];
+            if (!empty($cuadrillaSup['tecnico1_id']) || !empty($cuadrillaSup['vehiculo_id'])) {
+                foreach (sgsVencimientosCuadrilla($pdo, (int)$cuadrillaSup['tecnico1_id'], $cuadrillaSup['vehiculo_id'] ? (int)$cuadrillaSup['vehiculo_id'] : null, false, (int)$supervisionId) as $itemVenc) {
+                    $estadoVenc[$itemVenc['tipo']] = $itemVenc['checklist'];
+                }
+            }
+            foreach ($criterios as $indice => $criterio) {
+                if (isset(SGS_VENCIMIENTOS[trim($criterio)])) $estadosChecklist[$indice] = $estadoVenc[trim($criterio)] ?? 'No revisado';
+            }
             foreach ($criterios as $indice => $criterio) {
                 $fotoChecklist=null;
                 if(isset($_FILES['checklist_foto']['error'][$indice])&&$_FILES['checklist_foto']['error'][$indice]===UPLOAD_ERR_OK){
@@ -1250,7 +1328,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
                 }
                 $stmtRespuesta->execute([':cid'=>$checklistId, ':criterio'=>trim($criterio), ':estado'=>$estadosChecklist[$indice], ':obs'=>trim($observacionesChecklist[$indice] ?? '') ?: null,':foto'=>$fotoChecklist]);
             }
+            // Documento vencido → observación automática con la falta del catálogo (una por documento y supervisión).
+            sgsObservacionesPorVencimiento($pdo, (int)$supervisionId, !empty($cuadrillaSup['partner_id']) ? (int)$cuadrillaSup['partner_id'] : null,
+                !empty($cuadrillaSup['tecnico1_id']) ? (int)$cuadrillaSup['tecnico1_id'] : null, !empty($cuadrillaSup['vehiculo_id']) ? (int)$cuadrillaSup['vehiculo_id'] : null, (int)($user['id'] ?? 0));
             }
+        }
+
+        // Vencimientos (2026-10-15): al FINALIZAR, las fechas registradas en el checklist pasan a la cuadrilla (vehículo y
+        // técnico líder con los que terminó la supervisión) y salen en las siguientes supervisiones.
+        if ($esCierreDefinitivo) {
+            require_once __DIR__ . '/../../config/vencimientos.php';
+            $stFinal = $pdo->prepare('SELECT tecnico1_id, vehiculo_id FROM supervisiones WHERE id = :id');
+            $stFinal->execute([':id' => $supervisionId]);
+            $finalSup = $stFinal->fetch(PDO::FETCH_ASSOC) ?: [];
+            sgsAplicarPendientesSupervision($pdo, (int)$supervisionId, !empty($finalSup['tecnico1_id']) ? (int)$finalSup['tecnico1_id'] : null,
+                !empty($finalSup['vehiculo_id']) ? (int)$finalSup['vehiculo_id'] : null);
         }
 
         // Resultado de la cancelación cargada: "En proceso de rescate" pasa la orden a rescate (vuelve a Pendiente, a cargo
@@ -1274,6 +1366,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
                         ->execute([':s' => $editId, ':u' => $quien, ':c' => 'Rescatado al validar la cancelación.' . (trim((string)$observacionServicio) !== '' ? ' ' . trim((string)$observacionServicio) : '')]);
                 }
             }
+        }
+
+        // La copia de la pendiente (para Cancelar) se borra al finalizar o si vuelve a Pendiente (2026-10-16).
+        if ($esCierreDefinitivo || $estadoSupervision === 'Pendiente') {
+            $pdo->prepare('UPDATE supervisiones SET datos_pendiente = NULL WHERE id = :id')->execute([':id' => $supervisionId]);
         }
 
         // Historial de estados: da la hora real de inicio y de finalización (línea de tiempo, indicadores).
@@ -1624,6 +1721,126 @@ if ($action === 'detail') {
 }
 
 // 4. Eliminar supervisión
+// Supervisión con guardado automático (2026-10-16): "Nueva supervisión" la crea al instante En proceso (sin exigir la
+// sección 1); el formulario se va guardando solo con action=create; solo hay "Cancelar" y "Finalizar".
+// Mismas reglas: supervisor directo con turno iniciado y una sola supervisión en proceso (si ya tiene una, se retoma).
+$sgsPuedeTrabajar = static function () use ($pdo, $user): ?string {
+    if (($user['rol'] ?? '') !== Auth::ROLE_SUPERVISOR || empty($user['is_win_directo']) || !Auth::can(Auth::PERM_SUPERVISION_CREATE, $user)) {
+        return 'Las supervisiones operativas solo pueden ser registradas por un supervisor directo.';
+    }
+    $st = $pdo->prepare('SELECT fin_turno FROM asistencia_supervisores WHERE supervisor_id = :s AND fecha = CURRENT_DATE() LIMIT 1');
+    $st->execute([':s' => (int)$user['id']]);
+    $turno = $st->fetch();
+    if (!$turno) return 'Inicia tu turno de hoy para registrar supervisiones.';
+    if (!empty($turno['fin_turno'])) return 'Ya finalizaste tu turno de hoy. No puedes seguir trabajando en supervisiones.';
+    return null;
+};
+$sgsBorrarArchivo = static function (?string $ruta): void {
+    $ruta = (string)$ruta;
+    if ($ruta !== '' && str_starts_with($ruta, 'uploads/') && !str_contains($ruta, '..')) @unlink(SHARED_FILES_PATH . '/' . $ruta);
+};
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'iniciar_nueva') {
+    if ($motivo = $sgsPuedeTrabajar()) { http_response_code(403); echo json_encode(['status' => 'error', 'message' => $motivo], JSON_UNESCAPED_UNICODE); exit; }
+    $st = $pdo->prepare("SELECT id, codigo_supervision, ticket_codigo FROM supervisiones WHERE supervisor_id = :s AND estado_supervision IN ('Iniciada', 'En proceso') ORDER BY id DESC LIMIT 1");
+    $st->execute([':s' => (int)$user['id']]);
+    if ($activa = $st->fetch(PDO::FETCH_ASSOC)) {
+        echo json_encode(['status' => 'activa', 'id' => (int)$activa['id'], 'codigo' => $activa['codigo_supervision'],
+            'message' => 'Ya tienes una supervisión en proceso (' . ($activa['ticket_codigo'] ?: $activa['codigo_supervision']) . '): se abre para continuar.'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    $zonas = sgsUserZones((int)$user['id']);
+    $departamento = is_array($zonas) && count($zonas) === 1 ? $zonas[0] : '';
+    $codigo = 'SUP-' . date('Ymd') . '-' . random_int(1000, 9999);
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("INSERT INTO supervisiones (codigo_supervision, fecha_registro, supervisor_id, derivacion_orden, tipo_servicio, departamento, provincia, distrito,
+                tipo_supervision_inicial, clasificacion_supervision, area_servicio, estado_supervision)
+            VALUES (:c, NOW(), :s, 'Autogestión', 'Regular', :d, '', '', 'En caliente', 'Instalación', 'Instalación', 'En proceso')")
+            ->execute([':c' => $codigo, ':s' => (int)$user['id'], ':d' => $departamento]);
+        $id = (int)$pdo->lastInsertId();
+        $pdo->prepare("INSERT INTO supervision_estado_historial (supervision_id, estado_anterior, estado_nuevo, cambiado_por) VALUES (:id, NULL, 'En proceso', :u)")
+            ->execute([':id' => $id, ':u' => (int)$user['id']]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        win_log_error('supervision_start_error', $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['status' => 'error', 'message' => 'No se pudo iniciar la supervisión. Inténtelo otra vez.', 'code' => sgs_error_code()], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    echo json_encode(['status' => 'success', 'id' => $id, 'codigo' => $codigo, 'message' => 'Supervisión iniciada: se guarda sola mientras la llenas.'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'cancelar') {
+    $id = (int)($_POST['id'] ?? 0);
+    $pdo->beginTransaction();
+    try {
+        $st = $pdo->prepare('SELECT * FROM supervisiones WHERE id = :id FOR UPDATE');
+        $st->execute([':id' => $id]);
+        $sup = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$sup) throw new RuntimeException('Esta supervisión ya no existe: fue cancelada o eliminada (quizá desde otro equipo).', 404);
+        if ((int)$sup['supervisor_id'] !== (int)($user['id'] ?? 0)) throw new RuntimeException('Solo quien trabaja la supervisión puede cancelarla.');
+        if (!in_array($sup['estado_supervision'], ['Iniciada', 'En proceso'], true)) throw new RuntimeException('Solo se puede cancelar una supervisión en proceso.');
+        // Fechas de documentos registradas en este intento (pendientes) y fotos que no estaban antes.
+        $st = $pdo->prepare('SELECT foto FROM documentos_vencimiento WHERE supervision_id = :id AND aplicado = 0');
+        $st->execute([':id' => $id]);
+        $archivos = $st->fetchAll(PDO::FETCH_COLUMN);
+        $pdo->prepare('DELETE FROM documentos_vencimiento WHERE supervision_id = :id AND aplicado = 0')->execute([':id' => $id]);
+        $copia = !empty($sup['datos_pendiente']) ? json_decode((string)$sup['datos_pendiente'], true) : null;
+        if (is_array($copia)) {
+            // Fue una pendiente: vuelve a como estaba (se descarta lo avanzado: datos, fotos, checklist y observaciones del intento).
+            $inicio = (string)($copia['__inicio'] ?? date('Y-m-d H:i:s'));
+            foreach (['foto_servicio_1', 'foto_servicio_2', 'foto_servicio_3'] as $k) if (($sup[$k] ?? null) && ($sup[$k] !== ($copia[$k] ?? null))) $archivos[] = $sup[$k];
+            $st = $pdo->prepare('SELECT foto_1, foto_2, foto_3 FROM observaciones_supervision WHERE supervision_id = :id AND fecha_registro >= :i');
+            $st->execute([':id' => $id, ':i' => $inicio]);
+            foreach ($st->fetchAll(PDO::FETCH_NUM) as $fila) foreach ($fila as $ruta) if ($ruta) $archivos[] = $ruta;
+            $pdo->prepare('DELETE FROM observaciones_supervision WHERE supervision_id = :id AND fecha_registro >= :i')->execute([':id' => $id, ':i' => $inicio]);
+            $pdo->prepare('DELETE FROM checklists_tecnicos WHERE supervision_id = :id AND fecha_registro >= :i')->execute([':id' => $id, ':i' => $inicio]);
+            $columnas = array_flip(array_column($pdo->query('SHOW COLUMNS FROM supervisiones')->fetchAll(PDO::FETCH_ASSOC), 'Field'));
+            $sets = []; $vals = [':id' => $id];
+            foreach ($copia as $col => $valor) {
+                if ($col === 'id' || $col === 'datos_pendiente' || !isset($columnas[$col])) continue;
+                $sets[] = "`$col` = :c_" . count($sets);
+                $vals[':c_' . (count($sets) - 1)] = $valor;
+            }
+            $sets[] = 'datos_pendiente = NULL';
+            $pdo->prepare('UPDATE supervisiones SET ' . implode(', ', $sets) . ' WHERE id = :id')->execute($vals);
+            $pdo->prepare('INSERT INTO supervision_estado_historial (supervision_id, estado_anterior, estado_nuevo, cambiado_por) VALUES (:id, :a, :n, :u)')
+                ->execute([':id' => $id, ':a' => $sup['estado_supervision'], ':n' => $copia['estado_supervision'] ?? 'Pendiente', ':u' => (int)$user['id']]);
+            $mensaje = 'Supervisión cancelada: la orden volvió a Pendiente, tal como estaba.';
+        } else {
+            // Nueva: se elimina (sus observaciones se borran con ella).
+            foreach (['foto_servicio_1', 'foto_servicio_2', 'foto_servicio_3'] as $k) if (!empty($sup[$k])) $archivos[] = $sup[$k];
+            $st = $pdo->prepare('SELECT foto_1, foto_2, foto_3 FROM observaciones_supervision WHERE supervision_id = :id');
+            $st->execute([':id' => $id]);
+            foreach ($st->fetchAll(PDO::FETCH_NUM) as $fila) foreach ($fila as $ruta) if ($ruta) $archivos[] = $ruta;
+            $st = $pdo->prepare('SELECT firma_supervisor FROM checklists_tecnicos WHERE supervision_id = :id');
+            $st->execute([':id' => $id]);
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $ruta) if ($ruta) $archivos[] = $ruta;
+            $pdo->prepare('DELETE FROM checklists_tecnicos WHERE supervision_id = :id')->execute([':id' => $id]);
+            $pdo->prepare('DELETE FROM supervisiones WHERE id = :id')->execute([':id' => $id]);
+            $mensaje = 'Supervisión cancelada y eliminada.';
+        }
+        $pdo->commit();
+    } catch (RuntimeException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        http_response_code(422);
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage(), 'codigo' => $e->getCode() === 404 ? 'no_existe' : null], JSON_UNESCAPED_UNICODE);
+        exit;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        win_log_error('supervision_cancel_error', $e->getMessage(), ['supervision_id' => $id]);
+        http_response_code(500);
+        echo json_encode(['status' => 'error', 'message' => 'No se pudo cancelar la supervisión.', 'code' => sgs_error_code()], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    foreach (array_unique($archivos) as $ruta) $sgsBorrarArchivo($ruta);
+    win_log_error('audit_supervision_cancelled', $mensaje, ['supervision_id' => $id, 'codigo' => $sup['codigo_supervision'], 'ticket' => $sup['ticket_codigo'], 'era_pendiente' => is_array($copia)]);
+    echo json_encode(['status' => 'success', 'message' => $mensaje, 'volvio_a_pendiente' => is_array($copia)], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 if ($action === 'delete') {
     // Solo POST (2026-10-13): por GET no se revisa el token CSRF y bastaba con abrir un enlace para borrar.
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

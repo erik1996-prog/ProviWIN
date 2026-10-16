@@ -42,6 +42,7 @@ $tablasSgs = [
     'asistencia_supervisores' => 'vacia',
     'asistencia_eventos' => 'vacia',
     'examen_enlaces' => 'vacia',
+    'documentos_vencimiento' => 'vacia',
     'sgs_migracion' => 'vacia',
 ];
 // Filas de prueba que no viajan aunque la tabla lleve datos

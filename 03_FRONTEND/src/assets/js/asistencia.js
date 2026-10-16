@@ -764,10 +764,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Monitor de turnos: se abre directo para administración, gerencia y coordinación (se actualiza cada 30 s)
+    // Monitor de turnos: se abre directo para administración, gerencia y coordinación (se actualiza cada 30 s).
+    // 2026-10-16: con la pestaña en segundo plano no consulta; al volver a ella se actualiza en el momento.
     if (document.getElementById('content-vista-admin')?.classList.contains('active')) {
         loadAdminSummary();
-        if (!adminAutoRefreshInterval) adminAutoRefreshInterval = setInterval(loadAdminSummary, 30000);
+        if (!adminAutoRefreshInterval) adminAutoRefreshInterval = setInterval(() => { if (!document.hidden) loadAdminSummary(); }, 30000);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) loadAdminSummary(); });
     }
 
     function nameInitials(name) {

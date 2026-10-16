@@ -26,9 +26,9 @@ class Database {
             self::$instance = new PDO($dsn, DB_USER, DB_PASS, $options);
             $downMarker = defined('STORAGE_PATH') ? STORAGE_PATH . '/database-down.marker' : null;
             if ($downMarker && is_file($downMarker)) {
-                // La base vuelve después de una caída: respaldo inmediato de la base y del sistema
+                // La base vuelve después de una caída: respaldo inmediato de la base (liviano; el sistema lo hace el cron)
                 @unlink($downMarker);
-                if (function_exists('sgsProgramarRespaldo')) sgsProgramarRespaldo('tras-caida', true);
+                if (function_exists('sgsProgramarRespaldo')) sgsProgramarRespaldo('tras-caida');
             }
             @self::$instance->exec("SET time_zone = '" . date('P') . "';");
             // La estructura nunca se toca al conectar: los cambios van como migración (07_SCRIPTS/migrar.php).

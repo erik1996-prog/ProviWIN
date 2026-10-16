@@ -50,19 +50,24 @@ salida = sys.argv[1]
 datos = json.load(open(sys.argv[2], encoding="utf-8"))
 wb = Workbook(); ws = wb.active; ws.title = "Cancelaciones"
 cab = [f"COLUMNA {i}" for i in range(1, 27)]
-cab[0], cab[1], cab[2], cab[3], cab[4], cab[22], cab[24], cab[25] = "DEPARTAMENTO", "PROVINCIA", "DISTRITO", "GESTION O ACTIVIDAD SUPERVISADA", "DIRECCIÓN", "CODIGO DE SEGUIMIENTO / TICKET", "PARTNER", "FECHA CANCELACION"
+cab[0], cab[1], cab[2], cab[3], cab[4], cab[5], cab[22], cab[24], cab[25] = "DEPARTAMENTO", "PROVINCIA", "DISTRITO", "GESTION O ACTIVIDAD SUPERVISADA", "DIRECCIÓN", "CUADRILLA", "CODIGO DE SEGUIMIENTO / TICKET", "PARTNER", "FECHA CANCELACION"
 ws.append(cab)
 for f in datos:
     fila = [""] * 26
-    fila[0], fila[1], fila[2], fila[3], fila[4], fila[22], fila[24], fila[25] = f["dep"], f["prov"], f["dist"], "Instalación", f.get("dir", ""), f["ticket"], f["partner"], "12/10/2026"
+    fila[0], fila[1], fila[2], fila[3], fila[4], fila[5], fila[22], fila[24], fila[25] = f["dep"], f["prov"], f["dist"], "Instalación", f.get("dir", ""), f.get("cuad", ""), f["ticket"], f["partner"], "12/10/2026"
     ws.append(fila)
 wb.save(salida)
 PY;
+    // Columna CUADRILLA (2026-10-16): un técnico líder del partner escrito con otra nomenclatura y en minúsculas, y uno que no existe.
+    $liderCarga = $pdo->prepare("SELECT id, nombre_tecnico FROM tecnicos WHERE partner_id = :p AND COALESCE(tipo_tecnico, 1) = 1 AND nombre_tecnico REGEXP '^P [0-9]+ ' ORDER BY id LIMIT 1");
+    $liderCarga->execute([':p' => $partner['id']]);
+    $liderCarga = $liderCarga->fetch(PDO::FETCH_ASSOC) ?: null;
+    $cuadOtraNomenclatura = $liderCarga ? mb_strtolower(preg_replace('/^P \d+ /', 'P 99 ', $liderCarga['nombre_tecnico']), 'UTF-8') : '';
     $filas = [
         ['ticket' => ' prueba-can-100 ', 'partner' => $partner['nombre_partner']],   // ya supervisado (minúsculas y espacios)
-        ['ticket' => 'PRUEBA-CAN-200', 'partner' => $partner['nombre_partner'], 'dir' => 'Av.  Grau 123,  frente al parque'], // nuevo, con dirección
+        ['ticket' => 'PRUEBA-CAN-200', 'partner' => $partner['nombre_partner'], 'dir' => 'Av.  Grau 123,  frente al parque', 'cuad' => $cuadOtraNomenclatura], // nuevo, con dirección y cuadrilla
         ['ticket' => 'PRUEBA-CAN-200', 'partner' => $partner['nombre_partner']],     // repetido en el archivo
-        ['ticket' => 990000123, 'partner' => $partner['nombre_partner']],            // número de Excel
+        ['ticket' => 990000123, 'partner' => $partner['nombre_partner'], 'cuad' => 'P 1 PRUEBA SGI TECNICO QUE NO EXISTE'], // número de Excel, cuadrilla no registrada
         ['ticket' => 'PRUEBA-CAN-300', 'partner' => 'PROVEEDOR QUE NO EXISTE'],      // con problema
     ];
     foreach ($filas as &$f) $f += ['dep' => $ubi['departamento'], 'prov' => $ubi['provincia'], 'dist' => $ubi['distrito']];
@@ -96,6 +101,11 @@ PY;
     $check('el repetido del archivo se cargó una sola vez', count($r['repetidos_archivo'] ?? []) === 1
         && (int)$pdo->query("SELECT COUNT(*) FROM supervisiones WHERE ticket_codigo = 'PRUEBA-CAN-200'")->fetchColumn() === 1, $r['repetidos_archivo'] ?? null);
     $check('la dirección del Excel se guarda (sin espacios de más)', $pdo->query("SELECT direccion FROM supervisiones WHERE ticket_codigo = 'PRUEBA-CAN-200'")->fetchColumn() === 'Av. Grau 123, frente al parque');
+    $tec200 = $pdo->query("SELECT tecnico1_id, tecnico1_nombre FROM supervisiones WHERE ticket_codigo = 'PRUEBA-CAN-200'")->fetch(PDO::FETCH_ASSOC);
+    if ($liderCarga) $check('CUADRILLA: reconoce al técnico líder aunque cambie la nomenclatura (queda vinculado)', (int)$tec200['tecnico1_id'] === (int)$liderCarga['id'] && $tec200['tecnico1_nombre'] === $liderCarga['nombre_tecnico'], $tec200);
+    $tecNum = $pdo->query("SELECT tecnico1_id, tecnico1_nombre FROM supervisiones WHERE ticket_codigo = '990000123'")->fetch(PDO::FETCH_ASSOC);
+    $check('CUADRILLA no registrada: se carga con el nombre y se avisa', $tecNum['tecnico1_id'] === null && $tecNum['tecnico1_nombre'] === 'P 1 PRUEBA SGI TECNICO QUE NO EXISTE'
+        && count($r['cuadrillas_no_registradas'] ?? []) === 1 && ($r['cuadrillas_no_registradas'][0]['ticket'] ?? '') === '990000123', [$tecNum, $r['cuadrillas_no_registradas'] ?? null]);
     $check('sin dirección queda vacía', $pdo->query("SELECT direccion FROM supervisiones WHERE ticket_codigo = '990000123'")->fetchColumn() === null);
     $check('el ticket numérico se guardó sin ".0"', (int)$pdo->query("SELECT COUNT(*) FROM supervisiones WHERE ticket_codigo = '990000123'")->fetchColumn() === 1);
     $check('el proveedor inexistente queda en "filas con problemas"', count($r['observadas'] ?? []) === 1 && ($r['observadas'][0]['ticket'] ?? '') === 'PRUEBA-CAN-300', $r['observadas'] ?? null);

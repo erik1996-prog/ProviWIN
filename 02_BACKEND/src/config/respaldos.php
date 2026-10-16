@@ -1,14 +1,21 @@
 <?php
 // 02_BACKEND/src/config/respaldos.php - Respaldos automáticos de la base de datos y del sistema.
 // - Base: volcado SQL hecho por PHP (no depende de mysqldump, que muchos hostings bloquean), comprimido .sql.gz.
-// - Sistema: código, configuración (.env) y fotos (uploads) en un .tar.gz.
-// Se ejecutan: cada 6 h la base y cada 24 h el sistema mientras el sistema se usa (sgsRespaldoAutomatico),
-// apenas la base vuelve a responder después de una caída (database.php) y a mano con 07_SCRIPTS/respaldar.php.
-// Quedan en 10_RESPALDOS/base y 10_RESPALDOS/sistema (carpeta bloqueada por web y fuera de git).
+// - Sistema: código y configuración (.env) en un .tar.gz, SIN fotos.
+// - Fotos (uploads): aparte, una vez por semana.
+// 2026-10-16: ya NO se hacen durante las visitas de los usuarios. Comprimir el sistema con todas las fotos dentro de una
+// petición web tardaba minutos, ocupaba procesos del hosting y, si el hosting lo cortaba, se volvía a empezar en la
+// siguiente visita: con varios usuarios conectados el servidor dejaba de responder (error 504 de Cloudflare).
+// Ahora los hace la tarea programada (cron) de cPanel con "php 07_SCRIPTS/respaldar.php automatico" cada 6 h:
+// la base en cada corrida; el sistema y las fotos solo de madrugada (antes de las 7:00), cada día y cada semana.
+// La única copia que se hace desde la web es la de la BASE apenas vuelve después de una caída (liviana).
+// Quedan en 10_RESPALDOS/base, /sistema y /fotos (carpeta bloqueada por web y fuera de git); se guardan los recientes.
 
 const SGS_RESPALDOS_PATH = BASE_PATH . '/10_RESPALDOS';
-const SGS_RESPALDO_BASE_CADA = 6 * 3600;
-const SGS_RESPALDO_SISTEMA_CADA = 24 * 3600;
+const SGS_RESPALDO_BASE_CADA = 5 * 3600;          // el cron corre cada 6 h; margen para que no se salte
+const SGS_RESPALDO_SISTEMA_CADA = 20 * 3600;      // una vez al día (de madrugada)
+const SGS_RESPALDO_FOTOS_CADA = 6 * 86400 + 12 * 3600; // una vez por semana (de madrugada)
+const SGS_RESPALDO_HORA_LIMITE = 7;               // sistema y fotos solo antes de esta hora: nadie está trabajando
 
 /** Respalda la base completa. Devuelve la ruta del .sql.gz o lanza excepción. */
 function sgsRespaldarBase(PDO $pdo, string $motivo = 'manual'): string
@@ -51,12 +58,12 @@ function sgsRespaldarBase(PDO $pdo, string $motivo = 'manual'): string
     }
     gzclose($gz);
     rename($tmp, $final); // el archivo solo aparece cuando está completo
-    sgsLimpiarRespaldos($dir, '*.sql.gz', 30, 5);
+    sgsLimpiarRespaldos($dir, '*.sql.gz', 7, 5); // una semana (y siempre los 5 más recientes)
     win_log_error('db_backup', 'Respaldo de base de datos creado', ['archivo' => basename($final), 'motivo' => $motivo, 'kb' => round(filesize($final) / 1024)]);
     return $final;
 }
 
-/** Respalda el sistema (código, .env y fotos). Devuelve la ruta del .tar.gz o lanza excepción. */
+/** Respalda el sistema (código y .env, sin fotos: van en sgsRespaldarFotos). Devuelve la ruta del .tar.gz o lanza excepción. */
 function sgsRespaldarSistema(string $motivo = 'manual'): string
 {
     $dir = SGS_RESPALDOS_PATH . '/sistema';
@@ -65,8 +72,8 @@ function sgsRespaldarSistema(string $motivo = 'manual'): string
     $nombre = sprintf('%s/sgs_sistema_%s_%s', $dir, date('Ymd_His'), $motivo);
     $tar = "$nombre.tar";
     $base = str_replace('\\', '/', BASE_PATH);
-    // Fuera del respaldo: historial de git, respaldos anteriores, logs y archivos temporales
-    $excluir = '#^(\.git|10_RESPALDOS|08_LOGS)(/|$)#';
+    // Fuera del respaldo: historial de git, respaldos anteriores, logs y las fotos (van aparte, cada semana)
+    $excluir = '#^(\.git|10_RESPALDOS|08_LOGS|uploads)(/|$)#';
     try {
         $archivo = new PharData($tar);
         $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($base, FilesystemIterator::SKIP_DOTS));
@@ -76,13 +83,6 @@ function sgsRespaldarSistema(string $motivo = 'manual'): string
             if (preg_match($excluir, $rel)) continue;
             $archivo->addFile($f->getPathname(), $rel);
         }
-        // Fotos que viven fuera de la carpeta del sistema (instalación local con el sistema de origen al lado)
-        $uploads = str_replace('\\', '/', SHARED_FILES_PATH) . '/uploads';
-        if (is_dir($uploads) && !str_starts_with($uploads, $base . '/')) {
-            foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($uploads, FilesystemIterator::SKIP_DOTS)) as $f) {
-                if ($f->isFile()) $archivo->addFile($f->getPathname(), 'uploads/' . substr(str_replace('\\', '/', $f->getPathname()), strlen($uploads) + 1));
-            }
-        }
         $archivo->compress(Phar::GZ); // crea .tar.gz
         unset($archivo);
     } finally {
@@ -90,8 +90,38 @@ function sgsRespaldarSistema(string $motivo = 'manual'): string
     }
     $final = "$nombre.tar.gz";
     if (!is_file($final)) throw new RuntimeException('No se pudo comprimir el respaldo del sistema');
-    sgsLimpiarRespaldos($dir, '*.tar.gz', 0, 5);
+    sgsLimpiarRespaldos($dir, '*.tar.gz', 0, 3); // los 3 más recientes
     win_log_error('system_backup', 'Respaldo del sistema creado', ['archivo' => basename($final), 'motivo' => $motivo, 'kb' => round(filesize($final) / 1024)]);
+    return $final;
+}
+
+/** Respalda las fotos (uploads: supervisiones, observaciones, checklists, documentos, avatares). Devuelve el .tar.gz. */
+function sgsRespaldarFotos(string $motivo = 'manual'): string
+{
+    $dir = SGS_RESPALDOS_PATH . '/fotos';
+    if (!is_dir($dir) && !@mkdir($dir, 0750, true) && !is_dir($dir)) throw new RuntimeException("No se pudo crear $dir");
+    $motivo = preg_replace('/[^a-z0-9_-]+/i', '-', $motivo) ?: 'manual';
+    $nombre = sprintf('%s/sgs_fotos_%s_%s', $dir, date('Ymd_His'), $motivo);
+    $tar = "$nombre.tar";
+    // Las fotos pueden estar dentro de la carpeta del sistema (hosting) o al lado, en el sistema de origen (esta PC).
+    $carpetas = array_unique(array_filter([str_replace('\\', '/', BASE_PATH) . '/uploads', str_replace('\\', '/', SHARED_FILES_PATH) . '/uploads'], 'is_dir'));
+    if (!$carpetas) throw new RuntimeException('No se encontró la carpeta de fotos (uploads)');
+    try {
+        $archivo = new PharData($tar);
+        foreach ($carpetas as $uploads) {
+            foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($uploads, FilesystemIterator::SKIP_DOTS)) as $f) {
+                if ($f->isFile()) $archivo->addFile($f->getPathname(), 'uploads/' . substr(str_replace('\\', '/', $f->getPathname()), strlen($uploads) + 1));
+            }
+        }
+        $archivo->compress(Phar::GZ);
+        unset($archivo);
+    } finally {
+        @unlink($tar);
+    }
+    $final = "$nombre.tar.gz";
+    if (!is_file($final)) throw new RuntimeException('No se pudo comprimir el respaldo de las fotos');
+    sgsLimpiarRespaldos($dir, '*.tar.gz', 0, 2); // las 2 más recientes
+    win_log_error('photos_backup', 'Respaldo de fotos creado', ['archivo' => basename($final), 'motivo' => $motivo, 'kb' => round(filesize($final) / 1024)]);
     return $final;
 }
 
@@ -105,35 +135,47 @@ function sgsLimpiarRespaldos(string $dir, string $patron, int $dias, int $minimo
     }
 }
 
-/** Tarea periódica: se llama en cada petición; solo trabaja cuando toca. Nunca interrumpe al usuario. */
-function sgsRespaldoAutomatico(PDO $pdo, string $motivo = 'automatico', bool $forzar = false): void
+/**
+ * Respaldo automático para la tarea programada (cron cada 6 h): la base en cada corrida; el sistema (diario) y las fotos
+ * (semanal) solo de madrugada, cuando nadie trabaja. Devuelve lo que hizo, para el registro del cron.
+ */
+function sgsRespaldoAutomatico(PDO $pdo, string $motivo = 'automatico', bool $forzar = false): array
 {
-    $base = static function () use ($pdo, $motivo) {
-        try { sgsRespaldarBase($pdo, $motivo); } catch (Throwable $e) { win_log_error('backup_failed', 'Falló el respaldo automático de la base', ['error' => $e->getMessage()]); }
+    $hecho = [];
+    $ejecutar = static function (string $nombre, callable $tarea) use (&$hecho) {
+        try { $hecho[$nombre] = basename($tarea()); }
+        catch (Throwable $e) { $hecho[$nombre] = 'ERROR: ' . $e->getMessage(); win_log_error('backup_failed', "Falló el respaldo automático ({$nombre})", ['error' => $e->getMessage()]); }
     };
-    $sistema = static function () use ($motivo) {
-        try { sgsRespaldarSistema($motivo); } catch (Throwable $e) { win_log_error('backup_failed', 'Falló el respaldo automático del sistema', ['error' => $e->getMessage()]); }
-    };
-    if ($forzar) { $base(); $sistema(); return; }
-    win_run_periodic_task('respaldo-base', SGS_RESPALDO_BASE_CADA, $base);
-    win_run_periodic_task('respaldo-sistema', SGS_RESPALDO_SISTEMA_CADA, $sistema);
+    $madrugada = (int)date('G') < SGS_RESPALDO_HORA_LIMITE;
+    if ($forzar) {
+        $ejecutar('base', fn() => sgsRespaldarBase($pdo, $motivo));
+        $ejecutar('sistema', fn() => sgsRespaldarSistema($motivo));
+        $ejecutar('fotos', fn() => sgsRespaldarFotos($motivo));
+        return $hecho;
+    }
+    win_run_periodic_task('respaldo-base', SGS_RESPALDO_BASE_CADA, fn() => $ejecutar('base', fn() => sgsRespaldarBase($pdo, $motivo)));
+    if ($madrugada) {
+        win_run_periodic_task('respaldo-sistema', SGS_RESPALDO_SISTEMA_CADA, fn() => $ejecutar('sistema', fn() => sgsRespaldarSistema($motivo)));
+        win_run_periodic_task('respaldo-fotos', SGS_RESPALDO_FOTOS_CADA, fn() => $ejecutar('fotos', fn() => sgsRespaldarFotos($motivo)));
+    }
+    return $hecho;
 }
 
-/** Programa el respaldo para DESPUÉS de enviar la página al usuario (no la hace esperar si el servidor lo permite). */
-function sgsProgramarRespaldo(string $motivo = 'automatico', bool $forzar = false): void
+/**
+ * Desde la web solo queda una copia: la de la BASE apenas vuelve después de una caída (database.php). Es liviana y se hace
+ * después de enviar la página. El sistema y las fotos nunca se respaldan en una visita (ver el inicio del archivo).
+ */
+function sgsProgramarRespaldo(string $motivo = 'tras-caida'): void
 {
-    static $pendiente = null; // un solo respaldo por petición; el forzado (tras una caída) manda sobre el normal
-    if (PHP_SAPI === 'cli') return;
-    if ($pendiente !== null) {
-        if ($forzar) $pendiente = ['motivo' => $motivo, 'forzar' => true];
-        return;
-    }
-    $pendiente = ['motivo' => $motivo, 'forzar' => $forzar];
-    register_shutdown_function(static function () use (&$pendiente) {
+    static $programado = false;
+    if (PHP_SAPI === 'cli' || $programado) return;
+    $programado = true;
+    register_shutdown_function(static function () use ($motivo) {
         ignore_user_abort(true);
-        @set_time_limit(300);
+        @set_time_limit(120);
         if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
         elseif (function_exists('litespeed_finish_request')) litespeed_finish_request();
-        try { sgsRespaldoAutomatico(Database::getConnection(), $pendiente['motivo'], $pendiente['forzar']); } catch (Throwable $e) { /* ya registrado */ }
+        try { sgsRespaldarBase(Database::getConnection(), $motivo); }
+        catch (Throwable $e) { win_log_error('backup_failed', 'Falló el respaldo de la base tras la caída', ['error' => $e->getMessage()]); }
     });
 }
