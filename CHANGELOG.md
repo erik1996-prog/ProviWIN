@@ -4,6 +4,15 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Pendientes "Aún no gestionado" y GPS estable en celulares Huawei (2026-10-16)
+- **Pendientes sin tomar**: en "Responsable" dicen **"Aún no gestionado"**. Antes se listaban todos los supervisores de la zona ("Nombre / Nombre") y parecía que estaba asignada a uno. Cuando un supervisor la inicia, sale su nombre; si la cancela, vuelve a "Aún no gestionado". El listado ya no consulta los supervisores de cada zona (una consulta menos).
+- **GPS en Huawei/Honor**: el sistema se bloqueaba cada rato con "Enciende el GPS" aunque estuviera encendido. Los Huawei sin servicios de Google ubican solo con el chip GPS; bajo techo o con el ahorro de batería, la lectura de máxima precisión tarda o falla, y **una sola falla bloqueaba todo**. Ahora:
+  - si falla, se intenta con precisión normal;
+  - una falla pasajera no bloquea si hay una ubicación de los últimos 15 minutos (reintenta cada minuto);
+  - solo el permiso denegado bloquea de inmediato;
+  - no consulta con la pestaña en segundo plano;
+  - el aviso explica cómo quitar el ahorro de batería al navegador en Huawei.
+
 ### Carga más liviana (2026-10-16)
 - **Supervisiones**: su programa (247 KB) y sus estilos (24 KB) iban escritos dentro de la página y se descargaban completos en cada visita. Ahora están en `assets/js/supervision_lista.js` y `assets/css/supervision_lista.css`, que el navegador guarda. La página baja de 406 KB a 136 KB por visita (sin comprimir); lo que ve el usuario no cambia. Los datos del servidor llegan en `window.SGS_SUPERVISION`.
 - La letra Nunito ya no pide el grosor 800, que no se usa en ninguna parte.

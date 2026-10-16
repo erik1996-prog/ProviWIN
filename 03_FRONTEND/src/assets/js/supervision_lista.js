@@ -1427,7 +1427,7 @@
       ubicacion: `${item.departamento || '—'} / ${item.distrito || '—'}`,
       direccion: item.direccion || '', // dirección del cliente (carga de cancelaciones, 2026-10-15)
       // Pendiente sin tomar (bolsa común): responsables = todos los supervisores directos de la zona.
-      responsable: item.responsables_zona || item.supervisor_nombre || 'Supervisor WIN', supervisor_id: String(item.supervisor_id || ''),
+      responsable: Number(item.sin_gestionar) ? 'Aún no gestionado' : (item.supervisor_nombre || 'Supervisor WIN'), supervisor_id: String(item.supervisor_id || ''),
       asignado_por: String(item.asignado_por || ''), fecha_asignacion: item.fecha_asignacion || '',
       es_asignacion_partner: Number(item.es_asignacion_partner || 0), fecha_limite_partner: item.fecha_limite_partner || '',
       plazo_partner_vencido: item.plazo_partner_vencido || 0, estado_atencion_partner: item.estado_atencion_partner || 'Pendiente',

@@ -1612,17 +1612,10 @@ if ($action === 'list') {
     $stmt->bindValue(':page_offset', $offset, PDO::PARAM_INT);
     $stmt->execute();
     $data = $stmt->fetchAll();
-    // Pendientes de la bolsa común (2026-10-15): sin tomar, sin rescate y sin asignar a un partner, son de todos los
-    // supervisores directos de la zona; se muestran todos como responsables ("Nombre Apellido / Nombre Apellido").
-    require_once __DIR__ . '/../../config/asignacion_cancelaciones.php';
-    $responsablesPorZona = [];
+    // Pendientes de la bolsa común: sin tomar, sin rescate y sin asignar a un partner. 2026-10-16: se muestran como
+    // "Aún no gestionado" (antes, todos los supervisores de la zona: parecía asignada a uno). Al tomarla, sale su nombre.
     foreach ($data as &$fila) {
-        if (($fila['estado_supervision'] ?? '') !== 'Pendiente' || !empty($fila['rescate_estado']) || !empty($fila['fecha_asignacion'])) continue;
-        $zona = (string)($fila['departamento'] ?? '');
-        if (!array_key_exists($zona, $responsablesPorZona)) {
-            $responsablesPorZona[$zona] = implode(' / ', array_map('nombreCortoSupervisor', supervisoresZonaCancelacion($pdo, $zona)));
-        }
-        if ($responsablesPorZona[$zona] !== '') $fila['responsables_zona'] = $responsablesPorZona[$zona];
+        $fila['sin_gestionar'] = ($fila['estado_supervision'] ?? '') === 'Pendiente' && empty($fila['rescate_estado']) && empty($fila['fecha_asignacion']) ? 1 : 0;
     }
     unset($fila);
 

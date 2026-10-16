@@ -103,13 +103,12 @@ try {
     $check('corrige una presencial sin SOAT registrado (SOAT vacío ya no da error)', ($r['status'] ?? '') === 'success'
         && $f4['observacion_servicio'] === 'Se dejó encaminado el recableado del servicio afectado.' && $f4['unidad_soat'] === null && $f4['unidad_placa'] === 'ZZ-9993', [$r, $f4]);
 
-    echo "Responsables de la bolsa común\n";
+    echo "Pendientes sin tomar (2026-10-16: \"Aún no gestionado\", sin nombrar a los supervisores de la zona)\n";
     [, $lista] = $http("$base/api/supervisiones.php?action=list&codigo=PRUEBA-CORR&limit=50");
     $p = array_values(array_filter($lista['data'] ?? [], fn($x) => ($x['ticket_codigo'] ?? '') === 'PRUEBA-CORR-3'))[0] ?? null;
-    $resp = (string)($p['responsables_zona'] ?? '');
-    $check('la pendiente sin tomar muestra a todos los supervisores de la zona', str_contains($resp, 'Zenon Pruebauno') && str_contains($resp, 'Zoila Pruebados') && str_contains($resp, ' / '), $p ? $resp : 'no apareció en la lista');
+    $check('la pendiente sin tomar sale como no gestionada, sin lista de supervisores', $p && (int)$p['sin_gestionar'] === 1 && !isset($p['responsables_zona']), $p ?: 'no apareció en la lista');
     $p2 = array_values(array_filter($lista['data'] ?? [], fn($x) => ($x['ticket_codigo'] ?? '') === 'PRUEBA-CORR-1'))[0] ?? null;
-    $check('una supervisión ya tomada no lleva responsables de zona', $p2 === null || !isset($p2['responsables_zona']), $p2['responsables_zona'] ?? null);
+    $check('una supervisión ya tomada muestra a su supervisor', $p2 === null || ((int)$p2['sin_gestionar'] === 0 && !empty($p2['supervisor_nombre'])), $p2);
 } finally {
     $cleanup();
 }
