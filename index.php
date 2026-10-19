@@ -167,7 +167,7 @@ $needsLeaflet = $page === 'admin_dashboard'
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="<?= $assets ?>/js/main.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
-    <?php if (in_array($page, ['mi_informacion', 'usuarios'], true)): ?><script src="<?= $assets ?>/js/password-meter.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
+    <?php if (in_array($page, ['mi_informacion', 'usuarios'], true)): ?><script src="<?= $assets ?>/js/password-meter.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><script src="<?= $assets ?>/js/aviso-mayusculas.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
     <?php if (in_array($page, ['cuadrillas', 'supervision_lista'], true)): ?><script src="<?= $assets ?>/js/vencimientos.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
     <script src="<?= $assets ?>/js/error-monitor.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
 </body>

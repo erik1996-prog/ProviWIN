@@ -4179,3 +4179,7 @@ a.sgs-kpi:hover { border-color: var(--sgs-orange); }
 .sgs-faltantes .bi-exclamation-circle { color: var(--sgs-danger-dark); }
 .sgs-faltantes .bi-chevron-right { color: var(--sgs-muted); }
 .field-bitacora.is-alerta { outline: 2px solid var(--sgs-danger); outline-offset: 4px; border-radius: var(--sgs-radius-sm); }
+
+/* 53. Aviso de mayúsculas activadas en la contraseña (2026-10-16, aviso-mayusculas.js): Mi información y Usuarios. */
+.sgs-mayus { display: flex; align-items: center; gap: 6px; margin-top: 6px; padding: 5px 10px; border-radius: var(--sgs-radius-sm); font-size: 12.5px; font-weight: 600; color: var(--sgs-warning-dark); background: var(--sgs-warning-soft); }
+.sgs-mayus[hidden] { display: none; }

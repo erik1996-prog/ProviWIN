@@ -197,6 +197,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
 
     <!-- VISTA DESKTOP: Tabla Ejecutiva -->
     <div class="panel-bitacora table-panel-bitacora d-none d-md-block">
+      <div class="table-responsive"><!-- 2026-10-16: con muchas columnas se recorre arrastrando con la mano (main.js) -->
       <table class="table-bitacora">
         <thead id="thead-supervisiones">
           <tr>
@@ -214,6 +215,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
           <tr><td colspan="8" class="empty-bitacora">Cargando registros…</td></tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <!-- VISTA MÓVIL: Tarjetas Horizontales -->

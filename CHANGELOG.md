@@ -4,8 +4,13 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Aviso de mayúsculas y tabla de Supervisiones desplazable (2026-10-16)
+- **"Mayúsculas activadas"**: al escribir la contraseña con Bloq Mayús activo aparece un aviso debajo del campo (ingreso, cambio de contraseña y Mi información). También con la contraseña visible ("Ver"); se oculta al salir del campo. En celular el teclado no informa el Bloq Mayús, así que ahí no aparece. Archivo `assets/js/aviso-mayusculas.js`.
+- `sgs-login.css` ahora lleva en su enlace la fecha del archivo: sus cambios llegan sin limpiar la caché.
+- **Tabla de Supervisiones**: con muchas columnas ya no se corta. Se recorre arrastrando con la mano, como las demás tablas.
+
 ### Pendientes "Aún no gestionado" y GPS estable en celulares Huawei (2026-10-16)
-- **Pendientes sin tomar**: en "Responsable" dicen **"Aún no gestionado"**. Antes se listaban todos los supervisores de la zona ("Nombre / Nombre") y parecía que estaba asignada a uno. Cuando un supervisor la inicia, sale su nombre; si la cancela, vuelve a "Aún no gestionado". El listado ya no consulta los supervisores de cada zona (una consulta menos).
+- **Pendientes sin tomar**: en "Responsable" dicen **"Aún no gestionado"**. Antes se listaban todos los supervisores de la zona ("Nombre / Nombre") y parecía que estaba asignada a uno. Cuando un supervisor la inicia, sale su nombre; si la cancela, vuelve a "Aún no gestionado". Solo cuenta como asignada si se asignó a un partner o está en rescate (la carga del Excel llena `fecha_asignacion` y deja la orden a nombre de un supervisor de la zona solo como orden interno: eso no es una asignación). El listado ya no consulta los supervisores de cada zona (una consulta menos).
 - **GPS en Huawei/Honor**: el sistema se bloqueaba cada rato con "Enciende el GPS" aunque estuviera encendido. Los Huawei sin servicios de Google ubican solo con el chip GPS; bajo techo o con el ahorro de batería, la lectura de máxima precisión tarda o falla, y **una sola falla bloqueaba todo**. Ahora:
   - si falla, se intenta con precisión normal;
   - una falla pasajera no bloquea si hay una ubicación de los últimos 15 minutos (reintenta cada minuto);

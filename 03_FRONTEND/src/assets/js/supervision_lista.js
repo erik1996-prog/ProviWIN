@@ -1418,6 +1418,10 @@
     const st = item.rescate_estado === 'En rescate' ? 'rescate' : (['culminada','finalizada','finalizado','cancelada'].includes(rawSt)
       ? 'finalizada'
       : (rawSt === 'pendiente' ? 'pendiente' : 'iniciada'));
+    // Pendiente sin tomar (2026-10-16): sin rescate ni asignación a partner. Al cargar el Excel queda a nombre de un
+    // supervisor de la zona solo por orden interno; no está asignada a él, por eso se muestra "Aún no gestionado".
+    // Asignada a partner = es_asignacion_partner (no basta fecha_asignacion: la carga del Excel la llena siempre).
+    const sinGestionar = Number(item.sin_gestionar) === 1 || (rawSt === 'pendiente' && !item.rescate_estado && !Number(item.es_asignacion_partner));
     return {
       id: Number(item.id),
       codigo: item.codigo_supervision,
@@ -1426,8 +1430,7 @@
       departamento: item.departamento || '', provincia: item.provincia || '', distrito: item.distrito || '', // sin "LIMA" inventado: una supervisión recién creada aún no tiene ubicación
       ubicacion: `${item.departamento || '—'} / ${item.distrito || '—'}`,
       direccion: item.direccion || '', // dirección del cliente (carga de cancelaciones, 2026-10-15)
-      // Pendiente sin tomar (bolsa común): responsables = todos los supervisores directos de la zona.
-      responsable: Number(item.sin_gestionar) ? 'Aún no gestionado' : (item.supervisor_nombre || 'Supervisor WIN'), supervisor_id: String(item.supervisor_id || ''),
+      responsable: sinGestionar ? 'Aún no gestionado' : (item.supervisor_nombre || 'Supervisor WIN'), supervisor_id: String(item.supervisor_id || ''),
       asignado_por: String(item.asignado_por || ''), fecha_asignacion: item.fecha_asignacion || '',
       es_asignacion_partner: Number(item.es_asignacion_partner || 0), fecha_limite_partner: item.fecha_limite_partner || '',
       plazo_partner_vencido: item.plazo_partner_vencido || 0, estado_atencion_partner: item.estado_atencion_partner || 'Pendiente',

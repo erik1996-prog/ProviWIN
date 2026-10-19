@@ -19,7 +19,7 @@ $nombre = trim((string)($user['nombres'] ?? '')) ?: (string)($user['nombre'] ?? 
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-<link rel="stylesheet" href="<?= $assets ?>/css/sgs-login.css?v=<?= rawurlencode(ASSET_VERSION) ?>">
+<link rel="stylesheet" href="<?= $assets ?>/css/sgs-login.css?v=<?= rawurlencode(ASSET_VERSION) ?>.<?= (int)@filemtime(FRONTEND_PATH . '/assets/css/sgs-login.css') ?>">
 </head>
 <body class="sgs-login">
   <div class="sgs-bg" aria-hidden="true"><span class="s1"></span><span class="s2"></span><span class="s3"></span></div>
@@ -68,6 +68,7 @@ $nombre = trim((string)($user['nombres'] ?? '')) ?: (string)($user['nombre'] ?? 
     <small>ProviWIN · <?= htmlspecialchars(SYSTEM_CODE) ?> v<?= htmlspecialchars(APP_VERSION) ?></small>
   </footer>
 
+<script src="<?= $assets ?>/js/aviso-mayusculas.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
 <script src="<?= $assets ?>/js/password-meter.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
 <script>
 (() => {

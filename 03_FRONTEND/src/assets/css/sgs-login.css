@@ -3,6 +3,7 @@
 :root{
   --win-orange:#FF5A0A; --win-orange-dark:#D8450B; --win-orange-soft:#FFEFE6;
   --win-ink:#141414; --win-brown:#301D19; --win-gray:#7C7E80; --win-border:#D6D6D6;
+  --win-warning-dark:#8A6400; --win-warning-soft:#FFF6D6; /* mismos tonos de aviso que sgs-theme.css */
   --font:'Nunito',system-ui,-apple-system,'Segoe UI',sans-serif;
   --font-display:var(--font); /* 2026-10-15: una sola letra (Nunito) en todo el sistema */
 
@@ -113,3 +114,7 @@ body.sgs-login{
 .sgs-examen-dato .bi{color:var(--win-orange)}
 .sgs-examen-nota{text-align:center;color:var(--win-gray)}
 .sgs-logo--examen{-webkit-mask-image:url(../img/win-wordmark-white.png);mask-image:url(../img/win-wordmark-white.png)}
+
+/* Aviso de mayúsculas activadas en la contraseña (2026-10-16, aviso-mayusculas.js) */
+.sgs-mayus{display:flex;align-items:center;gap:6px;margin-top:6px;padding:5px 10px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--win-warning-dark);background:var(--win-warning-soft)}
+.sgs-mayus[hidden]{display:none}

@@ -1615,7 +1615,8 @@ if ($action === 'list') {
     // Pendientes de la bolsa común: sin tomar, sin rescate y sin asignar a un partner. 2026-10-16: se muestran como
     // "Aún no gestionado" (antes, todos los supervisores de la zona: parecía asignada a uno). Al tomarla, sale su nombre.
     foreach ($data as &$fila) {
-        $fila['sin_gestionar'] = ($fila['estado_supervision'] ?? '') === 'Pendiente' && empty($fila['rescate_estado']) && empty($fila['fecha_asignacion']) ? 1 : 0;
+        // Asignada a partner = es_asignacion_partner (no basta fecha_asignacion: la carga del Excel la llena siempre).
+        $fila['sin_gestionar'] = ($fila['estado_supervision'] ?? '') === 'Pendiente' && empty($fila['rescate_estado']) && empty($fila['es_asignacion_partner']) ? 1 : 0;
     }
     unset($fila);
 

@@ -50,6 +50,7 @@ try {
     $final = $insertar('PRUEBA-CORR-1', 'Finalizada', 'Texto con un error');
     $enProceso = $insertar('PRUEBA-CORR-2', 'En proceso', 'Aún abierta');
     $pendiente = $insertar('PRUEBA-CORR-3', 'Pendiente', '');
+    $pdo->exec("UPDATE supervisiones SET fecha_asignacion = NOW() WHERE id = $pendiente"); // como la deja la carga del Excel
 
     $http = function (string $url, array $opts = []) use ($jar): array {
         $ch = curl_init($url);
