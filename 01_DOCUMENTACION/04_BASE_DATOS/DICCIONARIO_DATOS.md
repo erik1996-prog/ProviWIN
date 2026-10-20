@@ -1,6 +1,6 @@
 # Diccionario de datos — SGS
 
-Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-10-16 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
+Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-10-20 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
 Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 
 | # | Tabla | Para qué sirve | En la instalación |
@@ -15,20 +15,23 @@ Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 | 8 | [`subopciones_observacion`](#subopciones_observacion) | Tipificaciones de observación con gravedad y penalidad | 84 registros |
 | 9 | [`usuarios`](#usuarios) | Usuarios del sistema (personal WIN y de partners) | 10 registros |
 | 10 | [`asistencia_supervisores`](#asistencia_supervisores) | Turnos de los supervisores: inicio, fin y horas | vacía |
-| 11 | [`tecnicos`](#tecnicos) | Técnicos por partner: líderes (T1) y de apoyo (T2) | 196 registros |
-| 12 | [`usuario_departamentos_acceso`](#usuario_departamentos_acceso) | Zonas adicionales que puede ver cada usuario | 0 registros |
-| 13 | [`usuario_permisos`](#usuario_permisos) | Permisos personalizados por usuario (además de los de su rol) | 0 registros |
-| 14 | [`asistencia_eventos`](#asistencia_eventos) | Pausas dentro del turno (almuerzo, reunión, capacitación) | vacía |
-| 15 | [`examen_enlaces`](#examen_enlaces) | Links de examen enviados a los técnicos | vacía |
-| 16 | [`supervisiones`](#supervisiones) | Supervisiones de campo y órdenes pendientes asignadas | vacía |
-| 17 | [`checklists_tecnicos`](#checklists_tecnicos) | Checklist de cuadrilla por supervisión | vacía |
-| 18 | [`documentos_vencimiento`](#documentos_vencimiento) | Vencimientos de la cuadrilla: SOAT, revisión técnica, extintor (vehículo) y brevete (técnico líder), con historial | vacía |
-| 19 | [`observaciones_supervision`](#observaciones_supervision) | Observaciones en campo, descargos del partner y plazos | vacía |
-| 20 | [`rescate_seguimientos`](#rescate_seguimientos) | Historial del rescate de cada pendiente (inicio, avances, reasignación y cierre) | vacía |
-| 21 | [`supervision_coordenadas_historial`](#supervision_coordenadas_historial) | Cambios de ubicación GPS de cada supervisión | vacía |
-| 22 | [`supervision_estado_historial`](#supervision_estado_historial) | Cambios de estado de cada supervisión (horas reales de inicio y fin) | vacía |
-| 23 | [`checklist_respuestas`](#checklist_respuestas) | Criterios evaluados en cada checklist | vacía |
-| 24 | [`notificaciones`](#notificaciones) | Avisos a los usuarios | vacía |
+| 11 | [`examen_convocatorias`](#examen_convocatorias) | Links generales de examen (un link para un grupo de técnicos) | vacía |
+| 12 | [`tecnicos`](#tecnicos) | Técnicos por partner: líderes (T1) y de apoyo (T2) | 196 registros |
+| 13 | [`usuario_departamentos_acceso`](#usuario_departamentos_acceso) | Zonas adicionales que puede ver cada usuario | 0 registros |
+| 14 | [`usuario_permisos`](#usuario_permisos) | Permisos personalizados por usuario (además de los de su rol) | 0 registros |
+| 15 | [`asistencia_eventos`](#asistencia_eventos) | Pausas dentro del turno (almuerzo, reunión, capacitación) | vacía |
+| 16 | [`examen_convocatoria_tecnicos`](#examen_convocatoria_tecnicos) | Técnicos de cada link general de examen | vacía |
+| 17 | [`examen_enlaces`](#examen_enlaces) | Links de examen enviados a los técnicos | vacía |
+| 18 | [`supervisiones`](#supervisiones) | Supervisiones de campo y órdenes pendientes asignadas | vacía |
+| 19 | [`checklists_tecnicos`](#checklists_tecnicos) | Checklist de cuadrilla por supervisión | vacía |
+| 20 | [`documentos_vencimiento`](#documentos_vencimiento) | Vencimientos de la cuadrilla: SOAT, revisión técnica, extintor (vehículo) y brevete (técnico líder), con historial | vacía |
+| 21 | [`examen_respuestas`](#examen_respuestas) | Resultado de cada pregunta de los exámenes rendidos | vacía |
+| 22 | [`observaciones_supervision`](#observaciones_supervision) | Observaciones en campo, descargos del partner y plazos | vacía |
+| 23 | [`rescate_seguimientos`](#rescate_seguimientos) | Historial del rescate de cada pendiente (inicio, avances, reasignación y cierre) | vacía |
+| 24 | [`supervision_coordenadas_historial`](#supervision_coordenadas_historial) | Cambios de ubicación GPS de cada supervisión | vacía |
+| 25 | [`supervision_estado_historial`](#supervision_estado_historial) | Cambios de estado de cada supervisión (horas reales de inicio y fin) | vacía |
+| 26 | [`checklist_respuestas`](#checklist_respuestas) | Criterios evaluados en cada checklist | vacía |
+| 27 | [`notificaciones`](#notificaciones) | Avisos a los usuarios | vacía |
 
 ### `categorias_observacion`
 Categorías de observación
@@ -174,6 +177,22 @@ Turnos de los supervisores: inicio, fin y horas · Depende de: `usuarios`
 | `longitud_fin` | varchar(50) | sí |  |  |
 | `observaciones` | text | sí |  |  |
 
+### `examen_convocatorias`
+Links generales de examen (un link para un grupo de técnicos) · Depende de: `usuarios`
+
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `token_hash` | char(64) | no | Única | SHA-256 del código del link general (el código no se guarda) |
+| `titulo` | varchar(150) | no |  |  |
+| `examen` | varchar(40) | no |  | Examen que trae el link (banco de preguntas) |
+| `filtro` | varchar(255) | sí |  | Filtros de Cuadrillas con los que se armó el grupo |
+| `generado_por` | int(11) | sí | FK → `usuarios` | Usuario que generó el link |
+| `creado_en` | datetime | no |  |  |
+| `vence_en` | datetime | no |  |  |
+| `anulado_en` | datetime | sí |  |  |
+| `anulado_por` | int(11) | sí | FK → `usuarios` |  |
+
 ### `tecnicos`
 Técnicos por partner: líderes (T1) y de apoyo (T2) · Depende de: `partners`, `usuarios`, `vehiculos`
 
@@ -236,6 +255,27 @@ Pausas dentro del turno (almuerzo, reunión, capacitación) · Depende de: `asis
 | `latitud` | varchar(50) | sí |  |  |
 | `longitud` | varchar(50) | sí |  |  |
 | `created_at` | datetime | sí |  |  |
+
+### `examen_convocatoria_tecnicos`
+Técnicos de cada link general de examen · Depende de: `examen_convocatorias`, `tecnicos`
+
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `convocatoria_id` | int(11) | no | FK → `examen_convocatorias` |  |
+| `tecnico_id` | int(11) | no | FK → `tecnicos` |  |
+| `tipo` | tinyint(1) | no |  | 1 = técnico líder (T1), 2 = técnico de apoyo (T2) |
+| `ingreso_en` | datetime | sí |  | Primera vez que entró con su DNI |
+| `sesion_hash` | char(64) | sí |  | Huella de la llave del equipo con el que rinde |
+| `inicio_en` | datetime | sí |  | Cuándo empezó a responder (corre el tiempo) |
+| `preguntas` | longtext | sí |  | Preguntas que le tocaron y orden de alternativas (JSON) |
+| `respuestas` | longtext | sí |  | Respuestas guardadas mientras rinde (JSON) |
+| `usado_en` | datetime | sí |  | Examen rendido: ya no puede volver a entrar |
+| `correctas` | tinyint(3) unsigned | sí |  |  |
+| `total_preguntas` | tinyint(3) unsigned | sí |  |  |
+| `nota` | decimal(5,2) | sí |  | Porcentaje de aciertos (0 a 100) |
+| `aprobado` | tinyint(1) | sí |  |  |
+| `segundos` | smallint(5) unsigned | sí |  | Tiempo que usó |
 
 ### `examen_enlaces`
 Links de examen enviados a los técnicos · Depende de: `usuarios`, `tecnicos`
@@ -367,6 +407,18 @@ Vencimientos de la cuadrilla: SOAT, revisión técnica, extintor (vehículo) y b
 | `departamento` | varchar(100) | sí |  | Zona en ese momento |
 | `registrado_por` | int(11) | sí | FK → `usuarios` |  |
 | `registrado_en` | datetime | no |  |  |
+
+### `examen_respuestas`
+Resultado de cada pregunta de los exámenes rendidos · Depende de: `examen_convocatoria_tecnicos`
+
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `participacion_id` | int(11) | no | FK → `examen_convocatoria_tecnicos` | examen_convocatoria_tecnicos.id |
+| `pregunta` | varchar(20) | no |  | Código de la pregunta en el banco |
+| `tema` | varchar(60) | no |  |  |
+| `correcta` | tinyint(1) | no |  |  |
+| `respondida` | tinyint(1) | no |  |  |
 
 ### `observaciones_supervision`
 Observaciones en campo, descargos del partner y plazos · Depende de: `categorias_observacion`, `usuarios`, `subopciones_observacion`, `supervisiones`

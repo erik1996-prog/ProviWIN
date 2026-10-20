@@ -81,7 +81,7 @@ try {
     $permisos[] = Auth::PERM_OBSERVATION_RESPOND;
     $svc->guardar(array_merge($svc->detalle($jefe), ['password' => '', 'permisos_personalizados' => true, 'permisos' => $permisos]), $jefe, $admin);
     $r = $responder();
-    $check('con el permiso activado ya puede responder (solo le faltan las fotos)', str_contains($r['message'] ?? '', 'fotos'), $r);
+    $check('con el permiso activado ya puede responder (solo le faltan las fotos)', str_contains($r['message'] ?? '', 'foto'), $r);
     $pdo->exec("DELETE FROM observaciones_supervision WHERE id = $obsId");
 
     [, $r] = $http("$base/api/usuarios.php?action=listar&estado=");

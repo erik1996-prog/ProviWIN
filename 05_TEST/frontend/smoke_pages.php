@@ -8,7 +8,7 @@ $role = 'Administrador';
 foreach (array_slice($argv, 1) as $arg) $role = $arg;
 
 $root = dirname(__DIR__, 2);
-$pages = ['guia_estilo', 'usuarios', 'asistencia', 'supervision_lista', 'registro_observaciones', 'admin_dashboard', 'timeline_supervisores', 'control_observaciones', 'cuadrillas', 'partners', 'mi_informacion'];
+$pages = ['guia_estilo', 'usuarios', 'asistencia', 'supervision_lista', 'registro_observaciones', 'admin_dashboard', 'timeline_supervisores', 'control_observaciones', 'cuadrillas', 'examenes', 'dashboard_pendientes', 'partners', 'mi_informacion'];
 
 $failed = 0;
 foreach ($pages as $page) {

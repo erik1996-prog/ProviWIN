@@ -194,44 +194,6 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
     })();
     </script>
 
-    <!-- PENDIENTES CARGADAS POR EXCEL Y SU ATENCIÓN (2026-10-13). API: dashboard.php?action=pendientes_directos -->
-    <div class="card card-win p-3 p-md-4 mb-4" id="pendientes-directos">
-        <div class="mb-3">
-            <h5 class="fw-bold mb-1"><i class="bi bi-inboxes me-2 text-primary"></i>Pendientes cargadas</h5>
-            <small class="text-secondary">Cancelaciones subidas por Excel en el período y cómo las atendieron los supervisores directos. Si un supervisor la transfirió a un partner, sigue siendo suya y se muestra quién la atendió en el partner.</small>
-        </div>
-        <div class="row row-cols-2 row-cols-md-3 row-cols-xl-6 g-3 mb-3">
-            <div class="col"><div class="sgs-kpi p-3 h-100"><small class="sgs-kpi-label">Cargadas</small><h3 class="mb-0 sgs-kpi-value" id="pd-cargadas">0</h3></div></div>
-            <div class="col"><div class="sgs-kpi sgs-kpi--warning p-3 h-100"><small class="sgs-kpi-label">Sin tomar</small><h3 class="mb-0 sgs-kpi-value" id="pd-sin-tomar">0</h3></div></div>
-            <div class="col"><div class="sgs-kpi sgs-kpi--warning p-3 h-100"><small class="sgs-kpi-label">En proceso</small><h3 class="mb-0 sgs-kpi-value" id="pd-en-proceso">0</h3></div></div>
-            <div class="col"><div class="sgs-kpi sgs-kpi--success p-3 h-100"><small class="sgs-kpi-label">Atendidas por directos</small><h3 class="mb-0 sgs-kpi-value" id="pd-atendidas-directo">0</h3></div></div>
-            <div class="col"><div class="sgs-kpi p-3 h-100"><small class="sgs-kpi-label">Transferidas a partner</small><h3 class="mb-0 sgs-kpi-value" id="pd-transferidas">0</h3></div></div>
-            <div class="col"><div class="sgs-kpi sgs-kpi--success p-3 h-100"><small class="sgs-kpi-label">Atendidas por partner</small><h3 class="mb-0 sgs-kpi-value" id="pd-atendidas-partner">0</h3></div></div>
-            <div class="col"><div class="sgs-kpi sgs-kpi--warning p-3 h-100"><small class="sgs-kpi-label">En partner, en plazo</small><h3 class="mb-0 sgs-kpi-value" id="pd-partner-plazo">0</h3></div></div>
-            <div class="col"><div class="sgs-kpi sgs-kpi--danger p-3 h-100"><small class="sgs-kpi-label">Vencidas en partner</small><h3 class="mb-0 sgs-kpi-value" id="pd-partner-vencidas">0</h3></div></div>
-            <div class="col"><div class="sgs-kpi p-3 h-100" id="pd-pct-card"><small class="sgs-kpi-label">Atendidas del total</small><h3 class="mb-0 sgs-kpi-value" id="pd-pct">—</h3></div></div>
-            <div class="col"><div class="sgs-kpi p-3 h-100"><small class="sgs-kpi-label">Tiempo hasta atender</small><h3 class="mb-0 sgs-kpi-value" id="pd-promedio">—</h3></div></div>
-            <div class="col"><div class="sgs-kpi sgs-kpi--warning p-3 h-100"><small class="sgs-kpi-label">En rescate</small><h3 class="mb-0 sgs-kpi-value" id="pd-en-rescate">0</h3></div></div>
-            <div class="col"><div class="sgs-kpi sgs-kpi--success p-3 h-100"><small class="sgs-kpi-label">Rescatadas</small><h3 class="mb-0 sgs-kpi-value" id="pd-rescatadas">0</h3><small class="text-muted" id="pd-no-rescatadas">—</small></div></div>
-        </div>
-        <h6 class="fw-bold mb-2"><i class="bi bi-person-check me-1 text-primary"></i>Por supervisor directo</h6>
-        <div class="table-responsive mb-4">
-            <table class="table table-hover align-middle mb-0">
-                <thead><tr><th>Supervisor</th><th class="text-end">Tomadas</th><th class="text-end">Atendió él</th><th class="text-end">En proceso</th><th class="text-end">Transferidas</th><th class="text-end">Atendió el partner</th><th class="text-end">Vencidas partner</th><th class="text-end">Atendidas</th><th class="text-end">Atención</th></tr></thead>
-                <tbody id="pd-tabla-supervisores"><tr><td colspan="9" class="text-center text-muted py-4">Cargando…</td></tr></tbody>
-            </table>
-        </div>
-        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-            <h6 class="fw-bold mb-0"><i class="bi bi-list-ul me-1 text-primary"></i>Detalle de las pendientes</h6>
-            <span class="sgs-counter" id="pd-detalle-contador"><span>—</span></span>
-        </div>
-        <div class="table-responsive sgs-tabla-alta">
-            <table class="table table-hover align-middle mb-0">
-                <thead><tr><th>Código / ticket</th><th>Departamento</th><th>Cargada</th><th>Situación</th><th>Responsable</th><th>Atendida por</th><th>Atendida el</th></tr></thead>
-                <tbody id="pd-tabla-detalle"><tr><td colspan="7" class="text-center text-muted py-4">Cargando…</td></tr></tbody>
-            </table>
-        </div>
-    </div>
     <div class="card card-win p-3 p-md-4 mb-4">
         <h5 class="fw-bold mb-1"><i class="bi bi-briefcase-fill me-2 text-primary"></i>Partners y cuadrillas más supervisados</h5>
         <p class="text-muted small mb-3">Según las supervisiones de los supervisores directos y los filtros de arriba.</p>
@@ -656,70 +618,6 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
         }
     }
 
-    // Pendientes cargadas por Excel y su atención por los supervisores directos (mismos filtros generales)
-    async function cargarPendientesDirectos() {
-        const params = new URLSearchParams({
-            action: 'pendientes_directos',
-            partner_id: document.getElementById('ind-filter-partner')?.value || 0,
-            departamento: document.getElementById('ind-filter-departamento')?.value || '',
-            supervisor_id: document.getElementById('ind-filter-supervisor')?.value || 0,
-            fecha_inicio: document.getElementById('ind-filter-f-ini')?.value || '',
-            fecha_fin: document.getElementById('ind-filter-f-fin')?.value || '',
-        });
-        const tSup = document.getElementById('pd-tabla-supervisores');
-        const tDet = document.getElementById('pd-tabla-detalle');
-        if (!tSup || !tDet) return;
-        try {
-            const resp = await fetch('api/dashboard.php?' + params.toString(), { cache: 'no-store' });
-            const data = await resp.json();
-            if (data.status !== 'success') throw new Error(data.message || 'Sin datos');
-            const r = data.resumen || {};
-            const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-            const fmtMin = (m) => m == null ? '—' : (m >= 1440 ? `${Math.floor(m / 1440)} d ${Math.floor((m % 1440) / 60)} h` : m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`);
-            const fmtFechaHora = (v) => { if (!v) return '—'; const [d, h] = String(v).split(' '); return `${d.split('-').reverse().join('/')} ${(h || '').slice(0, 5)}`.trim(); };
-            const pct = (v) => v == null ? '—' : `${v}%`;
-            const tono = (v) => v == null ? 'bg-secondary' : v >= 90 ? 'bg-success' : v >= 70 ? 'bg-warning' : 'bg-danger';
-            set('pd-cargadas', r.cargadas || 0);
-            set('pd-sin-tomar', r.sin_tomar || 0);
-            set('pd-en-proceso', r.en_proceso || 0);
-            set('pd-atendidas-directo', r.atendidas_directo || 0);
-            set('pd-transferidas', r.transferidas || 0);
-            set('pd-atendidas-partner', r.atendidas_partner || 0);
-            set('pd-partner-plazo', r.partner_en_plazo || 0);
-            set('pd-partner-vencidas', r.partner_vencidas || 0);
-            set('pd-pct', pct(r.pct_atencion));
-            set('pd-promedio', fmtMin(r.minutos_atencion));
-            set('pd-en-rescate', r.en_rescate || 0);
-            set('pd-rescatadas', r.rescatadas || 0);
-            set('pd-no-rescatadas', `${r.no_rescatadas || 0} no rescatada${Number(r.no_rescatadas) === 1 ? '' : 's'}`);
-            const card = document.getElementById('pd-pct-card');
-            if (card) card.className = 'sgs-kpi p-3 h-100 ' + (r.pct_atencion == null ? '' : r.pct_atencion >= 90 ? 'sgs-kpi--success' : r.pct_atencion >= 70 ? 'sgs-kpi--warning' : 'sgs-kpi--danger');
-
-            const sups = data.supervisores || [];
-            tSup.innerHTML = sups.length ? sups.map((u) => `<tr><td data-label="Supervisor" class="fw-bold">${escapeHtml(u.nombre_completo)}</td><td data-label="Tomadas" class="text-end">${Number(u.cargadas)}</td><td data-label="Atendió él" class="text-end">${Number(u.atendidas_directo)}</td><td data-label="En proceso" class="text-end">${Number(u.en_proceso)}</td><td data-label="Transferidas" class="text-end">${Number(u.transferidas)}</td><td data-label="Atendió el partner" class="text-end">${Number(u.atendidas_partner)}</td><td data-label="Vencidas partner" class="text-end">${Number(u.partner_vencidas)}</td><td data-label="Atendidas" class="text-end fw-bold">${Number(u.atendidas)}</td><td data-label="Atención" class="text-end"><span class="badge ${tono(u.pct_atencion)}">${pct(u.pct_atencion)}</span></td></tr>`).join('')
-                : '<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i>Ningún supervisor tomó pendientes cargadas en el periodo.</td></tr>';
-
-            const situaciones = {
-                sin_tomar: ['Sin tomar', 'bg-secondary'], en_proceso: ['En proceso', 'bg-warning'], atendida: ['Atendida', 'bg-success'], en_rescate: ['En rescate', 'bg-warning'],
-                partner_en_plazo: ['En partner, en plazo', 'bg-warning'], partner_vencida: ['En partner, vencida', 'bg-danger'], partner_atendida: ['Atendida por partner', 'bg-success'],
-            };
-            const det = data.detalle || [];
-            set('pd-detalle-contador', det.length >= 200 ? 'Últimas 200' : `${det.length} pendiente${det.length === 1 ? '' : 's'}`);
-            tDet.innerHTML = det.length ? det.map((d) => {
-                let [txt, cls] = situaciones[d.situacion] || [d.situacion, 'bg-secondary'];
-                if (d.situacion === 'atendida' && d.rescate_estado) [txt, cls] = d.rescate_estado === 'Rescatado' ? ['Rescatada', 'bg-success'] : ['No rescatada', 'bg-danger'];
-                const enPartner = String(d.situacion).startsWith('partner_');
-                const atendio = d.atendio && (enPartner || d.situacion === 'atendida' || d.situacion === 'en_rescate')
-                    ? `${escapeHtml(d.atendio)}${enPartner && d.nombre_partner ? `<br><small class="text-muted">${escapeHtml(d.nombre_partner)}</small>` : ''}` : '—';
-                const codigo = d.ticket_codigo || d.codigo_supervision;
-                return `<tr><td data-label="Código / ticket" class="fw-bold">${escapeHtml(codigo)}</td><td data-label="Departamento">${escapeHtml(d.departamento || '—')}</td><td data-label="Cargada">${fmtFechaHora(d.fecha_carga)}</td><td data-label="Situación"><span class="badge ${cls}">${txt}</span></td><td data-label="Responsable">${d.responsable ? escapeHtml(d.responsable) : '<span class="text-muted">Aún nadie</span>'}</td><td data-label="Atendida por">${atendio}</td><td data-label="Atendida el">${fmtFechaHora(d.fecha_atencion)}</td></tr>`;
-            }).join('') : '<tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i>No se cargaron pendientes en el periodo.</td></tr>';
-        } catch (error) {
-            tSup.innerHTML = '<tr><td colspan="9" class="text-center text-danger py-4">No se pudieron cargar las pendientes.</td></tr>';
-            tDet.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">No se pudo cargar el detalle.</td></tr>';
-        }
-    }
-
     // Observaciones y descargos de los partners (mismos filtros: partner, departamento y período)
     async function cargarObservacionesPartners() {
         const params = new URLSearchParams({
@@ -1078,7 +976,6 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
         cargarIndicadoresDashboard();
         cargarCumplimientoPartners();
         cargarObservacionesPartners();
-        cargarPendientesDirectos();
         cargarMatrizMensual();
         if (window.sgsCargarProductividad) window.sgsCargarProductividad();
     }

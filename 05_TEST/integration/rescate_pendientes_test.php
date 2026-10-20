@@ -126,8 +126,9 @@ try {
     $d = $http('res.uno', "$base/api/supervisiones.php?action=detail&id=$orden");
     $check('el detalle trae el historial del rescate', count($d['rescate_seguimientos'] ?? []) === 4, array_keys($d));
     $hoy = date('Y-m-d');
-    $p = $http('res.admin', "$base/api/dashboard.php?action=pendientes_directos&fecha_inicio=$hoy&fecha_fin=$hoy&supervisor_id={$ids['res.uno']}");
-    $check('el Dashboard la cuenta como rescatada y atendida por "uno"', ($p['resumen']['rescatadas'] ?? 0) === 1 && ($p['resumen']['atendidas_directo'] ?? 0) === 1, $p['resumen'] ?? $p);
+    $p = $http('res.admin', "$base/api/dashboard_pendientes.php?action=dashboard&desde=$hoy&hasta=$hoy&supervisor_id={$ids['res.uno']}");
+    $uno = array_column($p['data']['directos'] ?? [], null, 'id')[$ids['res.uno']] ?? [];
+    $check('Pendientes y rescates la cuenta como rescatada y atendida por "uno"', ($p['data']['kpis']['rescatada'] ?? 0) === 1 && ($uno['rescatadas'] ?? 0) === 1 && ($uno['cerradas'] ?? 0) === 1, $p['data'] ?? $p);
 
     // ---------- Rescate propuesto por el partner ----------
     // "dos" asigna una pendiente al partner; el partner la atiende e indica que se puede rescatar (con evidencia);
@@ -170,9 +171,9 @@ try {
     $check('"dos" cierra el rescate como No rescatado', ($r['status'] ?? '') === 'success', $r);
     $tipos2 = $pdo->query("SELECT tipo FROM rescate_seguimientos WHERE supervision_id=$orden2 ORDER BY id")->fetchAll(PDO::FETCH_COLUMN);
     $check('historial: propuesta del partner, inicio y cierre', $tipos2 === ['Propuesta del partner', 'Inicio', 'Cierre'], $tipos2);
-    $p = $http('res.admin', "$base/api/dashboard.php?action=pendientes_directos&fecha_inicio=$hoy&fecha_fin=$hoy&supervisor_id={$ids['res.dos']}");
-    $det = array_values(array_filter($p['detalle'] ?? [], fn($x) => (int)$x['id'] === $orden2))[0] ?? null;
-    $check('el Dashboard la muestra con "dos" como responsable y No rescatado', $det && $det['rescate_estado'] === 'No rescatado' && str_contains($det['responsable'] ?? '', 'res.dos'), $det);
+    $p = $http('res.admin', "$base/api/dashboard_pendientes.php?action=dashboard_tabla&desde=$hoy&hasta=$hoy&supervisor_id={$ids['res.dos']}");
+    $det = array_values(array_filter($p['data']['filas'] ?? [], fn($x) => (int)$x['id'] === $orden2))[0] ?? null;
+    $check('Pendientes y rescates la muestra con "dos" como responsable y cancelación correcta (no rescatada)', $det && $det['estado'] === 'correcta' && str_contains($det['responsable'] ?? '', 'res.dos'), $det);
     foreach ($pdo->query("SELECT foto FROM rescate_seguimientos WHERE supervision_id=$orden2 AND foto IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN) as $ruta) @unlink(UPLOAD_DIR . basename($ruta));
     $cancel = $pdo->query("SELECT id, estado_cancelacion FROM supervisiones WHERE id IN ($orden, $orden2)")->fetchAll(PDO::FETCH_KEY_PAIR);
     $check('al cerrar un rescate se anota en la cancelación: Rescate / Cancelación correcta', ($cancel[$orden] ?? '') === 'Rescate' && ($cancel[$orden2] ?? '') === 'Cancelación correcta', $cancel);

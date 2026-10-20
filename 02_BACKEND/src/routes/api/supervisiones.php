@@ -593,6 +593,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
     $tecnico1Dni = !$sinCuadrilla && !empty($input['tecnico1_dni']) ? $input['tecnico1_dni'] : null;
     $tecnico2Nombre = !$sinCuadrilla ? ($input['tecnico2_nombre'] ?? null) : null;
     $tecnico2Dni = !$sinCuadrilla ? ($input['tecnico2_dni'] ?? null) : null;
+    // Guardado automático (2026-10-19): si un técnico no llega (su DNI aún está incompleto en pantalla), se conserva el
+    // que ya estaba guardado. Antes se borraba sin avisar. Un T2 quitado a propósito sí llega (vacío) y se quita.
+    if ($esGuardadoParcial && $targetRecord && !$sinCuadrilla) {
+        foreach ([1, 2] as $nTec) {
+            if (array_key_exists("tecnico{$nTec}_nombre", $input)) continue;
+            ${"tecnico{$nTec}Nombre"} = $targetRecord["tecnico{$nTec}_nombre"] ?? null;
+            ${"tecnico{$nTec}Dni"} = $targetRecord["tecnico{$nTec}_dni"] ?? null;
+        }
+    }
     $brevetePoseedor = $input['brevete_poseedor'] ?? 'Tecnico 1';
     $unidadTipo = !$sinCuadrilla ? ($input['unidad_tipo'] ?? null) : null;
     $unidadPlaca = !$sinCuadrilla && !empty($input['unidad_placa']) ? strtoupper(trim($input['unidad_placa'])) : null;
@@ -739,12 +748,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
                 echo json_encode(['status' => 'error', 'message' => 'Complete todos los campos de la observación seleccionada.']);
                 exit;
             }
-            for ($fotoNumero = 1; $fotoNumero <= 3; $fotoNumero++) {
-                $fotoClave = 'foto_' . $fotoNumero;
-                if (!isset($_FILES[$fotoClave]) || $_FILES[$fotoClave]['error'] !== UPLOAD_ERR_OK) {
-                    echo json_encode(['status' => 'error', 'message' => 'Adjunte las 3 fotos de evidencia de la observación.']);
-                    exit;
-                }
+            // 2026-10-19: al menos una foto (antes las 3 obligatorias).
+            $fotosObservacion = array_filter([1, 2, 3], fn($n) => isset($_FILES['foto_' . $n]) && $_FILES['foto_' . $n]['error'] === UPLOAD_ERR_OK);
+            if (!$fotosObservacion) {
+                echo json_encode(['status' => 'error', 'message' => 'Adjunte al menos una foto de evidencia de la observación.']);
+                exit;
             }
         }
     }

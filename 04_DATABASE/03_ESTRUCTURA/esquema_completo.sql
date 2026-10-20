@@ -1,6 +1,6 @@
 -- 04_DATABASE/03_ESTRUCTURA/esquema_completo.sql
--- Estructura de SGS: 24 tablas en orden de dependencias, sin datos ni DROP.
--- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-10-16. No editar a mano: los cambios van como migración en 02_CAMBIOS.
+-- Estructura de SGS: 27 tablas en orden de dependencias, sin datos ni DROP.
+-- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-10-20. No editar a mano: los cambios van como migración en 02_CAMBIOS.
 
 SET NAMES utf8mb4;
 
@@ -152,6 +152,27 @@ CREATE TABLE IF NOT EXISTS `asistencia_supervisores` (
   CONSTRAINT `fk_asistencia_supervisores_supervisor_id` FOREIGN KEY (`supervisor_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Turnos de los supervisores: inicio, fin y horas';
 
+-- Tabla `examen_convocatorias`: Links generales de examen (un link para un grupo de técnicos) (depende de: usuarios)
+CREATE TABLE IF NOT EXISTS `examen_convocatorias` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `token_hash` char(64) NOT NULL COMMENT 'SHA-256 del código del link general (el código no se guarda)',
+  `titulo` varchar(150) NOT NULL DEFAULT 'Evaluación técnica',
+  `examen` varchar(40) NOT NULL DEFAULT 'altura' COMMENT 'Examen que trae el link (banco de preguntas)',
+  `filtro` varchar(255) DEFAULT NULL COMMENT 'Filtros de Cuadrillas con los que se armó el grupo',
+  `generado_por` int(11) DEFAULT NULL COMMENT 'Usuario que generó el link',
+  `creado_en` datetime NOT NULL DEFAULT current_timestamp(),
+  `vence_en` datetime NOT NULL,
+  `anulado_en` datetime DEFAULT NULL,
+  `anulado_por` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_examen_convocatorias_token_hash` (`token_hash`),
+  KEY `idx_examen_convocatorias_creado_en` (`creado_en`),
+  KEY `fk_examen_convocatorias_generado_por` (`generado_por`),
+  KEY `fk_examen_convocatorias_anulado_por` (`anulado_por`),
+  CONSTRAINT `fk_examen_convocatorias_anulado_por` FOREIGN KEY (`anulado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_examen_convocatorias_generado_por` FOREIGN KEY (`generado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Links generales de examen (un link para un grupo de técnicos)';
+
 -- Tabla `tecnicos`: Técnicos por partner: líderes (T1) y de apoyo (T2) (depende de: partners, usuarios, vehiculos)
 CREATE TABLE IF NOT EXISTS `tecnicos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -235,6 +256,31 @@ CREATE TABLE IF NOT EXISTS `asistencia_eventos` (
   KEY `idx_asistencia_eventos_asistencia_id_inicio_evento` (`asistencia_id`,`inicio_evento`),
   CONSTRAINT `fk_asistencia_eventos_asistencia_id` FOREIGN KEY (`asistencia_id`) REFERENCES `asistencia_supervisores` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Pausas dentro del turno (almuerzo, reunión, capacitación)';
+
+-- Tabla `examen_convocatoria_tecnicos`: Técnicos de cada link general de examen (depende de: examen_convocatorias, tecnicos)
+CREATE TABLE IF NOT EXISTS `examen_convocatoria_tecnicos` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `convocatoria_id` int(11) NOT NULL,
+  `tecnico_id` int(11) NOT NULL,
+  `tipo` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1 = técnico líder (T1), 2 = técnico de apoyo (T2)',
+  `ingreso_en` datetime DEFAULT NULL COMMENT 'Primera vez que entró con su DNI',
+  `sesion_hash` char(64) DEFAULT NULL COMMENT 'Huella de la llave del equipo con el que rinde',
+  `inicio_en` datetime DEFAULT NULL COMMENT 'Cuándo empezó a responder (corre el tiempo)',
+  `preguntas` longtext DEFAULT NULL COMMENT 'Preguntas que le tocaron y orden de alternativas (JSON)',
+  `respuestas` longtext DEFAULT NULL COMMENT 'Respuestas guardadas mientras rinde (JSON)',
+  `usado_en` datetime DEFAULT NULL COMMENT 'Examen rendido: ya no puede volver a entrar',
+  `correctas` tinyint(3) unsigned DEFAULT NULL,
+  `total_preguntas` tinyint(3) unsigned DEFAULT NULL,
+  `nota` decimal(5,2) DEFAULT NULL COMMENT 'Porcentaje de aciertos (0 a 100)',
+  `aprobado` tinyint(1) DEFAULT NULL,
+  `segundos` smallint(5) unsigned DEFAULT NULL COMMENT 'Tiempo que usó',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_examen_convocatoria_tecnico` (`convocatoria_id`,`tecnico_id`),
+  KEY `idx_examen_convocatoria_tecnicos_tecnico` (`tecnico_id`),
+  KEY `idx_examen_convocatoria_tecnicos_usado` (`usado_en`),
+  CONSTRAINT `fk_examen_convocatoria_tecnicos_convocatoria` FOREIGN KEY (`convocatoria_id`) REFERENCES `examen_convocatorias` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_examen_convocatoria_tecnicos_tecnico` FOREIGN KEY (`tecnico_id`) REFERENCES `tecnicos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Técnicos de cada link general de examen';
 
 -- Tabla `examen_enlaces`: Links de examen enviados a los técnicos (depende de: usuarios, tecnicos)
 CREATE TABLE IF NOT EXISTS `examen_enlaces` (
@@ -416,6 +462,20 @@ CREATE TABLE IF NOT EXISTS `documentos_vencimiento` (
   CONSTRAINT `fk_documentos_vencimiento_tecnico_id` FOREIGN KEY (`tecnico_id`) REFERENCES `tecnicos` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_documentos_vencimiento_vehiculo_id` FOREIGN KEY (`vehiculo_id`) REFERENCES `vehiculos` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Vencimientos de la cuadrilla: SOAT, revisión técnica, extintor (vehículo) y brevete (técnico líder), con historial';
+
+-- Tabla `examen_respuestas`: Resultado de cada pregunta de los exámenes rendidos (depende de: examen_convocatoria_tecnicos)
+CREATE TABLE IF NOT EXISTS `examen_respuestas` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `participacion_id` int(11) NOT NULL COMMENT 'examen_convocatoria_tecnicos.id',
+  `pregunta` varchar(20) NOT NULL COMMENT 'Código de la pregunta en el banco',
+  `tema` varchar(60) NOT NULL,
+  `correcta` tinyint(1) NOT NULL DEFAULT 0,
+  `respondida` tinyint(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_examen_respuestas` (`participacion_id`,`pregunta`),
+  KEY `idx_examen_respuestas_tema` (`tema`,`correcta`),
+  CONSTRAINT `fk_examen_respuestas_participacion` FOREIGN KEY (`participacion_id`) REFERENCES `examen_convocatoria_tecnicos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Resultado de cada pregunta de los exámenes rendidos';
 
 -- Tabla `observaciones_supervision`: Observaciones en campo, descargos del partner y plazos (depende de: categorias_observacion, usuarios, subopciones_observacion, supervisiones)
 CREATE TABLE IF NOT EXISTS `observaciones_supervision` (

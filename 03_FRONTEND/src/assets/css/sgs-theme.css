@@ -4092,8 +4092,6 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 { font-family: var(--sgs-fo
 .cuad-seccion { display: flex; align-items: center; margin: 4px 0 10px; padding-top: 12px; border-top: 1px solid var(--sgs-border); font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--sgs-muted); }
 .modal-body > .cuad-seccion:first-of-type { padding-top: 0; border-top: 0; }
 .cuad-seccion .bi { color: var(--sgs-orange); }
-.ex-personas { display: flex; flex-wrap: wrap; align-self: flex-start; }
-.ex-personas .filter-tab-btn { white-space: normal; text-align: left; }
 .ex-resultado { margin-top: 16px; padding: 14px; border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); background: var(--sgs-surface-alt); }
 .ex-enviar { display: flex; flex-wrap: wrap; gap: 8px; }
 .ex-enviar .btn { flex: 1 1 auto; }
@@ -4183,3 +4181,43 @@ a.sgs-kpi:hover { border-color: var(--sgs-orange); }
 /* 53. Aviso de mayúsculas activadas en la contraseña (2026-10-16, aviso-mayusculas.js): Mi información y Usuarios. */
 .sgs-mayus { display: flex; align-items: center; gap: 6px; margin-top: 6px; padding: 5px 10px; border-radius: var(--sgs-radius-sm); font-size: 12.5px; font-weight: 600; color: var(--sgs-warning-dark); background: var(--sgs-warning-soft); }
 .sgs-mayus[hidden] { display: none; }
+
+/* 54. DNI del técnico incompleto (2026-10-19): con el T1 o T2 elegido y su DNI vacío o sin 8 dígitos, el campo se marca
+   en rojo con el motivo debajo (supervision_lista.js, revisarDniTecnicos). */
+/* !important: la regla heredada ".field-bitacora input" (parte A) fija el borde con !important. */
+#main-content-area .field-bitacora.sgs-dni-error input:not([type="checkbox"]):not([type="radio"]):not([type="file"]) { border-color: var(--sgs-danger) !important; box-shadow: 0 0 0 3px var(--sgs-danger-soft) !important; }
+.sgs-dni-error-texto { display: block; margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--sgs-danger-dark); }
+.sgs-dni-error-texto:empty { display: none; }
+
+/* 55. Link general de examen (2026-10-20, Cuadrillas): la lista de técnicos sin DNI puede ser larga; se desplaza sola. */
+.ex-lista-tecnicos { max-height: 220px; overflow-y: auto; padding-right: 6px; }
+
+/* 56. Dashboards (2026-10-20): Exámenes y Pendientes y rescates (sgs-dashboard.js). Gráficos de una sola serie sin librerías:
+   barras horizontales (% con su texto) y columnas (notas y días). Marcas delgadas, extremos redondeados, cuadrícula
+   discreta y ayuda al pasar el mouse. Los colores de estado solo en las etiquetas de la tabla (con su palabra). */
+.dsh.dsh-cargando .dsh-barras, .dsh.dsh-cargando .dsh-columnas, .dsh.dsh-cargando .dsh-kpis { opacity: .55; transition: opacity .15s ease; }
+.dsh-barras { display: grid; gap: 10px; }
+.dsh-barra { display: grid; grid-template-columns: minmax(90px, 34%) 1fr auto; align-items: center; gap: 10px; padding: 2px 0; border-radius: var(--sgs-radius-sm); outline: none; }
+.dsh-barra:hover .dsh-barra-relleno, .dsh-barra:focus-visible .dsh-barra-relleno { background: var(--sgs-orange-dark); }
+.dsh-barra:focus-visible { box-shadow: 0 0 0 3px var(--sgs-orange-soft); }
+.dsh-barra-nombre { font-size: 13px; font-weight: 600; color: var(--sgs-ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dsh-barra-pista { height: 12px; border-radius: 4px; background: var(--sgs-surface-alt); border: 1px solid var(--sgs-border); overflow: hidden; }
+.dsh-barra-relleno { display: block; height: 100%; min-width: 2px; border-radius: 0 4px 4px 0; background: var(--sgs-orange); transition: width .3s ease, background-color .15s ease; }
+.dsh-barra-valor { font-size: 13px; font-weight: 700; color: var(--sgs-ink); white-space: nowrap; font-variant-numeric: tabular-nums; text-align: right; min-width: 92px; }
+.dsh-barra-valor small { font-weight: 500; color: var(--sgs-muted); margin-left: 4px; }
+.dsh-col-area { display: flex; align-items: flex-end; gap: 10px; height: 180px; padding-top: 18px; border-bottom: 1px solid var(--sgs-border); }
+.dsh-col { flex: 1 1 0; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; position: relative; outline: none; }
+.dsh-col-barra { width: min(56px, 100%); min-height: 2px; border-radius: 4px 4px 0 0; background: var(--sgs-orange); transition: height .3s ease, background-color .15s ease; }
+.dsh-col:hover .dsh-col-barra, .dsh-col:focus-visible .dsh-col-barra { background: var(--sgs-orange-dark); }
+.dsh-col-valor { font-size: 12.5px; font-weight: 700; color: var(--sgs-ink); font-variant-numeric: tabular-nums; }
+.dsh-col-nombre { position: absolute; bottom: -22px; font-size: 11.5px; font-weight: 600; color: var(--sgs-muted); white-space: nowrap; }
+.dsh-columnas { padding-bottom: 24px; }
+.dsh-columnas--dias .dsh-col-area { gap: 4px; }
+.dsh-columnas--dias .dsh-col-nombre { font-size: 10.5px; }
+.dsh-tip { position: fixed; z-index: 1080; max-width: 260px; padding: 6px 10px; border-radius: 8px; background: var(--sgs-ink); color: var(--sgs-surface); font-size: 12.5px; font-weight: 600; pointer-events: none; box-shadow: var(--sgs-shadow); }
+.dsh-busqueda { min-width: 220px; }
+@media (max-width: 575.98px) {
+    .dsh-barra { grid-template-columns: 1fr auto; grid-template-areas: "nombre valor" "pista pista"; row-gap: 4px; }
+    .dsh-barra-nombre { grid-area: nombre; } .dsh-barra-valor { grid-area: valor; min-width: 0; } .dsh-barra-pista { grid-area: pista; }
+    .dsh-columnas--dias .dsh-col-nombre { display: none; }
+}

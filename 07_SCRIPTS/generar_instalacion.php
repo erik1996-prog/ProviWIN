@@ -42,6 +42,9 @@ $tablasSgs = [
     'asistencia_supervisores' => 'vacia',
     'asistencia_eventos' => 'vacia',
     'examen_enlaces' => 'vacia',
+    'examen_convocatorias' => 'vacia',
+    'examen_convocatoria_tecnicos' => 'vacia',
+    'examen_respuestas' => 'vacia',
     'documentos_vencimiento' => 'vacia',
     'sgs_migracion' => 'vacia',
 ];

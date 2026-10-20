@@ -154,9 +154,13 @@ try {
     }
 
     // Edición de una cuadrilla desde la pantalla Cuadrillas (2026-10-15): personal administrativo, para emergencias.
+    // 2026-10-20: también los supervisores directos, solo para las cuadrillas de su zona (o sin zona) y solo hacia sus zonas.
     // Mismas reglas que al cerrar una supervisión: un T2 y un vehículo pertenecen a una sola cuadrilla.
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'cuadrilla_guardar') {
-        if (!Auth::isAdministrative()) { http_response_code(403); throw new Exception('Solo el personal administrativo puede editar cuadrillas.'); }
+        $editor = Auth::getLoggedInUser();
+        $editorDirecto = ($editor['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($editor['is_win_directo']);
+        if (!Auth::isAdministrative() && !$editorDirecto) { http_response_code(403); throw new Exception('Solo el personal administrativo y los supervisores directos pueden editar cuadrillas.'); }
+        $zonasEditor = Auth::isAdministrative() ? null : sgsUserZones((int)$editor['id']); // null = todas
         $id = (int)($_POST['id'] ?? 0);
         $apoyoId = (int)($_POST['apoyo_id'] ?? 0);
         $placa = strtoupper(trim((string)($_POST['placa'] ?? '')));
@@ -205,10 +209,18 @@ try {
 
         $pdo->beginTransaction();
         try {
-            $st = $pdo->prepare('SELECT id, nombre_tecnico, partner_id FROM tecnicos WHERE id = :id AND COALESCE(tipo_tecnico, 1) = 1 FOR UPDATE');
+            $st = $pdo->prepare('SELECT id, nombre_tecnico, partner_id, departamento FROM tecnicos WHERE id = :id AND COALESCE(tipo_tecnico, 1) = 1 FOR UPDATE');
             $st->execute([':id' => $id]);
             $lider = $st->fetch();
             if (!$lider) throw new Exception('El técnico líder ya no existe.');
+            if ($zonasEditor !== null) {
+                // Supervisor directo: la cuadrilla debe ser de su zona (o no tener zona) y solo puede quedar en una de sus zonas.
+                $enZona = static fn(?string $dep): bool => in_array(mb_strtoupper(trim((string)$dep), 'UTF-8'), $zonasEditor, true);
+                $depActual = trim((string)$lider['departamento']);
+                if ($depActual !== '' && !$enZona($depActual)) { http_response_code(403); throw new Exception('Esa cuadrilla es de otra zona: solo puede editar las de su zona.'); }
+                if (!$zona['departamento'] && $depActual !== '') throw new Exception('Escriba la provincia de la cuadrilla (una de su zona).');
+                if ($zona['departamento'] && !$enZona($zona['departamento'])) throw new Exception('La provincia elegida es de otra zona: solo puede asignar provincias de su zona (' . implode(', ', $zonasEditor) . ').');
+            }
 
             if ($tocaT1) {
                 $dniLibre($t1Dni, $id);

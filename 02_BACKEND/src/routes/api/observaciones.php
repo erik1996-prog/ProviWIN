@@ -83,7 +83,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
         exit;
     }
 
-    // Procesar Carga de Fotos (hasta 3)
+    // Procesar Carga de Fotos: al menos una, hasta 3 (2026-10-19).
+    if (!array_filter([1, 2, 3], fn($n) => isset($_FILES['foto_' . $n]) && $_FILES['foto_' . $n]['error'] === UPLOAD_ERR_OK)) {
+        http_response_code(422);
+        echo json_encode(['status' => 'error', 'message' => 'Adjunte al menos una foto de evidencia de la observación.']);
+        exit;
+    }
     $fotoRutas = [null, null, null];
     $fotoComentarios = [trim((string)($_POST['foto_comentario_1'] ?? '')),trim((string)($_POST['foto_comentario_2'] ?? '')),trim((string)($_POST['foto_comentario_3'] ?? ''))];
     for ($i = 1; $i <= 3; $i++) {
@@ -259,12 +264,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'responder_partner') {
 
     $fotosDescargo = [];
     $comentariosDescargo = [];
+    // 2026-10-19: al menos una foto del levantamiento, hasta 3 (antes las 3 obligatorias).
+    if (!array_filter([1, 2, 3], fn($n) => isset($_FILES['descargo_foto_' . $n]) && $_FILES['descargo_foto_' . $n]['error'] === UPLOAD_ERR_OK)) {
+        http_response_code(422);
+        echo json_encode(['status' => 'error', 'message' => 'Adjunte al menos una foto del levantamiento.']);
+        exit;
+    }
     for ($i = 1; $i <= 3; $i++) {
         $key = 'descargo_foto_' . $i;
         if (!isset($_FILES[$key]) || $_FILES[$key]['error'] !== UPLOAD_ERR_OK) {
-            http_response_code(422);
-            echo json_encode(['status' => 'error', 'message' => 'Adjunte las 3 fotos obligatorias del levantamiento.']);
-            exit;
+            $fotosDescargo[] = null;
+            $comentariosDescargo[] = null;
+            continue;
         }
         // 2026-10-12: el levantamiento lleva un solo comentario general; el de cada foto queda opcional.
         $comentariosDescargo[] = trim((string)($input['descargo_comentario_'.$i] ?? '')) ?: null;
@@ -303,10 +314,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'responder_partner') {
         WHERE id = :id
     ");
     $stmtUpd->execute([':resp' => $respuesta, ':foto1'=>$fotosDescargo[0], ':comentario1'=>$comentariosDescargo[0], ':foto2'=>$fotosDescargo[1], ':comentario2'=>$comentariosDescargo[1], ':foto3'=>$fotosDescargo[2], ':comentario3'=>$comentariosDescargo[2], ':respondido_por'=>(int)$user['id'], ':id' => $obsId]);
-    $stmtNotify = $pdo->prepare("INSERT INTO notificaciones (usuario_id,observacion_id,titulo,mensaje,url_destino) VALUES (:uid,:oid,'Descargo pendiente de revisión','El partner envió un descargo con tres evidencias fotográficas.','index.php?page=registro_observaciones')");
+    $stmtNotify = $pdo->prepare("INSERT INTO notificaciones (usuario_id,observacion_id,titulo,mensaje,url_destino) VALUES (:uid,:oid,'Descargo pendiente de revisión','El partner envió un descargo con evidencias fotográficas.','index.php?page=registro_observaciones')");
     $stmtNotify->execute([':uid'=>(int)$obs['supervisor_id'],':oid'=>$obsId]);
 
-    echo json_encode(['status' => 'success', 'message' => 'Descargo enviado con 3 fotos. Quedó pendiente de revisión por WIN.']);
+    echo json_encode(['status' => 'success', 'message' => 'Descargo enviado. Quedó pendiente de revisión por WIN.']);
     exit;
 }
 

@@ -1,7 +1,7 @@
 <?php
-// 05_TEST/integration/examen_enlaces_test.php - (2026-10-15) Links de examen y editor de cuadrillas (T1 y T2). Por HTTP.
-//   - generar link (con el nombre del técnico), abrirlo sin sesión, uno vigente por técnico, anular, vencido, inválido;
-//   - en la base solo la huella del código; el supervisor de otra zona no puede; historial;
+// 05_TEST/integration/examen_enlaces_test.php - (2026-10-15) Links de examen individuales y editor de cuadrillas (T1 y T2). Por HTTP.
+//   - links individuales ya enviados: abren sin sesión hasta vencer; anulado, vencido, inválido; ya no se generan nuevos
+//     (2026-10-20: los reemplaza el link general, examen_general_test.php);
 //   - editar cuadrilla: DNI y celular del T1 y del T2, registrar un T2 nuevo, DNI repetido rechazado.
 // Crea usuarios (DNI 99999926-27) y técnicos (DNI 99999944-47, "PRUEBAEXAMEN") y los BORRA al final.
 // Uso (solo CLI): php 05_TEST/integration/examen_enlaces_test.php [url_base=http://localhost/ProviWIN]
@@ -63,42 +63,28 @@ try {
         $csrf[$u] = $m[1] ?? '';
     }
 
-    echo "Link de examen — $base\n";
-    [, $j] = $http("$base/api/examenes.php?action=tecnico&id=$lider", 'examen.admin');
-    $check('la cuadrilla trae al T1 y a su T2', count($j['data'] ?? []) === 2 && $j['data'][0]['nombre_persona'] === 'JUAN PEREZ PRUEBA' && $j['data'][1]['tipo_tecnico'] === 2, $j);
-    [, $j] = $http("$base/api/examenes.php?action=generar", 'examen.admin', ['tecnico_id' => $lider, 'horas' => 24, 'titulo' => 'Seguridad en altura']);
-    $url1 = $j['data']['url'] ?? '';
-    $check('genera el link con el nombre del técnico', str_contains($url1, '/examen.php?tecnico=juan-perez-prueba&t=') && str_contains($j['data']['mensaje'] ?? '', 'JUAN PEREZ PRUEBA'), $j);
-    parse_str((string)parse_url($url1, PHP_URL_QUERY), $q1);
-    $codigo1 = $q1['t'] ?? '';
-    $fila = $pdo->query("SELECT token_hash FROM examen_enlaces WHERE tecnico_id = $lider ORDER BY id DESC LIMIT 1")->fetchColumn();
-    $check('en la base solo queda la huella del código', $fila === hash('sha256', $codigo1) && !str_contains((string)$fila, $codigo1));
+    // Link individual (2026-10-15): desde 2026-10-20 ya no se generan (los reemplaza el link general, ver
+    // examen_general_test.php); los ya enviados siguen abriendo hasta vencer. Se crean directo en la base.
+    echo "Links individuales ya enviados — $base\n";
+    $legado = function (int $tecnicoId, string $vence = '+1 day', ?string $anulado = null) use ($pdo): string {
+        $codigo = bin2hex(random_bytes(24));
+        $pdo->prepare('INSERT INTO examen_enlaces (tecnico_id, token_hash, titulo, creado_en, vence_en, anulado_en) VALUES (:t, :h, :ti, NOW(), :v, :a)')
+            ->execute([':t' => $tecnicoId, ':h' => hash('sha256', $codigo), ':ti' => 'Seguridad en altura', ':v' => date('Y-m-d H:i:s', strtotime($vence)), ':a' => $anulado]);
+        return $codigo;
+    };
+    $codigo1 = $legado($lider);
     [$pag] = $http("$base/examen.php?tecnico=juan-perez-prueba&t=$codigo1");
-    $check('el técnico abre el link sin iniciar sesión y ve su nombre', str_contains($pag, 'Hola, Juan Perez Prueba') && str_contains($pag, 'Seguridad en altura'), mb_substr(strip_tags($pag), 0, 200));
+    $check('un link ya enviado abre sin iniciar sesión y muestra el nombre', str_contains($pag, 'Hola, Juan Perez Prueba') && str_contains($pag, 'Seguridad en altura'), mb_substr(strip_tags($pag), 0, 200));
     $check('queda registrado que lo abrió', $pdo->query("SELECT abierto_en IS NOT NULL FROM examen_enlaces WHERE token_hash = '" . hash('sha256', $codigo1) . "'")->fetchColumn() == 1);
-
-    [, $j] = $http("$base/api/examenes.php?action=generar", 'examen.admin', ['tecnico_id' => $lider, 'horas' => 2]);
-    parse_str((string)parse_url($j['data']['url'] ?? '', PHP_URL_QUERY), $q2);
-    [$pag] = $http("$base/examen.php?t=$codigo1");
-    $check('al generar otro, el anterior queda anulado', str_contains($pag, 'Link anulado'));
-    $check('el historial muestra los dos', count($j['data']['historial'] ?? []) === 2 && $j['data']['historial'][0]['estado'] === 'activo' && $j['data']['historial'][1]['estado'] === 'anulado', $j['data']['historial'] ?? $j);
-    $id2 = (int)($j['data']['id'] ?? 0);
-    [, $j] = $http("$base/api/examenes.php?action=anular", 'examen.admin', ['id' => $id2]);
-    [$pag] = $http("$base/examen.php?t=" . ($q2['t'] ?? ''));
-    $check('anular: el link ya no abre', ($j['status'] ?? '') === 'success' && str_contains($pag, 'Link anulado'), $j);
-    [, $j] = $http("$base/api/examenes.php?action=generar", 'examen.admin', ['tecnico_id' => $apoyo, 'horas' => 24]);
-    parse_str((string)parse_url($j['data']['url'] ?? '', PHP_URL_QUERY), $q3);
-    $pdo->exec("UPDATE examen_enlaces SET vence_en = NOW() - INTERVAL 1 MINUTE WHERE id = " . (int)($j['data']['id'] ?? 0));
-    [$pag] = $http("$base/examen.php?t=" . ($q3['t'] ?? ''));
-    $check('también para el T2; vencido ya no abre', str_contains($j['data']['url'] ?? '', 'tecnico=ana-pruebaexamen-apoyo') && str_contains($pag, 'Link vencido'), $j);
+    [$pag] = $http("$base/examen.php?t=" . $legado($apoyo, '+1 day', date('Y-m-d H:i:s')));
+    $check('anulado: ya no abre', str_contains($pag, 'Link anulado'));
+    [$pag] = $http("$base/examen.php?t=" . $legado($apoyo, '-1 minute'));
+    $check('vencido: ya no abre', str_contains($pag, 'Link vencido'));
     [$pag] = $http("$base/examen.php?t=" . str_repeat('a', 48));
     $check('un código inventado no abre nada', str_contains($pag, 'Link no válido'));
-    [, $j] = $http("$base/api/examenes.php?action=generar", 'examen.sup', ['tecnico_id' => $lider, 'horas' => 24]);
-    $check('supervisor de PIURA: no genera para un técnico de LA LIBERTAD', ($j['_http'] ?? 0) === 403, $j);
+    [, $j] = $http("$base/api/examenes.php?action=generar", 'examen.admin', ['tecnico_id' => $lider, 'horas' => 24]);
+    $check('ya no se generan links individuales (solo el general)', ($j['status'] ?? '') === 'error' && ($j['_http'] ?? 0) === 400, $j);
     $pdo->exec("UPDATE tecnicos SET departamento = 'PIURA', provincia = 'PIURA' WHERE id = $lider");
-    [, $j] = $http("$base/api/examenes.php?action=generar", 'examen.sup', ['tecnico_id' => $lider, 'horas' => 24]);
-    $check('supervisor de PIURA: sí genera para uno de su zona', ($j['status'] ?? '') === 'success', $j);
-
     echo "Editar cuadrilla: T1 y T2\n";
     $guardar = fn(array $campos) => $http("$base/api/tecnicos.php?action=cuadrilla_guardar", 'examen.admin', $campos + ['id' => $lider, 'placa' => '', 'estado_operativo' => 'Habilitado', 'provincia' => 'PIURA'])[1];
     $f = fn(int $id) => $pdo->query("SELECT nombre_tecnico, dni, celular, partner_id, departamento, apoyo_id FROM tecnicos WHERE id = $id")->fetch(PDO::FETCH_ASSOC);
@@ -116,7 +102,7 @@ try {
     $j = $guardar(['t1_dni' => '99999946', 'apoyo_id' => 'nuevo', 't2_nombre' => 'X', 't2_dni' => '']);
     $check('T2 nuevo sin nombre ni DNI: se rechaza', ($j['status'] ?? '') === 'error', $j);
     [$pagina] = $http("$base/index.php?page=cuadrillas&q=PRUEBAEXAMEN", 'examen.sup');
-    $check('el supervisor ve el botón de link de examen (y no el lápiz)', str_contains($pagina, 'data-examen=') && !str_contains($pagina, 'data-editar='));
+    $check('el supervisor directo ve el link general (no el de cada fila) y el lápiz de su zona (2026-10-20)', str_contains($pagina, 'id="btnLinkExamen"') && !str_contains($pagina, 'data-examen=') && str_contains($pagina, 'data-editar='));
 } finally {
     $cleanup();
 }

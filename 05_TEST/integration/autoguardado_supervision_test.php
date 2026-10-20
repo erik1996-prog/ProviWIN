@@ -30,6 +30,8 @@ $cleanup = function () use ($pdo, $jar, $png, $u) {
         $pdo->exec("DELETE e FROM asistencia_eventos e JOIN asistencia_supervisores a ON a.id = e.asistencia_id WHERE a.supervisor_id = $id");
         $pdo->exec("DELETE FROM asistencia_supervisores WHERE supervisor_id = $id");
     }
+    $pdo->exec("UPDATE tecnicos SET apoyo_id = NULL WHERE dni IN ('99999953','99999954')");
+    $pdo->exec("DELETE FROM tecnicos WHERE dni IN ('99999953','99999954')");
     $pdo->exec("DELETE FROM usuarios WHERE dni = '99999930'");
     foreach (['::1', '127.0.0.1'] as $ip) $pdo->prepare('DELETE FROM login_attempts WHERE fingerprint = :f')->execute([':f' => hash('sha256', "$ip|$u")]);
     @unlink($jar); @unlink($png);
@@ -97,6 +99,25 @@ try {
         'derivacion_orden' => 'Autogestión', 'tipo_servicio' => 'Regular', 'tipo_supervision_inicial' => 'En caliente', 'departamento' => 'PIURA', 'provincia' => 'PIURA', 'distrito' => 'PIURA',
         'ticket_codigo' => 'ZZAUTO1', 'observacion_servicio' => 'x']);
     $check('finalizar sigue exigiendo lo obligatorio (sin partner: no finaliza)', ($j['status'] ?? '') === 'error' && $fila($nueva)['estado_supervision'] === 'En proceso', $j);
+
+    echo "Técnico de apoyo (T2) y su DNI (2026-10-19)\n";
+    $insTec = $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, dni, tipo_tecnico, estado_operativo, partner_id, provincia, departamento, fecha_registro)
+        VALUES (:n, :d, :t, 'Habilitado', :p, 'PIURA', 'PIURA', NOW())");
+    $insTec->execute([':n' => 'P 1 PRUEBAAUTO SGI LIDER PIURA', ':d' => '99999953', ':t' => 1, ':p' => $partner]);
+    $insTec->execute([':n' => 'APOYO PRUEBAAUTO', ':d' => '99999954', ':t' => 2, ':p' => $partner]);
+    [, $j] = $parcial(['partner_id' => $partner, 'tecnico1_nombre' => 'P 1 PRUEBAAUTO SGI LIDER PIURA', 'tecnico1_dni' => '99999953', 'tecnico2_nombre' => 'APOYO PRUEBAAUTO', 'tecnico2_dni' => '99999954']);
+    $r = $fila($nueva);
+    $check('el T2 con DNI válido se guarda en la supervisión', ($j['status'] ?? '') === 'success' && $r['tecnico2_nombre'] === 'APOYO PRUEBAAUTO' && $r['tecnico2_dni'] === '99999954', $j + ['t2' => $r['tecnico2_nombre'] ?? null]);
+    // La pantalla no envía al T2 mientras su DNI esté incompleto: el servidor conserva el ya guardado (antes lo borraba).
+    [, $j] = $parcial(['partner_id' => $partner, 'tecnico1_nombre' => 'P 1 PRUEBAAUTO SGI LIDER PIURA', 'tecnico1_dni' => '99999953', 'observacion_servicio' => 'DNI del T2 a medio escribir']);
+    $r = $fila($nueva);
+    $check('con el DNI del T2 a medias, el T2 ya guardado no se borra', ($j['status'] ?? '') === 'success' && $r['tecnico2_nombre'] === 'APOYO PRUEBAAUTO' && $r['tecnico2_dni'] === '99999954', $j + ['t2' => $r['tecnico2_nombre'] ?? null]);
+    [, $j] = $parcial(['partner_id' => $partner, 'tecnico1_nombre' => 'P 1 PRUEBAAUTO SGI LIDER PIURA', 'tecnico1_dni' => '99999953', 'tecnico2_nombre' => '', 'tecnico2_dni' => '']);
+    $r = $fila($nueva);
+    $check('"Sin técnico de apoyo" elegido a propósito: el T2 se quita', ($j['status'] ?? '') === 'success' && empty($r['tecnico2_nombre']) && empty($r['tecnico2_id']), $j + ['t2' => $r['tecnico2_nombre'] ?? null]);
+    [, $j] = $http("$api?action=create", ['action' => 'create', 'supervision_id_edit' => $nueva, 'estado_supervision' => 'En proceso', 'partner_id' => $partner,
+        'tecnico1_nombre' => 'P 1 PRUEBAAUTO SGI LIDER PIURA', 'tecnico1_dni' => '99999953', 'tecnico2_nombre' => 'APOYO PRUEBAAUTO', 'tecnico2_dni' => '123']);
+    $check('un DNI mal enviado se rechaza con un mensaje claro', ($j['status'] ?? '') === 'error' && str_contains($j['message'] ?? '', 'DNI'), $j);
 
     echo "Cancelar\n";
     [, $j] = $http("$api?action=cancelar", ['id' => $nueva]);

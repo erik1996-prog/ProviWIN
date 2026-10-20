@@ -63,8 +63,11 @@ Para comprobar en todas las pantallas: medir con JavaScript (`getComputedStyle`)
 ### Menú lateral (`03_FRONTEND/src/layouts/sidebar.php`, secciones 3, 42, 42b, 42c)
 - **Ancho 228 px**, naranja con logo WIN blanco **centrado** y subtítulo en una línea.
 - **Secciones por tarea, en acordeón** (al abrir una se cierra la otra; la de la pantalla actual empieza abierta):
-  Inicio (Dashboard / Mi turno) · Supervisiones (Supervisiones, Cuadrillas) · Seguimiento (Línea de tiempo, Monitor de turnos) ·
-  Observaciones (Registro, Control y recurrencia) · Administración (Usuarios y roles).
+  Inicio (Mi turno) · Indicadores (Dashboard de supervisiones, Pendientes y rescates, Exámenes) · Supervisiones ·
+  Seguimiento (Línea de tiempo, Monitor de turnos) · Observaciones (Registro, Control y recurrencia) ·
+  Personal (Usuarios y roles, Técnicos y cuadrillas, Partners). (2026-10-20: todo dashboard nuevo va en Indicadores.)
+- **Dashboards**: usar las piezas comunes — `config/dashboard.php` (filtros, consultas agregadas, tabla por páginas, Excel) y
+  `assets/js/sgs-dashboard.js` + clases `.dsh-*` (sección 56): gráficos de una sola serie sin librerías, con su texto.
 - `$menuGroups = [[sección, ícono, [[visible, href, páginas, ícono, nombre, nombre suelto opcional], …]], …]`.
   Si una sección tiene **una sola opción visible** para ese usuario, se muestra como enlace directo (con su "nombre suelto",
   p. ej. "Observaciones" en vez de "Registro").

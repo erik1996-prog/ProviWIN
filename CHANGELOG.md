@@ -4,6 +4,71 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Buscador de listas que no filtraba y aviso claro en los dashboards (2026-10-20)
+- **Corregido**: en "Solución aplicada o cierre técnico" (Avería, Reiterada, Garantía) y "Trabajo programado" (Postventa), al escribir no se filtraba la lista y había que bajar. Al escribir la primera letra se vaciaba la opción elegida y ese cambio borraba lo escrito. Ahora:
+  - el texto se mantiene y la lista se filtra;
+  - **Enter** elige la primera coincidencia y **Escape** cierra;
+  - al salir sin elegir, la caja muestra lo que realmente quedó elegido.
+  - Es el buscador genérico (`activarBuscadorSelect`): aplica en el formulario nuevo y en el de detalle. Los buscadores de técnicos y de observaciones no tenían la falla.
+- **Dashboards**: si el servidor no responde con datos (por ejemplo, falta subir un archivo), se muestra "No se encontró el servicio de datos en el servidor…" en vez de un error técnico ("Unexpected token… not valid JSON").
+
+### Dashboard "Pendientes y rescates" y menú por Indicadores y Personal (2026-10-20)
+- **Pendientes y rescates** (Indicadores), sobre las cancelaciones cargadas por Excel. Filtros: fechas de carga, partner y zona. La administración ve todo; el supervisor directo, su zona.
+  - Indicadores: cargadas, pendientes sin tomar, en validación, en rescate, rescatadas, cancelación correcta, **% de rescate** (de las cerradas) y **tiempo de atención** (de la carga al cierre).
+  - Gráficos: embudo, antigüedad de las pendientes sin tomar (menos de 24 h, 1 a 3 días, más de 3 días), cargadas por zona, % de rescate por partner, motivos de cancelación, rescates por supervisor y cargas por día.
+  - Tabla de órdenes de 50 en 50, con filtro por estado, búsqueda y Excel.
+- **Menú**: "Indicadores" junta los dashboards (Dashboard de supervisiones, Pendientes y rescates, Exámenes); "Personal" reemplaza a "Administración" (Usuarios y roles, **Técnicos y cuadrillas**, Partners). "Dashboard" pasa a llamarse **Dashboard de supervisiones** y "Cuadrillas", **Técnicos y cuadrillas**.
+- **Una sola fuente para las pendientes**: se quitó la sección "Pendientes cargadas" del Dashboard de supervisiones (repetía la misma información); ahora todo está en Pendientes y rescates.
+- **Pendientes y rescates, por supervisor**: filtro por supervisor directo; estados nuevos "En partner" y "Atendidas por partner" (con vencidas a más de 24 h); tabla **Por supervisor directo** (tomadas, atendió él, en validación, en rescate, rescatadas, transferidas, atendió el partner, vencidas en partner, tiempo y % de atención) y tabla **Por supervisor de partner** (asignadas, atendidas, en plazo, vencidas, tiempo de respuesta y % a tiempo). En la tabla de órdenes, debajo del responsable, se ve quién la atiende en el partner.
+- **Código común de dashboards, sin repetir**:
+  - `config/dashboard.php`: filtros, consultas agregadas, tabla por páginas y Excel;
+  - `assets/js/sgs-dashboard.js`: gráficos, ayuda flotante, tabla y filtros;
+  - clases `.dsh-*`.
+  - El dashboard de Exámenes ya usa estas piezas.
+- **Código que ya no se usaba, eliminado**: acciones y funciones del link individual de examen (generar, anular, historial) y sus estilos. Los links individuales ya enviados siguen abriendo hasta vencer.
+- Pruebas: `dashboard_pendientes_test.php` (10/10); `examen_enlaces_test.php` reescrita para los links ya enviados.
+
+### Examen de seguridad "Trabajo en altura", dashboard de exámenes y técnicos por separado (2026-10-20)
+- **Examen real "Seguridad: trabajo en altura"** (telecomunicaciones): banco de 50 preguntas en 11 temas (postes, escaleras telescópicas, arnés y su inspección, anclaje y línea de vida, riesgo eléctrico, clima, señalización, permiso y ATS, rescate y trauma por suspensión). A cada técnico le tocan **20 al azar** (al menos una por tema) con las alternativas mezcladas.
+  - Formatos: casos de campo, una correcta, marcar todas las correctas, verdadero o falso y ordenar pasos.
+  - **10 minutos**, aprueba con **90 %**, **una sola oportunidad**. Si se corta, vuelve a entrar con su DNI y sigue donde quedó (el tiempo sigue corriendo); al vencer el tiempo se califica lo respondido.
+  - Una pregunta por pantalla (pensado para celular), con avance, reloj y mapa de preguntas; cada respuesta se guarda al momento.
+  - Al terminar ve su nota, si aprobó y los **temas para reforzar**, nunca las respuestas correctas (se califica en el servidor).
+  - Banco en `config/examenes/altura.php`; motor en `config/examen_motor.php`; pantalla `assets/js/examen.js`. Para agregar otro examen basta otro archivo en esa carpeta.
+- **Al generar el link se elige el examen de una lista** (antes se escribía un nombre).
+- **Dashboard "Exámenes"** (menú Supervisiones), con filtros de fecha del link, examen, partner y zona:
+  - indicadores: convocados, rindieron, % de aprobación, nota promedio y por rendir;
+  - gráficos: aprobación por partner y por zona, temas con más errores, notas por rango y exámenes por día;
+  - tabla de resultados por técnico, con descarga a Excel.
+  - Gráficos sin librerías, de una sola serie y con su texto; verde/rojo solo en etiquetas con su palabra (validado: no se distinguen con daltonismo).
+  - La administración ve todo; el supervisor directo, su zona.
+- **Cuadrillas por vistas**: Cuadrillas | Técnicos líderes (T1) | Técnicos de apoyo (T2), con los mismos filtros, DNI y celular, a quién apoya cada T2 y el **último examen** de cada técnico.
+- Base de datos: cambio `2026-10-20_02` (examen del link, avance y nota de cada técnico, tabla `examen_respuestas`).
+- **Más liviano** (mismo día):
+  - el dashboard calcula indicadores y gráficos **en la base de datos** (una sola base de filtros compartida por dashboard, tabla y Excel) y envía solo los totales (unos 2 KB);
+  - la tabla llega **de 50 en 50**, con el filtro por resultado y la búsqueda resueltos en el servidor (antes viajaban hasta 3 000 filas);
+  - Cuadrillas **cuenta** los T2 para su pestaña en vez de traer la lista, y busca el último examen solo en las vistas que lo muestran.
+  - Corregido de paso: agrupar por el alias "estado" agrupaba por la columna `estado` de partners (ahora por posición).
+- Pruebas: `examen_general_test.php` (32/32); `acceso_y_cuadrillas_test.php` ajustada.
+
+### Link general de examen y edición de cuadrillas para supervisores directos (2026-10-20)
+- **Un link para un grupo**: en Cuadrillas se filtra (partner, zona, documentos, búsqueda) y el botón **"Link de examen (N cuadrillas)"** genera **un solo link** para todos los técnicos de esas cuadrillas: cada **T1 y su T2**. Antes era un link por técnico, desde cada fila (ese botón se quitó; los links individuales ya enviados siguen sirviendo hasta vencer).
+- Antes de generar se ve el resumen (cuadrillas, T1, T2) y la lista de **técnicos sin DNI**, con "Registrar DNI" (abre el editor de esa cuadrilla). **Si alguno no tiene DNI, el link no se genera.** Los de lista negra no entran.
+- **El técnico entra con su DNI** (`examen.php?g=…`): solo los del grupo; un DNI ajeno se rechaza; cada uno rinde una vez. 5 DNI equivocados desde un equipo (o 40 en total) bloquean ese link por 15 minutos.
+- **Links generados**: quién lo generó, con qué filtro, cuántos técnicos ya entraron ("Ver técnicos": entró / falta) y "Anular". El supervisor ve los suyos; la administración, todos.
+- **Supervisores directos editan cuadrillas** (T1 y T2 con DNI y celular, vehículo, estado y zona), **solo las de su zona** y solo hacia provincias de su zona. La carga y descarga de técnicos líderes sigue siendo solo de la administración.
+- Base de datos: tablas `examen_convocatorias` y `examen_convocatoria_tecnicos` (cambio `2026-10-20_01`).
+- Prueba nueva `examen_general_test.php` (17/17); `examen_enlaces_test.php` ajustada.
+
+### DNI del T1/T2 con aviso y fotos de observación: al menos una (2026-10-19)
+- **DNI del técnico líder (T1) y de apoyo (T2)**: antes, si el DNI estaba vacío o mal (o la ficha no tenía DNI y salía "0"), el guardado automático guardaba la supervisión **sin el T2 y sin avisar**; al retomarla, el T2 aparecía vacío. Ahora:
+  - el campo se marca en rojo con el motivo ("Escriba el DNI del técnico de apoyo" / "El DNI debe tener 8 dígitos") y abajo dice "Guardado HH:MM · Revise el DNI del T2";
+  - lo demás se sigue guardando y **el T2 ya guardado no se borra** (el servidor lo conserva hasta que el DNI esté bien). "Sin técnico de apoyo" elegido a propósito sí lo quita;
+  - un T2 sin DNI en su ficha deja el campo vacío para escribirlo (antes "0");
+  - al finalizar, el DNI del T2 aparece en la lista de lo que falta. Igual en el formulario de detalle.
+- **Fotos de la observación**: basta **una** (hasta 3). Antes eran 3 obligatorias. Aplica a la observación dentro de la supervisión, a la observación del partner y al levantamiento (descargo) del partner.
+- Pruebas: `autoguardado_supervision_test.php` (19/19) con el T2; `jefe_operaciones_test.php` ajustada al nuevo mensaje.
+
 ### Aviso de mayúsculas y tabla de Supervisiones desplazable (2026-10-16)
 - **"Mayúsculas activadas"**: al escribir la contraseña con Bloq Mayús activo aparece un aviso debajo del campo (ingreso, cambio de contraseña y Mi información). También con la contraseña visible ("Ver"); se oculta al salir del campo. En celular el teclado no informa el Bloq Mayús, así que ahí no aparece. Archivo `assets/js/aviso-mayusculas.js`.
 - `sgs-login.css` ahora lleva en su enlace la fecha del archivo: sus cambios llegan sin limpiar la caché.

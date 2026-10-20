@@ -92,14 +92,19 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
     // (al abrir una se cierra la otra; la de la pantalla actual empieza abierta). Una sección con una sola opción
     // visible para el usuario se muestra como enlace directo (con su "nombre suelto", si lo tiene).
     // [sección, ícono, [[visible, href, páginas, ícono, nombre, nombre suelto opcional], …]]
+    // 2026-10-20: "Indicadores" junta los dashboards y "Personal" a usuarios, técnicos y partners.
+    $verGestionTecnica = ($showAdministrativeMenu || $isDirectMenu) && $canViewSupervisions; // cuadrillas, exámenes y pendientes
     $menuGroups = [
         ['Inicio', 'bi-house', [
-            [$showAdministrativeMenu && $canViewDashboard, 'index.php?page=admin_dashboard', ['admin_dashboard'], 'bi-speedometer2', 'Dashboard'],
             [$isDirectMenu, 'index.php?page=asistencia', ['asistencia'], 'bi-play-circle', 'Mi turno'],
+        ]],
+        ['Indicadores', 'bi-graph-up', [
+            [$showAdministrativeMenu && $canViewDashboard, 'index.php?page=admin_dashboard', ['admin_dashboard'], 'bi-speedometer2', 'Dashboard de supervisiones'],
+            [$verGestionTecnica, 'index.php?page=dashboard_pendientes', ['dashboard_pendientes'], 'bi-arrow-repeat', 'Pendientes y rescates'],
+            [$verGestionTecnica, 'index.php?page=examenes', ['examenes'], 'bi-clipboard-check', 'Exámenes'],
         ]],
         ['Supervisiones', 'bi-journal-check', [
             [$canViewSupervisions, 'index.php?page=supervision_lista', ['supervision_lista', 'supervision_registro'], $isPartnerMenu ? 'bi-calendar-check' : 'bi-journal-check', $isPartnerMenu ? ($rol === Auth::ROLE_JEFE_OPERACIONES ? 'Órdenes del partner' : 'Mi agenda') : 'Supervisiones'],
-            [($showAdministrativeMenu || $isDirectMenu) && $canViewSupervisions, 'index.php?page=cuadrillas', ['cuadrillas'], 'bi-people-fill', 'Cuadrillas'],
         ]],
         ['Seguimiento', 'bi-person-workspace', [
             [$showAdministrativeMenu && $canViewTimeline, 'index.php?page=timeline_supervisores', ['timeline_supervisores'], 'bi-diagram-3', 'Línea de tiempo'],
@@ -109,8 +114,9 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
             [$canViewObservations, 'index.php?page=registro_observaciones', ['registro_observaciones', 'observaciones_partner'], 'bi-clipboard2-pulse', 'Registro', 'Observaciones'],
             [$showAdministrativeMenu && $canReviewObservations, 'index.php?page=control_observaciones', ['control_observaciones'], 'bi-exclamation-diamond', 'Control y recurrencia'],
         ]],
-        ['Administración', 'bi-gear', [
-            [$canSeeStaff, 'index.php?page=usuarios', ['usuarios'], 'bi-people', $canManageUsers ? 'Usuarios y roles' : 'Personal'],
+        ['Personal', 'bi-people', [
+            [$canSeeStaff, 'index.php?page=usuarios', ['usuarios'], 'bi-person-badge', $canManageUsers ? 'Usuarios y roles' : 'Personal'],
+            [$verGestionTecnica, 'index.php?page=cuadrillas', ['cuadrillas'], 'bi-people-fill', 'Técnicos y cuadrillas'],
             [$canManageUsers, 'index.php?page=partners', ['partners'], 'bi-buildings', 'Partners'],
         ]],
     ];

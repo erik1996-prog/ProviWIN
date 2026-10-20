@@ -1,6 +1,7 @@
 <?php
-// 05_TEST/integration/pendientes_directos_test.php - Dashboard, "Pendientes cargadas": cuántas atendieron los supervisores
-// directos y, si las transfirieron a un partner, que sigan siendo suyas y se vea quién las atendió en el partner.
+// 05_TEST/integration/pendientes_directos_test.php - Dashboard "Pendientes y rescates" (2026-10-20; antes sección "Pendientes
+// cargadas" del Dashboard de supervisiones): cuántas atendieron los supervisores directos y, si las transfirieron a un
+// partner, que sigan siendo suyas; indicadores por supervisor de partner (atendidas a tiempo, en plazo, vencidas).
 // Por HTTP contra la API real. Usa fecha de carga 10/02/2001 para no mezclarse con datos reales.
 // Crea un administrador (DNI 99999971), dos supervisores directos (99999972-73), un supervisor de partner (99999974)
 // y 6 pendientes (PRUEBA-PDIR-*); BORRA todo al final.
@@ -35,7 +36,7 @@ $partner = (int)$pdo->query("SELECT id FROM partners WHERE estado=1 AND UPPER(TR
 $clave = 'PdirPrueba' . random_int(1000, 9999);
 $ok = 0; $fail = 0;
 $check = function (string $name, bool $cond, $got = null) use (&$ok, &$fail) { echo ($cond ? '  ✓ ' : '  ✗ ') . $name . ($cond ? '' : ' → ' . json_encode($got, JSON_UNESCAPED_UNICODE)) . "\n"; $cond ? $ok++ : $fail++; };
-echo "Dashboard, pendientes cargadas y su atención — $base\n";
+echo "Pendientes y rescates: supervisores directos y de partner — $base\n";
 
 try {
     $svc = new UsuarioService($pdo);
@@ -77,33 +78,38 @@ try {
     };
     $http("$base/api/auth.php?action=login", [CURLOPT_POST => true, CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
         CURLOPT_POSTFIELDS => json_encode(['usuario' => 'pdir.admin', 'password' => $clave])]);
-    $q = "action=pendientes_directos&fecha_inicio=2001-02-10&fecha_fin=2001-02-10&partner_id=$partner";
+    $q = "desde=2001-02-10&hasta=2001-02-10&partner_id=$partner";
+    $api = "$base/api/dashboard_pendientes.php";
 
-    $o = $http("$base/api/dashboard.php?$q");
-    $r = $o['resumen'] ?? [];
-    $check('6 cargadas: 1 sin tomar y 1 en proceso', ($r['cargadas'] ?? 0) === 6 && ($r['sin_tomar'] ?? 0) === 1 && ($r['en_proceso'] ?? 0) === 1, $o);
-    $check('1 atendida por directos, 3 transferidas, 1 atendida por partner', ($r['atendidas_directo'] ?? 0) === 1 && ($r['transferidas'] ?? 0) === 3 && ($r['atendidas_partner'] ?? 0) === 1, $r);
-    $check('en el partner: 1 en plazo y 1 vencida', ($r['partner_en_plazo'] ?? 0) === 1 && ($r['partner_vencidas'] ?? 0) === 1, $r);
-    $check('2 atendidas del total (33.3%) y 3 h promedio hasta atender', ($r['atendidas'] ?? 0) === 2 && (float)($r['pct_atencion'] ?? 0) === 33.3 && ($r['minutos_atencion'] ?? 0) === 180, $r);
+    $o = $http("$api?action=dashboard&$q");
+    $k = $o['data']['kpis'] ?? [];
+    $check('6 cargadas: 1 sin tomar, 1 en validación, 1 cancelación correcta', ($k['cargadas'] ?? 0) === 6 && ($k['pendiente'] ?? 0) === 1 && ($k['en_validacion'] ?? 0) === 1 && ($k['correcta'] ?? 0) === 1, $k);
+    $check('transferidas: 2 en el partner (1 vencida) y 1 atendida por el partner', ($k['en_partner'] ?? 0) === 2 && ($k['vencidas_partner'] ?? 0) === 1 && ($k['partner_atendida'] ?? 0) === 1, $k);
+    $check('tiempo de atención: 4 h (carga 08:00, cierre 12:00)', (float)($k['horas_promedio'] ?? 0) === 4.0, $k);
 
-    $sup = array_column($o['supervisores'] ?? [], null, 'id');
-    $check('Directo Uno: 3 tomadas (incluye la que transfirió), 2 atendidas = 66.7%', ($sup[$d1]['cargadas'] ?? 0) === 3 && ($sup[$d1]['atendidas'] ?? 0) === 2
-        && ($sup[$d1]['transferidas'] ?? 0) === 1 && ($sup[$d1]['atendidas_partner'] ?? 0) === 1 && (float)($sup[$d1]['pct_atencion'] ?? 0) === 66.7, $sup[$d1] ?? null);
-    $check('Directo Dos: las 2 que transfirió siguen siendo suyas (1 vencida en el partner)', ($sup[$d2]['cargadas'] ?? 0) === 2 && ($sup[$d2]['transferidas'] ?? 0) === 2
-        && ($sup[$d2]['partner_vencidas'] ?? 0) === 1 && ($sup[$d2]['atendidas'] ?? 0) === 0, $sup[$d2] ?? null);
-    $check('el supervisor del partner no aparece como responsable', !isset($sup[$p]), array_keys($sup));
+    $sup = array_column($o['data']['directos'] ?? [], null, 'id');
+    $check('Directo Uno: 3 tomadas (incluye la que transfirió), atendió 1, el partner 1 = 67 %', ($sup[$d1]['tomadas'] ?? 0) === 3 && ($sup[$d1]['cerradas'] ?? 0) === 1
+        && ($sup[$d1]['transferidas'] ?? 0) === 1 && ($sup[$d1]['atendidas_partner'] ?? 0) === 1 && ($sup[$d1]['pct_atencion'] ?? 0) === 67, $sup[$d1] ?? null);
+    $check('Directo Dos: las 2 que transfirió siguen siendo suyas (1 vencida en el partner)', ($sup[$d2]['tomadas'] ?? 0) === 2 && ($sup[$d2]['transferidas'] ?? 0) === 2
+        && ($sup[$d2]['vencidas_partner'] ?? 0) === 1 && ($sup[$d2]['atendidas'] ?? 0) === 0, $sup[$d2] ?? null);
+    $check('el supervisor del partner no aparece como responsable directo', !isset($sup[$p]), array_keys($sup));
+    $par = array_column($o['data']['partners'] ?? [], null, 'id');
+    $check('supervisor de partner: 3 asignadas, 1 atendida a tiempo, 1 en plazo y 1 vencida', ($par[$p]['asignadas'] ?? 0) === 3 && ($par[$p]['atendidas'] ?? 0) === 1
+        && ($par[$p]['en_plazo'] ?? 0) === 1 && ($par[$p]['vencidas'] ?? 0) === 1 && ($par[$p]['pct_a_tiempo'] ?? 0) === 33 && (float)($par[$p]['horas'] ?? 0) === 1.0, $par[$p] ?? null);
 
-    $det = array_column($o['detalle'] ?? [], null, 'ticket_codigo');
+    $t = $http("$api?action=dashboard_tabla&$q");
+    $det = array_column($t['data']['filas'] ?? [], null, 'ticket');
     $t4 = $det['PRUEBA-PDIR-4'] ?? [];
-    $check('detalle de la transferida: responsable el directo, atendida por el del partner', ($t4['situacion'] ?? '') === 'partner_atendida'
-        && str_contains($t4['responsable'] ?? '', 'Directo Uno') && str_contains($t4['atendio'] ?? '', 'Partner Prueba') && ($t4['fecha_atencion'] ?? '') === '2001-02-10 10:00:00', $t4);
-    $check('detalle de la atendida por el directo: atendida por él mismo', ($det['PRUEBA-PDIR-3']['situacion'] ?? '') === 'atendida' && str_contains($det['PRUEBA-PDIR-3']['atendio'] ?? '', 'Directo Uno'), $det['PRUEBA-PDIR-3'] ?? null);
-    $check('detalle de la sin tomar: sin responsable', ($det['PRUEBA-PDIR-1']['situacion'] ?? '') === 'sin_tomar' && array_key_exists('responsable', $det['PRUEBA-PDIR-1'] ?? []) && $det['PRUEBA-PDIR-1']['responsable'] === null, $det['PRUEBA-PDIR-1'] ?? null);
+    $check('tabla, la transferida: responsable el directo, la atiende el del partner', ($t4['estado'] ?? '') === 'partner_atendida'
+        && str_contains($t4['responsable'] ?? '', 'Directo Uno') && str_contains($t4['atiende_partner'] ?? '', 'Partner Prueba'), $t4);
+    $check('tabla, la sin tomar: "Aún no gestionado"', ($det['PRUEBA-PDIR-1']['estado'] ?? '') === 'pendiente' && ($det['PRUEBA-PDIR-1']['responsable'] ?? '') === 'Aún no gestionado', $det['PRUEBA-PDIR-1'] ?? null);
 
-    $o2 = $http("$base/api/dashboard.php?$q&supervisor_id=$d2");
-    $check('filtro por supervisor: solo las 2 de Directo Dos', ($o2['resumen']['cargadas'] ?? 0) === 2 && count($o2['detalle'] ?? []) === 2 && count($o2['supervisores'] ?? []) === 1, $o2['resumen'] ?? $o2);
-    $o3 = $http("$base/api/dashboard.php?action=pendientes_directos&fecha_inicio=2001-02-11&fecha_fin=2001-02-28&partner_id=$partner");
-    $check('otro período (por fecha de carga): nada', ($o3['resumen']['cargadas'] ?? -1) === 0, $o3['resumen'] ?? $o3);
+    $o2 = $http("$api?action=dashboard&$q&supervisor_id=$d2");
+    $check('filtro por supervisor directo: solo las 2 de Directo Dos', ($o2['data']['kpis']['cargadas'] ?? 0) === 2 && count($o2['data']['directos'] ?? []) === 1, $o2['data']['kpis'] ?? $o2);
+    $o3 = $http("$api?action=dashboard&desde=2001-02-11&hasta=2001-02-28&partner_id=$partner");
+    $check('otro período (por fecha de carga): nada', ($o3['data']['kpis']['cargadas'] ?? -1) === 0, $o3['data']['kpis'] ?? $o3);
+    $d = $http("$base/api/dashboard.php?action=pendientes_directos");
+    $check('el Dashboard de supervisiones ya no repite esta información', ($d['status'] ?? '') !== 'success', $d);
 } finally {
     $cleanup();
 }

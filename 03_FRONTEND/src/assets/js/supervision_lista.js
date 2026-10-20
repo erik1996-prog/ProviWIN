@@ -492,7 +492,11 @@
     wrapper.append(search, results);
     select.classList.add('d-none');
 
+    // 2026-10-20: mientras se escribe, el texto no se toca. Antes, al escribir la primera letra se vaciaba la opción
+    // elegida y ese cambio borraba lo escrito: no filtraba y había que bajar por la lista.
+    let escribiendo = false;
     const updateSearchValFromSelect = () => {
+      if (escribiendo) return;
       const selectedOpt = select.options[select.selectedIndex];
       search.value = (selectedOpt && selectedOpt.value) ? selectedOpt.text : '';
     };
@@ -503,7 +507,7 @@
 
     const syncState = () => {
       search.disabled = select.disabled;
-      updateSearchValFromSelect();
+      if (document.activeElement !== search) updateSearchValFromSelect();
       if (select.disabled || select.closest('[style*="display: none"], .d-none')) {
         results.classList.add('d-none');
       }
@@ -563,13 +567,24 @@
 
     search.addEventListener('focus', renderResults);
     search.addEventListener('input', () => {
-      if (search.value !== (select.options[select.selectedIndex]?.text || '')) {
+      if (select.value && search.value !== (select.options[select.selectedIndex]?.text || '')) {
+        escribiendo = true; // al cambiar el texto, la opción anterior deja de valer (sin borrar lo escrito)
         select.value = '';
         select.dispatchEvent(new Event('change', { bubbles: true }));
+        escribiendo = false;
       }
       renderResults();
     });
     search.addEventListener('search', renderResults);
+    // Enter elige la primera coincidencia; Escape cierra la lista.
+    search.addEventListener('keydown', event => {
+      if (event.key === 'Escape') closeResults();
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      results.querySelector('.list-group-item-action:not(.text-muted)')?.click();
+    });
+    // Al salir sin elegir, la caja vuelve a mostrar lo que realmente quedó elegido.
+    search.addEventListener('blur', () => setTimeout(() => { if (!wrapper.contains(document.activeElement)) updateSearchValFromSelect(); }, 150));
 
     document.addEventListener('click', event => {
       if (!wrapper.contains(event.target)) closeResults();
@@ -768,7 +783,10 @@
 
   function sincronizarTecnico(select, inputDni, tipo) {
     const match = listaTecnicos.find(t => t.nombre_tecnico === select.value);
-    inputDni.value = match ? (match.dni || '0') : '';
+    // 2026-10-19: si su ficha no tiene un DNI válido, el campo queda vacío para escribirlo (antes "0", que hacía
+    // que el guardado automático descartara al técnico sin avisar).
+    inputDni.value = match && /^\d{8}$/.test(String(match.dni || '')) ? String(match.dni) : '';
+    inputDni.placeholder = match && !inputDni.value ? `Escriba el DNI del T${tipo} (8 dígitos)` : (tipo === 1 ? 'Se completa al seleccionar al técnico' : 'Sin técnico T2');
     if (tipo === 1) {
       const prefix = select.id.startsWith('edit_') ? 'edit' : 'new';
       const plate = document.getElementById(prefix + '_u_placa');
@@ -2729,7 +2747,7 @@
           <div class="mb-3">
             <label style="cursor:pointer; display:inline-flex; align-items:center; gap:8px; font-weight:700; color:var(--win-dark);">
               <input type="checkbox" id="edit_chk_obs" name="chk_incluir_observacion" value="1" style="width:18px; height:18px;" ${canUseFindingsForm ? '' : 'disabled'}>
-              <i class="bi bi-plus-circle me-1"></i>¿Agregar una nueva observación o falta con 3 fotos?
+              <i class="bi bi-plus-circle me-1"></i>¿Agregar una nueva observación o falta?
             </label>
           </div>
 
@@ -2763,7 +2781,7 @@
             </div>
 
             <!-- CARGA DE 3 FOTOS DE EVIDENCIA CON VISTA PREVIA INMEDIATA -->
-            <p style="font-size:12px; font-weight:700; text-transform:uppercase; color:var(--win-text-muted); margin-bottom:10px;"><i class="bi bi-camera me-1"></i>Evidencias Fotográficas (3 fotos obligatorias)</p>
+            <p style="font-size:12px; font-weight:700; text-transform:uppercase; color:var(--win-text-muted); margin-bottom:10px;"><i class="bi bi-camera me-1"></i>Evidencias fotográficas (al menos 1, hasta 3)</p>
             <div class="grid-bitacora">
               <div class="field-bitacora">
                 <label for="edit_foto1">Foto de evidencia 1</label>
@@ -3088,7 +3106,8 @@
     if (editTec2Nom) {
       editTec2Nom.addEventListener('change', function() {
         const match = listaTecnicos.find(t => t.nombre_tecnico === this.value);
-        editTec2Dni.value = match?.dni || '';
+        editTec2Dni.value = match && /^\d{8}$/.test(String(match.dni || '')) ? String(match.dni) : '';
+        editTec2Dni.placeholder = match && !editTec2Dni.value ? 'Escriba el DNI del T2 (8 dígitos)' : 'Ingrese el DNI si aún no está registrado';
         const btn = this.closest('.grid-bitacora')?.querySelector('.btn-editar-tecnico[data-tipo="2"]');
         if (btn) btn.disabled = !match;
         if (!match && document.getElementById('edit_brevete')?.value === 'Tecnico 2') {
@@ -3128,8 +3147,10 @@
         alGuardar: datos => {
           if (fotosServicioSubidas(datos, 'edit')) { const marca = document.getElementById('edit_tiene_foto_servicio'); if (marca) marca.value = '1'; }
         },
+        advertencia: () => avisoDni('edit'),
       });
       escucharCambios(formDetalle, () => autoguardadoEdicion);
+      vigilarDni(formDetalle, 'edit');
       autoguardadoEdicion.activar();
       document.getElementById('cancelarEdicionBtn')?.addEventListener('click', async () => {
         if (!confirm('¿Seguro que deseas cancelar esta supervisión? La orden vuelve a Pendientes con sus datos originales.')) return;
@@ -3358,6 +3379,10 @@
     if (visibleHabilitado(dniT1) && valor('edit_tec1_dni') && !/^\d{8}$/.test(valor('edit_tec1_dni'))) {
       marcarFaltante(dniT1, 'El DNI del técnico líder debe tener 8 dígitos.');
     }
+    const dniT2 = document.getElementById('edit_tec2_dni');
+    if (valor('edit_tec2_nom') && visibleHabilitado(dniT2) && !/^\d{8}$/.test(valor('edit_tec2_dni'))) {
+      marcarFaltante(dniT2, 'DNI del técnico de apoyo (T2): debe tener 8 dígitos.');
+    }
 
     const tieneFotoGuardada = document.getElementById('edit_tiene_foto_servicio')?.value === '1';
     const inputsFotoServicio = ['edit_foto_serv_1','edit_foto_serv_2','edit_foto_serv_3']
@@ -3375,8 +3400,8 @@
       const camposObs = ['edit_obs_gravedad','edit_obs_cat','edit_obs_sub','edit_obs_det'].map(id => document.getElementById(id));
       camposObs.filter(el => el && !String(el.value || '').trim())
         .forEach(el => marcarFaltante(el._comboInput || el, 'Observación: ' + etiquetaCampo(el)));
-      const fotoFaltante = [1, 2, 3].map(i => document.getElementById(`edit_foto${i}`)).find(foto => foto && !foto.files?.length);
-      if (fotoFaltante) marcarFaltante(fotoFaltante, 'Adjunte las 3 fotos de evidencia de la observación.');
+      const fotosObs = [1, 2, 3].map(i => document.getElementById(`edit_foto${i}`)).filter(Boolean);
+      if (fotosObs.length && !fotosObs.some(foto => foto.files?.length)) marcarFaltante(fotosObs[0], 'Adjunte al menos una foto de evidencia de la observación.');
     }
 
     const chkChecklist = document.getElementById('edit_chk_checklist');
@@ -3443,6 +3468,7 @@
     if (modalidad !== 'En frío' && !remota && !tiposSinCuadrilla.includes(tipo)) {
       if (vacio(newTec1Nom)) agregar(newTec1Nom);
       else if (!/^\d{8}$/.test(newTec1Dni?.value.trim() || '')) agregar(newTec1Dni, 'DNI del técnico líder (8 dígitos)');
+      if (newTec2Nom?.value && !/^\d{8}$/.test(newTec2Dni?.value.trim() || '')) agregar(newTec2Dni, 'DNI del técnico de apoyo (T2), 8 dígitos');
       ['new_u_tipo','new_u_placa','new_u_estado'].map(id => document.getElementById(id)).filter(vacio).forEach(f => agregar(f));
     }
     const lat = Number(document.getElementById('new_latitud')?.value);
@@ -3457,8 +3483,9 @@
     if (newChkObs?.checked) {
       ['new_obs_gravedad','new_obs_cat','new_obs_sub','new_obs_det'].map(id => document.getElementById(id))
         .filter(vacio).forEach(f => agregar(f._comboInput || f, 'Observación: ' + etiquetaCampo(f)));
-      const fotoFalta = ['new_foto1','new_foto2','new_foto3'].map(id => document.getElementById(id)).find(f => f && !f.files?.length);
-      if (fotoFalta) agregar(fotoFalta, 'Las 3 fotos de evidencia de la observación');
+      // 2026-10-19: al menos una foto de la observación (antes las 3 obligatorias).
+      const fotosObs = ['new_foto1','new_foto2','new_foto3'].map(id => document.getElementById(id)).filter(Boolean);
+      if (fotosObs.length && !fotosObs.some(f => f.files?.length)) agregar(fotosObs[0], 'Al menos una foto de evidencia de la observación');
     }
     if (tipo === 'Checklist' || Boolean(newChkChecklist?.checked)) {
       const filas = [...formInicio.querySelectorAll('#new_sec_checklist .checklist-row:not(.checklist-venc)')]
@@ -3534,7 +3561,7 @@
   // ---------- GUARDADO AUTOMÁTICO (2026-10-16) ----------
   // Mientras la supervisión está En proceso, cada cambio se guarda solo (estado "En proceso"). El checklist, la
   // observación y sus fotos se envían al finalizar (mientras tanto quedan en este celular, ver borrador local).
-  function crearAutoguardado({ indicador, construir, alGuardar }) {
+  function crearAutoguardado({ indicador, construir, alGuardar, advertencia }) {
     let temporizador = null, enCurso = null, otraVez = false, activo = false, fallo = false;
     const pintar = (texto, estado = '') => {
       if (!indicador) return;
@@ -3560,7 +3587,9 @@
           if (data.status === 'success') {
             fallo = false;
             alGuardar?.(datos, data);
-            pintar('Guardado ' + new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false }), 'ok');
+            const hora = new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false });
+            const aviso = advertencia?.() || '';
+            pintar(aviso ? `Guardado ${hora} · ${aviso}` : `Guardado ${hora}`, aviso ? 'error' : 'ok');
             return true;
           }
           fallo = false;
@@ -3602,6 +3631,34 @@
     if (document.visibilityState === 'hidden') { autoguardadoNuevo?.ahora(); autoguardadoEdicion?.ahora(); }
   });
 
+  // DNI del T1 y T2 (2026-10-19): con el técnico elegido, su DNI debe tener 8 dígitos. Si no, se marca el campo y se
+  // avisa junto a "Guardado"; lo demás se sigue guardando y el técnico ya guardado no se borra (el servidor lo conserva).
+  function revisarDniTecnicos(prefijo) {
+    const problemas = [];
+    [1, 2].forEach(n => {
+      const nombre = document.getElementById(`${prefijo}_tec${n}_nom`);
+      const dni = document.getElementById(`${prefijo}_tec${n}_dni`);
+      if (!nombre || !dni) return;
+      const mal = Boolean(nombre.value) && !dni.disabled && dni.offsetParent !== null && !/^\d{8}$/.test(dni.value.trim());
+      const caja = dni.closest('.field-bitacora');
+      caja?.classList.toggle('sgs-dni-error', mal);
+      let texto = caja?.querySelector('.sgs-dni-error-texto');
+      if (mal && caja && !texto) { texto = document.createElement('small'); texto.className = 'sgs-dni-error-texto'; caja.append(texto); }
+      if (texto) texto.textContent = !mal ? '' : (dni.value.trim() ? 'El DNI debe tener 8 dígitos.' : `Escriba el DNI del ${n === 1 ? 'técnico líder' : 'técnico de apoyo'}.`);
+      if (mal && !dni.value.trim()) dni.placeholder = `Escriba el DNI del T${n} (8 dígitos)`;
+      if (mal) problemas.push(`T${n}`);
+    });
+    return problemas;
+  }
+  const avisoDni = prefijo => { const p = revisarDniTecnicos(prefijo); return p.length ? `Revise el DNI del ${p.join(' y ')}` : ''; };
+  // Se revisa al salir del campo; mientras se escribe, solo se quita la marca cuando ya está bien.
+  const vigilarDni = (form, prefijo) => {
+    form?.addEventListener('change', e => { if (/_tec\d_(nom|dni)$/.test(e.target.id || '')) revisarDniTecnicos(prefijo); });
+    form?.addEventListener('input', e => {
+      if (/_tec\d_dni$/.test(e.target.id || '') && /^\d{8}$/.test(e.target.value.trim())) revisarDniTecnicos(prefijo);
+    });
+  };
+
   // Quita lo que se envía recién al finalizar y lo que aún no está completo (evita errores y datos a medias).
   function limpiarParaAutoguardado(datos, prefijo) {
     if (!datos) return null;
@@ -3610,6 +3667,7 @@
     });
     const dni = n => document.getElementById(`${prefijo}_tec${n}_dni`)?.value.trim() || '';
     const nombre = n => document.getElementById(`${prefijo}_tec${n}_nom`)?.value || '';
+    // Técnico con DNI incompleto: no se envía; el servidor conserva el que ya estaba guardado (no se borra).
     [1, 2].forEach(n => {
       if (nombre(n) && !/^\d{8}$/.test(dni(n))) ['nombre', 'dni', 'id'].forEach(c => datos.delete(`tecnico${n}_${c}`));
     });
@@ -3751,8 +3809,10 @@
         return limpiarParaAutoguardado(datos, 'new');
       },
       alGuardar: datos => { if (fotosServicioSubidas(datos, 'new')) newHasSavedEvidence = true; },
+      advertencia: () => avisoDni('new'),
     });
     escucharCambios(formInicio, () => autoguardadoNuevo);
+    vigilarDni(formInicio, 'new');
     const alCambiarNuevo = () => { newFormDirty = true; updateNewWorkflowButton(); guardarBorradorLocal(); };
     formInicio.addEventListener('input', alCambiarNuevo);
     formInicio.addEventListener('change', alCambiarNuevo);

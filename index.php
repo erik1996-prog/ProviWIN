@@ -32,8 +32,10 @@ $isPartnerSupervisor = ($rol === Auth::ROLE_JEFE_OPERACIONES) || ($rol === Auth:
 $allowedViews = [
     'supervision_lista'      => ['file' => 'supervision_lista.php',      'title' => 'Supervisiones',            'perm' => Auth::PERM_SUPERVISION_VIEW],
     'supervision_registro'   => ['file' => 'supervision_lista.php',      'title' => 'Registro de supervisión',  'perm' => Auth::PERM_SUPERVISION_VIEW],
-    'admin_dashboard'        => ['file' => 'admin_dashboard.php',        'title' => 'Dashboard de supervisión', 'perm' => Auth::PERM_DASHBOARD_VIEW],
-    'cuadrillas'             => ['file' => 'cuadrillas.php',             'title' => 'Cuadrillas',               'perm' => Auth::PERM_SUPERVISION_VIEW],
+    'admin_dashboard'        => ['file' => 'admin_dashboard.php',        'title' => 'Dashboard de supervisiones', 'perm' => Auth::PERM_DASHBOARD_VIEW],
+    'cuadrillas'             => ['file' => 'cuadrillas.php',             'title' => 'Técnicos y cuadrillas',    'perm' => Auth::PERM_SUPERVISION_VIEW],
+    'examenes'               => ['file' => 'examenes.php',               'title' => 'Exámenes',                 'perm' => Auth::PERM_SUPERVISION_VIEW],
+    'dashboard_pendientes'   => ['file' => 'dashboard_pendientes.php',   'title' => 'Pendientes y rescates',    'perm' => Auth::PERM_SUPERVISION_VIEW],
     'timeline_supervisores'  => ['file' => 'timeline_supervisores.php',  'title' => 'Línea de tiempo',          'perm' => Auth::PERM_TIMELINE_VIEW],
     'registro_observaciones' => ['file' => 'registro_observaciones.php', 'title' => 'Observaciones',            'perm' => Auth::PERM_OBSERVATION_VIEW],
     'observaciones_partner'  => ['file' => 'registro_observaciones.php', 'title' => 'Observaciones',            'perm' => Auth::PERM_OBSERVATION_VIEW],
@@ -74,7 +76,8 @@ if (in_array($page, $administrativeViews, true) && !Auth::isAdministrative()) {
     $page = 'supervision_lista';
 }
 // Cuadrillas (2026-10-15): administración y supervisores directos (la API aplica la misma regla).
-if ($page === 'cuadrillas' && !Auth::isAdministrative() && !$isDirectSupervisorView) {
+// Exámenes y Pendientes y rescates (2026-10-20): dashboards para los mismos que ven Cuadrillas.
+if (in_array($page, ['cuadrillas', 'examenes', 'dashboard_pendientes'], true) && !Auth::isAdministrative() && !$isDirectSupervisorView) {
     $page = 'supervision_lista';
 }
 
@@ -99,6 +102,8 @@ $pageDescriptions = [
     'registro_observaciones' => 'Hallazgos de campo y de checklist, con sus descargos y plazos de respuesta.',
     'admin_dashboard' => 'Indicadores de supervisión, cobertura geográfica y cumplimiento de partners.',
     'cuadrillas' => 'Cada técnico líder con su técnico de apoyo, su vehículo y sus documentos (SOAT, revisión técnica, extintor, brevete).',
+    'examenes' => 'Resultados de los exámenes de los técnicos: aprobación por partner y zona, temas con más errores y detalle por técnico.',
+    'dashboard_pendientes' => 'Cancelaciones cargadas por Excel: pendientes, en validación, en rescate, rescatadas y cancelación correcta.',
     'timeline_supervisores' => 'Jornada del personal directo: turno, supervisiones, traslados y pausas.',
     'control_observaciones' => 'Recurrencia de observaciones y desempeño de técnicos.',
     'guia_estilo' => 'Colores, tipografía y componentes oficiales de SGS. Referencia para crear nuevas secciones.',

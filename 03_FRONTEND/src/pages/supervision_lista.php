@@ -593,7 +593,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
           </div>
 
           <!-- CARGA DE HASTA 3 FOTOS DE EVIDENCIA CON VISTA PREVIA INMEDIATA -->
-          <p style="font-size:12px; font-weight:700; text-transform:uppercase; color:var(--win-text-muted); margin-bottom:10px;"><i class="bi bi-camera me-1"></i>Evidencias Fotográficas (Carga de hasta 3 Fotos)</p>
+          <p style="font-size:12px; font-weight:700; text-transform:uppercase; color:var(--win-text-muted); margin-bottom:10px;"><i class="bi bi-camera me-1"></i>Evidencias fotográficas (al menos 1, hasta 3)</p>
           <div class="grid-bitacora">
             <div class="field-bitacora">
               <label for="new_foto1">Foto de evidencia 1</label>

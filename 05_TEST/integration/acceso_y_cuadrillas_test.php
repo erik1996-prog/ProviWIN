@@ -118,7 +118,7 @@ try {
     [, $j] = $http("$base/api/tecnicos.php?action=cuadrillas");
     $check('API de cuadrillas responde con resumen', ($j['status'] ?? '') === 'success' && isset($j['resumen']['lideres'], $j['resumen']['completas']), $j['message'] ?? null);
     [$pagina] = $http("$base/index.php?page=cuadrillas");
-    $check('pantalla Cuadrillas carga', str_contains($pagina, 'Cuadrillas registradas'));
+    $check('pantalla Cuadrillas carga', str_contains($pagina, 'cuad-vistas') && str_contains($pagina, 'Técnicos de apoyo (T2)'));
 } finally {
     $cleanup();
 }

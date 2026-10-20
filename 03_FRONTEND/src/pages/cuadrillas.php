@@ -4,14 +4,19 @@
 // (emergencias) y cargar la lista de técnicos líderes por Excel (nuevos, cambios de nomenclatura e inhabilitados).
 // Zona (2026-10-15): cada técnico líder tiene provincia y departamento; filtra la lista en el formulario de supervisión.
 // Editor (2026-10-15): datos del T1 y del T2 (DNI, celular), cambiar de T2 o registrar uno nuevo.
-// Link de examen (2026-10-15): para el T1 o el T2 de cada fila; se envía por WhatsApp o se copia (api/examenes.php).
+// Link de examen (2026-10-20): UN link general para los técnicos (T1 y T2) de las cuadrillas filtradas; cada técnico entra
+// con su DNI. Solo se genera si todos tienen DNI (los que faltan se corrigen con el lápiz). Reemplaza al link por fila.
+// Editar cuadrilla (2026-10-20): también los supervisores directos, solo las de su zona (api/tecnicos.php lo valida).
+// Vistas (2026-10-20, ?vista=): Cuadrillas | Técnicos líderes (T1) | Técnicos de apoyo (T2), con los mismos filtros y el
+// resultado del último examen de cada técnico. En la de T2 se ve a qué líder apoya (o "Sin cuadrilla").
 // Vencimientos (2026-10-15): SOAT, revisión técnica, extintor y brevete van en la columna Vehículo con su color; al tocarlos
 // se abre su historial y se actualizan fechas (vencimientos.js, api/vencimientos.php). Filtro "docs" por estado de documentos.
 Auth::requireLogin();
 $user = Auth::getLoggedInUser();
 $esDirecto = ($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($user['is_win_directo']);
-$puedeEditar = Auth::isAdministrative();
-if (!$puedeEditar && !$esDirecto) {
+$esAdmin = Auth::isAdministrative();
+$puedeEditar = $esAdmin || $esDirecto; // editar cuadrillas (el directo, solo de su zona)
+if (!$puedeEditar) {
     echo '<div class="alert alert-danger m-4">Acceso reservado al personal administrativo y a los supervisores directos.</div>';
     return;
 }
@@ -21,6 +26,7 @@ $busqueda = mb_substr(trim((string)($_GET['q'] ?? '')), 0, 60);
 $estadoFiltro = in_array($_GET['estado'] ?? '', ['completas', 'incompletas'], true) ? $_GET['estado'] : '';
 $operativoFiltro = in_array($_GET['operativo'] ?? '', ['todos', 'Inhabilitado', 'Blacklist'], true) ? $_GET['operativo'] : '';
 $zonaFiltro = mb_substr(trim((string)($_GET['zona'] ?? '')), 0, 100);
+$vista = in_array($_GET['vista'] ?? '', ['lideres', 'apoyo'], true) ? $_GET['vista'] : 'cuadrillas';
 $docsFiltro = in_array($_GET['docs'] ?? '', ['alerta', 'malo', 'regular', 'sin_registrar'], true) ? $_GET['docs'] : '';
 $zonasRegistradas = $pdo->query("SELECT DISTINCT departamento FROM tecnicos WHERE COALESCE(tipo_tecnico, 1) = 1 AND departamento IS NOT NULL AND departamento <> '' ORDER BY departamento")->fetchAll(PDO::FETCH_COLUMN);
 $partners = $pdo->query("SELECT id, nombre_partner FROM partners WHERE estado = 1 AND UPPER(nombre_partner) NOT LIKE 'WIN%' ORDER BY nombre_partner")->fetchAll();
@@ -32,7 +38,7 @@ elseif ($operativoFiltro !== 'todos') { $where[] = 't.estado_operativo = :operat
 if ($partnerFiltro > 0) { $where[] = 't.partner_id = :partner'; $params[':partner'] = $partnerFiltro; }
 // Zona del usuario (2026-10-15): el supervisor ve solo las cuadrillas de sus departamentos (más las que aún no tienen
 // zona, como en el formulario). El personal administrativo y la sede "Provincias" ven todas.
-$zonasUsuario = $puedeEditar ? null : sgsUserZones((int)$user['id']);
+$zonasUsuario = $esAdmin ? null : sgsUserZones((int)$user['id']);
 if ($zonasUsuario !== null) {
     $zp = [];
     $where[] = '(' . sgsZoneSql('t.departamento', (int)$user['id'], $zp, ':uz') . " OR t.departamento IS NULL OR t.departamento = '')";
@@ -88,6 +94,62 @@ if ($docsFiltro !== '') $filas = array_values(array_filter($filas, static fn($f)
 $apoyos = $puedeEditar ? $pdo->query("SELECT t.id, t.nombre_tecnico, t.dni, t.celular, p.nombre_partner FROM tecnicos t LEFT JOIN partners p ON p.id = t.partner_id
     WHERE t.tipo_tecnico = 2 AND t.estado_operativo <> 'Blacklist' ORDER BY t.nombre_tecnico")->fetchAll() : [];
 $e = static fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+// Técnicos de apoyo (T2) con el líder al que apoyan; la zona es la suya o, si no tiene, la de su líder.
+$depT2 = "COALESCE(NULLIF(a.departamento, ''), l.departamento)";
+$whereT2 = ['a.tipo_tecnico = 2'];
+$paramsT2 = [];
+if ($operativoFiltro === '') $whereT2[] = "a.estado_operativo = 'Habilitado'";
+elseif ($operativoFiltro !== 'todos') { $whereT2[] = 'a.estado_operativo = :operativo'; $paramsT2[':operativo'] = $operativoFiltro; }
+if ($partnerFiltro > 0) { $whereT2[] = 'a.partner_id = :partner'; $paramsT2[':partner'] = $partnerFiltro; }
+if ($zonasUsuario !== null) {
+    $zp = [];
+    $whereT2[] = '(' . sgsZoneSql($depT2, (int)$user['id'], $zp, ':uz') . " OR {$depT2} IS NULL OR {$depT2} = '')";
+    $paramsT2 += $zp;
+}
+if ($zonaFiltro === 'sin_zona') $whereT2[] = "({$depT2} IS NULL OR {$depT2} = '')";
+elseif ($zonaFiltro !== '') { $whereT2[] = "{$depT2} = :zona"; $paramsT2[':zona'] = $zonaFiltro; }
+if ($busqueda !== '') {
+    $whereT2[] = '(a.nombre_tecnico LIKE :q1 OR a.dni LIKE :q2 OR l.nombre_tecnico LIKE :q3)';
+    $like = '%' . addcslashes($busqueda, '%_\\') . '%';
+    $paramsT2 += [':q1' => $like, ':q2' => $like, ':q3' => $like];
+}
+// La lista de T2 solo se trae en su vista; en las demás basta contarlos para la pestaña (consulta liviana).
+$desdeT2 = 'FROM tecnicos a LEFT JOIN tecnicos l ON l.apoyo_id = a.id AND COALESCE(l.tipo_tecnico, 1) = 1 LEFT JOIN partners p ON p.id = a.partner_id
+    WHERE ' . implode(' AND ', $whereT2);
+$apoyosLista = [];
+if ($vista === 'apoyo') {
+    $stT2 = $pdo->prepare("SELECT a.id, a.nombre_tecnico, a.dni, a.celular, a.estado_operativo, a.provincia, a.departamento, p.nombre_partner,
+            l.id AS lider_id, l.nombre_tecnico AS lider_nombre, l.provincia AS lider_provincia, l.departamento AS lider_departamento
+        {$desdeT2} ORDER BY (l.id IS NULL), p.nombre_partner, a.nombre_tecnico LIMIT 1000");
+    $stT2->execute($paramsT2);
+    $apoyosLista = $stT2->fetchAll();
+    $totalApoyos = count($apoyosLista);
+} else {
+    $stT2 = $pdo->prepare("SELECT COUNT(*) {$desdeT2}");
+    $stT2->execute($paramsT2);
+    $totalApoyos = (int)$stT2->fetchColumn();
+}
+// Último examen rendido de cada técnico: solo en las vistas que lo muestran (T1 y T2).
+$ultimoExamen = [];
+$idsExamen = ['apoyo' => array_column($apoyosLista, 'id'), 'lideres' => array_column($filas, 'id')][$vista] ?? [];
+if ($idsExamen) {
+    $ph = implode(',', array_fill(0, count($idsExamen), '?'));
+    $stEx = $pdo->prepare("SELECT ct.tecnico_id, ct.nota, ct.aprobado, ct.usado_en, c.titulo FROM examen_convocatoria_tecnicos ct
+        JOIN examen_convocatorias c ON c.id = ct.convocatoria_id WHERE ct.usado_en IS NOT NULL AND ct.tecnico_id IN ($ph) ORDER BY ct.usado_en DESC");
+    $stEx->execute(array_map('intval', $idsExamen));
+    foreach ($stEx->fetchAll() as $x) $ultimoExamen[(int)$x['tecnico_id']] ??= $x;
+}
+$badgeExamen = static function (int $id) use ($ultimoExamen, $e): string {
+    $x = $ultimoExamen[$id] ?? null;
+    if (!$x) return '<span class="text-muted">Sin examen</span>';
+    return '<span class="badge ' . ($x['aprobado'] ? 'bg-success' : 'bg-danger') . '" title="' . $e($x['titulo'] . ' · ' . date('d/m/Y', strtotime($x['usado_en']))) . '">'
+        . ($x['aprobado'] ? 'Aprobado' : 'No aprobado') . ' · ' . (int)round((float)$x['nota']) . ' %</span>';
+};
+$urlVista = static function (string $v): string {
+    $q = $_GET; $q['page'] = 'cuadrillas';
+    if ($v === 'cuadrillas') unset($q['vista']); else $q['vista'] = $v;
+    return 'index.php?' . http_build_query($q);
+};
 require_once BACKEND_PATH . '/config/tecnicos_lideres.php'; // sgsTextoZona y la lista de provincias
 $sinZona = count(array_filter($filas, static fn($f) => trim((string)$f['departamento']) === ''));
 $etiquetaDoc = ['SOAT' => 'SOAT', 'Revisión técnica' => 'Rev. técnica', 'Extintor' => 'Extintor', 'Brevete' => 'Brevete'];
@@ -99,14 +161,28 @@ $urlDocs = static function (string $filtro): string {
 $claseVehiculo = ['Buen estado' => 'bg-success', 'Regular' => 'bg-warning', 'Mal estado' => 'bg-danger'];
 $claseOperativo = ['Habilitado' => 'bg-success', 'Inhabilitado' => 'bg-secondary', 'Blacklist' => 'bg-danger'];
 $columnas = 6;
+$partnerNombre = '';
+foreach ($partners as $p) if ((int)$p['id'] === $partnerFiltro) $partnerNombre = $p['nombre_partner'];
+$descripcionFiltro = implode(' · ', array_filter([
+    $partnerNombre ?: 'Todos los partners',
+    $zonaFiltro === 'sin_zona' ? 'Sin zona' : ($zonaFiltro ?: ($zonasUsuario ? implode(', ', $zonasUsuario) : 'Todas las zonas')),
+    ['completas' => 'Completas', 'incompletas' => 'Por completar'][$estadoFiltro] ?? '',
+    ['alerta' => 'Documentos con alerta', 'malo' => 'Documentos vencidos', 'regular' => 'Documentos por vencer', 'sin_registrar' => 'Documentos sin registrar'][$docsFiltro] ?? '',
+    $busqueda !== '' ? 'Búsqueda: ' . $busqueda : '',
+]));
+// Provincias que puede elegir en el editor: el supervisor directo, solo las de su zona.
+$provinciasEditor = sgsProvinciasPorDepartamento();
+if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, static fn($dep) => in_array(mb_strtoupper($dep, 'UTF-8'), $zonasUsuario, true), ARRAY_FILTER_USE_KEY);
 ?>
 <div class="container-fluid p-3 p-md-4">
-  <?php if ($puedeEditar): ?>
   <div class="sgs-page-actions">
+    <button type="button" class="btn <?= $esAdmin ? 'btn-outline-secondary' : 'btn-win' ?>" id="btnLinkExamen" data-filtro="<?= $e($descripcionFiltro) ?>" <?= $filas && $vista !== 'apoyo' ? '' : 'disabled' ?>
+      title="<?= $vista === 'apoyo' ? 'El link se arma por cuadrillas: use la vista Cuadrillas o Técnicos líderes' : 'Un link para los técnicos (T1 y T2) de las cuadrillas que se ven con estos filtros' ?>"><i class="bi bi-link-45deg me-1"></i>Link de examen (<?= count($filas) ?> <?= count($filas) === 1 ? 'cuadrilla' : 'cuadrillas' ?>)</button>
+    <?php if ($esAdmin): ?>
     <a class="btn btn-outline-secondary" href="api/tecnicos.php?action=exportar_lideres"><i class="bi bi-file-earmark-arrow-down me-1"></i>Descargar lista (Excel)</a>
     <button type="button" class="btn btn-win" id="btnCargarLideres"><i class="bi bi-file-earmark-arrow-up me-1"></i>Cargar técnicos líderes</button>
+    <?php endif; ?>
   </div>
-  <?php endif; ?>
   <div class="row g-3 mb-3">
     <div class="col-6 col-lg-3"><div class="sgs-kpi p-3 h-100">
       <span class="sgs-kpi-icon" aria-hidden="true"><i class="bi bi-person-badge"></i></span>
@@ -132,6 +208,7 @@ $columnas = 6;
 
   <form class="card sgs-toolbar-card p-3 mb-3" method="get">
     <input type="hidden" name="page" value="cuadrillas">
+    <?php if ($vista !== 'cuadrillas'): ?><input type="hidden" name="vista" value="<?= $e($vista) ?>"><?php endif; ?>
     <?php if ($docsFiltro !== ''): ?><input type="hidden" name="docs" value="<?= $e($docsFiltro) ?>"><?php endif; ?>
     <div class="sgs-toolbar">
       <div class="sgs-segmented" role="group" aria-label="Documentos (SOAT, revisión técnica, extintor, brevete)">
@@ -179,12 +256,62 @@ $columnas = 6;
 
   <div class="card p-3 p-md-4">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-      <h5 class="mb-0"><i class="bi bi-people-fill me-2 text-primary"></i>Cuadrillas registradas</h5>
-      <span class="sgs-counter"><?= count($filas) ?> <?= count($filas) === 1 ? 'técnico líder' : 'técnicos líderes' ?></span>
+      <div class="sgs-segmented cuad-vistas" role="group" aria-label="Vista">
+        <?php foreach (['cuadrillas' => ['Cuadrillas', count($filas)], 'lideres' => ['Técnicos líderes (T1)', count($filas)], 'apoyo' => ['Técnicos de apoyo (T2)', $totalApoyos]] as $clave => [$texto, $n]): ?>
+        <a class="filter-tab-btn <?= $vista === $clave ? 'active' : '' ?>" href="<?= $e($urlVista($clave)) ?>"><?= $texto ?> <span class="sgs-seg-count"><?= $n ?></span></a>
+        <?php endforeach; ?>
+      </div>
     </div>
-    <p class="text-muted small">Se completan solas: al <strong>cerrar</strong> una supervisión con <strong>Guardar el T2 y el vehículo</strong> activado, el técnico de apoyo, el vehículo y su estado quedan como cuadrilla del técnico líder.<?= $puedeEditar ? ' Para una corrección urgente, use el lápiz de cada fila.' : '' ?> En el formulario de supervisión solo aparecen los técnicos líderes de la <strong>zona</strong> elegida.</p>
+    <p class="text-muted small">Se completan solas: al <strong>cerrar</strong> una supervisión, el técnico de apoyo, el vehículo y su estado quedan como cuadrilla del técnico líder. Para corregirla, use el lápiz de cada fila<?= $esAdmin ? '' : ' (solo las de su zona)' ?>. En el formulario de supervisión solo aparecen los técnicos líderes de la <strong>zona</strong> elegida.</p>
     <?php if ($zonasUsuario !== null): ?><p class="small mb-2"><i class="bi bi-geo-alt me-1 text-primary"></i>Se muestran las cuadrillas de su zona: <strong><?= $e($zonasUsuario ? implode(", ", $zonasUsuario) : "sin zona asignada") ?></strong>.</p><?php endif; ?>
     <?php if ($sinZona): ?><div class="alert alert-warning small py-2"><i class="bi bi-geo-alt me-1"></i><?= $sinZona ?> <?= $sinZona === 1 ? 'técnico líder no tiene' : 'técnicos líderes no tienen' ?> zona. Cargue el Excel con la columna <strong>PROVINCIA</strong><?= $puedeEditar ? ' o asígnela con el lápiz' : '' ?>; mientras tanto aparecen en cualquier zona.</div><?php endif; ?>
+    <?php
+    // Lápiz de edición de la cuadrilla (mismo editor en la vista Cuadrillas y en Técnicos líderes).
+    $botonEditar = static fn(array $f): string => $puedeEditar ? '<button type="button" class="sgs-icon-action" title="Editar cuadrilla" aria-label="Editar cuadrilla de ' . $e($f['nombre_tecnico']) . '"'
+        . ' data-editar="' . (int)$f['id'] . '" data-nombre="' . $e($f['nombre_tecnico']) . '" data-partner="' . $e($f['nombre_partner'] ?: '—') . '"'
+        . ' data-dni="' . $e($f['dni']) . '" data-celular="' . $e($f['celular']) . '" data-apoyo="' . (int)$f['apoyo_id'] . '" data-placa="' . $e($f['placa']) . '"'
+        . ' data-tipo="' . $e($f['vehiculo_tipo']) . '" data-estado="' . $e($f['vehiculo_estado']) . '" data-operativo="' . $e($f['estado_operativo']) . '"'
+        . ' data-provincia="' . $e($f['provincia'] ?: $f['departamento']) . '"><i class="bi bi-pencil"></i></button>' : '';
+    $zonaTexto = static fn(?string $prov, ?string $dep): string => trim((string)$dep) === '' ? '<span class="text-warning-emphasis">Sin zona</span>' : $e(sgsTextoZona($prov, $dep));
+    $estadoBadge = static fn(?string $estado): string => ($estado ?? 'Habilitado') !== 'Habilitado' ? ' <span class="badge ' . ($claseOperativo[$estado] ?? 'bg-secondary') . '">' . $e($estado) . '</span>' : '';
+    ?>
+    <?php if ($vista === 'lideres'): ?>
+    <div class="table-responsive"><table class="table table-hover mb-0 align-middle sgs-tabla-tarjetas cuad-tabla">
+      <thead><tr><th>Técnico líder (T1)</th><th>DNI y celular</th><th>Partner y zona</th><th>Su cuadrilla</th><th>Último examen</th><th class="text-end">Acciones</th></tr></thead>
+      <tbody>
+      <?php if (!$filas): ?><tr><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-inbox d-block fs-3 mb-1"></i>No hay técnicos líderes con estos filtros.</td></tr><?php endif; ?>
+      <?php foreach ($filas as $f): ?>
+        <tr data-lider="<?= (int)$f['id'] ?>">
+          <td data-label="Técnico líder"><span class="fw-bold"><?= $e($f['nombre_tecnico']) ?></span><?= $estadoBadge($f['estado_operativo']) ?></td>
+          <td data-label="DNI y celular"><div><div class="<?= preg_match('/^\d{8}$/', (string)$f['dni']) ? '' : 'text-danger fw-bold' ?>"><?= preg_match('/^\d{8}$/', (string)$f['dni']) ? $e($f['dni']) : 'Sin DNI' ?></div><small class="text-muted"><?= $e($f['celular'] ?: 'Sin celular') ?></small></div></td>
+          <td data-label="Partner y zona"><div><div><?= $e($f['nombre_partner'] ?: '—') ?></div><small class="text-muted"><i class="bi bi-geo-alt me-1"></i><?= $zonaTexto($f['provincia'], $f['departamento']) ?></small></div></td>
+          <td data-label="Su cuadrilla"><div><div><?= $f['apoyo_nombre'] ? 'T2: ' . $e($f['apoyo_nombre']) : '<span class="text-muted">Sin T2</span>' ?></div><small class="text-muted"><?= $f['placa'] ? 'Vehículo ' . $e($f['placa']) : 'Sin vehículo' ?></small></div></td>
+          <td data-label="Último examen"><?= $badgeExamen((int)$f['id']) ?></td>
+          <td class="text-end"><div class="sgs-row-actions justify-content-end"><?= $botonEditar($f) ?></div></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table></div>
+    <?php elseif ($vista === 'apoyo'): ?>
+    <div class="table-responsive"><table class="table table-hover mb-0 align-middle sgs-tabla-tarjetas cuad-tabla">
+      <thead><tr><th>Técnico de apoyo (T2)</th><th>DNI y celular</th><th>Partner y zona</th><th>Apoya a</th><th>Último examen</th><th class="text-end">Acciones</th></tr></thead>
+      <tbody>
+      <?php if (!$apoyosLista): ?><tr><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-inbox d-block fs-3 mb-1"></i>No hay técnicos de apoyo con estos filtros.</td></tr><?php endif; ?>
+      <?php foreach ($apoyosLista as $a): ?>
+        <tr>
+          <td data-label="Técnico de apoyo"><span class="fw-bold"><?= $e($a['nombre_tecnico']) ?></span><?= $estadoBadge($a['estado_operativo']) ?></td>
+          <td data-label="DNI y celular"><div><div class="<?= preg_match('/^\d{8}$/', (string)$a['dni']) ? '' : 'text-danger fw-bold' ?>"><?= preg_match('/^\d{8}$/', (string)$a['dni']) ? $e($a['dni']) : 'Sin DNI' ?></div><small class="text-muted"><?= $e($a['celular'] ?: 'Sin celular') ?></small></div></td>
+          <td data-label="Partner y zona"><div><div><?= $e($a['nombre_partner'] ?: '—') ?></div><small class="text-muted"><i class="bi bi-geo-alt me-1"></i><?= trim((string)$a['departamento']) !== '' ? $zonaTexto($a['provincia'], $a['departamento']) : $zonaTexto($a['lider_provincia'], $a['lider_departamento']) ?></small></div></td>
+          <td data-label="Apoya a"><?= $a['lider_id'] ? $e($a['lider_nombre']) : '<span class="text-muted">Sin cuadrilla</span>' ?></td>
+          <td data-label="Último examen"><?= $badgeExamen((int)$a['id']) ?></td>
+          <td class="text-end"><div class="sgs-row-actions justify-content-end"><?php if ($a['lider_id']): ?>
+            <a class="sgs-icon-action" href="index.php?page=cuadrillas&amp;q=<?= $e(rawurlencode($a['lider_nombre'])) ?>" title="Ver su cuadrilla" aria-label="Ver la cuadrilla de <?= $e($a['nombre_tecnico']) ?>"><i class="bi bi-people"></i></a>
+          <?php endif; ?></div></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table></div>
+    <?php else: ?>
     <div class="table-responsive"><table class="table table-hover mb-0 align-middle sgs-tabla-tarjetas cuad-tabla">
       <thead><tr><th>Técnico líder</th><th>Partner y zona</th><th title="Técnico de apoyo (T2)">Apoyo (T2)</th><th>Vehículo</th><th>Supervisiones</th><th class="text-end">Acciones</th></tr></thead>
       <tbody>
@@ -192,7 +319,7 @@ $columnas = 6;
         <tr><td colspan="<?= $columnas ?>" class="text-center text-muted py-4"><i class="bi bi-inbox d-block fs-3 mb-1"></i>No hay técnicos líderes con estos filtros.</td></tr>
       <?php endif; ?>
       <?php foreach ($filas as $f): ?>
-        <tr>
+        <tr data-lider="<?= (int)$f['id'] ?>">
           <td data-label="Técnico líder"><div><div class="fw-bold"><?= $e($f['nombre_tecnico']) ?></div>
             <small class="text-muted">DNI <?= $e($f['dni'] ?: '—') ?></small>
             <?php if (($f['estado_operativo'] ?? 'Habilitado') !== 'Habilitado'): ?> <span class="badge <?= $claseOperativo[$f['estado_operativo']] ?? 'bg-secondary' ?>"><?= $e($f['estado_operativo']) ?></span><?php endif; ?></div></td>
@@ -210,20 +337,13 @@ $columnas = 6;
           <td data-label="Supervisiones"><div class="cuad-celda"><span class="fw-bold"><?= (int)$f['supervisiones'] ?></span>
             <?php if ($f['ultima_supervision']): ?><small class="text-muted text-nowrap" title="Última supervisión">Última: <?= date('d/m/Y', strtotime($f['ultima_supervision'])) ?></small><?php endif; ?></div></td>
           <td class="text-end"><div class="sgs-row-actions justify-content-end">
-            <button type="button" class="sgs-icon-action" title="Link de examen" aria-label="Link de examen para la cuadrilla de <?= $e($f['nombre_tecnico']) ?>"
-              data-examen="<?= (int)$f['id'] ?>"><i class="bi bi-link-45deg"></i></button>
-            <?php if ($puedeEditar): ?>
-            <button type="button" class="sgs-icon-action" title="Editar cuadrilla" aria-label="Editar cuadrilla de <?= $e($f['nombre_tecnico']) ?>"
-              data-editar="<?= (int)$f['id'] ?>" data-nombre="<?= $e($f['nombre_tecnico']) ?>" data-partner="<?= $e($f['nombre_partner'] ?: '—') ?>"
-              data-dni="<?= $e($f['dni']) ?>" data-celular="<?= $e($f['celular']) ?>"
-              data-apoyo="<?= (int)$f['apoyo_id'] ?>" data-placa="<?= $e($f['placa']) ?>" data-tipo="<?= $e($f['vehiculo_tipo']) ?>"
-              data-estado="<?= $e($f['vehiculo_estado']) ?>" data-operativo="<?= $e($f['estado_operativo']) ?>" data-provincia="<?= $e($f['provincia'] ?: $f['departamento']) ?>"><i class="bi bi-pencil"></i></button>
-            <?php endif; ?>
+            <?= $botonEditar($f) ?>
           </div></td>
         </tr>
       <?php endforeach; ?>
       </tbody>
     </table></div>
+    <?php endif; ?>
   </div>
 </div>
 
@@ -273,8 +393,8 @@ $columnas = 6;
         <h6 class="cuad-seccion"><i class="bi bi-geo-alt me-2" aria-hidden="true"></i>Zona y estado</h6>
         <div class="mb-3"><label class="form-label" for="cuadProvincia">Provincia (zona)</label>
           <input class="form-control text-uppercase" id="cuadProvincia" name="provincia" maxlength="100" list="listaProvincias" placeholder="Ej.: TRUJILLO" autocomplete="off">
-          <datalist id="listaProvincias"><?php foreach (sgsProvinciasPorDepartamento() as $dep => $provs) foreach ($provs as $pv): ?><option value="<?= $e($pv) ?>"><?= $e($dep) ?></option><?php endforeach; ?></datalist>
-          <small class="text-muted">El departamento se busca solo. Vacía = sin zona (aparece en todas).</small></div>
+          <datalist id="listaProvincias"><?php foreach ($provinciasEditor as $dep => $provs) foreach ($provs as $pv): ?><option value="<?= $e($pv) ?>"><?= $e($dep) ?></option><?php endforeach; ?></datalist>
+          <small class="text-muted">El departamento se busca solo.<?= $esAdmin ? ' Vacía = sin zona (aparece en todas).' : ' Solo provincias de su zona.' ?></small></div>
         <div><label class="form-label" for="cuadOperativoEdit">Estado del técnico líder</label>
           <select class="form-select" id="cuadOperativoEdit" name="estado_operativo"><option>Habilitado</option><option>Inhabilitado</option><option value="Blacklist">Lista negra</option></select></div>
         <div class="alert alert-danger d-none mt-3 mb-0" id="cuadError" role="alert"></div>
@@ -284,6 +404,8 @@ $columnas = 6;
   </div></div>
 </div>
 
+<?php endif; ?>
+<?php if ($esAdmin): ?>
 <!-- ===== Cargar técnicos líderes ===== -->
 <div class="modal fade" id="mCargaLideres" tabindex="-1" aria-labelledby="mCargaTitulo" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable"><div class="modal-content">
@@ -309,17 +431,19 @@ $columnas = 6;
 </div>
 <?php endif; ?>
 
-<!-- ===== Link de examen ===== -->
+<!-- ===== Link general de examen (2026-10-20) ===== -->
 <div class="modal fade" id="mExamen" tabindex="-1" aria-labelledby="mExamenTitulo" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
-    <div class="modal-header"><h5 class="modal-title" id="mExamenTitulo"><i class="bi bi-link-45deg me-2"></i>Link de examen</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="mExamenTitulo"><i class="bi bi-link-45deg me-2"></i>Link de examen para las cuadrillas filtradas</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
     <div class="modal-body">
-      <div id="exCargando" class="text-muted small">Cargando…</div>
+      <div id="exCargando" class="text-muted small">Revisando a los técnicos…</div>
       <div id="exContenido" class="d-none">
-        <label class="form-label">Técnico</label>
-        <div class="sgs-segmented mb-3 ex-personas" role="group" aria-label="Técnico" id="exPersonas"></div>
+        <p class="small text-muted mb-2"><i class="bi bi-funnel me-1" aria-hidden="true"></i><span id="exFiltro"></span></p>
+        <div class="row g-2 mb-3" id="exResumen"></div>
+        <div id="exSinDni"></div>
+        <div id="exExcluidos"></div>
         <div class="row g-3 mb-3">
-          <div class="col-sm-7"><label class="form-label" for="exTitulo">Examen</label><input class="form-control" id="exTitulo" maxlength="150" value="Evaluación técnica"></div>
+          <div class="col-sm-7"><label class="form-label" for="exExamen">Examen</label><select class="form-select" id="exExamen"></select><small class="text-muted" id="exExamenAyuda"></small></div>
           <div class="col-sm-5"><label class="form-label" for="exHoras">Vigencia</label><select class="form-select" id="exHoras"><option value="2">2 horas</option><option value="24" selected>24 horas</option><option value="72">3 días</option></select></div>
         </div>
         <button type="button" class="btn btn-win w-100" id="exGenerar"><i class="bi bi-link-45deg me-1"></i>Generar link</button>
@@ -333,12 +457,21 @@ $columnas = 6;
             <button type="button" class="btn btn-outline-secondary" id="exCopiar"><i class="bi bi-clipboard me-1"></i>Copiar</button>
             <button type="button" class="btn btn-outline-secondary d-none" id="exCompartir"><i class="bi bi-share me-1"></i>Otras apps</button>
           </div>
-          <small class="text-muted d-block mt-2">Envíelo ahora: por seguridad el link no se vuelve a mostrar. Si se pierde, genere otro (el anterior se anula).</small>
+          <small class="text-muted d-block mt-2">Envíelo ahora: por seguridad el link no se vuelve a mostrar. Cada técnico entra con su DNI.</small>
         </div>
-        <h6 class="cuad-seccion mt-4"><i class="bi bi-clock-history me-2" aria-hidden="true"></i>Historial de links</h6>
-        <div id="exHistorial"></div>
       </div>
+      <h6 class="cuad-seccion mt-4"><i class="bi bi-clock-history me-2" aria-hidden="true"></i>Links generados</h6>
+      <div id="exHistorial"><p class="text-muted small mb-0">Cargando…</p></div>
     </div>
+  </div></div>
+</div>
+
+<!-- ===== Técnicos de un link (quién ya entró) ===== -->
+<div class="modal fade" id="mExamenDetalle" tabindex="-1" aria-labelledby="mExamenDetalleTitulo" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="mExamenDetalleTitulo"><i class="bi bi-people me-2"></i><span id="exDetTitulo">Técnicos del link</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+    <div class="modal-body" id="exDetalle"></div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button></div>
   </div></div>
 </div>
 
@@ -366,53 +499,68 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('mVencimientos')?.addEventListener('hidden.bs.modal', () => { if (cambio) location.reload(); }, { once: true });
   });
 
-  // ---------- Link de examen (T1 o T2 de la cuadrilla) ----------
+  // ---------- Link general de examen (2026-10-20): T1 y T2 de las cuadrillas filtradas ----------
   const mExamen = bootstrap.Modal.getOrCreateInstance($('mExamen'));
-  const estados = { activo: ['bg-success', 'Vigente'], abierto: ['bg-primary', 'Abierto por el técnico'], usado: ['bg-dark', 'Examen rendido'], vencido: ['bg-secondary', 'Vencido'], anulado: ['bg-secondary', 'Anulado'] };
-  let personas = [], elegido = null;
+  const mExamenDetalle = bootstrap.Modal.getOrCreateInstance($('mExamenDetalle'));
+  const estadosLink = { activo: ['bg-success', 'Vigente'], vencido: ['bg-secondary', 'Vencido'], anulado: ['bg-secondary', 'Anulado'] };
+  const lideresFiltrados = () => [...document.querySelectorAll('.cuad-tabla tbody tr[data-lider]')].map((tr) => tr.dataset.lider);
+  const datosLideres = () => { const d = new FormData(); lideresFiltrados().forEach((id) => d.append('lider_ids[]', id)); return d; };
   const pintarHistorial = (lista) => {
-    $('exHistorial').innerHTML = !lista.length ? '<p class="text-muted small mb-0"><i class="bi bi-inbox me-1"></i>Todavía no se le generó ningún link.</p>'
+    $('exHistorial').innerHTML = !lista.length ? '<p class="text-muted small mb-0"><i class="bi bi-inbox me-1"></i>Todavía no se generó ningún link.</p>'
       : '<ul class="ex-historial">' + lista.map((h) => {
-        const [clase, texto] = estados[h.estado] || ['bg-secondary', h.estado];
-        const vigente = h.estado === 'activo' || h.estado === 'abierto';
-        return `<li><div class="ex-historial-texto"><strong>${esc(h.titulo)}</strong><small class="text-muted">Generado el ${fechaHora(h.creado_en)}${h.generado_por_nombre ? ' por ' + esc(h.generado_por_nombre) : ''} · vence ${fechaHora(h.vence_en)}</small></div>
-          <div class="ex-historial-acciones"><span class="badge ${clase}">${texto}</span>${vigente ? `<button type="button" class="btn btn-sm btn-outline-danger" data-anular="${h.id}">Anular</button>` : ''}</div></li>`;
+        const [clase, texto] = estadosLink[h.estado] || ['bg-secondary', h.estado];
+        return `<li><div class="ex-historial-texto"><strong>${esc(h.titulo)}</strong><small class="text-muted">${esc(h.filtro || '')}${h.filtro ? ' · ' : ''}Generado el ${fechaHora(h.creado_en)}${h.generado_por_nombre ? ' por ' + esc(h.generado_por_nombre) : ''} · vence ${fechaHora(h.vence_en)}</small>
+            <small><strong>${Number(h.rindieron)}</strong> de ${Number(h.total)} rindieron · ${Number(h.aprobados)} aprobados</small></div>
+          <div class="ex-historial-acciones"><span class="badge ${clase}">${texto}</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-ver-link="${h.id}">Ver técnicos</button>
+            ${h.estado === 'activo' ? `<button type="button" class="btn btn-sm btn-outline-danger" data-anular-link="${h.id}">Anular</button>` : ''}</div></li>`;
       }).join('') + '</ul>';
   };
-  const elegir = (id) => {
-    elegido = personas.find((p) => String(p.id) === String(id)) || personas[0];
-    $('exPersonas').querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.persona === String(elegido.id)));
+  const listaTecnicos = (titulo, items, clase, conEditar) => !items.length ? '' :
+    `<div class="alert ${clase} small"><strong>${esc(titulo)}</strong><ul class="mb-0 mt-1 ex-lista-tecnicos">${items.map((t) =>
+      `<li>${esc(t.persona)} <span class="text-muted">· ${t.tipo === 1 ? 'T1' + (t.partner ? ' · ' + esc(t.partner) : '') : 'T2 de ' + esc(t.cuadrilla)}${t.motivo ? ' · ' + esc(t.motivo) : ''}</span>${conEditar && document.querySelector(`[data-editar="${t.lider_id}"]`) ? ` <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-corregir-dni="${t.lider_id}">Registrar DNI</button>` : ''}</li>`).join('')}</ul></div>`;
+  let sinDniActual = 0;
+  const preparar = async () => {
+    $('exCargando').classList.remove('d-none'); $('exCargando').textContent = 'Revisando a los técnicos…'; $('exContenido').classList.add('d-none');
     $('exResultado').classList.add('d-none'); $('exError').classList.add('d-none');
     const gen = $('exGenerar'); gen.className = 'btn btn-win w-100'; gen.innerHTML = '<i class="bi bi-link-45deg me-1"></i>Generar link';
-    pintarHistorial(elegido.historial || []);
-  };
-  tabla?.addEventListener('click', async (ev) => {
-    const b = ev.target.closest('[data-examen]'); if (!b) return;
-    $('exCargando').classList.remove('d-none'); $('exContenido').classList.add('d-none');
-    mExamen.show();
     try {
-      const r = await llamar('examenes', 'tecnico&id=' + encodeURIComponent(b.dataset.examen));
-      personas = r.data;
-      $('exPersonas').innerHTML = personas.map((p) => `<button type="button" class="filter-tab-btn" data-persona="${p.id}">${p.tipo_tecnico === 1 ? 'T1' : 'T2'} · ${esc(p.nombre_persona)}</button>`).join('');
-      elegir(personas[0].id);
+      const r = await llamar('examenes', 'grupo_preparar', datosLideres());
+      const d = r.data;
+      const kpi = (etq, val, clase = '') => `<div class="col-6 col-md-3"><div class="sgs-kpi ${clase} p-2 h-100"><small class="sgs-kpi-label">${etq}</small><h3 class="mb-0 sgs-kpi-value">${val}</h3></div></div>`;
+      $('exResumen').innerHTML = kpi('Cuadrillas', d.cuadrillas) + kpi('Técnicos líderes (T1)', d.t1) + kpi('Técnicos de apoyo (T2)', d.t2)
+        + kpi('Sin DNI', d.sin_dni.length, d.sin_dni.length ? 'sgs-kpi--danger' : 'sgs-kpi--success');
+      sinDniActual = d.sin_dni.length;
+      $('exSinDni').innerHTML = listaTecnicos(`${d.sin_dni.length === 1 ? 'Este técnico no tiene' : 'Estos técnicos no tienen'} DNI: regístrelo para poder generar el link (cada técnico entra con su DNI).`, d.sin_dni, 'alert-danger', true);
+      $('exExcluidos').innerHTML = listaTecnicos('No entran al examen:', d.excluidos, 'alert-secondary', false);
+      const sel = $('exExamen'), antes = sel.value;
+      sel.innerHTML = (d.examenes || []).map((x) => `<option value="${esc(x.codigo)}" data-ayuda="${esc(`${x.preguntas} preguntas · ${x.minutos} minutos · aprueba con ${x.aprueba} %`)}">${esc(x.titulo)}</option>`).join('');
+      if (antes) sel.value = antes;
+      const ayuda = () => { $('exExamenAyuda').textContent = sel.selectedOptions[0]?.dataset.ayuda || ''; };
+      sel.onchange = ayuda; ayuda();
+      $('exGenerar').disabled = d.sin_dni.length > 0;
+      $('exGenerar').title = d.sin_dni.length ? 'Primero registre el DNI de todos los técnicos' : '';
       $('exCargando').classList.add('d-none'); $('exContenido').classList.remove('d-none');
-    } catch (e) {
-      $('exCargando').textContent = e.message;
-    }
+    } catch (e) { $('exCargando').textContent = e.message; }
+  };
+  const cargarHistorial = async () => {
+    try { pintarHistorial((await llamar('examenes', 'grupos')).data); }
+    catch (e) { $('exHistorial').innerHTML = `<p class="text-danger small mb-0">${esc(e.message)}</p>`; }
+  };
+  $('btnLinkExamen')?.addEventListener('click', () => {
+    $('exFiltro').textContent = $('btnLinkExamen').dataset.filtro || '';
+    mExamen.show(); preparar(); cargarHistorial();
   });
-  $('exPersonas').addEventListener('click', (ev) => { const b = ev.target.closest('[data-persona]'); if (b) elegir(b.dataset.persona); });
   $('exGenerar').addEventListener('click', async () => {
-    if (!elegido) return;
     const btn = $('exGenerar'); btn.disabled = true; $('exError').classList.add('d-none');
     try {
-      const datos = new FormData(); datos.append('tecnico_id', elegido.id); datos.append('horas', $('exHoras').value); datos.append('titulo', $('exTitulo').value);
-      const r = await llamar('examenes', 'generar', datos);
+      const datos = datosLideres(); datos.append('horas', $('exHoras').value); datos.append('examen', $('exExamen').value); datos.append('filtro', $('btnLinkExamen').dataset.filtro || '');
+      const r = await llamar('examenes', 'grupo_generar', datos);
       const d = r.data;
-      $('exPara').textContent = d.nombre;
+      $('exPara').textContent = `${d.total} técnicos`;
       $('exLink').value = d.url;
-      $('exVence').textContent = 'Vence el ' + d.vence + '. Sirve una sola vez.';
-      $('exWhatsapp').href = 'https://wa.me/' + (d.celular ? '51' + d.celular : '') + '?text=' + encodeURIComponent(d.mensaje);
-      $('exWhatsapp').title = d.celular ? 'Abre el chat con ' + d.celular : 'Elija el contacto en WhatsApp';
+      $('exVence').textContent = 'Vence el ' + d.vence + '. Cada técnico entra con su DNI y rinde una vez.';
+      $('exWhatsapp').href = 'https://wa.me/?text=' + encodeURIComponent(d.mensaje);
       $('exCompartir').classList.toggle('d-none', !navigator.share);
       $('exCompartir').onclick = () => navigator.share({ title: 'Link de examen', text: d.mensaje }).catch(() => {});
       $('exCopiar').onclick = async () => {
@@ -421,25 +569,44 @@ document.addEventListener('DOMContentLoaded', () => {
       };
       $('exResultado').classList.remove('d-none');
       btn.className = 'btn btn-outline-secondary w-100'; btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Generar otro link'; // la acción principal pasa a ser enviarlo
-      elegido.historial = d.historial; pintarHistorial(d.historial);
+      pintarHistorial(d.historial);
     } catch (e) {
       $('exError').textContent = e.message; $('exError').classList.remove('d-none');
-    } finally { btn.disabled = false; }
+    } finally { btn.disabled = sinDniActual > 0; }
+  });
+  // "Registrar DNI": abre el editor de esa cuadrilla; al guardar se recarga la página y se vuelve a revisar.
+  $('exSinDni').addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-corregir-dni]'); if (!b) return;
+    mExamen.hide();
+    document.querySelector(`[data-editar="${b.dataset.corregirDni}"]`)?.click();
   });
   $('exHistorial').addEventListener('click', async (ev) => {
-    const b = ev.target.closest('[data-anular]'); if (!b) return;
-    if (!confirm('¿Anular este link? El técnico ya no podrá abrirlo.')) return;
+    const ver = ev.target.closest('[data-ver-link]');
+    if (ver) {
+      $('exDetalle').innerHTML = '<p class="text-muted small mb-0">Cargando…</p>'; mExamenDetalle.show();
+      try {
+        const d = (await llamar('examenes', 'grupo&id=' + encodeURIComponent(ver.dataset.verLink))).data;
+        $('exDetTitulo').textContent = d.titulo;
+        const rindieron = d.tecnicos.filter((t) => t.usado_en).length;
+        $('exDetalle').innerHTML = `<p class="small mb-2"><strong>${rindieron}</strong> de ${d.tecnicos.length} técnicos ya rindieron.</p><ul class="ex-historial">`
+          + d.tecnicos.map((t) => `<li><div class="ex-historial-texto"><strong>${esc(t.persona)}</strong><small class="text-muted">${t.tipo === 1 ? 'T1' : 'T2'}${t.nombre_partner ? ' · ' + esc(t.nombre_partner) : ''} · DNI ${esc(t.dni || '—')}</small></div>
+            <div class="ex-historial-acciones">${t.usado_en
+              ? `<span class="badge ${Number(t.aprobado) ? 'bg-success' : 'bg-danger'}" title="Rindió el ${fechaHora(t.usado_en)}">${Number(t.aprobado) ? 'Aprobado' : 'No aprobado'} · ${Math.round(Number(t.nota))} %</span>`
+              : (t.inicio_en ? '<span class="badge bg-warning">Rindiendo</span>' : (t.ingreso_en ? `<span class="badge bg-secondary" title="${fechaHora(t.ingreso_en)}">Entró</span>` : '<span class="badge bg-secondary">Falta</span>'))}</div></li>`).join('') + '</ul>';
+      } catch (e) { $('exDetalle').innerHTML = `<p class="text-danger small mb-0">${esc(e.message)}</p>`; }
+      return;
+    }
+    const b = ev.target.closest('[data-anular-link]'); if (!b) return;
+    if (!confirm('¿Anular este link? Ningún técnico podrá entrar con él.')) return;
     b.disabled = true;
     try {
-      const datos = new FormData(); datos.append('id', b.dataset.anular);
-      const r = await llamar('examenes', 'anular', datos);
-      elegido.historial = r.data.historial; pintarHistorial(r.data.historial);
-      $('exResultado').classList.add('d-none');
-      window.showToast?.(r.message, 'success');
+      const datos = new FormData(); datos.append('id', b.dataset.anularLink);
+      const r = await llamar('examenes', 'grupo_anular', datos);
+      pintarHistorial(r.data); window.showToast?.(r.message, 'success');
     } catch (e) { window.showToast?.(e.message, 'error'); b.disabled = false; }
   });
 
-  if (!$('mCuadrilla')) return; // lo que sigue es solo para el personal administrativo
+  if (!$('mCuadrilla')) return; // lo que sigue es para quien edita cuadrillas (administración y supervisores directos)
 
   // ---------- Editar cuadrilla: T1, T2 (cambiar o registrar uno nuevo), vehículo, zona y estado ----------
   const mCuadrilla = bootstrap.Modal.getOrCreateInstance($('mCuadrilla'));
@@ -486,7 +653,8 @@ document.addEventListener('DOMContentLoaded', () => {
     } finally { btn.disabled = false; }
   });
 
-  // ---------- Cargar técnicos líderes ----------
+  // ---------- Cargar técnicos líderes (solo administración) ----------
+  if (!$('mCargaLideres')) return;
   const mCarga = bootstrap.Modal.getOrCreateInstance($('mCargaLideres'));
   const salida = $('cargaResultado'), btnRevisar = $('btnRevisarLideres'), btnAplicar = $('btnAplicarLideres'), archivo = $('archivoLideres');
   let aplicado = false;
