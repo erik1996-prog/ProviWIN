@@ -123,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Reabrir: solo si lo finalizó él mismo hace menos de 15 minutos
             const wrapReabrir = document.getElementById('wrap-reabrir-turno');
             if (wrapReabrir) wrapReabrir.classList.toggle('d-none', !data.puede_reabrir);
+            document.dispatchEvent(new CustomEvent('sgs:turno-cargado')); // la sección de lluvia (lluvia.js) se actualiza (turno abierto o no)
 
         } catch (e) {
             console.error('Error al cargar estado de asistencia:', e);

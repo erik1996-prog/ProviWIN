@@ -93,9 +93,6 @@ try {
     $check('Directo Dos: las 2 que transfirió siguen siendo suyas (1 vencida en el partner)', ($sup[$d2]['tomadas'] ?? 0) === 2 && ($sup[$d2]['transferidas'] ?? 0) === 2
         && ($sup[$d2]['vencidas_partner'] ?? 0) === 1 && ($sup[$d2]['atendidas'] ?? 0) === 0, $sup[$d2] ?? null);
     $check('el supervisor del partner no aparece como responsable directo', !isset($sup[$p]), array_keys($sup));
-    $par = array_column($o['data']['partners'] ?? [], null, 'id');
-    $check('supervisor de partner: 3 asignadas, 1 atendida a tiempo, 1 en plazo y 1 vencida', ($par[$p]['asignadas'] ?? 0) === 3 && ($par[$p]['atendidas'] ?? 0) === 1
-        && ($par[$p]['en_plazo'] ?? 0) === 1 && ($par[$p]['vencidas'] ?? 0) === 1 && ($par[$p]['pct_a_tiempo'] ?? 0) === 33 && (float)($par[$p]['horas'] ?? 0) === 1.0, $par[$p] ?? null);
 
     $t = $http("$api?action=dashboard_tabla&$q");
     $det = array_column($t['data']['filas'] ?? [], null, 'ticket');

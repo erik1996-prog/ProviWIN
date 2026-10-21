@@ -41,6 +41,7 @@ $tablasSgs = [
     'notificaciones' => 'vacia',
     'asistencia_supervisores' => 'vacia',
     'asistencia_eventos' => 'vacia',
+    'lluvias_zona' => 'vacia',
     'examen_enlaces' => 'vacia',
     'examen_convocatorias' => 'vacia',
     'examen_convocatoria_tecnicos' => 'vacia',

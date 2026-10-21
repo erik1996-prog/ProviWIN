@@ -110,6 +110,12 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
                                     </button>
                                 </div>
                             </div>
+
+                            <?php if ($isReadOnlyWinSupervisor): ?>
+                            <!-- Clima en su zona (2026-10-20, assets/js/lluvia.js): se ve en la línea de tiempo de todos los de la zona -->
+                            <p class="sgs-kpi-label mt-4 mb-2"><i class="bi bi-cloud-sun me-1"></i>Clima en su zona</p>
+                            <div id="lluviaZonas" aria-live="polite"><p class="text-muted small mb-0">Consultando…</p></div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -385,3 +391,4 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
 </style>
 
 <script src="03_FRONTEND/src/assets/js/asistencia.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
+<?php if ($isReadOnlyWinSupervisor): ?><script src="03_FRONTEND/src/assets/js/lluvia.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>

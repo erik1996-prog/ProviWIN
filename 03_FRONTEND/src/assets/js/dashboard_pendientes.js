@@ -58,14 +58,6 @@
                 <td data-label="Tiempo" class="text-end">${x.horas === null ? '—' : duracion(x.horas)}</td>
                 <td data-label="Atención" class="text-end"><span class="badge ${tono(x.pct_atencion)}" title="${n(x.atendidas)} de ${n(x.tomadas)} atendidas">${x.pct_atencion} %</span></td></tr>`).join('')
                 : vacioFila(11, 'Ningún supervisor directo tomó pendientes con estos filtros.');
-            $('dpdPartners').innerHTML = d.partners.length ? d.partners.map((x) => `<tr>
-                <td data-label="Supervisor" class="fw-bold">${D.esc(x.nombre)}</td><td data-label="Partner">${D.esc(x.partner)}</td>
-                <td data-label="Asignadas" class="text-end">${n(x.asignadas)}</td><td data-label="Atendidas" class="text-end">${n(x.atendidas)}</td>
-                <td data-label="En plazo" class="text-end">${n(x.en_plazo)}</td>
-                <td data-label="Vencidas" class="text-end">${n(x.vencidas) ? `<span class="text-danger fw-bold">${n(x.vencidas)}</span>` : 0}</td>
-                <td data-label="Tiempo de respuesta" class="text-end">${x.horas === null ? '—' : duracion(x.horas)}</td>
-                <td data-label="A tiempo" class="text-end"><span class="badge ${tono(x.pct_a_tiempo)}" title="${n(x.a_tiempo)} de ${n(x.asignadas)} atendidas dentro de 24 h">${x.pct_a_tiempo} %</span></td></tr>`).join('')
-                : vacioFila(8, 'No hay pendientes transferidas a partners con estos filtros.');
             $('dpdDias').innerHTML = D.columnas(d.por_dia, { etiqueta: (x) => D.fecha(x.fecha).slice(0, 5), ayuda: (x) => `${D.fecha(x.fecha)}: ${plural(x.cantidad, 'cancelación cargada', 'cancelaciones cargadas')}`, vacio: 'Todavía no hay cancelaciones cargadas con estos filtros.' });
         },
     });

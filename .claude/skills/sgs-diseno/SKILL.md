@@ -34,6 +34,7 @@ expresamente: "todo lo que se vea tosco o grande, rediséñalo" y "el tipo de le
 | `--sgs-surface` / `--sgs-surface-alt` | #FFF / #FAF9F7 | Tarjeta / zonas suaves, encabezado de tabla |
 | `--sgs-bg` | #F6F4F2 | Fondo de la aplicación |
 | `--sgs-success` `--sgs-warning` `--sgs-danger` (+`-dark`, `-soft`) | | Estados (texto con `-dark`, fondo con `-soft`) |
+| `--sgs-lluvia` / `-dark` / `-soft` | #3F6E8F / #2B5070 / #EAF2F8 | Solo la lluvia por zona (2026-10-20, pedido del usuario). Siempre con ícono `bi-cloud-rain*` y texto |
 
 Forma: `--sgs-radius-sm` 10px (controles) · `--sgs-radius` 16px (tarjetas) · `--sgs-radius-lg` 20px (modales).
 Bootstrap ya está mapeado: `btn-*`, `badge bg-*`, `alert-*`, `text-*` funcionan sin colores propios.
@@ -63,7 +64,7 @@ Para comprobar en todas las pantallas: medir con JavaScript (`getComputedStyle`)
 ### Menú lateral (`03_FRONTEND/src/layouts/sidebar.php`, secciones 3, 42, 42b, 42c)
 - **Ancho 228 px**, naranja con logo WIN blanco **centrado** y subtítulo en una línea.
 - **Secciones por tarea, en acordeón** (al abrir una se cierra la otra; la de la pantalla actual empieza abierta):
-  Inicio (Mi turno) · Indicadores (Dashboard de supervisiones, Pendientes y rescates, Exámenes) · Supervisiones ·
+  Inicio (Mi turno) · Indicadores (Dashboard de supervisiones, Dashboard de partners, Pendientes y rescates, Clima, Exámenes) · Supervisiones ·
   Seguimiento (Línea de tiempo, Monitor de turnos) · Observaciones (Registro, Control y recurrencia) ·
   Personal (Usuarios y roles, Técnicos y cuadrillas, Partners). (2026-10-20: todo dashboard nuevo va en Indicadores.)
 - **Dashboards**: usar las piezas comunes — `config/dashboard.php` (filtros, consultas agregadas, tabla por páginas, Excel) y

@@ -4221,3 +4221,91 @@ a.sgs-kpi:hover { border-color: var(--sgs-orange); }
     .dsh-barra-nombre { grid-area: nombre; } .dsh-barra-valor { grid-area: valor; min-width: 0; } .dsh-barra-pista { grid-area: pista; }
     .dsh-columnas--dias .dsh-col-nombre { display: none; }
 }
+
+/* 57. Lluvia por zona (2026-10-20, lluvias_zona). Color propio de la lluvia, azul acero sobrio (pedido del usuario: "un color
+ *     más profesional"); no reemplaza a ningún color del sistema y siempre va con ícono y texto.
+ *     - Línea de tiempo: bloque azul con gotas detrás de los demás bloques y nube junto al nombre mientras llueve.
+ *     - Mi turno: la nube del clima de cada zona. - Indicador de lluvias: calendario del mes. */
+:root {
+    --sgs-lluvia: #3F6E8F;
+    --sgs-lluvia-dark: #2B5070;
+    --sgs-lluvia-soft: #EAF2F8;
+}
+/* Bloque de lluvia: azul con gotas inclinadas; si sigue lloviendo, caen. Va detrás de los demás bloques. */
+.sgs-gantt-blk.is-lluvia { z-index: 0; border: 1px solid var(--sgs-lluvia-dark); color: var(--sgs-surface);
+    background: repeating-linear-gradient(105deg, transparent 0 7px, rgba(255,255,255,.38) 7px 8px, transparent 8px 14px), var(--sgs-lluvia);
+    background-size: 14px 14px, auto; }
+.sgs-gantt-blk.is-lluvia.is-activa { animation: sgs-lluvia-cae .7s linear infinite; }
+@keyframes sgs-lluvia-cae { from { background-position: 0 0, 0 0; } to { background-position: -4px 14px, 0 0; } }
+@media (prefers-reduced-motion: reduce) { .sgs-gantt-blk.is-lluvia.is-activa { animation: none; } }
+.sgs-gantt-blk.is-primera { opacity: .7; }
+/* Nube junto al nombre del supervisor: solo mientras llueve en su zona */
+.sgs-gantt-nube { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--sgs-lluvia); color: var(--sgs-surface); font-size: .9rem; }
+.sgs-gantt-nube .bi { animation: sgs-lluvia-gotas 1.6s ease-in-out infinite; }
+@keyframes sgs-lluvia-gotas { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(1.5px); } }
+@media (prefers-reduced-motion: reduce) { .sgs-gantt-nube .bi { animation: none; } }
+.sgs-lluvia-zona { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 10px 12px;
+    border-radius: var(--sgs-radius-sm); border: 1px solid var(--sgs-border); background: var(--sgs-surface-alt); }
+.sgs-lluvia-zona + .sgs-lluvia-zona { margin-top: 8px; }
+.sgs-lluvia-zona-info { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.sgs-lluvia-zona strong { display: block; font-size: .85rem; color: var(--sgs-ink); }
+.sgs-lluvia-zona small { display: block; font-size: .75rem; color: var(--sgs-muted); }
+.sgs-lluvia-zona-acciones { display: flex; flex-wrap: wrap; gap: 6px; }
+.sgs-lluvia-zona.is-lloviendo { border-color: color-mix(in srgb, var(--sgs-lluvia) 40%, transparent); background: var(--sgs-lluvia-soft); }
+.sgs-lluvia-zona.is-lloviendo small { color: var(--sgs-lluvia-dark); }
+.btn-lluvia { background: var(--sgs-lluvia); border: 1px solid var(--sgs-lluvia); color: var(--sgs-surface); }
+.btn-lluvia:hover, .btn-lluvia:focus-visible { background: var(--sgs-lluvia-dark); border-color: var(--sgs-lluvia-dark); color: var(--sgs-surface); }
+.btn-outline-lluvia { background: var(--sgs-surface); border: 1px solid var(--sgs-lluvia); color: var(--sgs-lluvia-dark); }
+.btn-outline-lluvia:hover, .btn-outline-lluvia:focus-visible { background: var(--sgs-lluvia-soft); border-color: var(--sgs-lluvia-dark); color: var(--sgs-lluvia-dark); }
+.badge.badge-lluvia { background: var(--sgs-lluvia-soft); color: var(--sgs-lluvia-dark); border: 1px solid var(--sgs-lluvia); }
+
+/* Mi turno: nube del clima (lluvia.js), se toca para avisar la lluvia o que paró. Sin lluvia: nube clara con el sol
+ * asomando; con lluvia: nube azul que flota y gotas que caen (al pasar el mouse caen más rápido). */
+.sgs-clima { position: relative; flex: 0 0 auto; width: 76px; height: 64px; padding: 0; border: 0; border-radius: var(--sgs-radius-sm); background: transparent; cursor: pointer; }
+.sgs-clima:focus-visible { outline: 0; box-shadow: var(--sgs-ring); }
+.sgs-clima:disabled { cursor: not-allowed; opacity: .6; }
+.sgs-clima-sol { position: absolute; top: 4px; right: 6px; font-size: 1.5rem; line-height: 1; color: var(--sgs-warning); animation: sgs-clima-gira 18s linear infinite; }
+.sgs-clima-nube { position: absolute; left: 6px; top: 12px; width: 60px; height: 40px; fill: var(--sgs-surface); stroke: var(--sgs-lluvia); stroke-width: .5;
+    filter: drop-shadow(0 2px 3px color-mix(in srgb, var(--sgs-lluvia) 25%, transparent)); transition: transform .2s ease; }
+.sgs-clima:hover .sgs-clima-nube, .sgs-clima:focus-visible .sgs-clima-nube { transform: scale(1.06); }
+.sgs-clima-gotas { position: absolute; left: 14px; right: 14px; top: 42px; height: 22px; overflow: hidden; display: none; }
+.sgs-clima-gotas i { position: absolute; top: -8px; width: 3px; height: 10px; border-radius: 50% 50% 2px 2px; background: var(--sgs-lluvia-dark); opacity: 0;
+    animation: sgs-clima-gota .9s linear infinite; }
+.sgs-clima-gotas i:nth-child(1) { left: 4%; animation-delay: 0s; }
+.sgs-clima-gotas i:nth-child(2) { left: 20%; animation-delay: .35s; }
+.sgs-clima-gotas i:nth-child(3) { left: 36%; animation-delay: .15s; }
+.sgs-clima-gotas i:nth-child(4) { left: 52%; animation-delay: .55s; }
+.sgs-clima-gotas i:nth-child(5) { left: 68%; animation-delay: .25s; }
+.sgs-clima-gotas i:nth-child(6) { left: 84%; animation-delay: .7s; }
+.sgs-clima-gotas i:nth-child(7) { left: 96%; animation-delay: .45s; }
+.sgs-clima.is-lloviendo .sgs-clima-sol { display: none; }
+.sgs-clima.is-lloviendo .sgs-clima-nube { fill: var(--sgs-lluvia); stroke: var(--sgs-lluvia-dark); animation: sgs-clima-flota 3s ease-in-out infinite; }
+.sgs-clima.is-lloviendo .sgs-clima-gotas { display: block; }
+.sgs-clima.is-lloviendo:hover .sgs-clima-gotas i { animation-duration: .55s; }
+@keyframes sgs-clima-gota { 0% { transform: translate(0, 0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(-3px, 30px); opacity: 0; } }
+@keyframes sgs-clima-flota { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes sgs-clima-gira { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    .sgs-clima-sol, .sgs-clima.is-lloviendo .sgs-clima-nube { animation: none; }
+    .sgs-clima-gotas i { animation: none; opacity: 1; top: 6px; }
+}
+
+/* Indicador de lluvias: calendario del mes (dashboard_lluvias.js). Días con lluvia en azul, 3 tonos según las horas. */
+.sgs-cal-lluvia { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.sgs-cal-cabecera { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--sgs-muted); text-align: center; }
+.sgs-cal-dia { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 58px; padding: 4px 2px;
+    border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); background: var(--sgs-surface); color: var(--sgs-muted); font: inherit; }
+.sgs-cal-num { position: absolute; top: 3px; left: 6px; font-size: .72rem; font-weight: 700; }
+.sgs-cal-dia .bi { font-size: 1.05rem; margin-top: 8px; }
+.sgs-cal-dia small { font-size: .66rem; font-weight: 600; white-space: nowrap; }
+button.sgs-cal-dia { cursor: pointer; color: var(--sgs-lluvia-dark); }
+.sgs-cal-dia.is-leve { background: var(--sgs-lluvia-soft); border-color: color-mix(in srgb, var(--sgs-lluvia) 35%, transparent); }
+.sgs-cal-dia.is-media { background: color-mix(in srgb, var(--sgs-lluvia) 35%, var(--sgs-surface)); border-color: var(--sgs-lluvia); }
+.sgs-cal-dia.is-fuerte { background: var(--sgs-lluvia); border-color: var(--sgs-lluvia-dark); color: var(--sgs-surface); }
+button.sgs-cal-dia:hover, button.sgs-cal-dia:focus-visible { outline: 0; box-shadow: var(--sgs-ring); }
+.sgs-cal-dia.is-elegido { box-shadow: 0 0 0 2px var(--sgs-lluvia-dark); }
+@media (max-width: 575.98px) { .sgs-cal-dia { min-height: 46px; } .sgs-cal-dia small { display: none; } }
+
+/* 58. Dashboard de partners (2026-10-20): la lista de órdenes bloqueadas puede ser larga; se desplaza dentro de su caja. */
+.dsh-tabla-alta { max-height: 340px; overflow-y: auto; }

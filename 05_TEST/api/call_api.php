@@ -1,7 +1,7 @@
 <?php
 // 05_TEST/api/call_api.php - Llama a un endpoint GET de la API como un usuario del rol indicado (solo CLI, solo lectura).
 // Uso: php 05_TEST/api/call_api.php <endpoint> "<query>" [Rol]
-//   php 05_TEST/api/call_api.php dashboard "action=cumplimiento_partners&fecha_inicio=2026-09-01"
+//   php 05_TEST/api/call_api.php dashboard_partners "action=dashboard&desde=2026-09-01"
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 [, $endpoint, $query] = $argv + [null, null, ''];
 $role = $argv[3] ?? 'Administrador';

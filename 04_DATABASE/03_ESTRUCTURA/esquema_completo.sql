@@ -1,5 +1,5 @@
 -- 04_DATABASE/03_ESTRUCTURA/esquema_completo.sql
--- Estructura de SGS: 27 tablas en orden de dependencias, sin datos ni DROP.
+-- Estructura de SGS: 28 tablas en orden de dependencias, sin datos ni DROP.
 -- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-10-20. No editar a mano: los cambios van como migración en 02_CAMBIOS.
 
 SET NAMES utf8mb4;
@@ -172,6 +172,25 @@ CREATE TABLE IF NOT EXISTS `examen_convocatorias` (
   CONSTRAINT `fk_examen_convocatorias_anulado_por` FOREIGN KEY (`anulado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_examen_convocatorias_generado_por` FOREIGN KEY (`generado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Links generales de examen (un link para un grupo de técnicos)';
+
+-- Tabla `lluvias_zona`: Lluvia avisada por los supervisores en su zona (línea de tiempo) (depende de: usuarios)
+CREATE TABLE IF NOT EXISTS `lluvias_zona` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `departamento` varchar(100) NOT NULL COMMENT 'Zona donde llueve',
+  `inicio` datetime NOT NULL,
+  `fin` datetime DEFAULT NULL COMMENT 'NULL = sigue lloviendo',
+  `reportado_por` int(11) NOT NULL,
+  `comentario_inicio` varchar(150) DEFAULT NULL COMMENT 'Qué hacía quien avisó la lluvia',
+  `cerrado_por` int(11) DEFAULT NULL,
+  `comentario_fin` varchar(150) DEFAULT NULL COMMENT 'Qué hacía quien la cerró',
+  PRIMARY KEY (`id`),
+  KEY `idx_lluvias_zona_departamento_inicio` (`departamento`,`inicio`),
+  KEY `idx_lluvias_zona_fin` (`fin`),
+  KEY `idx_lluvias_zona_reportado_por` (`reportado_por`),
+  KEY `idx_lluvias_zona_cerrado_por` (`cerrado_por`),
+  CONSTRAINT `fk_lluvias_zona_cerrado_por` FOREIGN KEY (`cerrado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_lluvias_zona_reportado_por` FOREIGN KEY (`reportado_por`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Lluvia avisada por los supervisores en su zona (línea de tiempo)';
 
 -- Tabla `tecnicos`: Técnicos por partner: líderes (T1) y de apoyo (T2) (depende de: partners, usuarios, vehiculos)
 CREATE TABLE IF NOT EXISTS `tecnicos` (
@@ -577,7 +596,7 @@ CREATE TABLE IF NOT EXISTS `checklist_respuestas` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `checklist_id` int(11) NOT NULL,
   `criterio` varchar(255) NOT NULL,
-  `estado` enum('Bueno','Regular','Malo','No tiene','S├¡','No','Para cambio','No revisado','Mal estado') NOT NULL,
+  `estado` enum('Bueno','Regular','Malo','No tiene','Sí','No','Para cambio','No revisado','Mal estado') NOT NULL,
   `observacion` varchar(500) DEFAULT NULL,
   `foto_evidencia` varchar(255) DEFAULT NULL,
   `descargo_foto` varchar(255) DEFAULT NULL,

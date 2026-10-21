@@ -1,8 +1,9 @@
 <?php
 // Pendientes y rescates (2026-10-20): dashboard de las cancelaciones cargadas por Excel y qué pasó con ellas (pendientes,
 // en validación, en rescate, rescatadas, cancelación correcta y transferidas a partner), con indicadores por supervisor
-// directo y por supervisor de partner. Es el único lugar con esta información (antes se repetía en el Dashboard de
-// supervisiones). Administración ve todo; el supervisor directo, su zona.
+// directo. Es el único lugar con esta información (antes se repetía en el Dashboard de supervisiones). El cumplimiento
+// de cada supervisor de partner está en el Dashboard de partners (todas las órdenes que le transfieren, no solo estas).
+// Administración ve todo; el supervisor directo, su zona.
 // Datos: api/dashboard_pendientes.php (totales calculados en la base; tabla de 50 en 50). Pantalla: assets/js/
 // dashboard_pendientes.js con las piezas comunes de sgs-dashboard.js (las mismas del dashboard de Exámenes).
 Auth::requireLogin();
@@ -84,21 +85,12 @@ $graficos = [
 
   <div class="card p-3 p-md-4 mb-3">
     <h5 class="mb-1"><i class="bi bi-person-check me-2 text-primary"></i>Por supervisor directo</h5>
-    <p class="text-muted small mb-3">Las que tomó cada uno. Si la transfirió a un partner sigue siendo suya: se ve si el partner la atendió o se le venció.</p>
+    <p class="text-muted small mb-3">Las que tomó cada uno. Si la transfirió a un partner sigue siendo suya: se ve si el partner la atendió o se le venció.<?php if ($esAdmin): ?>
+      El cumplimiento de cada supervisor de partner está en el <a href="index.php?page=dashboard_partners">Dashboard de partners</a>.<?php endif; ?></p>
     <div class="table-responsive"><table class="table table-hover mb-0 align-middle sgs-tabla-tarjetas">
       <thead><tr><th>Supervisor</th><th class="text-end">Tomadas</th><th class="text-end">Atendió él</th><th class="text-end">En validación</th><th class="text-end">En rescate</th>
         <th class="text-end">Rescatadas</th><th class="text-end">Transferidas</th><th class="text-end">Atendió el partner</th><th class="text-end">Vencidas en partner</th><th class="text-end">Tiempo</th><th class="text-end">Atención</th></tr></thead>
       <tbody id="dpdDirectos"><tr><td colspan="11" class="text-center text-muted py-4">Cargando…</td></tr></tbody>
-    </table></div>
-  </div>
-
-  <div class="card p-3 p-md-4 mb-3">
-    <h5 class="mb-1"><i class="bi bi-buildings me-2 text-primary"></i>Por supervisor de partner</h5>
-    <p class="text-muted small mb-3">Las pendientes que le transfirieron. Tiene 24 horas para atender cada una.</p>
-    <div class="table-responsive"><table class="table table-hover mb-0 align-middle sgs-tabla-tarjetas">
-      <thead><tr><th>Supervisor</th><th>Partner</th><th class="text-end">Asignadas</th><th class="text-end">Atendidas</th><th class="text-end">En plazo</th>
-        <th class="text-end">Vencidas</th><th class="text-end">Tiempo de respuesta</th><th class="text-end">A tiempo</th></tr></thead>
-      <tbody id="dpdPartners"><tr><td colspan="8" class="text-center text-muted py-4">Cargando…</td></tr></tbody>
     </table></div>
   </div>
 

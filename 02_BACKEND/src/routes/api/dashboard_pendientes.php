@@ -91,18 +91,6 @@ try {
                 ROUND(AVG(TIMESTAMPDIFF(MINUTE, s.fecha_carga, CASE WHEN ({$estadoSql}) IN ('correcta', 'rescatada') THEN {$cierreSql}
                     WHEN {$transferida} AND {$atendidaPartner} THEN s.fecha_atencion_partner END)) / 60, 1) AS horas",
             'AND rd.id IS NOT NULL GROUP BY rd.id, rd.nombre_completo ORDER BY tomadas DESC, nombre LIMIT 50'));
-        // Por supervisor de partner: lo que le transfirieron y si lo atendió en sus 24 h.
-        $partners = array_map(static function ($x) use ($enteros) {
-            $x = $enteros($x);
-            $x['pct_a_tiempo'] = sgsPorcentaje($x['a_tiempo'], $x['asignadas']);
-            return $x;
-        }, $consulta("us.id, us.nombre_completo AS nombre, COALESCE(p.nombre_partner, 'Sin partner') AS partner, COUNT(*) AS asignadas,
-                SUM({$atendidaPartner} OR s.estado_supervision IN ('Finalizada', 'Culminada', 'Finalizado')) AS atendidas,
-                SUM(NOT {$atendidaPartner} AND s.estado_supervision = 'Pendiente' AND NOW() <= s.fecha_asignacion + INTERVAL 24 HOUR) AS en_plazo,
-                SUM({$vencidaPartner}) AS vencidas,
-                SUM({$atendidaPartner} AND s.fecha_atencion_partner <= s.fecha_asignacion + INTERVAL 24 HOUR) AS a_tiempo,
-                ROUND(AVG(CASE WHEN {$atendidaPartner} THEN TIMESTAMPDIFF(MINUTE, s.fecha_asignacion, s.fecha_atencion_partner) END) / 60, 1) AS horas",
-            "AND {$transferida} GROUP BY us.id, us.nombre_completo, p.nombre_partner ORDER BY asignadas DESC, nombre LIMIT 50"));
 
         $responder(['status' => 'success', 'data' => [
             'kpis' => ['cargadas' => $cargadas, 'pct_rescate' => $cerradas ? sgsPorcentaje($cuentas['rescatada'], $cerradas) : null,
@@ -121,7 +109,7 @@ try {
             'rescates' => $relativo($rescates, 'cantidad'),
             'por_dia' => array_reverse(array_map(static fn($x) => ['fecha' => $x['fecha'], 'cantidad' => (int)$x['cantidad']],
                 $consulta('DATE(s.fecha_carga) AS fecha, COUNT(*) AS cantidad', 'GROUP BY 1 ORDER BY 1 DESC LIMIT 31'))),
-            'directos' => $directos, 'partners' => $partners, 'etiquetas' => $etiquetas,
+            'directos' => $directos, 'etiquetas' => $etiquetas,
         ]]);
     }
 

@@ -66,3 +66,45 @@ function sgsPrimeraAccion(string $inicioTurno, array $eventos, array $iniciosSup
     [$t, $tipo] = $candidatas[0];
     return ['tipo' => $tipo, 'hora' => date('H:i', $t), 'minutos' => (int)floor(($t - $tInicio) / 60)];
 }
+
+/** Turno abierto de hoy del supervisor (id, estado_turno), o null. */
+function sgsTurnoAbiertoHoy(PDO $pdo, int $supervisorId): ?array
+{
+    $st = $pdo->prepare('SELECT id, estado_turno FROM asistencia_supervisores
+        WHERE supervisor_id = :s AND fecha = CURRENT_DATE() AND fin_turno IS NULL ORDER BY id DESC LIMIT 1');
+    $st->execute([':s' => $supervisorId]);
+    return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+/** Termina la actividad abierta del turno (almuerzo, reunión, remoto…) y lo deja "En turno". */
+function sgsTerminarActividad(PDO $pdo, int $asistenciaId): void
+{
+    $pdo->prepare('UPDATE asistencia_eventos SET fin_evento = NOW(), duracion_minutos = TIMESTAMPDIFF(MINUTE, inicio_evento, NOW())
+        WHERE asistencia_id = :a AND fin_evento IS NULL')->execute([':a' => $asistenciaId]);
+    $pdo->prepare("UPDATE asistencia_supervisores SET estado_turno = 'En turno' WHERE id = :a")->execute([':a' => $asistenciaId]);
+}
+
+/** Inicia una actividad (cierra la que estuviera abierta) y cambia el estado del turno. Devuelve el estado nuevo. */
+function sgsIniciarActividad(PDO $pdo, int $asistenciaId, string $tipo, string $nota = '', ?string $lat = null, ?string $lng = null): string
+{
+    sgsTerminarActividad($pdo, $asistenciaId);
+    $pdo->prepare('INSERT INTO asistencia_eventos (asistencia_id, tipo_evento, inicio_evento, nota, latitud, longitud) VALUES (:a, :t, NOW(), :n, :lat, :lng)')
+        ->execute([':a' => $asistenciaId, ':t' => $tipo, ':n' => $nota, ':lat' => $lat, ':lng' => $lng]);
+    $estado = ['almuerzo' => 'En almuerzo', 'reunion' => 'En reunión', 'capacitacion' => 'En capacitación', 'remoto' => 'En remoto'][$tipo] ?? 'En turno';
+    $pdo->prepare('UPDATE asistencia_supervisores SET estado_turno = :e WHERE id = :a')->execute([':e' => $estado, ':a' => $asistenciaId]);
+    return $estado;
+}
+
+/**
+ * Actividad abierta del turno (2026-10-20): ['tipo_evento', 'nota', 'nombre'] o null. Mientras haya una abierta no se
+ * inicia otra: primero se termina ("Reanudar turno").
+ */
+function sgsActividadAbierta(PDO $pdo, int $asistenciaId): ?array
+{
+    $st = $pdo->prepare('SELECT tipo_evento, nota FROM asistencia_eventos WHERE asistencia_id = :a AND fin_evento IS NULL ORDER BY id DESC LIMIT 1');
+    $st->execute([':a' => $asistenciaId]);
+    $a = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$a) return null;
+    $a['nombre'] = (['almuerzo' => 'almuerzo', 'reunion' => 'reunión', 'capacitacion' => 'capacitación', 'remoto' => 'trabajo remoto', 'campo' => 'trabajo de campo'][$a['tipo_evento']] ?? 'actividad');
+    return $a;
+}

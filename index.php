@@ -35,6 +35,8 @@ $allowedViews = [
     'admin_dashboard'        => ['file' => 'admin_dashboard.php',        'title' => 'Dashboard de supervisiones', 'perm' => Auth::PERM_DASHBOARD_VIEW],
     'cuadrillas'             => ['file' => 'cuadrillas.php',             'title' => 'Técnicos y cuadrillas',    'perm' => Auth::PERM_SUPERVISION_VIEW],
     'examenes'               => ['file' => 'examenes.php',               'title' => 'Exámenes',                 'perm' => Auth::PERM_SUPERVISION_VIEW],
+    'dashboard_partners'     => ['file' => 'dashboard_partners.php',     'title' => 'Dashboard de partners',    'perm' => Auth::PERM_DASHBOARD_VIEW],
+    'dashboard_lluvias'      => ['file' => 'dashboard_lluvias.php',      'title' => 'Clima',                    'perm' => Auth::PERM_SUPERVISION_VIEW],
     'dashboard_pendientes'   => ['file' => 'dashboard_pendientes.php',   'title' => 'Pendientes y rescates',    'perm' => Auth::PERM_SUPERVISION_VIEW],
     'timeline_supervisores'  => ['file' => 'timeline_supervisores.php',  'title' => 'Línea de tiempo',          'perm' => Auth::PERM_TIMELINE_VIEW],
     'registro_observaciones' => ['file' => 'registro_observaciones.php', 'title' => 'Observaciones',            'perm' => Auth::PERM_OBSERVATION_VIEW],
@@ -71,13 +73,13 @@ if ($isPartnerSupervisor && !in_array($page, ['mi_informacion', 'supervision_lis
 }
 
 // Usuarios no está aquí: entra quien tenga ver usuarios, agregar personal o administrar (se revisa abajo).
-$administrativeViews = ['admin_dashboard', 'timeline_supervisores', 'control_observaciones'];
+$administrativeViews = ['admin_dashboard', 'dashboard_partners', 'timeline_supervisores', 'control_observaciones'];
 if (in_array($page, $administrativeViews, true) && !Auth::isAdministrative()) {
     $page = 'supervision_lista';
 }
 // Cuadrillas (2026-10-15): administración y supervisores directos (la API aplica la misma regla).
 // Exámenes y Pendientes y rescates (2026-10-20): dashboards para los mismos que ven Cuadrillas.
-if (in_array($page, ['cuadrillas', 'examenes', 'dashboard_pendientes'], true) && !Auth::isAdministrative() && !$isDirectSupervisorView) {
+if (in_array($page, ['cuadrillas', 'examenes', 'dashboard_pendientes', 'dashboard_lluvias'], true) && !Auth::isAdministrative() && !$isDirectSupervisorView) {
     $page = 'supervision_lista';
 }
 
@@ -100,7 +102,9 @@ $pageDescriptions = [
         ? 'Órdenes que WIN te asignó. Atiéndelas dentro de las 24 horas; si vence el plazo, la orden se bloquea.'
         : 'Bitácora de supervisiones de campo: registro, asignación a partners y seguimiento.',
     'registro_observaciones' => 'Hallazgos de campo y de checklist, con sus descargos y plazos de respuesta.',
-    'admin_dashboard' => 'Indicadores de supervisión, cobertura geográfica y cumplimiento de partners.',
+    'admin_dashboard' => 'Indicadores de supervisión, cobertura geográfica, productividad y matriz mensual.',
+    'dashboard_lluvias' => 'Clima por zona: días de lluvia, horas, calendario del mes y bitácora (quién avisó, quién cerró y qué hacían).',
+    'dashboard_partners' => 'Cumplimiento de los partners en 24 h, por supervisor del partner, y sus observaciones y descargos.',
     'cuadrillas' => 'Cada técnico líder con su técnico de apoyo, su vehículo y sus documentos (SOAT, revisión técnica, extintor, brevete).',
     'examenes' => 'Resultados de los exámenes de los técnicos: aprobación por partner y zona, temas con más errores y detalle por técnico.',
     'dashboard_pendientes' => 'Cancelaciones cargadas por Excel: pendientes, en validación, en rescate, rescatadas y cancelación correcta.',

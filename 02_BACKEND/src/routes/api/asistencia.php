@@ -12,6 +12,7 @@ Auth::requireLogin();
 $user = Auth::getLoggedInUser();
 $pdo = Database::getConnection();
 require_once __DIR__ . '/../../config/turnos.php';
+require_once __DIR__ . '/../../config/lluvias.php';
 win_run_periodic_task('cierre-turnos', 300, static fn() => sgsCerrarTurnosVencidos($pdo)); // turnos olvidados: se cierran a las 23:59
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 Auth::requireCsrf();
@@ -301,6 +302,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'end') {
         ':lng' => $lng,
         ':id' => $asistencia['id']
     ]);
+    sgsCerrarLluviasDe($pdo, (int)$user['id']); // la lluvia que avisó y nadie cerró
 
     echo json_encode([
         'status' => 'success', 
@@ -373,16 +375,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'start_event') {
         exit;
     }
 
-    $stmt = $pdo->prepare("
-        SELECT id, estado_turno FROM asistencia_supervisores 
-        WHERE supervisor_id = :sup_id AND fecha = CURRENT_DATE() AND fin_turno IS NULL
-        ORDER BY id DESC LIMIT 1
-    ");
-    $stmt->execute([':sup_id' => $user['id']]);
-    $asistencia = $stmt->fetch();
+    $asistencia = sgsTurnoAbiertoHoy($pdo, (int)$user['id']);
 
     if (!$asistencia) {
         echo json_encode(['status' => 'error', 'message' => 'Debes iniciar turno antes de registrar un cambio de estado.']);
+        exit;
+    }
+    // Una actividad a la vez (2026-10-20): con remoto por lluvia, almuerzo, reunión… abierta, primero se termina.
+    if ($abierta = sgsActividadAbierta($pdo, (int)$asistencia['id'])) {
+        echo json_encode(['status' => 'error', 'message' => "Primero termine su {$abierta['nombre']}."], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -404,40 +405,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'start_event') {
         }
     }
 
-    // 1. Cerrar cualquier evento previo sin finalizar
-    $stmtCerrar = $pdo->prepare("
-        UPDATE asistencia_eventos 
-        SET fin_evento = NOW(),
-            duracion_minutos = TIMESTAMPDIFF(MINUTE, inicio_evento, NOW())
-        WHERE asistencia_id = :asist_id AND fin_evento IS NULL
-    ");
-    $stmtCerrar->execute([':asist_id' => $asistencia['id']]);
-
-    // 2. Insertar nuevo evento
-    $stmtIns = $pdo->prepare("
-        INSERT INTO asistencia_eventos (asistencia_id, tipo_evento, inicio_evento, nota, latitud, longitud)
-        VALUES (:asist_id, :tipo, NOW(), :nota, :lat, :lng)
-    ");
-    $stmtIns->execute([
-        ':asist_id' => $asistencia['id'],
-        ':tipo' => $tipo,
-        ':nota' => $nota,
-        ':lat' => $lat,
-        ':lng' => $lng
-    ]);
-
-    // 3. Actualizar estado_turno en asistencia_supervisores
-    $mapEstado = [
-        'almuerzo' => 'En almuerzo',
-        'reunion' => 'En reunión',
-        'capacitacion' => 'En capacitación',
-        'remoto' => 'En remoto',
-        'campo' => 'En turno'
-    ];
-    $nuevoEstado = $mapEstado[$tipo] ?? 'En turno';
-
-    $stmtUpd = $pdo->prepare("UPDATE asistencia_supervisores SET estado_turno = :est WHERE id = :id");
-    $stmtUpd->execute([':est' => $nuevoEstado, ':id' => $asistencia['id']]);
+    // Registra la nueva actividad y cambia el estado del turno
+    $nuevoEstado = sgsIniciarActividad($pdo, (int)$asistencia['id'], $tipo, $nota, $lat, $lng);
 
     echo json_encode([
         'status' => 'success',
@@ -450,31 +419,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'start_event') {
 // 5. REANUDAR TRABAJO / FINALIZAR PAUSA
 // -------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'end_event') {
-    $stmt = $pdo->prepare("
-        SELECT id FROM asistencia_supervisores 
-        WHERE supervisor_id = :sup_id AND fecha = CURRENT_DATE() AND fin_turno IS NULL
-        ORDER BY id DESC LIMIT 1
-    ");
-    $stmt->execute([':sup_id' => $user['id']]);
-    $asistencia = $stmt->fetch();
-
+    $asistencia = sgsTurnoAbiertoHoy($pdo, (int)$user['id']);
     if (!$asistencia) {
         echo json_encode(['status' => 'error', 'message' => 'No tienes un turno activo.']);
         exit;
     }
-
-    // Finalizar evento activo
-    $stmtCerrar = $pdo->prepare("
-        UPDATE asistencia_eventos 
-        SET fin_evento = NOW(),
-            duracion_minutos = TIMESTAMPDIFF(MINUTE, inicio_evento, NOW())
-        WHERE asistencia_id = :asist_id AND fin_evento IS NULL
-    ");
-    $stmtCerrar->execute([':asist_id' => $asistencia['id']]);
-
-    // Volver a 'En turno'
-    $stmtUpd = $pdo->prepare("UPDATE asistencia_supervisores SET estado_turno = 'En turno' WHERE id = :id");
-    $stmtUpd->execute([':id' => $asistencia['id']]);
+    sgsTerminarActividad($pdo, (int)$asistencia['id']);
 
     echo json_encode(['status' => 'success', 'message' => 'Pausa finalizada. Has reanudado tu turno activo.']);
     exit;
@@ -955,7 +905,7 @@ if ($action === 'timeline_diaria') {
             $eventosPorAsistencia[(int)$eventRow['asistencia_id']][] = $eventRow;
         }
 
-        $stmtSupervisionesDia = $pdo->prepare("SELECT s.id,s.codigo_supervision,s.ticket_codigo,s.tipo_supervision_inicial,s.fecha_registro,s.partner_id,s.tecnico1_nombre,s.supervisor_id,p.nombre_partner,s.estado_supervision,(SELECT MIN(h.fecha_cambio) FROM supervision_estado_historial h WHERE h.supervision_id=s.id AND h.estado_nuevo='Finalizada') AS fecha_fin FROM supervisiones s LEFT JOIN partners p ON s.partner_id=p.id WHERE s.supervisor_id IN ({$inClause}) AND s.estado_supervision != 'Pendiente' AND s.fecha_registro>=:timeline_inicio AND s.fecha_registro<DATE_ADD(:timeline_fin,INTERVAL 1 DAY) ORDER BY s.fecha_registro ASC");
+        $stmtSupervisionesDia = $pdo->prepare("SELECT s.id,s.codigo_supervision,s.ticket_codigo,s.tipo_supervision_inicial,s.fecha_registro,s.departamento,s.partner_id,s.tecnico1_nombre,s.supervisor_id,p.nombre_partner,s.estado_supervision,(SELECT MIN(h.fecha_cambio) FROM supervision_estado_historial h WHERE h.supervision_id=s.id AND h.estado_nuevo='Finalizada') AS fecha_fin FROM supervisiones s LEFT JOIN partners p ON s.partner_id=p.id WHERE s.supervisor_id IN ({$inClause}) AND s.estado_supervision != 'Pendiente' AND s.fecha_registro>=:timeline_inicio AND s.fecha_registro<DATE_ADD(:timeline_fin,INTERVAL 1 DAY) ORDER BY s.fecha_registro ASC");
         $supervisionParams = $idParams;
         unset($supervisionParams[':timeline_fecha']);
         $supervisionParams[':timeline_inicio'] = $fechaSel;
@@ -967,6 +917,7 @@ if ($action === 'timeline_diaria') {
     }
 
     $resultTimeline = [];
+    $lluviasDelDia = sgsLluviasDelDia($pdo, $fechaSel);
 
     foreach ($listSupervisores as $sup) {
         $supId = $sup['id'];
@@ -1006,6 +957,8 @@ if ($action === 'timeline_diaria') {
 
         // Supervisiones del día
         $supervisiones = $supervisionesPorSupervisor[(int)$supId] ?? [];
+        // Lluvia de su zona en el día (2026-10-20): se muestra como una nube junto a su nombre
+        $lluvias = $esLicencia ? [] : sgsLluviasDelSupervisor($lluviasDelDia, (int)$supId, array_column($supervisiones, 'departamento'));
 
         // Armar bloques horizontales unificados de la jornada (Turno, Supervisiones, Traslados, Pausas)
         $timelineBlocks = [];
@@ -1128,6 +1081,23 @@ if ($action === 'timeline_diaria') {
             ];
         }
 
+        // Desde el inicio del turno hasta su primera actividad (2026-10-20): antes ese tiempo no se veía ni se sumaba.
+        // Si aún no hace nada (hoy, turno abierto), el tramo sigue corriendo.
+        if ($asistencia && !$esLicencia) {
+            $tTurno = strtotime($asistencia['inicio_turno']);
+            $tFinTurno = $asistencia['fin_turno'] ? strtotime($asistencia['fin_turno']) : null;
+            $inicios = array_filter(array_column($timelineBlocks, 'ts_inicio'), static fn($t) => $t >= $tTurno);
+            $sigueSinActividad = !$inicios && $tFinTurno === null && $fechaSel === date('Y-m-d');
+            $tPrimera = $inicios ? min($inicios) : null;
+            if ($sigueSinActividad || ($tPrimera !== null && $tPrimera - $tTurno >= 60)) {
+                $timelineBlocks[] = [
+                    'type' => 'travel', 'primera' => true,
+                    'duracion_minutos' => (int)round((($tPrimera ?? time()) - $tTurno) / 60),
+                    'timestamp' => $tTurno, 'ts_inicio' => $tTurno, 'ts_fin' => $tPrimera,
+                ];
+            }
+        }
+
         // Fin de Turno (Flecha Mirando a la Izquierda ⬅️)
         if ($asistencia && !empty($asistencia['fin_turno'])) {
             $hFin = date('H:i', strtotime($asistencia['fin_turno']));
@@ -1158,6 +1128,7 @@ if ($action === 'timeline_diaria') {
             'eventos' => $eventos,
             'supervisiones' => $listItems,
             'timeline_blocks' => $timelineBlocks,
+            'lluvias' => $lluvias,
             'total_supervisiones' => $totalSupsCount,
             // Escala de horas (2026-10-13): inicio y fin reales del turno en segundos (fin null = sigue en turno).
             'turno_ts' => $asistencia && !$esLicencia ? ['inicio' => strtotime($asistencia['inicio_turno']), 'fin' => $asistencia['fin_turno'] ? strtotime($asistencia['fin_turno']) : null] : null,

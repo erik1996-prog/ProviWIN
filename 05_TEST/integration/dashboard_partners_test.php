@@ -1,5 +1,5 @@
 <?php
-// 05_TEST/integration/dashboard_partners_test.php - Dashboard, vista Partners: cumplimiento por supervisor del partner
+// 05_TEST/integration/dashboard_partners_test.php - Dashboard de partners (api/dashboard_partners.php): cumplimiento por supervisor del partner
 // y "Observaciones y descargos" (a tiempo, vencidas, en plazo, por revisar, validadas, penalizadas, motivos, gravedad).
 // Por HTTP contra la API real. Usa fechas de 2001 para no mezclarse con datos reales.
 // Crea un administrador (DNI 99999961), un supervisor de partner (DNI 99999962), 3 órdenes (PRUEBA-DASHP-*),
@@ -97,17 +97,18 @@ try {
     };
     $http("$base/api/auth.php?action=login", [CURLOPT_POST => true, CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
         CURLOPT_POSTFIELDS => json_encode(['usuario' => 'dashp.admin', 'password' => $clave])]);
-    $q = "fecha_inicio=2001-01-15&fecha_fin=2001-01-15&partner_id=$partner";
+    $q = "desde=2001-01-15&hasta=2001-01-15&partner_id=$partner";
+    $d = $http("$base/api/dashboard_partners.php?action=dashboard&$q")['data'] ?? [];
 
     // Cumplimiento por supervisor del partner
-    $c = $http("$base/api/dashboard.php?action=cumplimiento_partners&$q");
+    $c = $d['cumplimiento'] ?? [];
     $fila = array_values(array_filter($c['supervisores'] ?? [], fn($s) => (int)$s['id'] === $sup))[0] ?? null;
     $check('el supervisor del partner aparece con sus 3 órdenes', $fila && $fila['asignadas'] === 3, $c['supervisores'] ?? $c);
     $check('1 a tiempo, 1 bloqueada, 0 en plazo', $fila && $fila['a_tiempo'] === 1 && $fila['bloqueadas'] === 1 && $fila['en_plazo'] === 0, $fila);
     $check('cumplimiento 50% (1 a tiempo de 2 cerradas) y respuesta promedio 25 h', $fila && (float)$fila['cumplimiento'] === 50.0 && $fila['minutos_promedio'] === 1500, $fila);
 
     // Observaciones y descargos
-    $o = $http("$base/api/dashboard.php?action=observaciones_partners&$q");
+    $o = $d['observaciones'] ?? [];
     $r = $o['resumen'] ?? [];
     $check('8 observaciones: 6 de campo + 2 ítems de checklist observados (el ítem sin observación no cuenta)', ($r['total'] ?? 0) === 8, $o);
     $check('4 respondidas a tiempo (2 de campo + 2 del checklist)', ($r['a_tiempo'] ?? 0) === 4, $r);
@@ -120,7 +121,7 @@ try {
         ($mot[$sub['descripcion_subopcion']]['total'] ?? 0) === 6 && ($mot[$sub['descripcion_subopcion']]['penalizadas'] ?? 0) === 3 && ($mot['Criterio PRUEBA DASHP 1']['total'] ?? 0) === 1, $o['motivos'] ?? null);
     $grav = array_column($o['gravedad'] ?? [], 'total', 'gravedad');
     $check('gravedad: 5 Leve, 1 Muy Grave, 2 de checklist', ($grav['Leve'] ?? 0) === 5 && ($grav['Muy Grave'] ?? 0) === 1 && ($grav['Checklist'] ?? 0) === 2, $grav);
-    $o2 = $http("$base/api/dashboard.php?action=observaciones_partners&fecha_inicio=2001-01-15&fecha_fin=2001-01-15&partner_id=$partner&departamento=PIURA");
+    $o2 = $http("$base/api/dashboard_partners.php?action=dashboard&$q&zona=PIURA")['data']['observaciones'] ?? [];
     $check('con otro departamento no cuenta nada', ($o2['resumen']['total'] ?? -1) === 0, $o2['resumen'] ?? $o2);
 } finally {
     $cleanup();

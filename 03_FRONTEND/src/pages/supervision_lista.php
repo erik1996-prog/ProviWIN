@@ -475,7 +475,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
           </div>
           <div class="field-bitacora full">
             <span id="new_gps_status" class="sgs-gps-estado">
-              Tu ubicación se toma sola al abrir la supervisión. Si cambias de lugar, presiona "Actualizar ubicación".
+              Tu ubicación se toma sola al abrir la supervisión. Si cambias de lugar, presiona "Actualizar ubicación", o escribe o pega las coordenadas a mano.
             </span>
           </div>
           <div class="field-bitacora full" id="new_field_resultado_tecnico" style="display:none;">

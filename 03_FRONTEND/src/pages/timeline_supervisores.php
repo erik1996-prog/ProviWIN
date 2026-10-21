@@ -2,6 +2,9 @@
 // 03_FRONTEND/src/pages/timeline_supervisores.php - Línea de tiempo por horas de la jornada del personal directo.
 // 2026-10-13: cada actividad se dibuja en su hora real (regla de horas arriba, una fila por supervisor) y al hacer clic
 // se abre una ventana flotante con el detalle y las acciones (abrir la supervisión, reabrir el turno).
+// 2026-10-20: el tiempo desde el inicio del turno hasta la primera actividad se dibuja y se suma (antes no se veía), y la
+// lluvia de su zona: un bloque azul con gotas de su inicio a su fin (detrás de los demás: puede llover hasta en plena
+// supervisión), con quién la avisó y la cerró y qué hacía cada uno; la nube junto al nombre sale solo mientras llueve.
 // Datos: api/asistencia.php?action=timeline_diaria (bloques con ts_inicio / ts_fin) y api/dashboard.php?action=monitoreo_realtime.
 // Estilos: sgs-theme.css, sección 33.
 Auth::requireLogin();
@@ -50,6 +53,7 @@ $user = Auth::getLoggedInUser();
             <span><i class="sw sgs-gantt-blk is-traslado"></i>Traslado</span>
             <span><i class="sw sgs-gantt-blk is-pausa"></i>Almuerzo, reunión o capacitación</span>
             <span><i class="sw sgs-gantt-blk is-remoto"></i>Trabajo remoto</span>
+            <span><i class="sw sgs-gantt-blk is-lluvia"></i>Lluvia en su zona</span>
             <span><i class="sw is-ahora"></i>Ahora</span>
         </div>
         <div class="sgs-gantt" id="tl-gantt">
@@ -113,13 +117,31 @@ $user = Auth::getLoggedInUser();
             const titulo = `${b.ticket || b.codigo} · ${hhmm(b.ts_inicio)}–${b.ts_fin ? hhmm(b.ts_fin) : 'en curso'}`;
             return `<button type="button" class="sgs-gantt-blk ${cls}" ${est(`${caja(b.ts_inicio, fin)}`)} ${datosAttr} title="${esc(titulo)}" aria-label="Supervisión ${esc(titulo)}">${esc(b.ticket || b.codigo)}</button>`;
         }
-        if (b.type === 'travel') return `<button type="button" class="sgs-gantt-blk is-traslado" ${est(`${caja(b.ts_inicio, fin)}`)} ${datosAttr} title="Traslado de ${Number(b.duracion_minutos)} min" aria-label="Traslado de ${Number(b.duracion_minutos)} minutos"></button>`;
+        if (b.type === 'travel') { const t = `${nombreTraslado(b)}: ${dur((fin - b.ts_inicio) / 60)}`; return `<button type="button" class="sgs-gantt-blk is-traslado${b.primera ? ' is-primera' : ''}" ${est(`${caja(b.ts_inicio, fin)}`)} ${datosAttr} title="${t}" aria-label="${t}"></button>`; }
         if (b.type === 'pause' || b.type === 'remote') {
-            const nombre = b.type === 'remote' ? 'Trabajo remoto' : b.title;
-            return `<button type="button" class="sgs-gantt-blk ${b.type === 'remote' ? 'is-remoto' : 'is-pausa'}" ${est(`${caja(b.ts_inicio, fin)}`)} ${datosAttr} title="${esc(nombre)} · ${hhmm(b.ts_inicio)}–${b.ts_fin ? hhmm(b.ts_fin) : 'en curso'}" aria-label="${esc(nombre)}">${esc(nombre)}</button>`;
+            return `<button type="button" class="sgs-gantt-blk ${b.type === 'remote' ? 'is-remoto' : 'is-pausa'}" ${est(`${caja(b.ts_inicio, fin)}`)} ${datosAttr} title="${esc(b.title)} · ${hhmm(b.ts_inicio)}–${b.ts_fin ? hhmm(b.ts_fin) : 'en curso'}" aria-label="${esc(b.title)}">${esc(b.title)}</button>`;
         }
         return '';
     }
+
+    const nombreTraslado = (b) => b.primera ? 'Hasta la 1.ª actividad' : 'Traslado';
+    const finLluvia = (l) => l.ts_fin || (datos.es_hoy ? datos.ahora : l.ts_inicio + 60);
+    const horasLluvia = (l) => `${hhmm(l.ts_inicio)}–${l.ts_fin ? hhmm(l.ts_fin) : 'sigue'}`;
+    // Bloque de lluvia: azul con gotas (caen mientras sigue lloviendo), de su inicio a su fin, con las horas
+    const bloqueLluvia = (l, si, li) => `<button type="button" class="sgs-gantt-blk is-lluvia${l.ts_fin ? '' : ' is-activa'}" ${est(caja(l.ts_inicio, finLluvia(l)))} data-s="${si}" data-lluvia="${li}"`
+        + ` title="Lluvia en ${esc(l.zona)}: ${horasLluvia(l)}" aria-label="Lluvia en ${esc(l.zona)} de ${horasLluvia(l)}"><i class="bi bi-cloud-rain-heavy-fill" aria-hidden="true"></i>Lluvia ${horasLluvia(l)}</button>`;
+    // Nube junto al nombre: solo mientras sigue lloviendo en su zona (cuando para, desaparece)
+    const nubeHtml = (s) => {
+        const l = datos.es_hoy && (s.lluvias || []).find((x) => !x.ts_fin);
+        if (!l) return '';
+        const t = `Lloviendo en ${l.zona} desde las ${hhmm(l.ts_inicio)}`;
+        return `<span class="sgs-gantt-nube" title="${esc(t)}"><i class="bi bi-cloud-rain-heavy-fill" aria-hidden="true"></i><span class="visually-hidden">${esc(t)}</span></span>`;
+    };
+    // Quién avisó / cerró la lluvia y qué hacía en ese momento
+    const quien = (nombre, comentario) => nombre ? `${esc(nombre)}${comentario ? ` · ${esc(comentario)}` : ''}` : (comentario ? esc(comentario) : '—');
+    // Lo que hizo el supervisor mientras llovía (supervisiones, pausas y remoto que se cruzan con la lluvia)
+    const mientrasLlovia = (s, l) => (s.timeline_blocks || []).filter((b) => b.ts_inicio && b.type !== 'travel' && b.ts_inicio < finLluvia(l) && finDe(b) > l.ts_inicio)
+        .map((b) => `${b.type === 'supervision' ? `Supervisión ${esc(b.ticket || b.codigo)}` : esc(b.title)} (${hhmm(b.ts_inicio)}–${b.ts_fin ? hhmm(b.ts_fin) : 'en curso'})`);
 
     // Lista de lo que hizo el supervisor, en orden de hora (se despliega debajo de su fila)
     function detalleHtml(s, si) {
@@ -129,9 +151,10 @@ $user = Auth::getLoggedInUser();
             if (!b.ts_inicio) return;
             const fin = finDe(b), hora = `${hhmm(b.ts_inicio)}–${b.ts_fin || b.type === 'travel' ? hhmm(fin) : 'en curso'}`, d = dur((fin - b.ts_inicio) / 60);
             if (b.type === 'supervision') filasD.push({ ts: b.ts_inicio, html: `<td>${hora}</td><td><span class="badge ${b.estado === 'finalizada' ? 'bg-success' : 'bg-warning'}">${b.estado === 'finalizada' ? 'Supervisión' : 'Supervisión en curso'}</span></td><td><strong>${esc(b.ticket || b.codigo)}</strong><br><small class="text-muted">${esc(b.tecnico || '')}${b.partner ? ' · ' + esc(b.partner) : ''}</small></td><td>${d}</td><td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="index.php?page=supervision_lista&highlight=${Number(b.id)}" aria-label="Abrir supervisión ${esc(b.ticket || b.codigo)}"><i class="bi bi-box-arrow-up-right"></i></a></td>` });
-            else if (b.type === 'travel') filasD.push({ ts: b.ts_inicio, html: `<td>${hora}</td><td><span class="badge bg-secondary">Traslado</span></td><td><small class="text-muted">Hacia la siguiente supervisión</small></td><td>${d}</td><td></td>` });
+            else if (b.type === 'travel') filasD.push({ ts: b.ts_inicio, html: `<td>${b.primera && !b.ts_fin ? `${hhmm(b.ts_inicio)}–ahora` : hora}</td><td><span class="badge bg-secondary">${nombreTraslado(b)}</span></td><td><small class="text-muted">${b.primera ? 'Desde el inicio del turno' : 'Hacia la siguiente supervisión'}</small></td><td>${d}</td><td></td>` });
             else if (b.type === 'pause' || b.type === 'remote') filasD.push({ ts: b.ts_inicio, html: `<td>${hora}</td><td><span class="badge bg-secondary">${esc(b.type === 'remote' ? 'Trabajo remoto' : b.title)}</span></td><td><small class="text-muted">${esc(b.nota || '')}</small></td><td>${d}</td><td></td>` });
         });
+        (s.lluvias || []).forEach((l) => filasD.push({ ts: l.ts_inicio, html: `<td>${horasLluvia(l)}</td><td><span class="badge badge-lluvia"><i class="bi bi-cloud-rain-heavy me-1"></i>Lluvia</span></td><td><small class="text-muted">En ${esc(l.zona)}${l.ts_fin ? '' : ' · sigue lloviendo'}<br>Avisó: ${quien(l.aviso, l.comentario_inicio)}${l.ts_fin ? `<br>Cerró: ${quien(l.cerro, l.comentario_fin)}` : ''}</small></td><td>${dur((finLluvia(l) - l.ts_inicio) / 60)}</td><td></td>` }));
         if (s.turno_ts?.fin) filasD.push({ ts: s.turno_ts.fin, html: `<td>${hhmm(s.turno_ts.fin)}</td><td colspan="2"><i class="bi bi-arrow-left-circle-fill me-1"></i><strong>Fin de turno</strong></td><td>—</td><td></td>` });
         filasD.sort((a, b) => a.ts - b.ts);
         return `<div class="sgs-gantt-detalle"><div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">
@@ -170,13 +193,14 @@ $user = Auth::getLoggedInUser();
                     marcas = `<button type="button" class="sgs-gantt-marca is-inicio" ${est(`left:${pos(s.turno_ts.inicio).toFixed(3)}%`)} data-s="${si}" data-turno="1" title="Inició turno a las ${hhmm(s.turno_ts.inicio)}" aria-label="Inició turno a las ${hhmm(s.turno_ts.inicio)}"><i class="bi bi-arrow-right-circle-fill" aria-hidden="true"></i><span>${hhmm(s.turno_ts.inicio)}</span></button>`
                         + (s.turno_ts.fin ? `<button type="button" class="sgs-gantt-marca is-fin" ${est(`left:${pos(s.turno_ts.fin).toFixed(3)}%`)} data-s="${si}" data-turno="1" title="Cerró turno a las ${hhmm(s.turno_ts.fin)}" aria-label="Cerró turno a las ${hhmm(s.turno_ts.fin)}"><i class="bi bi-arrow-left-circle-fill" aria-hidden="true"></i><span>${hhmm(s.turno_ts.fin)}</span></button>` : '');
                 }
+                pista += (s.lluvias || []).map((l, li) => bloqueLluvia(l, si, li)).join('');
                 (s.timeline_blocks || []).forEach((b, bi) => { pista += bloqueHtml(b, si, bi); });
                 if (!s.turno_ts && !(s.timeline_blocks || []).some((b) => b.ts_inicio)) pista += '<div class="sgs-gantt-vacio">Sin actividad en la fecha</div>';
                 pista += marcas;
             }
             const abierto = abiertos.has(Number(s.supervisor_id));
             html += `<div class="sgs-gantt-row"><div class="sgs-gantt-name"><button type="button" class="sgs-gantt-expand${abierto ? ' is-open' : ''}" data-expand="${Number(s.supervisor_id)}" aria-expanded="${abierto}" aria-label="${abierto ? 'Ocultar' : 'Ver'} lo que atendió ${esc(s.nombre_corto)}"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>`
-                + `<button type="button" class="sgs-gantt-who-btn" data-s="${si}" data-turno="1" title="${esc(s.nombre_completo)}">${avatar}<span class="sgs-gantt-who"><strong>${esc(s.nombre_corto || s.nombre_completo)}</strong><small>${esc(sub)}</small></span></button></div><div class="sgs-gantt-track">${pista}</div></div>`
+                + `<button type="button" class="sgs-gantt-who-btn" data-s="${si}" data-turno="1" title="${esc(s.nombre_completo)}">${avatar}<span class="sgs-gantt-who"><strong>${esc(s.nombre_corto || s.nombre_completo)}</strong><small>${esc(sub)}</small></span>${nubeHtml(s)}</button></div><div class="sgs-gantt-track">${pista}</div></div>`
                 + (abierto ? detalleHtml(s, si) : '');
         });
         cont.innerHTML = html + '</div>';
@@ -214,9 +238,17 @@ $user = Auth::getLoggedInUser();
     }
     const fila = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
 
+    function popLluvia(origen, s, l) {
+        abrirPop(origen, `<i class="bi bi-cloud-rain-heavy me-1 text-primary"></i>Lluvia en ${esc(l.zona)}`, '<dl>' + fila('Supervisor', esc(s.nombre_corto))
+            + fila('Inicio', hhmm(l.ts_inicio)) + fila('Fin', l.ts_fin ? hhmm(l.ts_fin) : '<span class="badge badge-lluvia">Sigue lloviendo</span>')
+            + fila(l.ts_fin ? 'Duración' : 'Lleva', dur((finLluvia(l) - l.ts_inicio) / 60))
+            + fila('Avisó', quien(l.aviso, l.comentario_inicio)) + (l.ts_fin ? fila('Cerró', quien(l.cerro, l.comentario_fin)) : '')
+            + fila('Mientras llovía', mientrasLlovia(s, l).join('<br>') || 'En turno, sin actividad registrada') + '</dl>');
+    }
+
     function popSupervisor(origen, s) {
         const bloques = (s.timeline_blocks || []).filter((b) => b.ts_inicio);
-        const minutos = (tipo) => bloques.filter((b) => tipo.includes(b.type)).reduce((t, b) => t + (finDe(b) - b.ts_inicio) / 60, 0);
+        const minutos = (tipo, primera = false) => bloques.filter((b) => tipo.includes(b.type) && !!b.primera === primera).reduce((t, b) => t + (finDe(b) - b.ts_inicio) / 60, 0);
         const t = s.turno_ts;
         const finT = t ? (t.fin || (datos.es_hoy ? datos.ahora : null)) : null;
         let cuerpo = '<dl>';
@@ -226,6 +258,8 @@ $user = Auth::getLoggedInUser();
             cuerpo += fila('Inicio de turno', hhmm(t.inicio)) + fila('Fin de turno', t.fin ? hhmm(t.fin) : '<span class="badge bg-success">En turno</span>')
                 + fila(t.fin ? 'Duración del turno' : 'Tiempo en turno', dur(finT ? (finT - t.inicio) / 60 : null));
         }
+        if (t) cuerpo += fila('Hasta la 1.ª actividad', dur(minutos(['travel'], true)));
+        (s.lluvias || []).forEach((l) => { cuerpo += fila(`Lluvia en ${esc(l.zona)}`, horasLluvia(l)); });
         cuerpo += fila('Supervisiones', Number(s.total_supervisiones)) + fila('En supervisiones', dur(minutos(['supervision'])))
             + fila('En traslados', dur(minutos(['travel']))) + fila('Almuerzo y pausas', dur(minutos(['pause']))) + fila('Trabajo remoto', dur(minutos(['remote'])));
         if (s.primera_accion) cuerpo += fila('1.ª acción', `${esc(s.primera_accion.tipo)} a las ${esc(s.primera_accion.hora)} (${Number(s.primera_accion.minutos)} min después)`);
@@ -257,9 +291,9 @@ $user = Auth::getLoggedInUser();
                 `<a class="btn btn-win btn-sm" href="index.php?page=supervision_lista&highlight=${Number(b.id)}"><i class="bi bi-box-arrow-up-right me-1"></i>Abrir supervisión</a>`);
             return;
         }
-        const nombre = b.type === 'travel' ? 'Traslado' : (b.type === 'remote' ? 'Trabajo remoto' : b.title);
+        const nombre = b.type === 'travel' ? nombreTraslado(b) : b.title;
         let cuerpo = '<dl>' + fila('Supervisor', esc(s.nombre_corto)) + fila('Desde', hhmm(b.ts_inicio)) + fila('Hasta', fin) + fila(b.ts_fin ? 'Duración' : 'Lleva', dur(minutos));
-        if (b.type === 'travel') cuerpo += fila('Entre', 'el fin de una supervisión y el inicio de la siguiente');
+        if (b.type === 'travel') cuerpo += fila('Entre', b.primera ? 'el inicio del turno y su primera actividad' : 'el fin de una supervisión y el inicio de la siguiente');
         if (b.type === 'remote' && b.nota) cuerpo += fila('Nota', esc(b.nota));
         abrirPop(origen, `<i class="bi ${b.type === 'travel' ? 'bi-car-front' : b.type === 'remote' ? 'bi-laptop' : 'bi-cup-hot'} me-1 text-primary"></i>${esc(nombre)}`, cuerpo + '</dl>');
     }
@@ -284,6 +318,7 @@ $user = Auth::getLoggedInUser();
         const s = datos.supervisores[Number(el.dataset.s)];
         if (!s) return;
         if (el.dataset.turno) popSupervisor(el, s);
+        else if (el.dataset.lluvia) popLluvia(el, s, s.lluvias[Number(el.dataset.lluvia)]);
         else popBloque(el, s, s.timeline_blocks[Number(el.dataset.b)]);
     });
     document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') cerrarPop(); });

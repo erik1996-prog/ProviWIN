@@ -1329,8 +1329,8 @@
     const hora = () => new Date().toLocaleTimeString('es-PE', {hour:'2-digit', minute:'2-digit', hour12:false});
     const poner = (r) => {
       const lat = r.lat.toFixed(7), lng = r.lng.toFixed(7);
-      if (latEl) { latEl.value = lat; latEl.dataset.origen = 'gps'; latEl.dataset.precision = String(Math.round(r.acc)); }
-      if (lngEl) { lngEl.value = lng; lngEl.dataset.origen = 'gps'; }
+      if (latEl) latEl.value = lat;
+      if (lngEl) lngEl.value = lng;
       latEl?.dispatchEvent(new Event('input', {bubbles:true}));
       lngEl?.dispatchEvent(new Event('input', {bubbles:true}));
     };
@@ -1369,39 +1369,30 @@
   }
 
   // Coordenadas escritas a mano (2026-10-15): se pueden pegar juntas ("-8.139075, -79.055686", como las copia
-  // Google Maps) en cualquiera de los dos campos y se separan solas.
+  // Google Maps) en cualquiera de los dos campos y se separan solas. Si el GPS seguía buscando, se detiene para no
+  // borrar lo escrito (2026-10-20).
   document.addEventListener('input', (ev) => {
     const el = ev.target;
     if (!(el instanceof HTMLInputElement) || !['latitud', 'longitud'].includes(el.name)) return;
-    if (ev.isTrusted) el.dataset.origen = 'manual';
-    const m = el.value.match(/^\s*(-?\d{1,2}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)\s*$/);
-    if (!m) return;
     const form = el.form || el.closest('form') || document;
     const lat = form.querySelector('input[name="latitud"]'), lng = form.querySelector('input[name="longitud"]');
-    if (!lat || !lng) return;
+    if (ev.isTrusted && lat) detenerGPS(lat.id);
+    const m = el.value.match(/^\s*(-?\d{1,2}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)\s*$/);
+    if (!m || !lat || !lng) return;
     lat.value = m[1]; lng.value = m[2];
-    lat.dataset.origen = lng.dataset.origen = 'manual';
     lng.dispatchEvent(new Event('change', {bubbles:true}));
   });
 
-  // Coordenadas según la modalidad (2026-10-15, a pedido del usuario): en TODAS se toma el GPS al iniciar y se
-  // puede actualizar. La única diferencia: en la remota se pueden editar a mano (p. ej. las del cliente); en las
-  // presenciales quedan solo por GPS. El administrador siempre puede corregirlas.
+  // Coordenadas (2026-10-20, a pedido del usuario): en todas las modalidades se toma el GPS al iniciar, se puede
+  // actualizar y cualquier supervisor puede escribirlas o pegarlas a mano. La remota solo cambia el ejemplo y el aviso.
   function sgsModoCoordenadas(form, remota) {
     const lat = form?.querySelector('input[name="latitud"]'), lng = form?.querySelector('input[name="longitud"]');
     if (!lat || !lng) return;
     const status = document.getElementById(lat.id.replace('latitud', 'gps_status'));
-    const editable = remota || esAdministradorActual;
-    const veniaEscrita = lat.dataset.origen === 'manual';
-    [lat, lng].forEach(c => { c.readOnly = !editable; c.title = editable ? '' : 'Se toma del GPS. Use "Actualizar ubicación".'; });
     lat.placeholder = remota ? 'Ej.: -8.139075' : '-12.046374';
     lng.placeholder = remota ? 'Ej.: -79.055686' : '-77.042689';
     if (remota && status && !status.dataset.estado) {
       status.textContent = 'Supervisión remota: se toma tu ubicación al iniciar, y puedes corregirla a mano o pegar las coordenadas del cliente (por ejemplo -8.139075, -79.055686).';
-    }
-    // De remota a presencial con coordenadas escritas a mano: se vuelven a tomar del GPS.
-    if (!remota && !esAdministradorActual && veniaEscrita && !lat.disabled) {
-      capturarGPS(lat.id, lng.id, lat.id.replace('latitud', 'gps_status'));
     }
   }
   // Función para Eliminar una Supervisión

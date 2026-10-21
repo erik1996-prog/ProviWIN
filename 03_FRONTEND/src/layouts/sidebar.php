@@ -100,7 +100,9 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
         ]],
         ['Indicadores', 'bi-graph-up', [
             [$showAdministrativeMenu && $canViewDashboard, 'index.php?page=admin_dashboard', ['admin_dashboard'], 'bi-speedometer2', 'Dashboard de supervisiones'],
+            [$showAdministrativeMenu && $canViewDashboard, 'index.php?page=dashboard_partners', ['dashboard_partners'], 'bi-buildings', 'Dashboard de partners'],
             [$verGestionTecnica, 'index.php?page=dashboard_pendientes', ['dashboard_pendientes'], 'bi-arrow-repeat', 'Pendientes y rescates'],
+            [$verGestionTecnica, 'index.php?page=dashboard_lluvias', ['dashboard_lluvias'], 'bi-cloud-sun', 'Clima'],
             [$verGestionTecnica, 'index.php?page=examenes', ['examenes'], 'bi-clipboard-check', 'Exámenes'],
         ]],
         ['Supervisiones', 'bi-journal-check', [

@@ -164,8 +164,8 @@ try {
     $r = $http('res.partner', "$base/api/supervisiones.php?action=rescate_avance", ['supervision_id' => $orden2, 'comentario' => 'intento del partner']);
     $check('el partner no registra avances del rescate', ($r['status'] ?? '') === 'error', $r);
     $hoy = date('Y-m-d');
-    $c = $http('res.admin', "$base/api/dashboard.php?action=cumplimiento_partners&fecha_inicio=$hoy&fecha_fin=$hoy&partner_id=$partner");
-    $filaP = array_values(array_filter($c['supervisores'] ?? [], fn($x) => (int)$x['id'] === $ids['res.partner']))[0] ?? null;
+    $c = $http('res.admin', "$base/api/dashboard_partners.php?action=dashboard&desde=$hoy&hasta=$hoy&partner_id=$partner");
+    $filaP = array_values(array_filter($c['data']['cumplimiento']['supervisores'] ?? [], fn($x) => (int)$x['id'] === $ids['res.partner']))[0] ?? null;
     $check('el cumplimiento del partner no cambia: sigue contando como atendida a tiempo', $filaP && $filaP['asignadas'] === 1 && $filaP['a_tiempo'] === 1, $filaP);
     $r = $http('res.dos', "$base/api/supervisiones.php?action=rescate_cerrar", ['supervision_id' => $orden2, 'resultado' => 'No rescatado', 'comentario' => 'El cliente desistió']);
     $check('"dos" cierra el rescate como No rescatado', ($r['status'] ?? '') === 'success', $r);

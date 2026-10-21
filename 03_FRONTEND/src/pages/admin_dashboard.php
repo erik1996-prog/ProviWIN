@@ -34,17 +34,7 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
         </div>
     </div>
 
-    <!-- Vistas del Dashboard (2026-10-12): los filtros de arriba aplican a las dos -->
-    <div class="sgs-segmented mb-4" role="tablist" aria-label="Vista del Dashboard" id="dash-vistas">
-        <button type="button" class="filter-tab-btn active" role="tab" aria-selected="true" data-vista="supervision"><i class="bi bi-clipboard-data me-1"></i>Supervisión</button>
-        <button type="button" class="filter-tab-btn" role="tab" aria-selected="false" data-vista="partners"><i class="bi bi-briefcase me-1"></i>Partners</button>
-    </div>
-
-    <div id="dash-vista-supervision">
-
-
-
-
+    <!-- 2026-10-20: la vista "Partners" pasó a su propio Dashboard de partners (pages/dashboard_partners.php). -->
 
     <!-- 2. NUEVO DASHBOARD DE INDICADORES DE SUPERVISIÓN & MAPA DE CALOR INTERACTIVO -->
     <div class="card card-win p-3 p-md-4 mb-4 shadow-sm border-0">
@@ -246,96 +236,6 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
                 </tbody>
             </table>
         </div>
-    </div>
-    </div>
-
-    <div id="dash-vista-partners" class="d-none">
-    <!-- 3. CUMPLIMIENTO DE PARTNERS (atención en 24 h). Usa los filtros de partner y fechas de la sección anterior. -->
-    <div class="card card-win p-3 p-md-4 mb-4" id="partner-compliance">
-        <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
-            <div>
-                <h5 class="fw-bold mb-1"><i class="bi bi-stopwatch me-2" style="color: var(--sgs-orange);"></i>Cumplimiento de partners</h5>
-                <small class="text-secondary">Órdenes transferidas a supervisores de contratas. Plazo de atención: 24 horas; si vence, la orden se bloquea y cuenta como incumplimiento.</small>
-            </div>
-            <span class="badge sgs-role-badge" id="pc-periodo">—</span>
-        </div>
-        <div class="row g-3 mb-3">
-            <div class="col-6 col-md-4 col-xxl-2"><div class="sgs-kpi sgs-kpi--info p-3 h-100"><small class="sgs-kpi-label">Asignadas</small><h3 class="mb-0 sgs-kpi-value" id="pc-asignadas">0</h3></div></div>
-            <div class="col-6 col-md-4 col-xxl-2"><div class="sgs-kpi sgs-kpi--success p-3 h-100"><small class="sgs-kpi-label">Atendidas a tiempo</small><h3 class="mb-0 sgs-kpi-value" id="pc-a-tiempo">0</h3></div></div>
-            <div class="col-6 col-md-4 col-xxl-2"><div class="sgs-kpi sgs-kpi--danger p-3 h-100"><small class="sgs-kpi-label">Bloqueadas</small><h3 class="mb-0 sgs-kpi-value" id="pc-bloqueadas">0</h3></div></div>
-            <div class="col-6 col-md-4 col-xxl-2"><div class="sgs-kpi sgs-kpi--warning p-3 h-100"><small class="sgs-kpi-label">En plazo</small><h3 class="mb-0 sgs-kpi-value" id="pc-en-plazo">0</h3></div></div>
-            <div class="col-6 col-md-4 col-xxl-2"><div class="sgs-kpi sgs-kpi--info p-3 h-100"><small class="sgs-kpi-label">Respuesta promedio</small><h3 class="mb-0 sgs-kpi-value" id="pc-promedio">—</h3></div></div>
-            <div class="col-6 col-md-4 col-xxl-2"><div class="sgs-kpi sgs-kpi--info p-3 h-100" id="pc-cumplimiento-card"><small class="sgs-kpi-label">Cumplimiento</small><h3 class="mb-0 sgs-kpi-value" id="pc-cumplimiento">—</h3></div></div>
-        </div>
-        <div class="row g-3">
-            <div class="col-lg-6">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead><tr><th>Partner</th><th class="text-end">Asignadas</th><th class="text-end">A tiempo</th><th class="text-end">Bloqueadas</th><th class="text-end">Cumplimiento</th></tr></thead>
-                        <tbody id="pc-tabla-partners"><tr><td colspan="5" class="text-center text-muted py-4">Cargando…</td></tr></tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="col-lg-6">
-                <div class="table-responsive" style="max-height: 340px;">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead><tr><th>Orden bloqueada</th><th>Partner / supervisor</th><th class="text-end">Vencida hace</th></tr></thead>
-                        <tbody id="pc-tabla-bloqueadas"><tr><td colspan="3" class="text-center text-muted py-4">Cargando…</td></tr></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        <h6 class="fw-bold mt-4 mb-2"><i class="bi bi-person-badge me-1 text-primary"></i>Por supervisor del partner</h6>
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead><tr><th>Supervisor</th><th>Partner</th><th class="text-end">Asignadas</th><th class="text-end">A tiempo</th><th class="text-end">En plazo</th><th class="text-end">Bloqueadas</th><th class="text-end">Respuesta promedio</th><th class="text-end">Cumplimiento</th></tr></thead>
-                <tbody id="pc-tabla-supervisores"><tr><td colspan="8" class="text-center text-muted py-4">Cargando…</td></tr></tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- OBSERVACIONES Y DESCARGOS DE LOS PARTNERS (2026-10-13). API: dashboard.php?action=observaciones_partners -->
-    <div class="card card-win p-3 p-md-4 mb-4" id="partner-observaciones">
-        <div class="mb-3">
-            <h5 class="fw-bold mb-1"><i class="bi bi-chat-square-text me-2 text-primary"></i>Observaciones y descargos</h5>
-            <small class="text-secondary">Observaciones de campo y de checklist hechas a los partners en el período, y cómo respondieron dentro del plazo.</small>
-        </div>
-        <div class="row row-cols-2 row-cols-lg-5 g-3 mb-3">
-            <div class="col"><div class="sgs-kpi p-3 h-100"><small class="sgs-kpi-label">Observaciones</small><h3 class="mb-0 sgs-kpi-value" id="po-total">0</h3></div></div>
-            <div class="col"><div class="sgs-kpi sgs-kpi--success p-3 h-100"><small class="sgs-kpi-label">Respondidas a tiempo</small><h3 class="mb-0 sgs-kpi-value" id="po-a-tiempo">0</h3></div></div>
-            <div class="col"><div class="sgs-kpi sgs-kpi--danger p-3 h-100"><small class="sgs-kpi-label">Sin respuesta vencidas</small><h3 class="mb-0 sgs-kpi-value" id="po-vencidas">0</h3></div></div>
-            <div class="col"><div class="sgs-kpi sgs-kpi--warning p-3 h-100"><small class="sgs-kpi-label">Pendientes en plazo</small><h3 class="mb-0 sgs-kpi-value" id="po-en-plazo">0</h3></div></div>
-            <div class="col"><div class="sgs-kpi p-3 h-100"><small class="sgs-kpi-label">Descargos por revisar</small><h3 class="mb-0 sgs-kpi-value" id="po-revision">0</h3></div></div>
-            <div class="col"><div class="sgs-kpi p-3 h-100"><small class="sgs-kpi-label">Respuesta promedio</small><h3 class="mb-0 sgs-kpi-value" id="po-promedio">—</h3></div></div>
-            <div class="col"><div class="sgs-kpi sgs-kpi--success p-3 h-100"><small class="sgs-kpi-label">Descargos validados</small><h3 class="mb-0 sgs-kpi-value" id="po-validadas">0</h3></div></div>
-            <div class="col"><div class="sgs-kpi sgs-kpi--danger p-3 h-100"><small class="sgs-kpi-label">Penalizadas</small><h3 class="mb-0 sgs-kpi-value" id="po-penalizadas">0</h3></div></div>
-            <div class="col"><div class="sgs-kpi p-3 h-100" id="po-pct-card"><small class="sgs-kpi-label">Respuesta a tiempo</small><h3 class="mb-0 sgs-kpi-value" id="po-pct">—</h3></div></div>
-            <div class="col"><div class="sgs-kpi p-3 h-100"><small class="sgs-kpi-label">Penalidad sobre evaluadas</small><h3 class="mb-0 sgs-kpi-value" id="po-pct-pen">—</h3></div></div>
-        </div>
-        <div class="row g-3">
-            <div class="col-12">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead><tr><th>Partner</th><th class="text-end">Observaciones</th><th class="text-end">A tiempo</th><th class="text-end">Vencidas sin respuesta</th><th class="text-end">Por revisar</th><th class="text-end">Validadas</th><th class="text-end">Penalizadas</th><th class="text-end">Respuesta a tiempo</th></tr></thead>
-                        <tbody id="po-tabla-partners"><tr><td colspan="8" class="text-center text-muted py-4">Cargando…</td></tr></tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="col-lg-7">
-                <div class="card p-3 h-100 shadow-sm border">
-                    <h6 class="fw-bold mb-2 border-bottom pb-2"><i class="bi bi-list-ol me-1 text-primary"></i>Motivos más observados</h6>
-                    <div id="po-motivos" class="d-flex flex-column gap-2"></div>
-                </div>
-            </div>
-            <div class="col-lg-5">
-                <div class="card p-3 h-100 shadow-sm border">
-                    <h6 class="fw-bold mb-2 border-bottom pb-2"><i class="bi bi-bar-chart-steps me-1 text-primary"></i>Por gravedad</h6>
-                    <div id="po-gravedad" class="d-flex flex-column gap-2"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     </div>
 </div>
 
@@ -562,117 +462,6 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
         }
     }
 
-    // Cumplimiento de partners (atención en 24 h)
-    async function cargarCumplimientoPartners() {
-        const params = new URLSearchParams({
-            action: 'cumplimiento_partners',
-            partner_id: document.getElementById('ind-filter-partner')?.value || 0,
-            departamento: document.getElementById('ind-filter-departamento')?.value || '',
-            fecha_inicio: document.getElementById('ind-filter-f-ini')?.value || '',
-            fecha_fin: document.getElementById('ind-filter-f-fin')?.value || '',
-        });
-        const tPartners = document.getElementById('pc-tabla-partners');
-        const tBloq = document.getElementById('pc-tabla-bloqueadas');
-        try {
-            const resp = await fetch('api/dashboard.php?' + params.toString(), { cache: 'no-store' });
-            const data = await resp.json();
-            if (data.status !== 'success') throw new Error(data.message || 'Sin datos');
-            const r = data.resumen || {};
-            const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-            const fmtMin = (m) => m == null ? '—' : (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`);
-            const fmtFecha = (f) => String(f || '').split('-').reverse().join('/');
-            set('pc-periodo', `${fmtFecha(data.periodo.inicio)} – ${fmtFecha(data.periodo.fin)}`);
-            set('pc-asignadas', r.asignadas || 0);
-            set('pc-a-tiempo', r.a_tiempo || 0);
-            set('pc-bloqueadas', r.bloqueadas || 0);
-            set('pc-en-plazo', r.en_plazo || 0);
-            set('pc-promedio', fmtMin(r.minutos_promedio));
-            set('pc-cumplimiento', r.cumplimiento == null ? '—' : `${r.cumplimiento}%`);
-            const card = document.getElementById('pc-cumplimiento-card');
-            if (card) card.className = 'sgs-kpi p-3 h-100 ' + (r.cumplimiento == null ? 'sgs-kpi--info' : r.cumplimiento >= 90 ? 'sgs-kpi--success' : r.cumplimiento >= 70 ? 'sgs-kpi--warning' : 'sgs-kpi--danger');
-
-            const partners = data.partners || [];
-            tPartners.innerHTML = partners.length ? partners.map((p) => {
-                const pct = p.cumplimiento == null ? '—' : `${p.cumplimiento}%`;
-                const cls = p.cumplimiento == null ? 'bg-secondary' : p.cumplimiento >= 90 ? 'bg-success' : p.cumplimiento >= 70 ? 'bg-warning' : 'bg-danger';
-                return `<tr><td class="fw-bold">${escapeHtml(p.nombre_partner)}</td><td class="text-end">${p.asignadas}</td><td class="text-end">${p.a_tiempo}</td><td class="text-end">${p.bloqueadas}</td><td class="text-end"><span class="badge ${cls}">${pct}</span></td></tr>`;
-            }).join('') : '<tr><td colspan="5" class="text-center text-muted py-4">No hay órdenes asignadas a partners en el periodo.</td></tr>';
-
-            const bloq = data.bloqueadas || [];
-            tBloq.innerHTML = bloq.length ? bloq.map((b) => {
-                const horas = Number(b.horas_vencida || 0);
-                const hace = horas >= 24 ? `${Math.floor(horas / 24)} d ${horas % 24} h` : `${horas} h`;
-                return `<tr><td><span class="fw-bold">${escapeHtml(b.codigo_supervision)}</span><br><small class="text-muted">${escapeHtml(b.departamento || '')}</small></td><td>${escapeHtml(b.nombre_partner)}<br><small class="text-muted">${escapeHtml(b.supervisor_partner || '')}</small></td><td class="text-end"><span class="badge bg-danger">${hace}</span></td></tr>`;
-            }).join('') : '<tr><td colspan="3" class="text-center text-muted py-4">Sin órdenes bloqueadas en el periodo.</td></tr>';
-
-            const tSup = document.getElementById('pc-tabla-supervisores');
-            const sups = data.supervisores || [];
-            if (tSup) tSup.innerHTML = sups.length ? sups.map((u) => {
-                const pct = u.cumplimiento == null ? '—' : `${u.cumplimiento}%`;
-                const cls = u.cumplimiento == null ? 'bg-secondary' : u.cumplimiento >= 90 ? 'bg-success' : u.cumplimiento >= 70 ? 'bg-warning' : 'bg-danger';
-                return `<tr><td data-label="Supervisor" class="fw-bold">${escapeHtml(u.nombre_completo)}</td><td data-label="Partner">${escapeHtml(u.nombre_partner)}</td><td data-label="Asignadas" class="text-end">${Number(u.asignadas)}</td><td data-label="A tiempo" class="text-end">${Number(u.a_tiempo)}</td><td data-label="En plazo" class="text-end">${Number(u.en_plazo)}</td><td data-label="Bloqueadas" class="text-end">${Number(u.bloqueadas)}</td><td data-label="Respuesta promedio" class="text-end">${fmtMin(u.minutos_promedio)}</td><td data-label="Cumplimiento" class="text-end"><span class="badge ${cls}">${pct}</span></td></tr>`;
-            }).join('') : '<tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i>Sin órdenes asignadas a supervisores de partners en el periodo.</td></tr>';
-        } catch (error) {
-            if (tPartners) tPartners.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">No se pudo cargar el cumplimiento de partners.</td></tr>';
-            if (tBloq) tBloq.innerHTML = '<tr><td colspan="3" class="text-center text-danger py-4">No se pudo cargar el detalle.</td></tr>';
-        }
-    }
-
-    // Observaciones y descargos de los partners (mismos filtros: partner, departamento y período)
-    async function cargarObservacionesPartners() {
-        const params = new URLSearchParams({
-            action: 'observaciones_partners',
-            partner_id: document.getElementById('ind-filter-partner')?.value || 0,
-            departamento: document.getElementById('ind-filter-departamento')?.value || '',
-            fecha_inicio: document.getElementById('ind-filter-f-ini')?.value || '',
-            fecha_fin: document.getElementById('ind-filter-f-fin')?.value || '',
-        });
-        const tabla = document.getElementById('po-tabla-partners');
-        const motivosBox = document.getElementById('po-motivos');
-        const gravedadBox = document.getElementById('po-gravedad');
-        if (!tabla) return;
-        const vacio = '<div class="text-center text-muted py-3"><i class="bi bi-inbox me-1"></i>Sin observaciones en el periodo.</div>';
-        try {
-            const resp = await fetch('api/dashboard.php?' + params.toString(), { cache: 'no-store' });
-            const data = await resp.json();
-            if (data.status !== 'success') throw new Error(data.message || 'Sin datos');
-            const r = data.resumen || {};
-            const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-            const fmtMin = (m) => m == null ? '—' : (m >= 1440 ? `${Math.floor(m / 1440)} d ${Math.floor((m % 1440) / 60)} h` : m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`);
-            const pct = (v) => v == null ? '—' : `${v}%`;
-            const tono = (v) => v == null ? 'bg-secondary' : v >= 90 ? 'bg-success' : v >= 70 ? 'bg-warning' : 'bg-danger';
-            set('po-total', r.total || 0);
-            set('po-a-tiempo', r.a_tiempo || 0);
-            set('po-vencidas', r.sin_respuesta_vencidas || 0);
-            set('po-en-plazo', r.en_plazo || 0);
-            set('po-revision', r.en_revision || 0);
-            set('po-promedio', fmtMin(r.minutos_respuesta));
-            set('po-validadas', r.validadas || 0);
-            set('po-penalizadas', r.penalizadas || 0);
-            set('po-pct', pct(r.pct_a_tiempo));
-            set('po-pct-pen', pct(r.pct_penalizadas));
-            const card = document.getElementById('po-pct-card');
-            if (card) card.className = 'sgs-kpi p-3 h-100 ' + (r.pct_a_tiempo == null ? '' : r.pct_a_tiempo >= 90 ? 'sgs-kpi--success' : r.pct_a_tiempo >= 70 ? 'sgs-kpi--warning' : 'sgs-kpi--danger');
-
-            const partners = data.partners || [];
-            tabla.innerHTML = partners.length ? partners.map((p) => `<tr><td data-label="Partner" class="fw-bold">${escapeHtml(p.nombre_partner)}</td><td data-label="Observaciones" class="text-end">${Number(p.total)}</td><td data-label="A tiempo" class="text-end">${Number(p.a_tiempo)}</td><td data-label="Vencidas sin respuesta" class="text-end">${Number(p.sin_respuesta_vencidas)}</td><td data-label="Por revisar" class="text-end">${Number(p.en_revision)}</td><td data-label="Validadas" class="text-end">${Number(p.validadas)}</td><td data-label="Penalizadas" class="text-end">${Number(p.penalizadas)}</td><td data-label="Respuesta a tiempo" class="text-end"><span class="badge ${tono(p.pct_a_tiempo)}">${pct(p.pct_a_tiempo)}</span></td></tr>`).join('')
-                : '<tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-inbox me-1"></i>Sin observaciones a partners en el periodo.</td></tr>';
-
-            const barra = (etiqueta, sub, total, max) => `<div><div class="d-flex justify-content-between gap-2 small"><span class="fw-bold text-truncate" title="${escapeHtml(etiqueta)}">${escapeHtml(etiqueta)}</span><span class="text-muted text-nowrap">${sub}</span></div><div class="progress mt-1" role="progressbar" aria-label="${escapeHtml(etiqueta)}" aria-valuenow="${Number(total)}" aria-valuemin="0" aria-valuemax="${Number(max)}"><div class="progress-bar bg-info" style="width:${Math.round(Number(total) * 100 / Math.max(1, Number(max)))}%"></div></div></div>`;
-            const motivos = data.motivos || [];
-            const maxM = motivos.reduce((m, x) => Math.max(m, Number(x.total)), 0);
-            motivosBox.innerHTML = motivos.length ? motivos.map((m) => barra(m.motivo, `${Number(m.total)} · ${escapeHtml(m.tipo)}${Number(m.penalizadas) ? ` · ${Number(m.penalizadas)} penalizadas` : ''}`, m.total, maxM)).join('') : vacio;
-            const orden = ['Muy Grave', 'Grave', 'Media', 'Leve', 'Checklist'];
-            const grav = (data.gravedad || []).sort((a, b) => orden.indexOf(a.gravedad) - orden.indexOf(b.gravedad));
-            const maxG = grav.reduce((m, x) => Math.max(m, Number(x.total)), 0);
-            gravedadBox.innerHTML = grav.length ? grav.map((g) => barra(g.gravedad === 'Checklist' ? 'Checklist (ítems observados)' : g.gravedad, String(Number(g.total)), g.total, maxG)).join('') : vacio;
-        } catch (error) {
-            tabla.innerHTML = '<tr><td colspan="8" class="text-center text-danger py-4">No se pudieron cargar las observaciones de los partners.</td></tr>';
-            if (motivosBox) motivosBox.innerHTML = '';
-            if (gravedadBox) gravedadBox.innerHTML = '';
-        }
-    }
-
     // Supervisores del departamento elegido: los que lo tienen como zona base o adicional (o trabajan todas las zonas)
     function sgsFiltrarSupervisoresPorDepartamento() {
         const selS = document.getElementById('ind-filter-supervisor');
@@ -715,21 +504,6 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
     }
 
     // Vistas del Dashboard: Supervisión / Partners (la elección se recuerda en este navegador)
-    function mostrarVistaDashboard(vista) {
-        document.querySelectorAll('#dash-vistas .filter-tab-btn').forEach((b) => {
-            const activa = b.dataset.vista === vista;
-            b.classList.toggle('active', activa);
-            b.setAttribute('aria-selected', activa ? 'true' : 'false');
-        });
-        document.getElementById('dash-vista-supervision')?.classList.toggle('d-none', vista !== 'supervision');
-        document.getElementById('dash-vista-partners')?.classList.toggle('d-none', vista !== 'partners');
-        if (vista === 'supervision' && leafletMap) setTimeout(() => leafletMap.invalidateSize(), 50);
-        try { localStorage.setItem('sgs-dash-vista', vista); } catch (e) {}
-    }
-    document.querySelectorAll('#dash-vistas .filter-tab-btn').forEach((b) => b.addEventListener('click', () => mostrarVistaDashboard(b.dataset.vista)));
-    try { if (localStorage.getItem('sgs-dash-vista') === 'partners') mostrarVistaDashboard('partners'); } catch (e) {}
-
-    // Modalidad: anillo con tres partes (en caliente / en frío / remota), leyenda con cantidad y porcentaje.
     function pintarModalidad(mod) {
         const cont = document.getElementById('dash-modalidad');
         if (!cont) return;
@@ -974,8 +748,6 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
     function aplicarFiltroGeneral() {
         sincronizarPeriodo();
         cargarIndicadoresDashboard();
-        cargarCumplimientoPartners();
-        cargarObservacionesPartners();
         cargarMatrizMensual();
         if (window.sgsCargarProductividad) window.sgsCargarProductividad();
     }

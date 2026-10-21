@@ -61,7 +61,7 @@ $casos = [
     ['Administrador', 'supervisiones', 'action=indicadores_dashboard', 'Indicadores del dashboard (mes)'],
     ['Administrador', 'dashboard', 'action=matriz_mensual', 'Matriz mensual'],
     ['Administrador', 'dashboard', 'action=monitoreo_realtime', 'Monitoreo de turnos'],
-    ['Administrador', 'dashboard', 'action=cumplimiento_partners&fecha_inicio=' . date('Y-m-d', $hoy - 365 * 86400), 'Cumplimiento partners (1 año)'],
+    ['Administrador', 'dashboard_partners', 'action=dashboard&desde=' . date('Y-m-d', $hoy - 365 * 86400), 'Dashboard de partners (1 año)'],
     ['Administrador', 'asistencia', 'action=timeline_diaria', 'Línea de tiempo del día'],
     ['Administrador', 'asistencia', 'action=admin_summary', 'Monitor de turnos'],
     ['Supervisor', 'asistencia', 'action=status', 'Estado de mi turno'],

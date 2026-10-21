@@ -89,14 +89,14 @@ window.SgsDashboard = (() => {
 
     /**
      * Arma un dashboard: al cambiar los filtros recarga los totales (pintar) y la tabla; actualiza el enlace del Excel.
-     * opc: raiz, form, url (de los totales), excel (enlace), pintar(datos), tabla (de tabla()), tip.
+     * opc: raiz, form, url (de los totales), excel (enlace, opcional), pintar(datos), tabla (de tabla(), opcional), tip.
      */
     const iniciar = (opc) => {
         ayuda(opc.raiz, opc.tip);
         const recargar = async () => {
             const p = parametros(opc.form);
             if (opc.excel) opc.excel.href = `${opc.excel.dataset.base}&${p}`;
-            opc.tabla.cargar();
+            opc.tabla?.cargar();
             opc.raiz.classList.add('dsh-cargando');
             try {
                 const r = await leer(`${opc.url}&${p}`);

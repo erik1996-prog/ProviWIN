@@ -4,6 +4,33 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Coordenadas a mano para todos los supervisores (2026-10-20)
+- **Cambiado**: en cualquier modalidad (presencial o remota) el supervisor puede escribir o pegar las coordenadas a mano; antes solo en la remota o siendo administrador. El GPS se sigue tomando solo al iniciar y con "Actualizar ubicación". Si el GPS seguía buscando cuando el supervisor escribe, se detiene para no borrar lo escrito. Cada cambio de coordenadas sigue quedando en el historial (`supervision_coordenadas_historial`).
+- **Eliminado**: la regla que volvía a tomar el GPS al pasar de remota a presencial y las marcas internas de origen y precisión, que ya no se usan.
+
+### Dashboard de partners, lluvia por zona y error "Data truncated for column 'estado'" (2026-10-20)
+- **Corregido**: al registrar una supervisión salía "Data truncated for column 'estado'". En la base, la opción "Sí" del checklist (EPP, indumentaria, materiales) estaba guardada con la tilde mal codificada y la rechazaba. Cambio de BD `2026-10-20_03`: corrige la lista y recupera como "Sí" las respuestas que quedaron vacías por ese error.
+- **Dashboard de partners** (Indicadores, solo administración): lo que antes era la vista "Partners" del Dashboard de supervisiones, ahora en su propia pantalla y con las piezas comunes (`api/dashboard_partners.php`, `dashboard_partners.js`). Trae el cumplimiento en 24 h (por partner, por supervisor del partner y las órdenes bloqueadas) y las observaciones y descargos. Filtros: fechas, partner y zona.
+- **Sin información repetida**:
+  - el Dashboard de supervisiones ya no tiene las pestañas Supervisión/Partners;
+  - Pendientes y rescates ya no tiene la tabla "Por supervisor de partner", porque es la misma que la del Dashboard de partners, que además cuenta todas las órdenes transferidas;
+  - se quitaron del API de dashboard las acciones `cumplimiento_partners` y `observaciones_partners`.
+- **Lluvia por zona** (cambios de BD `2026-10-20_04`, tabla `lluvias_zona`, y `2026-10-20_05`, comentarios de inicio y fin):
+  - En Mi turno, el supervisor directo marca "Está lloviendo" y "Ya paró la lluvia" en su zona, tocando la nube animada (nube clara con sol; con lluvia, azul con gotas que caen) o el botón.
+  - La lluvia **no cambia su actividad**, porque puede llover hasta en plena supervisión. Al avisar y al cerrar, el sistema anota solo qué hacía cada uno: "Supervisando TCK-123", "En almuerzo", "En trabajo remoto", "En turno"…
+  - Hay una sola lluvia abierta por zona: inicio = el primero que la avisó, fin = el que la cerró. Si nadie la cierra, se cierra sola cuando quien la avisó termina su turno, o al final del día.
+  - **Línea de tiempo**: un bloque azul con gotas, de su inicio a su fin, detrás de los demás bloques. Al tocarlo muestra quién avisó, quién cerró, qué hacía cada uno y qué hizo ese supervisor mientras llovía. La nube junto al nombre sale **solo mientras llueve**.
+  - **Indicador "Clima"** (Indicadores; administración, y supervisor directo con sus zonas). En Mi turno la sección se llama "Clima en su zona":
+    - días con lluvia, lluvias, horas, duración promedio y zona con más lluvia;
+    - horas por zona;
+    - **calendario del mes**, con los días de lluvia en tres tonos según las horas;
+    - **bitácora**: fecha, zona, inicio (quién avisó y qué hacía) y fin (quién cerró y qué hacía). Al tocar un día del calendario, la bitácora muestra solo ese día.
+  - Color propio de la lluvia, azul acero sobrio (`--sgs-lluvia`, sección 57), siempre con ícono y texto.
+  - Iniciar y terminar una actividad del turno quedó en funciones comunes (`sgsIniciarActividad`, `sgsTerminarActividad`, `sgsTurnoAbiertoHoy`, `sgsActividadAbierta` en `config/turnos.php`).
+  - Una actividad a la vez: con almuerzo, reunión, remoto… abierto, primero se termina ("Reanudar turno") antes de iniciar otra. Antes se cerraba en silencio.
+  - Se descartó el "trabajo remoto por lluvia", que se probó primero; no quedó código de esa versión.
+- **Línea de tiempo: tiempo hasta la primera actividad**: el tramo desde el inicio del turno hasta su primera actividad no se dibujaba ni se sumaba (solo se contaban los traslados entre supervisiones). Ahora aparece como "Hasta la 1.ª actividad", y si todavía no hace nada sigue corriendo. Su detalle muestra cuánto fue.
+
 ### Buscador de listas que no filtraba y aviso claro en los dashboards (2026-10-20)
 - **Corregido**: en "Solución aplicada o cierre técnico" (Avería, Reiterada, Garantía) y "Trabajo programado" (Postventa), al escribir no se filtraba la lista y había que bajar. Al escribir la primera letra se vaciaba la opción elegida y ese cambio borraba lo escrito. Ahora:
   - el texto se mantiene y la lista se filtra;
