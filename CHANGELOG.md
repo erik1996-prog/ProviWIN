@@ -4,6 +4,9 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Corrección: el T2 guardado no salía en la siguiente supervisión (2026-10-23)
+- **Corregido**: al finalizar una supervisión, la cuadrilla del técnico líder se actualiza (T2 y vehículo), pero la pantalla seguía usando la lista de técnicos que cargó al abrirse. Si el supervisor iniciaba otra supervisión sin recargar la página, el T2 no se completaba solo. Ahora, después de finalizar, la lista se vuelve a pedir al abrir la siguiente.
+
 ### Aviso de lluvias en Teams (2026-10-23)
 - **Añadido**: cuando un supervisor avisa que empezó a llover o que paró, se publica un mensaje en un grupo de Teams: solo la zona, la hora, quién la reportó primero y quién la finalizó.
 - **Configuración**: la dirección del flujo de Teams va en `09_CONFIG/teams_lluvias.local.txt` (bloqueado a la web y fuera de Git) o en la variable `SGS_TEAMS_LLUVIAS_URL`. Sin ella no se envía nada y el sistema sigue igual. Si Teams falla, el aviso de lluvia se guarda igual y el error queda en el log.

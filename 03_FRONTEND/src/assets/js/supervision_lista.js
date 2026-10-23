@@ -3338,6 +3338,7 @@
           ? 'Supervisión FINALIZADA correctamente.'
           : (esInicioPendiente ? 'Supervisión iniciada correctamente.' : 'Avance/cambios guardados.');
         showToast(msg);
+        if (nuevoEstado === 'Finalizada') listaTecnicos = []; // la cuadrilla del líder pudo cambiar al cerrar
         closeDetail();
         // Pendiente recién iniciada: se reabre En proceso, con los campos de la validación habilitados.
         const idIniciada = Number(formData.get('supervision_id_edit') || 0);
@@ -4121,6 +4122,7 @@
             if (filter) filter.value = '';
           });
           try { localStorage.removeItem(claveBorrador(idFinalizada)); } catch (_) {}
+          if (finishing) listaTecnicos = []; // al cerrar pudo cambiar la cuadrilla del líder (T2, vehículo): la próxima vuelve a pedir el catálogo
           resetNewWorkflowForm();
           closeNewForm();
           return;
