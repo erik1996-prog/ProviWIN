@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Manual del supervisor · SGS</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+
+<section class="portada">
+  <div class="portada-banda">
+    <div>
+      <img class="logo" src="../../03_FRONTEND/src/assets/img/win-wordmark-white.png" alt="WIN">
+      <div class="sistema">SGS · Sistema de Gestión de Supervisión</div>
+      <h1>Manual del<br>supervisor</h1>
+      <div class="bajada">Todo el trabajo de campo desde el celular: turno, supervisiones, pendientes, cuadrillas, observaciones y clima.</div>
+    </div>
+    <figure class="movil"><img src="img_manuales/s02_mi_turno.jpg" alt=""></figure>
+  </div>
+  <div class="portada-pie"><span>Versión 0.10.1</span><span>Octubre de 2026</span><span>Uso interno · WIN</span></div>
+</section>
+
+<section class="hoja">
+  <h2>Su día en el sistema</h2>
+  <ol class="flujo">
+    <li><b>1</b><span><strong>Ingresar</strong>con su usuario o DNI.</span></li>
+    <li><b>2</b><span><strong>Iniciar turno</strong>con el GPS encendido.</span></li>
+    <li><b>3</b><span><strong>Supervisar</strong>en campo: se guarda solo.</span></li>
+    <li><b>4</b><span><strong>Finalizar</strong>con fotos y ubicación.</span></li>
+    <li><b>5</b><span><strong>Cerrar turno</strong>al terminar la jornada.</span></li>
+  </ol>
+  <div class="reglas">
+    <div><i>①</i><strong>Sin turno no hay supervisión.</strong> Todo empieza en <em>Mi turno</em>.</div>
+    <div><i>②</i><strong>GPS encendido</strong> y con permiso para el sistema.</div>
+    <div><i>③</i><strong>Una supervisión a la vez:</strong> finalícela antes de iniciar otra.</div>
+  </div>
+  <div class="dos">
+    <div>
+      <h3>Ingresar</h3>
+      <ul>
+        <li>Usuario: su <strong>DNI</strong>, usuario o correo.</li>
+        <li>El primer ingreso le pide crear su propia contraseña.</li>
+        <li>Tres intentos fallidos bloquean el usuario: pida al administrador que lo libere.</li>
+      </ul>
+      <h3>El menú</h3>
+      <ul>
+        <li>Se abre con <span class="tecla">☰</span>.</li>
+        <li><strong>Mi turno · Indicadores · Supervisiones · Observaciones · Técnicos y cuadrillas</strong>.</li>
+      </ul>
+    </div>
+    <div class="par">
+      <figure class="movil"><img src="img_manuales/s01_ingreso.jpg" alt=""><figcaption>Ingreso</figcaption></figure>
+      <figure class="movil"><img src="img_manuales/s04_menu.jpg" alt=""><figcaption>Menú</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section class="hoja">
+  <h2><span class="n">1</span>Mi turno y clima</h2>
+  <div class="con-pantalla">
+    <div>
+      <ul>
+        <li><span class="boton">Iniciar turno</span> al empezar la jornada y <span class="boton sec">Finalizar turno</span> al terminar.</li>
+        <li>Registre <strong>almuerzo, reunión, capacitación o trabajo remoto</strong>. Al volver, <em>Reanudar turno</em>.</li>
+        <li>El tiempo del turno y de cada actividad se cuenta solo.</li>
+      </ul>
+      <h3>Clima en su zona</h3>
+      <ul>
+        <li>Si llueve, toque la <strong>nube</strong> o <span class="boton lluvia">Está lloviendo</span>.</li>
+        <li>Cuando pare: <span class="boton lluvia">Ya paró la lluvia</span>.</li>
+        <li>No cambia lo que está haciendo: el sistema anota solo su actividad (por ejemplo, <em>Supervisando 4215032</em>).</li>
+        <li>Si otro supervisor de su zona ya la avisó, lo verá en su tarjeta.</li>
+      </ul>
+    </div>
+    <figure class="movil"><img src="img_manuales/s02_mi_turno.jpg" alt=""><figcaption>Turno en curso y lluvia avisada</figcaption></figure>
+  </div>
+</section>
+
+<section class="hoja">
+  <h2><span class="n">2</span>Supervisiones</h2>
+  <div class="con-pantalla">
+    <div>
+      <ul>
+        <li>Pestañas: <strong>Todas · En proceso · Finalizadas · Pendientes · En rescate</strong>.</li>
+        <li>Busque por pedido o ticket y filtre por fechas.</li>
+        <li><span class="boton">Nueva supervisión</span> la abre al instante (con su zona ya puesta).</li>
+        <li>Si dejó una a medias, aparece <span class="boton">Continuar supervisión</span>.</li>
+      </ul>
+      <div class="nota"><b>Se guarda solo</b>Mientras llena el formulario, todo se guarda. Si se corta la señal, al volver continúa donde quedó.</div>
+    </div>
+    <figure class="movil"><img src="img_manuales/s05_supervisiones.jpg" alt=""><figcaption>Lista de trabajo</figcaption></figure>
+  </div>
+</section>
+
+<section class="hoja">
+  <h2><span class="n">3</span>Registrar la supervisión</h2>
+  <div class="trio">
+    <figure class="movil"><img src="img_manuales/s06_formulario.jpg" alt=""><figcaption>1 · Datos generales</figcaption></figure>
+    <figure class="movil"><img src="img_manuales/s07_tecnicos.jpg" alt=""><figcaption>3 · Partner, técnicos y vehículo</figcaption></figure>
+    <figure class="movil"><img src="img_manuales/s08_finalizar.jpg" alt=""><figcaption>4 · Ubicación y evidencias</figcaption></figure>
+  </div>
+  <ol class="pasos">
+    <li><strong>Datos generales:</strong> actividad, origen, segmento, modalidad (en caliente, en frío o remota) y ubicación.</li>
+    <li><strong>Orden:</strong> pedido o ticket.</li>
+    <li><strong>Cuadrilla:</strong> al elegir el técnico líder (T1) se completan su apoyo (T2) y su vehículo. Para cambiar un técnico, <strong>toque el campo</strong> y elija otro o registre uno nuevo.</li>
+    <li><strong>Evidencias:</strong> la ubicación se toma sola (también puede escribirla). Suba <strong>al menos una foto</strong> y el checklist.</li>
+    <li><span class="boton">Finalizar supervisión</span>: el sistema le indica lo que falte.</li>
+  </ol>
+</section>
+
+<section class="hoja">
+  <h2><span class="n">4</span>Pendientes y rescates</h2>
+  <div class="con-pantalla">
+    <div>
+      <ul>
+        <li>Las cancelaciones cargadas por Excel llegan a <strong>Pendientes</strong> de su zona.</li>
+        <li>Al tomar una, <strong>valide</strong> la cancelación: si es correcta se cierra; si se puede salvar, pasa a <strong>rescate</strong>.</li>
+        <li>También puede <strong>transferirla a un partner</strong>: tiene <strong>24 horas</strong> para atenderla.</li>
+        <li>En <em>Indicadores › Pendientes y rescates</em> ve su avance: atendidas, rescatadas y tiempo de atención.</li>
+      </ul>
+    </div>
+    <figure class="movil"><img src="img_manuales/s10_pendientes.jpg" alt=""><figcaption>Indicador de pendientes</figcaption></figure>
+  </div>
+</section>
+
+<section class="hoja">
+  <h2><span class="n">5</span>Cuadrillas y observaciones</h2>
+  <div class="dos">
+    <div>
+      <h3>Técnicos y cuadrillas</h3>
+      <ul>
+        <li>Cada técnico líder con su apoyo, su vehículo y sus documentos (SOAT, revisión técnica, extintor, brevete).</li>
+        <li>Alertas de documentos <strong>vencidos o por vencer</strong>.</li>
+        <li>Puede corregir la cuadrilla de su zona con el lápiz.</li>
+      </ul>
+      <h3>Observaciones</h3>
+      <ul>
+        <li>Hallazgos de campo y de checklist con su <strong>plazo de descargo</strong>.</li>
+        <li>Estado de cada una: pendiente, respondida, validada o penalizada.</li>
+      </ul>
+    </div>
+    <div class="par">
+      <figure class="movil"><img src="img_manuales/s09_cuadrillas.jpg" alt=""><figcaption>Cuadrillas</figcaption></figure>
+      <figure class="movil"><img src="img_manuales/s11_observaciones.jpg" alt=""><figcaption>Observaciones</figcaption></figure>
+    </div>
+  </div>
+  <div class="ayuda"><b>¿Necesita ayuda?</b> Contraseña olvidada, usuario bloqueado o zona incorrecta: comuníquese con el administrador del sistema.</div>
+</section>
+
+</body>
+</html>

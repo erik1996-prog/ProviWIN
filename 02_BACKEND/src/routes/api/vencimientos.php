@@ -56,6 +56,8 @@ try {
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'registrar') {
+        // Desde Cuadrillas hace falta "editar cuadrillas"; desde una supervisión basta poder registrar supervisiones.
+        if (!Auth::puede(empty($_POST['supervision_id']) ? Auth::PERM_CUADRILLAS_EDIT : Auth::PERM_SUPERVISION_CREATE, $usuario)) $responder(['status' => 'error', 'message' => 'No tiene permiso para registrar vencimientos.'], 403);
         $tipo = (string)($_POST['tipo'] ?? '');
         if (!isset(SGS_VENCIMIENTOS[$tipo])) throw new Exception('Documento no válido.');
         $l = $cuadrilla((int)($_POST['lider_id'] ?? 0), (string)($_POST['placa'] ?? ''));

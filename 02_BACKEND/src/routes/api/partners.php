@@ -1,6 +1,7 @@
 <?php
 // 02_BACKEND/src/routes/api/partners.php - Registro de partners (contratas) (2026-10-15).
-// Solo administración de usuarios (PERM_USERS_MANAGE). Tabla `partners` (nombre_partner, ruc, estado).
+// Permisos (2026-10-23): ver = PERM_PARTNERS_VIEW, crear/editar/activar = PERM_PARTNERS_EDIT, eliminar = PERM_PARTNERS_DELETE.
+// Tabla `partners` (nombre_partner, ruc, estado).
 // - Un partner inactivo deja de salir en las listas para elegir, pero conserva su historial.
 // - Eliminar solo si no tiene técnicos, usuarios ni supervisiones (para corregir uno creado por error).
 // - WIN DIRECTO es el personal propio: no se renombra, desactiva ni elimina.
@@ -13,7 +14,7 @@ require_once __DIR__ . '/../../config/database.php';
 Auth::requireLogin();
 Auth::requireCsrf();
 $user = Auth::getLoggedInUser();
-if (!Auth::can(Auth::PERM_USERS_MANAGE, $user)) {
+if (!Auth::puede(Auth::PERM_PARTNERS_VIEW, $user)) {
     http_response_code(403);
     echo json_encode(['status' => 'error', 'message' => 'Solo el administrador puede gestionar los partners.']);
     exit;
@@ -52,6 +53,9 @@ try {
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') $responder(['status' => 'error', 'message' => 'Acción no válida.'], 405);
     $in = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+
+    if (in_array($action, ['guardar', 'estado'], true) && !Auth::can(Auth::PERM_PARTNERS_EDIT, $user)) $responder(['status' => 'error', 'message' => 'No tiene permiso para editar partners.'], 403);
+    if ($action === 'eliminar' && !Auth::can(Auth::PERM_PARTNERS_DELETE, $user)) $responder(['status' => 'error', 'message' => 'No tiene permiso para eliminar partners.'], 403);
 
     if ($action === 'guardar') {
         $id = (int)($in['id'] ?? 0);

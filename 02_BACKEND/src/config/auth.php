@@ -48,6 +48,23 @@ class Auth {
     public const PERM_SYSTEM_MANAGE = 'system.manage';
     public const PERM_ATTENDANCE_SELF = 'attendance.self';
     public const PERM_TIMELINE_VIEW = 'timeline.view';
+    // Módulos con ver / editar / eliminar (2026-10-23). El supervisor de partner no entra a estos módulos aunque su rol
+    // los tenga: además del permiso se exige personal administrativo o directo (Auth::esPersonalWin).
+    public const PERM_PARTNERS_DASHBOARD = 'dashboard.partners';
+    public const PERM_PENDIENTES_VIEW = 'pendientes.view';
+    public const PERM_CLIMA_VIEW = 'clima.view';
+    public const PERM_CLIMA_EDIT = 'clima.edit';
+    public const PERM_CLIMA_DELETE = 'clima.delete';
+    public const PERM_EXAMENES_VIEW = 'examenes.view';
+    public const PERM_EXAMENES_EDIT = 'examenes.edit';
+    public const PERM_EXAMENES_DELETE = 'examenes.delete';
+    public const PERM_CUADRILLAS_VIEW = 'cuadrillas.view';
+    public const PERM_CUADRILLAS_EDIT = 'cuadrillas.edit';
+    public const PERM_CUADRILLAS_IMPORT = 'cuadrillas.import';
+    public const PERM_PARTNERS_VIEW = 'partners.view';
+    public const PERM_PARTNERS_EDIT = 'partners.edit';
+    public const PERM_PARTNERS_DELETE = 'partners.delete';
+    public const PERM_OBSERVATION_DELETE = 'observation.delete';
 
     private const ROLE_PERMISSIONS = [
         self::ROLE_ADMINISTRADOR => [
@@ -61,6 +78,10 @@ class Auth {
             self::PERM_TIMELINE_VIEW,
             self::PERM_SUPERVISION_FILTER_DATE, self::PERM_SUPERVISION_FILTER_STATUS, self::PERM_SUPERVISION_FILTER_COLUMNS,
             self::PERM_OBSERVATION_FILTER_DATE, self::PERM_OBSERVATION_FILTER_ADVANCED,
+            self::PERM_PARTNERS_DASHBOARD, self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW, self::PERM_CLIMA_DELETE,
+            self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
+            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT,
+            self::PERM_PARTNERS_VIEW, self::PERM_PARTNERS_EDIT, self::PERM_PARTNERS_DELETE, self::PERM_OBSERVATION_DELETE,
         ],
         self::ROLE_GERENTE => [
             self::PERM_SUPERVISION_VIEW, self::PERM_SUPERVISION_VIEW_ALL,
@@ -68,6 +89,9 @@ class Auth {
             self::PERM_DASHBOARD_VIEW, self::PERM_SUPERVISION_FILTERS,
             self::PERM_SUPERVISION_FILTER_DATE, self::PERM_SUPERVISION_FILTER_STATUS, self::PERM_SUPERVISION_FILTER_COLUMNS,
             self::PERM_OBSERVATION_FILTER_DATE, self::PERM_OBSERVATION_FILTER_ADVANCED,
+            self::PERM_PARTNERS_DASHBOARD, self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW,
+            self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
+            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT,
         ],
         self::ROLE_COORDINADOR => [
             self::PERM_SUPERVISION_VIEW, self::PERM_SUPERVISION_VIEW_ALL,
@@ -77,6 +101,9 @@ class Auth {
             self::PERM_TIMELINE_VIEW,
             self::PERM_SUPERVISION_FILTER_DATE, self::PERM_SUPERVISION_FILTER_STATUS, self::PERM_SUPERVISION_FILTER_COLUMNS,
             self::PERM_OBSERVATION_FILTER_DATE, self::PERM_OBSERVATION_FILTER_ADVANCED,
+            self::PERM_PARTNERS_DASHBOARD, self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW,
+            self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
+            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT,
         ],
         self::ROLE_SUPERVISOR => [
             self::PERM_SUPERVISION_VIEW, self::PERM_SUPERVISION_CREATE,
@@ -87,6 +114,9 @@ class Auth {
             self::PERM_FORM_CHECKLIST,
             self::PERM_SUPERVISION_FILTER_DATE, self::PERM_SUPERVISION_FILTER_STATUS,
             self::PERM_SUPERVISION_FILTER_COLUMNS, self::PERM_OBSERVATION_FILTER_DATE,
+            self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW, self::PERM_CLIMA_EDIT,
+            self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
+            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT,
         ],
         self::ROLE_JEFE_OPERACIONES => [self::PERM_SUPERVISION_VIEW, self::PERM_OBSERVATION_VIEW, self::PERM_OBSERVATION_FILTER_DATE, self::PERM_USERS_VIEW],
         self::ROLE_SGA => [],
@@ -115,10 +145,10 @@ class Auth {
 
     public static function permissionCatalog(): array {
         return [
-            self::PERM_SUPERVISION_VIEW => ['group'=>'Supervisiones','label'=>'Ver el módulo de supervisiones','delegable'=>true],
+            self::PERM_SUPERVISION_VIEW => ['group'=>'Supervisiones','label'=>'Ver el módulo de supervisiones','action'=>'ver','delegable'=>true],
             self::PERM_SUPERVISION_VIEW_ALL => ['group'=>'Supervisiones · Visibilidad','label'=>'Global: ver registros de todos los usuarios','delegable'=>true],
-            self::PERM_SUPERVISION_CREATE => ['group'=>'Supervisiones','label'=>'Registrar supervisiones','delegable'=>true],
-            self::PERM_SUPERVISION_ASSIGN => ['group'=>'Supervisiones','label'=>'Asignar pendientes a responsables','delegable'=>true],
+            self::PERM_SUPERVISION_CREATE => ['group'=>'Supervisiones','label'=>'Editar: registrar y completar supervisiones','action'=>'editar','delegable'=>true],
+            self::PERM_SUPERVISION_ASSIGN => ['group'=>'Supervisiones','label'=>'Asignar pendientes a responsables','action'=>'editar','delegable'=>true],
             self::PERM_SUPERVISION_FILTERS => ['group'=>'Supervisiones','label'=>'Usar filtros y configuración de columnas','delegable'=>true],
             self::PERM_SUPERVISION_FILTER_DATE => ['group'=>'Supervisiones · Filtros','label'=>'Rango de fechas','delegable'=>true],
             self::PERM_SUPERVISION_FILTER_STATUS => ['group'=>'Supervisiones · Filtros','label'=>'Estados de supervisión','delegable'=>true],
@@ -126,16 +156,31 @@ class Auth {
             self::PERM_SUPERVISION_MAP => ['group'=>'Supervisiones','label'=>'Ver mapa y rutas de pendientes','delegable'=>true],
             self::PERM_FORM_FINDINGS => ['group'=>'Formularios','label'=>'Abrir formulario de hallazgos','delegable'=>true],
             self::PERM_FORM_CHECKLIST => ['group'=>'Formularios','label'=>'Abrir checklist técnico','delegable'=>true],
-            self::PERM_OBSERVATION_VIEW => ['group'=>'Observaciones','label'=>'Ver observaciones','delegable'=>true],
-            self::PERM_OBSERVATION_RESPOND => ['group'=>'Observaciones','label'=>'Responder observaciones del partner (levantamiento con fotos)','delegable'=>true],
+            self::PERM_OBSERVATION_VIEW => ['group'=>'Observaciones','label'=>'Ver observaciones','action'=>'ver','delegable'=>true],
+            self::PERM_OBSERVATION_RESPOND => ['group'=>'Observaciones','label'=>'Responder observaciones del partner (levantamiento con fotos)','action'=>'editar','delegable'=>true],
             self::PERM_OBSERVATION_FILTER_DATE => ['group'=>'Observaciones · Filtros','label'=>'Rango de fechas','delegable'=>true],
             self::PERM_OBSERVATION_FILTER_ADVANCED => ['group'=>'Observaciones · Filtros','label'=>'Partner, técnico, zona y estado','delegable'=>true],
-            self::PERM_OBSERVATION_REVIEW => ['group'=>'Observaciones','label'=>'Revisar y validar observaciones','delegable'=>true],
-            self::PERM_USERS_VIEW => ['group'=>'Usuarios','label'=>'Ver usuarios (solo consulta; el partner ve solo a su partner y sus zonas)','delegable'=>true],
-            self::PERM_STAFF_MANAGE => ['group'=>'Usuarios','label'=>'Agregar y editar personal (solo datos personales; sin acceso, rol ni activar)','delegable'=>true],
-            self::PERM_DASHBOARD_VIEW => ['group'=>'Consulta','label'=>'Ver indicadores generales','delegable'=>true],
-            self::PERM_TIMELINE_VIEW => ['group'=>'Consulta','label'=>'Ver línea de tiempo','delegable'=>true],
-            self::PERM_ATTENDANCE_SELF => ['group'=>'Operación personal','label'=>'Registrar el propio turno','delegable'=>true],
+            self::PERM_OBSERVATION_REVIEW => ['group'=>'Observaciones','label'=>'Revisar y validar observaciones','action'=>'editar','delegable'=>true],
+            self::PERM_OBSERVATION_DELETE => ['group'=>'Observaciones','label'=>'Eliminar observaciones','action'=>'eliminar','delegable'=>true],
+            self::PERM_USERS_VIEW => ['group'=>'Usuarios','label'=>'Ver usuarios (solo consulta; el partner ve solo a su partner y sus zonas)','action'=>'ver','delegable'=>true],
+            self::PERM_STAFF_MANAGE => ['group'=>'Usuarios','label'=>'Agregar y editar personal (solo datos personales; sin acceso, rol ni activar)','action'=>'editar','delegable'=>true],
+            self::PERM_DASHBOARD_VIEW => ['group'=>'Indicadores','label'=>'Ver Dashboard de supervisiones','action'=>'ver','delegable'=>true],
+            self::PERM_PARTNERS_DASHBOARD => ['group'=>'Indicadores','label'=>'Ver Dashboard de partners','action'=>'ver','delegable'=>true],
+            self::PERM_PENDIENTES_VIEW => ['group'=>'Indicadores','label'=>'Ver Pendientes y rescates','action'=>'ver','delegable'=>true],
+            self::PERM_CLIMA_VIEW => ['group'=>'Clima','label'=>'Ver: indicador de clima y lluvias','action'=>'ver','delegable'=>true],
+            self::PERM_CLIMA_EDIT => ['group'=>'Clima','label'=>'Editar: avisar y cerrar lluvias en su zona (Mi turno)','action'=>'editar','delegable'=>true],
+            self::PERM_CLIMA_DELETE => ['group'=>'Clima','label'=>'Eliminar registros de lluvia','action'=>'eliminar','delegable'=>true],
+            self::PERM_EXAMENES_VIEW => ['group'=>'Exámenes','label'=>'Ver: resultados y links de examen','action'=>'ver','delegable'=>true],
+            self::PERM_EXAMENES_EDIT => ['group'=>'Exámenes','label'=>'Editar: generar links de examen','action'=>'editar','delegable'=>true],
+            self::PERM_EXAMENES_DELETE => ['group'=>'Exámenes','label'=>'Eliminar: anular links de examen','action'=>'eliminar','delegable'=>true],
+            self::PERM_CUADRILLAS_VIEW => ['group'=>'Técnicos y cuadrillas','label'=>'Ver: técnicos, cuadrillas y vencimientos','action'=>'ver','delegable'=>true],
+            self::PERM_CUADRILLAS_EDIT => ['group'=>'Técnicos y cuadrillas','label'=>'Editar: cuadrillas y fechas de vencimiento','action'=>'editar','delegable'=>true],
+            self::PERM_CUADRILLAS_IMPORT => ['group'=>'Técnicos y cuadrillas','label'=>'Cargar y descargar técnicos líderes (Excel)','action'=>'editar','delegable'=>true],
+            self::PERM_PARTNERS_VIEW => ['group'=>'Partners','label'=>'Ver partners','action'=>'ver','delegable'=>true],
+            self::PERM_PARTNERS_EDIT => ['group'=>'Partners','label'=>'Editar: crear, renombrar, activar y desactivar partners','action'=>'editar','delegable'=>true],
+            self::PERM_PARTNERS_DELETE => ['group'=>'Partners','label'=>'Eliminar partners (solo sin historial)','action'=>'eliminar','delegable'=>true],
+            self::PERM_TIMELINE_VIEW => ['group'=>'Indicadores','label'=>'Ver línea de tiempo','action'=>'ver','delegable'=>true],
+            self::PERM_ATTENDANCE_SELF => ['group'=>'Operación personal','label'=>'Registrar el propio turno','action'=>'editar','delegable'=>true],
             self::PERM_USERS_MANAGE => ['group'=>'Reservado','label'=>'Administrar usuarios','delegable'=>false],
             self::PERM_SUPERVISION_DELETE => ['group'=>'Reservado','label'=>'Eliminar supervisiones','delegable'=>false],
             self::PERM_SUPERVISION_IMPORT => ['group'=>'Reservado','label'=>'Importar cancelaciones','delegable'=>false],
@@ -358,6 +403,19 @@ class Auth {
             echo json_encode(['status' => 'error', 'message' => 'Solicitud rechazada: token CSRF inválido.']);
             exit;
         }
+    }
+
+    /** Personal de WIN (administrativo o supervisor directo). Los módulos de gestión exigen esto además del permiso. */
+    public static function esPersonalWin(?array $user = null): bool {
+        $user ??= self::getLoggedInUser();
+        return in_array($user['rol'] ?? '', [self::ROLE_ADMINISTRADOR, self::ROLE_GERENTE, self::ROLE_COORDINADOR], true)
+            || (($user['rol'] ?? '') === self::ROLE_SUPERVISOR && !empty($user['is_win_directo']));
+    }
+
+    /** Permiso de un módulo de gestión: tener el permiso y ser personal de WIN. */
+    public static function puede(string $permission, ?array $user = null): bool {
+        $user ??= self::getLoggedInUser();
+        return self::esPersonalWin($user) && self::can($permission, $user);
     }
 
     public static function isAdministrative(): bool {

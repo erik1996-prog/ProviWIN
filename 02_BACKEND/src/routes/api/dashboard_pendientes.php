@@ -20,13 +20,12 @@ require_once __DIR__ . '/../../config/dashboard.php';
 Auth::requireLogin();
 $usuario = Auth::getLoggedInUser();
 $esAdmin = Auth::isAdministrative();
-$esDirecto = ($usuario['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($usuario['is_win_directo']);
 $responder = static function (array $datos, int $codigo = 200): void {
     http_response_code($codigo);
     echo json_encode($datos, JSON_UNESCAPED_UNICODE);
     exit;
 };
-if (!$esAdmin && !$esDirecto) $responder(['status' => 'error', 'message' => 'Solo el personal administrativo y los supervisores directos ven este dashboard.'], 403);
+if (!Auth::puede(Auth::PERM_PENDIENTES_VIEW, $usuario)) $responder(['status' => 'error', 'message' => 'No tiene permiso para ver Pendientes y rescates.'], 403);
 $action = $_GET['action'] ?? '';
 
 try {

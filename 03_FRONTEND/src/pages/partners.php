@@ -1,8 +1,11 @@
 <?php
-// Partners (2026-10-15): registro de contratas. Solo administración (PERM_USERS_MANAGE). Datos y reglas en api/partners.php.
+// Partners (2026-10-15): registro de contratas. Datos y reglas en api/partners.php.
+// Permisos (2026-10-23, Roles y permisos): ver, editar (crear, renombrar, activar/desactivar) y eliminar.
 Auth::requireLogin();
-if (!Auth::can(Auth::PERM_USERS_MANAGE, Auth::getLoggedInUser())) {
-    echo '<div class="alert alert-danger m-4">Acceso reservado al administrador.</div>';
+$puedeEditarP = Auth::puede(Auth::PERM_PARTNERS_EDIT);
+$puedeEliminarP = Auth::puede(Auth::PERM_PARTNERS_DELETE);
+if (!Auth::puede(Auth::PERM_PARTNERS_VIEW)) {
+    echo '<div class="alert alert-danger m-4">No tiene permiso para ver partners.</div>';
     return;
 }
 ?>
@@ -30,7 +33,7 @@ if (!Auth::can(Auth::PERM_USERS_MANAGE, Auth::getLoggedInUser())) {
         <button type="button" class="filter-tab-btn" data-estado="todos">Todos <span class="sgs-seg-count" data-cuenta="todos">0</span></button>
       </div>
       <div class="sgs-toolbar-actions">
-        <button type="button" class="btn btn-win" id="btnNuevoPartner"><i class="bi bi-plus-lg me-1"></i>Nuevo partner</button>
+        <?php if ($puedeEditarP): ?><button type="button" class="btn btn-win" id="btnNuevoPartner"><i class="bi bi-plus-lg me-1"></i>Nuevo partner</button><?php endif; ?>
       </div>
     </div>
     <div class="sgs-toolbar-row"><div class="sgs-filtros">
@@ -72,6 +75,7 @@ if (!Auth::can(Auth::PERM_USERS_MANAGE, Auth::getLoggedInUser())) {
 </div>
 
 <script>
+  const PUEDE = { editar: <?= $puedeEditarP ? 'true' : 'false' ?>, eliminar: <?= $puedeEliminarP ? 'true' : 'false' ?> };
 document.addEventListener('DOMContentLoaded', () => {
   const $ = (id) => document.getElementById(id);
   const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
@@ -110,9 +114,9 @@ document.addEventListener('DOMContentLoaded', () => {
         <td data-label="Supervisiones" class="text-end">${num(p.supervisiones)}</td>
         <td data-label="Estado"><span class="badge ${activo ? 'bg-success' : 'bg-secondary'}">${activo ? 'Activo' : 'Inactivo'}</span></td>
         <td class="text-end"><div class="sgs-row-actions justify-content-end">
-          <button type="button" class="sgs-icon-action" title="Editar" aria-label="Editar ${esc(p.nombre_partner)}" data-editar="${p.id}"><i class="bi bi-pencil"></i></button>
-          ${p.protegido ? '' : `<button type="button" class="sgs-icon-action ${activo ? 'sgs-icon-action--danger' : ''}" title="${activo ? 'Desactivar' : 'Activar'}" aria-label="${activo ? 'Desactivar' : 'Activar'} ${esc(p.nombre_partner)}" data-estado-id="${p.id}" data-activar="${activo ? 0 : 1}"><i class="bi ${activo ? 'bi-slash-circle' : 'bi-check-circle'}"></i></button>`}
-          ${p.puede_eliminar ? `<button type="button" class="sgs-icon-action sgs-icon-action--danger" title="Eliminar (no tiene registros)" aria-label="Eliminar ${esc(p.nombre_partner)}" data-eliminar="${p.id}"><i class="bi bi-trash3"></i></button>` : ''}
+          ${PUEDE.editar ? `<button type="button" class="sgs-icon-action" title="Editar" aria-label="Editar ${esc(p.nombre_partner)}" data-editar="${p.id}"><i class="bi bi-pencil"></i></button>` : ''}
+          ${p.protegido || !PUEDE.editar ? '' : `<button type="button" class="sgs-icon-action ${activo ? 'sgs-icon-action--danger' : ''}" title="${activo ? 'Desactivar' : 'Activar'}" aria-label="${activo ? 'Desactivar' : 'Activar'} ${esc(p.nombre_partner)}" data-estado-id="${p.id}" data-activar="${activo ? 0 : 1}"><i class="bi ${activo ? 'bi-slash-circle' : 'bi-check-circle'}"></i></button>`}
+          ${p.puede_eliminar && PUEDE.eliminar ? `<button type="button" class="sgs-icon-action sgs-icon-action--danger" title="Eliminar (no tiene registros)" aria-label="Eliminar ${esc(p.nombre_partner)}" data-eliminar="${p.id}"><i class="bi bi-trash3"></i></button>` : ''}
         </div></td></tr>`;
     }).join('') : `<tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-inbox d-block fs-3 mb-1"></i>No hay partners con estos filtros.</td></tr>`;
   };
@@ -131,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('mPartnerTitulo').innerHTML = `<i class="bi bi-buildings me-2"></i>${p ? 'Editar partner' : 'Nuevo partner'}`;
     mPartner.show();
   };
-  $('btnNuevoPartner').addEventListener('click', () => abrir());
+  $('btnNuevoPartner')?.addEventListener('click', () => abrir());
   $('mPartner').addEventListener('shown.bs.modal', () => f.nombre_partner.focus());
   f.ruc.addEventListener('input', () => { f.ruc.value = f.ruc.value.replace(/\D/g, '').slice(0, 11); });
   f.addEventListener('submit', async (ev) => {

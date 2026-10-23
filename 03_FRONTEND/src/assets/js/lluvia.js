@@ -3,6 +3,8 @@
 // La lluvia no cambia su actividad (puede llover hasta supervisando): el sistema anota solo qué hacía al avisar y al cerrar.
 // Con lluvia la nube flota y caen gotas; sin lluvia asoma el sol (solo CSS).
 // Se actualiza junto con el estado del turno (asistencia.js avisa con 'sgs:turno-cargado'); no consulta por su cuenta.
+// 2026-10-23: "Está lloviendo" pide foto y comentario (#modalLluvia) para el grupo de Teams. La foto se reduce aquí a 400 px
+// y se baja la calidad hasta que pese ≤ 19 KB (Teams acepta mensajes de ~28 KB); no se guarda en el sistema.
 (() => {
     const caja = document.getElementById('lluviaZonas');
     if (!caja) return;
@@ -36,15 +38,54 @@
     const cargar = () => pedir('api/lluvias.php?action=estado').then((r) => pintar(r.data))
         .catch((e) => { caja.innerHTML = `<p class="text-danger small mb-0">${esc(e.message)}</p>`; });
 
-    caja.addEventListener('click', async (ev) => {
-        const b = ev.target.closest('[data-accion]');
-        if (!b) return;
+    const enviar = async (accion, datos, b) => {
         b.disabled = true;
         try {
-            const r = await pedir(`api/lluvias.php?action=${b.dataset.accion}`, { method: 'POST', body: new URLSearchParams({ zona: b.dataset.zona }) });
+            const r = await pedir(`api/lluvias.php?action=${accion}`, { method: 'POST', body: new URLSearchParams(datos) });
             window.showToast?.(r.message, 'success');
             pintar(r.data);
-        } catch (e) { window.showToast?.(e.message, 'error'); b.disabled = false; }
+            return true;
+        } catch (e) { window.showToast?.(e.message, 'error'); return false; } finally { b.disabled = false; }
+    };
+
+    // Foto reducida: 400 px de ancho como máximo, calidad desde 0.45 hasta 0.2; si no entra, se achica a 320 px
+    const reducir = async (archivo) => {
+        const img = await createImageBitmap(archivo);
+        for (const ancho of [400, 320]) {
+            const e = Math.min(1, ancho / img.width), lienzo = document.createElement('canvas');
+            lienzo.width = Math.round(img.width * e); lienzo.height = Math.round(img.height * e);
+            lienzo.getContext('2d').drawImage(img, 0, 0, lienzo.width, lienzo.height);
+            for (const calidad of [0.45, 0.35, 0.25, 0.2]) {
+                const datos = lienzo.toDataURL('image/jpeg', calidad);
+                if (datos.length * 0.75 <= 19000) return datos;
+            }
+        }
+        throw new Error('La foto es muy pesada. Tome otra.');
+    };
+    const modal = document.getElementById('modalLluvia');
+    const foto = document.getElementById('lluviaFoto'), previa = document.getElementById('lluviaFotoPrevia');
+    const comentario = document.getElementById('lluviaComentario'), botonEnviar = document.getElementById('lluviaEnviar');
+    let zonaAviso = '', fotoLista = '';
+    foto.addEventListener('change', async () => {
+        fotoLista = ''; previa.hidden = true;
+        if (!foto.files[0]) return;
+        try { fotoLista = await reducir(foto.files[0]); previa.src = fotoLista; previa.hidden = false; }
+        catch (e) { window.showToast?.(e.message || 'No se pudo leer la foto.', 'error'); foto.value = ''; }
+    });
+    botonEnviar.addEventListener('click', async () => {
+        if (!fotoLista) { window.showToast?.('Tome una foto de la lluvia.', 'error'); return; }
+        if (!comentario.value.trim()) { window.showToast?.('Escriba un comentario de la lluvia.', 'error'); comentario.focus(); return; }
+        const datos = { zona: zonaAviso, comentario: comentario.value.trim(), foto: fotoLista.split(',')[1] };
+        if (await enviar('avisar', datos, botonEnviar)) bootstrap.Modal.getOrCreateInstance(modal).hide();
+    });
+
+    caja.addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-accion]');
+        if (!b) return;
+        if (b.dataset.accion === 'paro') { enviar('paro', { zona: b.dataset.zona }, b); return; }
+        zonaAviso = b.dataset.zona; fotoLista = ''; foto.value = ''; comentario.value = ''; previa.hidden = true;
+        document.getElementById('lluviaZonaTitulo').textContent = zonaAviso;
+        bootstrap.Modal.getOrCreateInstance(modal).show();
     });
     document.addEventListener('sgs:turno-cargado', cargar);
 })();

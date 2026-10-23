@@ -315,7 +315,8 @@
     results.style.zIndex = '1080';
     results.style.maxHeight = '230px';
     results.style.overflowY = 'auto';
-    // Elegido el técnico, el campo queda fijo (no se escribe encima); el botón de quitar lo libera para buscar otro.
+    // Elegido el técnico, el campo queda fijo (no se escribe encima). Para cambiarlo: tocar el campo (2026-10-21: abre la
+    // lista sin quitar al actual hasta elegir otro o escribir uno nuevo; antes solo servía la X) o la X (lo quita).
     const limpiar = document.createElement('button');
     limpiar.type = 'button';
     limpiar.className = 'sgs-combo-limpiar d-none';
@@ -329,6 +330,7 @@
       const elegido = Boolean(select.value);
       search.readOnly = elegido;
       search.classList.toggle('is-elegido', elegido);
+      search.title = elegido && !select.disabled ? 'Toque para cambiar' : '';
       limpiar.classList.toggle('d-none', !elegido || select.disabled);
     };
     search.value = select.value || '';
@@ -348,8 +350,8 @@
       select.dispatchEvent(new Event('change', { bubbles: true }));
       closeResults();
     };
-    const renderResults = () => {
-      const term = search.value.trim().toLocaleLowerCase('es');
+    const renderResults = (todos = false) => {
+      const term = todos ? '' : search.value.trim().toLocaleLowerCase('es');
       const otroTecnico = document.getElementById(select.id.replace(tipo === 1 ? 'tec1' : 'tec2', tipo === 1 ? 'tec2' : 'tec1'))?.value || '';
       const technicians = listaTecnicos.filter(item => {
         const itemType = Number(item.tipo_tecnico || 1);
@@ -401,6 +403,18 @@
     };
 
     search.addEventListener('focus', () => { if (!search.readOnly) renderResults(); });
+    // Tocar el campo con un técnico ya elegido: se puede escribir otro nombre y se ve la lista completa
+    search.addEventListener('click', () => {
+      if (!search.readOnly || select.disabled) return;
+      search.readOnly = false;
+      search.classList.remove('is-elegido');
+      search.select();
+      renderResults(true);
+    });
+    // Si sale sin elegir otro, vuelve a mostrar al que ya estaba
+    search.addEventListener('blur', () => setTimeout(() => {
+      if (select.value && !wrapper.contains(document.activeElement)) { search.value = select.value; bloquear(); }
+    }, 200));
     search.addEventListener('input', () => {
       if (select.value && search.value !== select.value) {
         const escrito = search.value;

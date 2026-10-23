@@ -15,9 +15,13 @@ Auth::requireLogin();
 $user = Auth::getLoggedInUser();
 $esDirecto = ($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($user['is_win_directo']);
 $esAdmin = Auth::isAdministrative();
-$puedeEditar = $esAdmin || $esDirecto; // editar cuadrillas (el directo, solo de su zona)
-if (!$puedeEditar) {
-    echo '<div class="alert alert-danger m-4">Acceso reservado al personal administrativo y a los supervisores directos.</div>';
+// Permisos (2026-10-23, Roles y permisos): ver, editar cuadrillas (el directo, solo de su zona), cargar Excel y links de examen.
+$puedeEditar = Auth::puede(Auth::PERM_CUADRILLAS_EDIT, $user);
+$puedeImportar = Auth::puede(Auth::PERM_CUADRILLAS_IMPORT, $user);
+$puedeExamen = Auth::puede(Auth::PERM_EXAMENES_EDIT, $user);
+$puedeAnularExamen = Auth::puede(Auth::PERM_EXAMENES_DELETE, $user);
+if (!Auth::puede(Auth::PERM_CUADRILLAS_VIEW, $user)) {
+    echo '<div class="alert alert-danger m-4">No tiene permiso para ver técnicos y cuadrillas.</div>';
     return;
 }
 $pdo = Database::getConnection();
@@ -176,9 +180,11 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
 ?>
 <div class="container-fluid p-3 p-md-4">
   <div class="sgs-page-actions">
-    <button type="button" class="btn <?= $esAdmin ? 'btn-outline-secondary' : 'btn-win' ?>" id="btnLinkExamen" data-filtro="<?= $e($descripcionFiltro) ?>" <?= $filas && $vista !== 'apoyo' ? '' : 'disabled' ?>
+    <?php if ($puedeExamen): ?>
+    <button type="button" class="btn <?= $puedeImportar ? 'btn-outline-secondary' : 'btn-win' ?>" id="btnLinkExamen" data-filtro="<?= $e($descripcionFiltro) ?>" <?= $filas && $vista !== 'apoyo' ? '' : 'disabled' ?>
       title="<?= $vista === 'apoyo' ? 'El link se arma por cuadrillas: use la vista Cuadrillas o Técnicos líderes' : 'Un link para los técnicos (T1 y T2) de las cuadrillas que se ven con estos filtros' ?>"><i class="bi bi-link-45deg me-1"></i>Link de examen (<?= count($filas) ?> <?= count($filas) === 1 ? 'cuadrilla' : 'cuadrillas' ?>)</button>
-    <?php if ($esAdmin): ?>
+    <?php endif; ?>
+    <?php if ($puedeImportar): ?>
     <a class="btn btn-outline-secondary" href="api/tecnicos.php?action=exportar_lideres"><i class="bi bi-file-earmark-arrow-down me-1"></i>Descargar lista (Excel)</a>
     <button type="button" class="btn btn-win" id="btnCargarLideres"><i class="bi bi-file-earmark-arrow-up me-1"></i>Cargar técnicos líderes</button>
     <?php endif; ?>
@@ -405,7 +411,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
 </div>
 
 <?php endif; ?>
-<?php if ($esAdmin): ?>
+<?php if ($puedeImportar): ?>
 <!-- ===== Cargar técnicos líderes ===== -->
 <div class="modal fade" id="mCargaLideres" tabindex="-1" aria-labelledby="mCargaTitulo" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable"><div class="modal-content">
@@ -432,7 +438,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
 <?php endif; ?>
 
 <!-- ===== Link general de examen (2026-10-20) ===== -->
-<div class="modal fade" id="mExamen" tabindex="-1" aria-labelledby="mExamenTitulo" aria-hidden="true">
+<div class="modal fade" id="mExamen" data-puede-anular="<?= $puedeAnularExamen ? '1' : '0' ?>" tabindex="-1" aria-labelledby="mExamenTitulo" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg"><div class="modal-content">
     <div class="modal-header"><h5 class="modal-title" id="mExamenTitulo"><i class="bi bi-link-45deg me-2"></i>Link de examen para las cuadrillas filtradas</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
     <div class="modal-body">
@@ -513,7 +519,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <small><strong>${Number(h.rindieron)}</strong> de ${Number(h.total)} rindieron · ${Number(h.aprobados)} aprobados</small></div>
           <div class="ex-historial-acciones"><span class="badge ${clase}">${texto}</span>
             <button type="button" class="btn btn-sm btn-outline-secondary" data-ver-link="${h.id}">Ver técnicos</button>
-            ${h.estado === 'activo' ? `<button type="button" class="btn btn-sm btn-outline-danger" data-anular-link="${h.id}">Anular</button>` : ''}</div></li>`;
+            ${h.estado === 'activo' && $('mExamen').dataset.puedeAnular === '1' ? `<button type="button" class="btn btn-sm btn-outline-danger" data-anular-link="${h.id}">Anular</button>` : ''}</div></li>`;
       }).join('') + '</ul>';
   };
   const listaTecnicos = (titulo, items, clase, conEditar) => !items.length ? '' :

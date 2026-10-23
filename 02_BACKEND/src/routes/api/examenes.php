@@ -25,13 +25,12 @@ Auth::requireLogin();
 Auth::requireCsrf();
 $usuario = Auth::getLoggedInUser();
 $esAdmin = Auth::isAdministrative();
-$esDirecto = ($usuario['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($usuario['is_win_directo']);
 $responder = static function (array $datos, int $codigo = 200): void {
     http_response_code($codigo);
     echo json_encode($datos, JSON_UNESCAPED_UNICODE);
     exit;
 };
-if (!$esAdmin && !$esDirecto) $responder(['status' => 'error', 'message' => 'Solo el personal administrativo y los supervisores directos ven los exámenes.'], 403);
+if (!Auth::puede(Auth::PERM_EXAMENES_VIEW, $usuario)) $responder(['status' => 'error', 'message' => 'Solo el personal administrativo y los supervisores directos ven los exámenes.'], 403);
 $pdo = Database::getConnection();
 $action = $_GET['action'] ?? '';
 $esPost = $_SERVER['REQUEST_METHOD'] === 'POST';
@@ -49,6 +48,8 @@ try {
         if ($generadoPor && (int)$c['generado_por'] !== $generadoPor) throw new Exception('Solo quien generó el link (o la administración) puede verlo.');
         return $c;
     };
+
+    if ($esPost && in_array($action, ['grupo_preparar', 'grupo_generar'], true) && !Auth::puede(Auth::PERM_EXAMENES_EDIT, $usuario)) $responder(['status' => 'error', 'message' => 'No tiene permiso para generar links de examen.'], 403);
 
     if ($esPost && $action === 'grupo_preparar') {
         [$tec, $sinDni, $excluidos] = sgsParticipantesExamen($pdo, $lideres(), $visibleZona);
@@ -90,6 +91,7 @@ try {
     }
 
     if ($esPost && $action === 'grupo_anular') {
+        if (!Auth::puede(Auth::PERM_EXAMENES_DELETE, $usuario)) $responder(['status' => 'error', 'message' => 'No tiene permiso para anular links de examen.'], 403);
         $c = $convocatoria((int)($_POST['id'] ?? 0));
         if (sgsEstadoConvocatoria($c) !== 'activo') throw new Exception('Ese link ya no está vigente.');
         $pdo->prepare('UPDATE examen_convocatorias SET anulado_en = NOW(), anulado_por = :u WHERE id = :id AND anulado_en IS NULL')

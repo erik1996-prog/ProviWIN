@@ -1,0 +1,106 @@
+/* Estilo común de los manuales SGS (supervisor y administrador). Colores y letra del sistema (WIN). Se imprime a PDF A4. */
+@page { size: A4; margin: 13mm 14mm; }
+:root { --o:#FF5A0A; --od:#D8450B; --os:#FFEFE6; --ink:#141414; --ink2:#2B2B2B; --mut:#6B6D70; --bd:#EDE4DE; --alt:#FAF9F7; --ll:#3F6E8F; --lls:#EAF2F8; }
+* { box-sizing: border-box; }
+body { font-family: 'Nunito', 'Segoe UI', sans-serif; font-weight: 500; color: var(--ink2); font-size: 10.5pt; line-height: 1.5; margin: 0; }
+h1, h2, h3 { color: var(--ink); font-weight: 700; margin: 0; }
+h2 { font-size: 18pt; margin: 0 0 5mm; display: flex; align-items: center; gap: 3mm; padding-bottom: 3mm; border-bottom: 1.2pt solid var(--os); }
+h2 .n { display: inline-grid; place-items: center; width: 9mm; height: 9mm; border-radius: 50%; background: var(--o); color: #fff; font-size: 11pt; flex: 0 0 9mm; }
+h3 { font-size: 11.5pt; margin: 4mm 0 1.5mm; color: var(--od); }
+p { margin: 0 0 2.5mm; }
+ul { margin: 0 0 3mm; padding-left: 5mm; }
+li { margin-bottom: 1.4mm; }
+li::marker { color: var(--o); }
+strong { font-weight: 700; color: var(--ink); }
+.hoja { page-break-before: always; }
+.lema { font-size: 11pt; color: var(--mut); margin: -2mm 0 5mm; }
+/* Portada */
+.portada { height: 268mm; display: flex; flex-direction: column; justify-content: space-between; }
+.portada-banda { flex: 1; background: linear-gradient(135deg, #FF6A1F, var(--o) 55%, var(--od)); color: #fff; border-radius: 6mm; padding: 18mm 14mm; display: grid; grid-template-columns: 1fr 62mm; gap: 8mm; align-items: center; }
+.portada-banda .logo { width: 42mm; display: block; margin-bottom: 12mm; }
+.portada-banda .sistema { text-transform: uppercase; letter-spacing: .12em; font-size: 8.5pt; font-weight: 700; opacity: .9; }
+.portada-banda h1 { color: #fff; font-size: 32pt; line-height: 1.08; margin: 4mm 0 5mm; }
+.portada-banda .bajada { font-size: 12pt; opacity: .95; max-width: 95mm; }
+.portada-banda .escritorio img { border: 0; box-shadow: 0 4mm 10mm rgba(0,0,0,.25); }
+.portada-pie { display: flex; justify-content: space-between; color: var(--mut); font-size: 9.5pt; padding-top: 4mm; }
+.portada.ancha .portada-banda { grid-template-columns: 1fr; align-content: space-between; }
+/* Pantallas */
+figure { margin: 0; break-inside: avoid; text-align: center; }
+figcaption { font-size: 8.5pt; color: var(--mut); margin-top: 1.8mm; }
+.movil img { width: 62mm; border: 1.8mm solid #1E1E1E; border-radius: 6mm; display: block; margin: 0 auto; }
+.escritorio img { width: 100%; border: 1px solid var(--bd); border-radius: 3mm; display: block; box-shadow: 0 1.5mm 5mm rgba(48,29,25,.10); }
+.con-pantalla { display: grid; grid-template-columns: 1fr 66mm; gap: 8mm; align-items: start; }
+.dos { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; align-items: start; margin-top: 4mm; }
+.par { display: flex; gap: 4mm; justify-content: center; }
+.par .movil img { width: 44mm; }
+.trio { display: flex; gap: 5mm; justify-content: center; margin-bottom: 5mm; }
+.trio .movil img { width: 50mm; }
+/* Bloques */
+.nota, .ayuda { border-radius: 3mm; padding: 3mm 4mm; margin: 4mm 0; break-inside: avoid; border-left: 1.2mm solid var(--o); background: var(--os); }
+.nota b, .ayuda b { display: block; margin-bottom: .8mm; color: var(--ink); }
+.boton { display: inline-block; padding: .2mm 2.2mm; border-radius: 2mm; background: var(--o); color: #fff; font-weight: 700; font-size: 9pt; white-space: nowrap; }
+.boton.sec { background: #fff; color: #B42318; border: 1px solid #F1C4BF; }
+.boton.lluvia { background: var(--ll); }
+.tecla { display: inline-block; padding: 0 1.8mm; border: 1px solid var(--bd); border-radius: 1.5mm; font-weight: 700; }
+.pasos { counter-reset: paso; list-style: none; padding: 0; }
+.pasos > li { counter-increment: paso; position: relative; padding-left: 9mm; margin-bottom: 2.6mm; }
+.pasos > li::before { content: counter(paso); position: absolute; left: 0; top: .2mm; width: 6.2mm; height: 6.2mm; border-radius: 50%; background: var(--o); color: #fff; font-weight: 700; font-size: 8.5pt; display: grid; place-items: center; }
+/* Flujo del día y reglas */
+.flujo { list-style: none; padding: 0; margin: 0 0 5mm; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2.5mm; }
+.flujo li { margin: 0; background: var(--os); border-radius: 3mm; padding: 3mm; font-size: 9pt; color: var(--ink2); }
+.flujo b { display: inline-grid; place-items: center; width: 6.5mm; height: 6.5mm; border-radius: 50%; background: var(--o); color: #fff; font-size: 9pt; margin-bottom: 1.5mm; }
+.flujo strong { display: block; font-size: 10pt; }
+.reglas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.5mm; margin-bottom: 2mm; }
+.reglas div { border: 1px solid var(--bd); border-radius: 3mm; padding: 3mm; font-size: 9.5pt; }
+.reglas i { font-style: normal; color: var(--o); font-weight: 700; margin-right: 1mm; }
+/* Mapa del sistema (administrador) */
+.modulos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 3mm; margin-top: 2mm; }
+.modulos div { border: 1px solid var(--bd); border-radius: 3mm; padding: 3mm 3.5mm; break-inside: avoid; }
+.modulos strong { display: block; color: var(--od); margin-bottom: .5mm; }
+.modulos span { font-size: 9.5pt; color: var(--ink2); }
+.claves { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; margin-top: 4mm; padding: 0; list-style: none; }
+.claves li { margin: 0; font-size: 9.5pt; padding-left: 4mm; border-left: .9mm solid var(--o); }
+.claves li strong { display: block; }
+.media { margin-top: 5mm; }
+.media + .media { margin-top: 7mm; }
+/* Próximamente (función en desarrollo) */
+.proximo { margin-top: 5mm; border: 1px dashed var(--o); border-radius: 3mm; padding: 3.5mm 4.5mm; background: #fff; font-size: 9.8pt; break-inside: avoid; }
+.proximo b { display: block; color: var(--od); font-size: 10.5pt; margin-bottom: 1.2mm; }
+.proximo ul { margin: 2mm 0; }
+/* Propuesta ejecutiva */
+.comparar { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
+.comparar > div { border-radius: 4mm; padding: 4mm 5mm; }
+.comparar b { display: block; font-size: 12pt; margin-bottom: 2mm; }
+.comparar .hoy { background: var(--alt); border: 1px solid var(--bd); }
+.comparar .hoy b { color: var(--mut); }
+.comparar .hoy li::marker { color: var(--mut); }
+.comparar .sgs { background: var(--os); border: 1px solid #FFD2BA; }
+.comparar .sgs b { color: var(--od); }
+.comparar ul { margin: 0; font-size: 9.8pt; }
+.piloto { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; margin-bottom: 3mm; }
+.piloto .dato { border: 1px solid var(--bd); border-radius: 3mm; padding: 3.5mm; text-align: center; }
+.piloto .dato b { display: block; font-size: 22pt; line-height: 1.1; color: var(--o); }
+.piloto .dato span { font-size: 9pt; color: var(--mut); }
+.zonas { display: flex; flex-wrap: wrap; gap: 2mm; }
+.zonas span { background: var(--o); color: #fff; border-radius: 10mm; padding: 1mm 4mm; font-size: 9.5pt; font-weight: 700; }
+.beneficios { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; margin-bottom: 5mm; }
+.beneficios div { border: 1px solid var(--bd); border-radius: 3mm; padding: 3.5mm; font-size: 9.3pt; break-inside: avoid; }
+.beneficios i { font-style: normal; color: var(--o); font-weight: 700; font-size: 9pt; display: block; }
+.beneficios strong { display: block; font-size: 10.5pt; margin: .5mm 0 1mm; }
+.capturas { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-bottom: 4mm; }
+.capturas.movilfila { grid-template-columns: repeat(3, 1fr); }
+.capturas.movilfila .movil img { width: 40mm; }
+.necesita { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; }
+.necesita div { background: var(--alt); border: 1px solid var(--bd); border-radius: 3mm; padding: 3mm; font-size: 9.3pt; }
+.necesita strong { display: block; color: var(--od); }
+.ruta { list-style: none; padding: 0; margin: 0 0 0 3mm; border-left: 1mm solid var(--os); }
+.ruta li { position: relative; padding: 0 0 3mm 7mm; margin: 0; }
+.ruta li::before { content: ''; position: absolute; left: -2.6mm; top: 1.2mm; width: 4.2mm; height: 4.2mm; border-radius: 50%; background: var(--o); }
+.ruta b { display: block; color: var(--ink); }
+.cierre { margin-top: 5mm; background: linear-gradient(135deg, #FF6A1F, var(--o) 60%, var(--od)); color: #fff; border-radius: 4mm; padding: 5mm 6mm; font-size: 11pt; break-inside: avoid; }
+.cierre b { display: block; font-size: 13pt; margin-bottom: 1mm; }
+.anexos { margin-top: 4mm; font-size: 9pt; color: var(--mut); }
+.piloto { grid-template-columns: repeat(2, 1fr); }
+.necesita { grid-template-columns: repeat(3, 1fr); }
+.piloto { grid-template-columns: repeat(3, 1fr); }
+.trio + .trio { margin-top: 2mm; }

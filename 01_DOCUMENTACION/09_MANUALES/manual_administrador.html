@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Manual del administrador · SGS</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="manual.css">
+</head>
+<body>
+
+<section class="portada ancha">
+  <div class="portada-banda">
+    <div>
+      <img class="logo" src="../../03_FRONTEND/src/assets/img/win-wordmark-white.png" alt="WIN">
+      <div class="sistema">SGS · Sistema de Gestión de Supervisión</div>
+      <h1>Manual del administrador</h1>
+      <div class="bajada">Indicadores, seguimiento en tiempo real y gestión del personal, los partners y las cuadrillas.</div>
+    </div>
+    <figure class="escritorio"><img src="img_manuales/a01_dashboard.jpg" alt=""></figure>
+  </div>
+  <div class="portada-pie"><span>Versión 0.10.1</span><span>Octubre de 2026</span><span>Uso interno · WIN</span></div>
+</section>
+
+<section class="hoja">
+  <h2>El sistema en una página</h2>
+  <p class="lema">SGS reúne en un solo lugar la supervisión de campo de las provincias: lo que hace cada supervisor, cómo trabajan los partners y el estado de las cuadrillas.</p>
+  <div class="modulos">
+    <div><strong>Supervisión en campo</strong><span>Registro desde el celular, con GPS, fotos y checklist. Se guarda solo.</span></div>
+    <div><strong>Seguimiento en tiempo real</strong><span>Turnos, actividades y supervisiones de cada supervisor, hora por hora.</span></div>
+    <div><strong>Pendientes y rescates</strong><span>Cancelaciones cargadas por Excel: validación, rescate y atención de partners en 24 h.</span></div>
+    <div><strong>Partners</strong><span>Cumplimiento en 24 h, órdenes bloqueadas, observaciones y descargos.</span></div>
+    <div><strong>Cuadrillas</strong><span>Técnico líder, apoyo, vehículo y vencimiento de documentos (SOAT, revisión, extintor, brevete).</span></div>
+    <div><strong>Exámenes</strong><span>Evaluación de técnicos por link (trabajo en altura) con resultados por partner, zona y tema.</span></div>
+    <div><strong>Clima</strong><span>Lluvias por zona: días, horas, calendario y bitácora de quién avisó y quién cerró.</span></div>
+    <div><strong>Usuarios y roles</strong><span>Acceso por rol y por zona: cada supervisor ve solo lo que le corresponde.</span></div>
+  </div>
+  <h3>El menú del administrador</h3>
+  <ul>
+    <li><strong>Indicadores:</strong> Dashboard de supervisiones, Dashboard de partners, Pendientes y rescates, Clima y Exámenes.</li>
+    <li><strong>Supervisiones · Seguimiento</strong> (Línea de tiempo, Monitor de turnos) <strong>· Observaciones</strong> (Registro, Control y recurrencia).</li>
+    <li><strong>Personal:</strong> Usuarios y roles, Técnicos y cuadrillas, Partners.</li>
+  </ul>
+  <div class="nota"><b>Filtros comunes</b>Todos los indicadores se filtran por período, partner y zona, y la mayoría se descarga en Excel.</div>
+  <div class="nota"><b>Seguridad</b>Contraseñas propias al primer ingreso, bloqueo tras 3 intentos fallidos y acceso limitado por rol y por zona.</div>
+</section>
+
+<section class="hoja">
+  <h2><span class="n">1</span>Dashboard de supervisiones</h2>
+  <p class="lema">La foto del mes: cuánto se supervisó, dónde y con qué cuadrillas.</p>
+  <figure class="escritorio"><img src="img_manuales/a01_dashboard.jpg" alt=""></figure>
+  <ul class="claves">
+    <li><strong>Indicadores operativos</strong>Total, partner, distrito y cuadrilla más supervisados.</li>
+    <li><strong>Mapa de calor</strong>Cada punto es una supervisión con su ubicación GPS.</li>
+    <li><strong>Productividad y matriz</strong>Meta mensual por supervisor y supervisiones por día.</li>
+  </ul>
+</section>
+
+<section class="hoja">
+  <h2><span class="n">2</span>Dashboard de partners</h2>
+  <p class="lema">Cómo responden los partners a lo que se les transfiere y a sus observaciones.</p>
+  <figure class="escritorio"><img src="img_manuales/a02_partners.jpg" alt=""></figure>
+  <ul class="claves">
+    <li><strong>Cumplimiento en 24 h</strong>Atendidas a tiempo, en plazo y bloqueadas.</li>
+    <li><strong>Por supervisor del partner</strong>Quién atiende a tiempo y quién deja vencer sus órdenes.</li>
+    <li><strong>Observaciones y descargos</strong>Respuestas a tiempo, validadas y penalizadas.</li>
+  </ul>
+</section>
+
+<section class="hoja">
+  <h2><span class="n">3</span>Pendientes y rescates</h2>
+  <p class="lema">El recorrido de cada cancelación cargada por Excel, de la carga al cierre.</p>
+  <figure class="escritorio"><img src="img_manuales/a03_pendientes.jpg" alt=""></figure>
+  <ul class="claves">
+    <li><strong>Estados</strong>Sin tomar, en validación, en rescate, rescatadas, correctas y en partner.</li>
+    <li><strong>Embudo y antigüedad</strong>Cuánto se atiende y cuánto lleva esperando.</li>
+    <li><strong>Por supervisor directo</strong>Tomadas, atendidas, rescatadas y tiempo de atención.</li>
+  </ul>
+</section>
+
+<section class="hoja">
+  <h2><span class="n">4</span>Clima</h2>
+  <p class="lema">Las lluvias que avisan los supervisores, por zona y por día.</p>
+  <figure class="escritorio"><img src="img_manuales/a04_clima.jpg" alt=""></figure>
+  <ul class="claves">
+    <li><strong>Calendario del mes</strong>Días con lluvia en azul: más oscuro, más horas.</li>
+    <li><strong>Bitácora</strong>Inicio (quién avisó y qué hacía) y fin (quién cerró).</li>
+    <li><strong>En la línea de tiempo</strong>La lluvia aparece en la fila de cada supervisor de la zona.</li>
+  </ul>
+</section>
+
+<section class="hoja">
+  <h2><span class="n">5</span>Exámenes de técnicos</h2>
+  <p class="lema">Evaluaciones por link, sin cuentas para los técnicos: ingresan con su DNI.</p>
+  <figure class="escritorio"><img src="img_manuales/a05_examenes.jpg" alt=""></figure>
+  <ul class="claves">
+    <li><strong>Generar el link</strong>Desde <em>Técnicos y cuadrillas</em>, para los técnicos filtrados.</li>
+    <li><strong>Reglas</strong>20 preguntas al azar, 10 minutos, aprueba con 90 %, una oportunidad.</li>
+    <li><strong>Resultados</strong>Aprobación por partner y zona, y temas con más errores.</li>
+  </ul>
+  <div class="proximo"><b>Próximamente · Examen supervisado por cámara</b>
+    Para asegurar que el técnico rinda el examen por sí mismo, se está implementando la supervisión con la cámara del celular:
+    <ul>
+      <li><strong>Rostro:</strong> confirma que es la misma persona durante todo el examen y que no hay otra persona al lado.</li>
+      <li><strong>Mirada:</strong> avisa si deja de mirar la pantalla por mucho tiempo.</li>
+      <li><strong>Audífonos, gorra o lentes oscuros:</strong> los detecta y pide retirarlos.</li>
+      <li><strong>Audio:</strong> alerta si alguien le está dictando las respuestas.</li>
+    </ul>
+    Cada alerta quedará registrada con su hora en el resultado del técnico, para que el supervisor decida si el examen es válido.
+  </div>
+</section>
+
+<section class="hoja">
+  <h2><span class="n">6</span>Seguimiento de la jornada</h2>
+  <p class="lema">Qué está haciendo cada supervisor directo, en tiempo real.</p>
+  <figure class="escritorio media"><img src="img_manuales/a06_linea_tiempo.jpg" alt=""><figcaption>Línea de tiempo: turno, supervisiones, traslados, pausas y lluvia, hora por hora.</figcaption></figure>
+  <ul class="claves">
+    <li><strong>Toque un bloque</strong>Detalle de la supervisión, pausa o traslado.</li>
+    <li><strong>Hasta la 1.ª actividad</strong>Tiempo desde el inicio del turno hasta que empieza a trabajar.</li>
+    <li><strong>Reabrir turno</strong>Si un supervisor lo cerró por error.</li>
+  </ul>
+</section>
+
+<section class="hoja">
+  <h2><span class="n">7</span>Monitor de turnos y supervisiones</h2>
+  <figure class="escritorio media"><img src="img_manuales/a07_monitor.jpg" alt=""><figcaption>Monitor de turnos: estado actual, inicio, primera acción y horas trabajadas.</figcaption></figure>
+  <figure class="escritorio media"><img src="img_manuales/a08_supervisiones.jpg" alt=""><figcaption>Supervisiones: todas las del sistema, con filtros, detalle, corrección y asignación a partners.</figcaption></figure>
+</section>
+
+<section class="hoja">
+  <h2><span class="n">8</span>Observaciones</h2>
+  <figure class="escritorio media"><img src="img_manuales/a12_observaciones.jpg" alt=""><figcaption>Registro: cada hallazgo con su plazo y el descargo del partner. Se descarga en Excel o PDF.</figcaption></figure>
+  <figure class="escritorio media"><img src="img_manuales/a11_control_obs.jpg" alt=""><figcaption>Control y recurrencia: técnicos y motivos más observados.</figcaption></figure>
+</section>
+
+<section class="hoja">
+  <h2><span class="n">9</span>Personal</h2>
+  <figure class="escritorio media"><img src="img_manuales/a10_cuadrillas.jpg" alt=""><figcaption>Técnicos y cuadrillas: líder, apoyo, vehículo, documentos por vencer y carga masiva de técnicos por Excel.</figcaption></figure>
+  <figure class="escritorio media"><img src="img_manuales/a09_usuarios.jpg" alt=""><figcaption>Usuarios y roles: alta de usuarios, rol, partner y zonas; desbloqueo y cambio de contraseña.</figcaption></figure>
+</section>
+
+</body>
+</html>

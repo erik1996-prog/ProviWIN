@@ -11,7 +11,7 @@ require_once __DIR__ . '/../../config/auth.php';
 require_once __DIR__ . '/../../config/database.php';
 
 Auth::requireLogin();
-if (!Auth::can(Auth::PERM_DASHBOARD_VIEW)) {
+if (!Auth::puede(Auth::PERM_PARTNERS_DASHBOARD)) {
     http_response_code(403);
     echo json_encode(['status' => 'error', 'message' => 'Se requieren permisos administrativos.']);
     exit;

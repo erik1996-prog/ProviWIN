@@ -116,6 +116,10 @@ $miId = (int)Auth::getLoggedInUser()['id'];
     </div>
     <h6 class="usr-section">Roles del sistema</h6>
     <div class="row g-3" id="rolesSistema"></div>
+    <!-- Matriz (2026-10-23): por módulo, qué puede ver, editar y eliminar cada rol por defecto -->
+    <h6 class="usr-section mt-4">Qué puede hacer cada rol</h6>
+    <p class="small text-muted mb-2">Permisos por defecto de cada rol en cada módulo. Pase el cursor sobre una marca para ver el detalle. En el rol Supervisor, los módulos de gestión son solo para el supervisor directo: el de partner no los ve.</p>
+    <div class="card p-0"><div class="table-responsive"><table class="table table-hover mb-0 align-middle sgs-tabla-tarjetas perm-matriz" id="matrizPermisos"></table></div></div>
   </section>
 </div>
 
@@ -445,6 +449,17 @@ document.addEventListener('DOMContentLoaded', () => {
       ${r.descripcion ? `<p class="small mb-1">${esc(r.descripcion)}</p>` : ''}
       <div class="role-perms">${r.permisos.slice(0, 6).map((p) => esc(etiquetaPermiso(p))).join(' · ')}${r.permisos.length > 6 ? ` · y ${r.permisos.length - 6} más` : ''}</div>
     </div></div>`).join('');
+    // Matriz: filas = módulos (grupos con permisos de ver/editar/eliminar), columnas = roles
+    const ACC = [['ver', 'Ver'], ['editar', 'Editar'], ['eliminar', 'Eliminar']];
+    const modulos = [...new Set(CAT.permisos.filter((p) => p.accion).map((p) => p.grupo))];
+    const celda = (rol, grupo) => ACC.map(([a, txt]) => {
+      const perms = CAT.permisos.filter((p) => p.grupo === grupo && p.accion === a);
+      if (!perms.length) return '';
+      const tiene = perms.filter((p) => rol.permisos.includes(p.clave));
+      return `<span class="perm-acc is-${a}${tiene.length ? '' : ' is-no'}" title="${esc(perms.map((p) => `${rol.permisos.includes(p.clave) ? 'Sí' : 'No'}: ${p.etiqueta}`).join('\n'))}">${tiene.length ? '' : '<s>'}${txt}${tiene.length ? '' : '</s>'}</span>`;
+    }).join('');
+    $('#matrizPermisos').innerHTML = `<thead><tr><th>Módulo</th>${CAT.roles.map((r) => `<th>${esc(r.rol)}</th>`).join('')}</tr></thead>`
+      + `<tbody>${modulos.map((g) => `<tr><td data-label="Módulo" class="fw-bold">${esc(g)}</td>${CAT.roles.map((r) => `<td data-label="${esc(r.rol)}"><div class="perm-accs">${celda(r, g)}</div></td>`).join('')}</tr>`).join('')}</tbody>`;
   }
 
   // ---------- Personal: solo datos personales (agregar, editar o ver ficha) ----------

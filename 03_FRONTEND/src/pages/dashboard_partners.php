@@ -5,8 +5,8 @@
 // Datos: api/dashboard_partners.php (totales calculados en la base). Pantalla: assets/js/dashboard_partners.js con las
 // piezas comunes de sgs-dashboard.js. Solo administración.
 Auth::requireLogin();
-if (!Auth::can(Auth::PERM_DASHBOARD_VIEW)) {
-    echo '<div class="alert alert-danger m-4">Acceso reservado al personal administrativo.</div>';
+if (!Auth::puede(Auth::PERM_PARTNERS_DASHBOARD)) {
+    echo '<div class="alert alert-danger m-4">No tiene permiso para ver el Dashboard de partners.</div>';
     return;
 }
 $pdo = Database::getConnection();
@@ -55,7 +55,7 @@ $tabla = static fn(string $id, array $columnas, string $clase = '') => '<div cla
   <div class="card p-3 p-md-4 mb-3">
     <h5 class="mb-1"><i class="bi bi-stopwatch me-2 text-primary"></i>Cumplimiento de partners</h5>
     <p class="text-muted small mb-3">Órdenes transferidas a supervisores de partners. Plazo de atención: 24 horas; si vence, la orden se bloquea y cuenta como incumplimiento.</p>
-    <?= $kpi($kpisCumplimiento, 'row-cols-2 row-cols-md-3 row-cols-xl-6') ?>
+    <?= $kpi($kpisCumplimiento, 'row-cols-2 row-cols-md-3 row-cols-xxl-6') ?>
     <div class="row g-3">
       <div class="col-lg-6"><h6 class="mb-2">Por partner</h6>
         <?= $tabla('dpaCumplPartners', [['Partner', false], ['Asignadas', true], ['A tiempo', true], ['Bloqueadas', true], ['Cumplimiento', true]]) ?></div>

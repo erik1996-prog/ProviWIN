@@ -29,7 +29,7 @@ try {
     // registrar supervisiones. Solo consulta, para personal administrativo y supervisores directos.
     if ($action === 'cuadrillas') {
         $usuario = Auth::getLoggedInUser();
-        $puede = Auth::isAdministrative() || (($usuario['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($usuario['is_win_directo']));
+        $puede = Auth::puede(Auth::PERM_CUADRILLAS_VIEW, $usuario);
         if (!$puede) { http_response_code(403); echo json_encode(['status' => 'error', 'message' => 'Sin acceso a las cuadrillas.']); exit; }
         $where = ['COALESCE(t.tipo_tecnico, 1) = 1'];
         $params = [];
@@ -158,8 +158,7 @@ try {
     // Mismas reglas que al cerrar una supervisión: un T2 y un vehículo pertenecen a una sola cuadrilla.
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'cuadrilla_guardar') {
         $editor = Auth::getLoggedInUser();
-        $editorDirecto = ($editor['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($editor['is_win_directo']);
-        if (!Auth::isAdministrative() && !$editorDirecto) { http_response_code(403); throw new Exception('Solo el personal administrativo y los supervisores directos pueden editar cuadrillas.'); }
+        if (!Auth::puede(Auth::PERM_CUADRILLAS_EDIT, $editor)) { http_response_code(403); throw new Exception('No tiene permiso para editar cuadrillas.'); }
         $zonasEditor = Auth::isAdministrative() ? null : sgsUserZones((int)$editor['id']); // null = todas
         $id = (int)($_POST['id'] ?? 0);
         $apoyoId = (int)($_POST['apoyo_id'] ?? 0);
@@ -277,7 +276,7 @@ try {
 
     // Carga de técnicos líderes por Excel (2026-10-15): vista previa y luego aplicar. Ver config/tecnicos_lideres.php.
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'importar_lideres') {
-        if (!Auth::isAdministrative()) { http_response_code(403); throw new Exception('Solo el personal administrativo puede cargar técnicos líderes.'); }
+        if (!Auth::puede(Auth::PERM_CUADRILLAS_IMPORT)) { http_response_code(403); throw new Exception('No tiene permiso para cargar técnicos líderes.'); }
         require_once __DIR__ . '/../../config/uploads.php';
         require_once __DIR__ . '/../../config/tecnicos_lideres.php';
         if (empty($_FILES['archivo'])) throw new Exception('Seleccione el archivo Excel de técnicos líderes.');
@@ -297,7 +296,7 @@ try {
 
     // Lista actual de técnicos líderes habilitados en Excel: sirve de modelo para la carga (mismas dos columnas).
     if ($action === 'exportar_lideres') {
-        if (!Auth::isAdministrative()) { http_response_code(403); throw new Exception('Solo el personal administrativo puede descargar la lista.'); }
+        if (!Auth::puede(Auth::PERM_CUADRILLAS_IMPORT)) { http_response_code(403); throw new Exception('No tiene permiso para descargar la lista.'); }
         require_once __DIR__ . '/../../config/tecnicos_lideres.php';
         $filas = [['TÉCNICO LÍDER', 'PARTNER', 'PROVINCIA']];
         foreach ($pdo->query("SELECT t.nombre_tecnico, p.nombre_partner, COALESCE(NULLIF(t.provincia, ''), t.departamento) AS provincia FROM tecnicos t LEFT JOIN partners p ON p.id = t.partner_id

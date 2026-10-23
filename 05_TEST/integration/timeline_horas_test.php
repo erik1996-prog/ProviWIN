@@ -7,7 +7,8 @@
 // Zona de prueba: AREQUIPA (no la del supervisor local de pruebas, para no cerrarle su lluvia).
 // Por HTTP contra la API real. Usa el día de AYER para no mezclarse con la jornada en curso.
 // Crea un administrador (DNI 99999981), dos supervisores directos (99999982-83), sus turnos, pausas y supervisiones
-// (PRUEBA-TLH-*); BORRA todo al final.
+// (PRUEBA-TLH-*); BORRA todo al final. Mientras corre, pausa el aviso a Teams (09_CONFIG/teams_lluvias.local.txt) para no
+// publicar lluvias de prueba en el grupo; lo deja como estaba al terminar.
 // Uso (solo CLI): php 05_TEST/integration/timeline_horas_test.php [url_base=http://localhost/ProviWIN]
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 $base = rtrim($argv[1] ?? 'http://localhost/ProviWIN', '/');
@@ -35,6 +36,8 @@ $cleanup = function () use ($pdo, $jar, $dnis) {
     @unlink($jar);
 };
 $cleanup();
+$teams = dirname(__DIR__, 2) . '/09_CONFIG/teams_lluvias.local.txt';
+if (is_file($teams)) { rename($teams, "$teams.pausado"); register_shutdown_function(fn() => rename("$teams.pausado", $teams)); }
 
 $admin = (int)$pdo->query("SELECT id FROM usuarios WHERE rol='Administrador' AND activo=1 ORDER BY id LIMIT 1")->fetchColumn();
 $partner = (int)$pdo->query("SELECT id FROM partners WHERE estado=1 AND UPPER(TRIM(nombre_partner)) NOT IN ('WIN','WIN DIRECTO') ORDER BY id LIMIT 1")->fetchColumn();
@@ -143,23 +146,29 @@ try {
         return $llamar;
     };
     $l1 = $como($uno, 'tlh.uno'); $l2 = $como($dos, 'tlh.dos');
-    $r = $l1("$base/api/lluvias.php?action=avisar", ['zona' => 'AREQUIPA']);
+    // Al avisar se pide comentario y foto (JPEG reducido en el celular; aquí basta su cabecera)
+    $conFoto = ['comentario' => 'Lluvia de prueba', 'foto' => base64_encode("����prueba")];
+    $r = $l1("$base/api/lluvias.php?action=avisar", ['zona' => 'AREQUIPA'] + $conFoto);
     $check('sin turno abierto hoy no se avisa la lluvia', ($r['status'] ?? '') === 'error', $r);
     $hoy = date('Y-m-d');
     foreach ([$d1, $d2] as $x) $pdo->prepare("INSERT INTO asistencia_supervisores (supervisor_id, fecha, inicio_turno, estado_turno) VALUES (:s, :f, NOW(), 'En turno')")->execute([':s' => $x, ':f' => $hoy]);
-    $r = $l1("$base/api/lluvias.php?action=avisar", ['zona' => 'PIURA']);
+    $r = $l1("$base/api/lluvias.php?action=avisar", ['zona' => 'AREQUIPA', 'comentario' => 'Sin foto']);
+    $r2 = $l1("$base/api/lluvias.php?action=avisar", ['zona' => 'AREQUIPA', 'foto' => $conFoto['foto']]);
+    $check('sin foto o sin comentario no se avisa la lluvia', ($r['status'] ?? '') === 'error' && ($r2['status'] ?? '') === 'error'
+        && !$pdo->query("SELECT COUNT(*) FROM lluvias_zona WHERE departamento = 'AREQUIPA' AND fin IS NULL")->fetchColumn(), [$r, $r2]);
+    $r = $l1("$base/api/lluvias.php?action=avisar", ['zona' => 'PIURA'] + $conFoto);
     $check('no se avisa en una zona que no es suya', ($r['status'] ?? '') === 'error', $r);
     // Uno está supervisando cuando empieza a llover: la lluvia no cambia su actividad y anota qué hacía
     $pdo->prepare("INSERT INTO supervisiones (codigo_supervision, fecha_registro, supervisor_id, derivacion_orden, tipo_servicio, departamento, provincia, distrito,
         ticket_codigo, tipo_supervision_inicial, partner_id, brevete_poseedor, clasificacion_supervision, area_servicio, observacion_servicio, estado_supervision, tecnico1_nombre)
         VALUES ('SUP-TLH-HOY', NOW(), :sup, 'Líder', 'Regular', :dep, :prov, :dist, 'PRUEBA-TLH-HOY', 'En caliente', :partner, 'Ninguno', 'Instalación', 'Instalación', '', 'En proceso', 'Técnico Prueba')")
         ->execute([':sup' => $d1, ':dep' => $ubi['departamento'], ':prov' => $ubi['provincia'], ':dist' => $ubi['distrito'], ':partner' => $partner]);
-    $r = $l1("$base/api/lluvias.php?action=avisar", ['zona' => 'AREQUIPA']);
+    $r = $l1("$base/api/lluvias.php?action=avisar", ['zona' => 'AREQUIPA'] + $conFoto);
     $ll = $pdo->query("SELECT * FROM lluvias_zona WHERE departamento = 'AREQUIPA' AND fin IS NULL")->fetch(PDO::FETCH_ASSOC) ?: [];
     $eventos = (int)$pdo->query("SELECT COUNT(*) FROM asistencia_eventos e JOIN asistencia_supervisores a ON a.id = e.asistencia_id WHERE a.supervisor_id = $d1 AND a.fecha = CURDATE()")->fetchColumn();
     $check('Uno avisa la lluvia supervisando: se anota "Supervisando PRUEBA-TLH-HOY" y su actividad no cambia', ($r['status'] ?? '') === 'success'
         && isset($r['data']['abiertas']['AREQUIPA']) && ($ll['comentario_inicio'] ?? '') === 'Supervisando PRUEBA-TLH-HOY' && $eventos === 0, [$r, $ll, $eventos]);
-    $r = $l2("$base/api/lluvias.php?action=avisar", ['zona' => 'AREQUIPA']);
+    $r = $l2("$base/api/lluvias.php?action=avisar", ['zona' => 'AREQUIPA'] + $conFoto);
     $abiertas = (int)$pdo->query("SELECT COUNT(*) FROM lluvias_zona WHERE departamento = 'AREQUIPA' AND fin IS NULL")->fetchColumn();
     $check('Dos (misma zona) la ve ya avisada por Uno y no se duplica', ($r['status'] ?? '') === 'success' && str_contains($r['message'] ?? '', 'Ya estaba') && $abiertas === 1, [$r, $abiertas]);
     $tl = $http("$base/api/asistencia.php?action=timeline_diaria");
@@ -178,7 +187,7 @@ try {
         && $fila && str_contains($fila['aviso'], 'Supervisor Uno') && str_contains((string)$fila['cerro'], 'Supervisor Dos') && $fila['comentario_fin'] === 'En almuerzo', [$ind['data']['kpis'] ?? $ind, $fila]);
     $r = $l1("$base/api/dashboard_lluvias.php?action=dashboard");
     $check('el supervisor directo también ve el indicador (de su zona)', ($r['status'] ?? '') === 'success', $r);
-    $l1("$base/api/lluvias.php?action=avisar", ['zona' => 'AREQUIPA']);
+    $l1("$base/api/lluvias.php?action=avisar", ['zona' => 'AREQUIPA'] + $conFoto);
     $l1("$base/api/asistencia.php?action=end", []);
     $abiertas = (int)$pdo->query("SELECT COUNT(*) FROM lluvias_zona WHERE departamento = 'AREQUIPA' AND fin IS NULL")->fetchColumn();
     $auto = $pdo->query("SELECT comentario_fin FROM lluvias_zona WHERE reportado_por = $d1 ORDER BY id DESC LIMIT 1")->fetchColumn();

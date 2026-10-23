@@ -111,7 +111,7 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
                                 </div>
                             </div>
 
-                            <?php if ($isReadOnlyWinSupervisor): ?>
+                            <?php if ($isReadOnlyWinSupervisor && Auth::puede(Auth::PERM_CLIMA_EDIT, $user)): ?>
                             <!-- Clima en su zona (2026-10-20, assets/js/lluvia.js): se ve en la línea de tiempo de todos los de la zona -->
                             <p class="sgs-kpi-label mt-4 mb-2"><i class="bi bi-cloud-sun me-1"></i>Clima en su zona</p>
                             <div id="lluviaZonas" aria-live="polite"><p class="text-muted small mb-0">Consultando…</p></div>
@@ -280,6 +280,31 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
     </div>
 </div>
 
+<?php if ($isReadOnlyWinSupervisor && Auth::puede(Auth::PERM_CLIMA_EDIT, $user)): ?>
+<!-- Aviso de lluvia (2026-10-23, assets/js/lluvia.js): foto y comentario que se publican en el grupo de Teams (no se guardan) -->
+<div class="modal fade" id="modalLluvia" tabindex="-1" aria-labelledby="modalLluviaTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalLluviaTitulo"><i class="bi bi-cloud-rain-heavy me-2 text-primary"></i>Está lloviendo en <span id="lluviaZonaTitulo"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <label for="lluviaFoto" class="form-label">Foto de la lluvia</label>
+                <input type="file" id="lluviaFoto" class="form-control" accept="image/*" capture="environment" data-sin-comprimir>
+                <img id="lluviaFotoPrevia" class="sgs-lluvia-foto mt-2" alt="Foto de la lluvia elegida" hidden>
+                <label for="lluviaComentario" class="form-label mt-3">Comentario</label>
+                <textarea id="lluviaComentario" class="form-control" rows="2" maxlength="200" placeholder="Por ejemplo: lluvia fuerte en el centro de la ciudad"></textarea>
+                <p class="text-muted small mt-2 mb-0">La foto y el comentario se publican en el grupo de Teams de lluvias.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" id="lluviaEnviar" class="btn btn-win"><i class="bi bi-cloud-rain-heavy me-1"></i>Avisar lluvia</button>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 <!-- MODAL PARA REGISTRAR MOTIVO DE REUNIÓN -->
 <div class="modal fade" id="modalReunion" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-sm">
@@ -391,4 +416,4 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
 </style>
 
 <script src="03_FRONTEND/src/assets/js/asistencia.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
-<?php if ($isReadOnlyWinSupervisor): ?><script src="03_FRONTEND/src/assets/js/lluvia.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
+<?php if ($isReadOnlyWinSupervisor && Auth::puede(Auth::PERM_CLIMA_EDIT, $user)): ?><script src="03_FRONTEND/src/assets/js/lluvia.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>

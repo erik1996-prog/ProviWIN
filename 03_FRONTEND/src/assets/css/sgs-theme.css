@@ -4309,3 +4309,47 @@ button.sgs-cal-dia:hover, button.sgs-cal-dia:focus-visible { outline: 0; box-sha
 
 /* 58. Dashboard de partners (2026-10-20): la lista de órdenes bloqueadas puede ser larga; se desplaza dentro de su caja. */
 .dsh-tabla-alta { max-height: 340px; overflow-y: auto; }
+
+/* 59. Matriz mensual de lluvias (2026-10-23, Clima): horas por zona y día, en los tonos de la lluvia (sección 57). */
+.table-matriz td.sgs-matriz-lluvia { font-weight: 700; color: var(--sgs-lluvia-dark); }
+.table-matriz td.sgs-matriz-lluvia.is-leve { background: var(--sgs-lluvia-soft); }
+.table-matriz td.sgs-matriz-lluvia.is-media { background: color-mix(in srgb, var(--sgs-lluvia) 30%, var(--sgs-surface)); }
+.table-matriz td.sgs-matriz-lluvia.is-fuerte { background: var(--sgs-lluvia); color: var(--sgs-surface); }
+.table-matriz td.sgs-matriz-lluvia { line-height: 1.15; }
+.table-matriz td.sgs-matriz-lluvia .bi { display: block; font-size: .95rem; margin-bottom: 1px; }
+.table-matriz td.sgs-matriz-lluvia span { font-size: .72rem; }
+/* Matriz a pantalla completa: ocupa toda la pantalla y la tabla se desplaza dentro */
+.sgs-matriz-card:fullscreen { border-radius: 0; padding: 24px !important; overflow: auto; background: var(--sgs-surface); display: flex; flex-direction: column; }
+.sgs-matriz-card:fullscreen .matriz-scroll-box { flex: 1; overflow: auto; }
+.sgs-matriz-card:fullscreen .table-matriz th, .sgs-matriz-card:fullscreen .table-matriz td { padding: 10px 10px; font-size: .85rem; }
+/* "En vivo" de la matriz de lluvias: punto que late (sin animación si se pide reducir movimiento) */
+.sgs-en-vivo { display: inline-flex; align-items: center; gap: 6px; font-size: .75rem; font-weight: 600; color: var(--sgs-success-dark); }
+.sgs-en-vivo i { width: 8px; height: 8px; border-radius: 50%; background: var(--sgs-success); animation: sgs-late 1.6s ease-in-out infinite; }
+@keyframes sgs-late { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .sgs-en-vivo i { animation: none; } }
+/* Línea de tiempo de lluvias (Clima): el bloque muestra la nube; las horas, al lado */
+.sgs-gantt-blk.sgs-lluvia-tl { min-width: 24px; padding: 0; justify-content: center; }
+.sgs-lluvia-etq { position: absolute; top: 50%; transform: translateY(-50%); margin-left: 4px; padding: 1px 5px; border-radius: 6px; background: var(--sgs-surface); font-size: .72rem; font-weight: 700; color: var(--sgs-lluvia-dark); white-space: nowrap; pointer-events: none; z-index: 3; }
+/* Línea de tiempo de lluvias: barra proporcional con el total de horas del día bajo el nombre de la zona */
+.sgs-gantt-name.sgs-tl-zona { flex-direction: column; align-items: stretch; justify-content: center; gap: 4px; }
+.sgs-tl-total { display: flex; align-items: center; gap: 8px; }
+.sgs-tl-total-pista { flex: 1; height: 8px; border-radius: 6px; background: var(--sgs-surface-alt); border: 1px solid var(--sgs-border); overflow: hidden; }
+.sgs-tl-total-pista i { display: block; height: 100%; background: var(--sgs-lluvia); border-radius: 6px; }
+.sgs-tl-total small { min-width: 34px; text-align: right; font-weight: 700; font-size: .72rem; color: var(--sgs-lluvia-dark); }
+/* Intervalo de la lluvia: extremos marcados y la hora de inicio a la izquierda del bloque */
+.sgs-gantt-blk.sgs-lluvia-tl { border-left: 3px solid var(--sgs-lluvia-dark); border-right: 3px solid var(--sgs-lluvia-dark); }
+.sgs-gantt-blk.sgs-lluvia-tl.is-activa { border-right-style: dashed; }
+.sgs-lluvia-etq.is-inicio { margin-left: 0; transform: translate(calc(-100% - 4px), -50%); }
+
+/* 60. Roles y permisos (2026-10-23): matriz módulo × rol con lo que puede ver, editar y eliminar. Siempre con texto. */
+.perm-matriz td, .perm-matriz th { white-space: nowrap; }
+.perm-accs { display: flex; flex-wrap: wrap; gap: 4px; }
+.perm-acc { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .72rem; font-weight: 700; border: 1px solid transparent; cursor: help; }
+.perm-acc.is-ver { background: var(--sgs-success-soft); color: var(--sgs-success-dark); }
+.perm-acc.is-editar { background: var(--sgs-warning-soft); color: var(--sgs-warning-dark); }
+.perm-acc.is-eliminar { background: var(--sgs-danger-soft); color: var(--sgs-danger-dark); }
+.perm-acc.is-no { background: transparent; color: var(--sgs-muted); border-color: var(--sgs-border); font-weight: 600; opacity: .7; }
+
+/* 61. Aviso de lluvia (2026-10-23): vista previa de la foto que se publica en Teams. */
+.sgs-lluvia-foto { display: block; width: 100%; max-height: 220px; object-fit: cover; border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); }
+.sgs-lluvia-foto[hidden] { display: none; }

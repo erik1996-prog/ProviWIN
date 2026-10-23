@@ -93,17 +93,18 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
     // visible para el usuario se muestra como enlace directo (con su "nombre suelto", si lo tiene).
     // [sección, ícono, [[visible, href, páginas, ícono, nombre, nombre suelto opcional], …]]
     // 2026-10-20: "Indicadores" junta los dashboards y "Personal" a usuarios, técnicos y partners.
-    $verGestionTecnica = ($showAdministrativeMenu || $isDirectMenu) && $canViewSupervisions; // cuadrillas, exámenes y pendientes
+    // 2026-10-23: los módulos de gestión salen según su permiso de "ver" (Roles y permisos) y solo al personal de WIN.
+    $ve = static fn(string $perm): bool => Auth::puede($perm, $user);
     $menuGroups = [
         ['Inicio', 'bi-house', [
             [$isDirectMenu, 'index.php?page=asistencia', ['asistencia'], 'bi-play-circle', 'Mi turno'],
         ]],
         ['Indicadores', 'bi-graph-up', [
             [$showAdministrativeMenu && $canViewDashboard, 'index.php?page=admin_dashboard', ['admin_dashboard'], 'bi-speedometer2', 'Dashboard de supervisiones'],
-            [$showAdministrativeMenu && $canViewDashboard, 'index.php?page=dashboard_partners', ['dashboard_partners'], 'bi-buildings', 'Dashboard de partners'],
-            [$verGestionTecnica, 'index.php?page=dashboard_pendientes', ['dashboard_pendientes'], 'bi-arrow-repeat', 'Pendientes y rescates'],
-            [$verGestionTecnica, 'index.php?page=dashboard_lluvias', ['dashboard_lluvias'], 'bi-cloud-sun', 'Clima'],
-            [$verGestionTecnica, 'index.php?page=examenes', ['examenes'], 'bi-clipboard-check', 'Exámenes'],
+            [$ve(Auth::PERM_PARTNERS_DASHBOARD), 'index.php?page=dashboard_partners', ['dashboard_partners'], 'bi-buildings', 'Dashboard de partners'],
+            [$ve(Auth::PERM_PENDIENTES_VIEW), 'index.php?page=dashboard_pendientes', ['dashboard_pendientes'], 'bi-arrow-repeat', 'Pendientes y rescates'],
+            [$ve(Auth::PERM_CLIMA_VIEW), 'index.php?page=dashboard_lluvias', ['dashboard_lluvias'], 'bi-cloud-sun', 'Clima'],
+            [$ve(Auth::PERM_EXAMENES_VIEW), 'index.php?page=examenes', ['examenes'], 'bi-clipboard-check', 'Exámenes'],
         ]],
         ['Supervisiones', 'bi-journal-check', [
             [$canViewSupervisions, 'index.php?page=supervision_lista', ['supervision_lista', 'supervision_registro'], $isPartnerMenu ? 'bi-calendar-check' : 'bi-journal-check', $isPartnerMenu ? ($rol === Auth::ROLE_JEFE_OPERACIONES ? 'Órdenes del partner' : 'Mi agenda') : 'Supervisiones'],
@@ -118,8 +119,8 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
         ]],
         ['Personal', 'bi-people', [
             [$canSeeStaff, 'index.php?page=usuarios', ['usuarios'], 'bi-person-badge', $canManageUsers ? 'Usuarios y roles' : 'Personal'],
-            [$verGestionTecnica, 'index.php?page=cuadrillas', ['cuadrillas'], 'bi-people-fill', 'Técnicos y cuadrillas'],
-            [$canManageUsers, 'index.php?page=partners', ['partners'], 'bi-buildings', 'Partners'],
+            [$ve(Auth::PERM_CUADRILLAS_VIEW), 'index.php?page=cuadrillas', ['cuadrillas'], 'bi-people-fill', 'Técnicos y cuadrillas'],
+            [$ve(Auth::PERM_PARTNERS_VIEW), 'index.php?page=partners', ['partners'], 'bi-buildings', 'Partners'],
         ]],
     ];
     ?>

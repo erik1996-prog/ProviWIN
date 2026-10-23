@@ -3,6 +3,8 @@
 // Cada lluvia es de una zona: inicio = el primer supervisor que la avisó, fin = el que la cerró (con qué hacía cada uno).
 //   GET ?action=dashboard&mes=AAAA-MM[&zona=X] → indicadores del mes, horas por zona, días del calendario y bitácora.
 // Administración ve todas las zonas; el supervisor directo, las suyas. Pocas filas por mes: se resumen aquí mismo.
+//   POST ?action=eliminar  id → borra un registro de lluvia (permiso "Eliminar registros de lluvia", 2026-10-23).
+//     Si era de hoy, avisa en Teams que el aviso se anuló (el inicio ya se había publicado en el grupo).
 header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../../config/config.php';
@@ -11,6 +13,7 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/lluvias.php';
 
 Auth::requireLogin();
+Auth::requireCsrf();
 $usuario = Auth::getLoggedInUser();
 $esAdmin = Auth::isAdministrative();
 $responder = static function (array $datos, int $codigo = 200): void {
@@ -18,8 +21,22 @@ $responder = static function (array $datos, int $codigo = 200): void {
     echo json_encode($datos, JSON_UNESCAPED_UNICODE);
     exit;
 };
-if (!$esAdmin && !(($usuario['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($usuario['is_win_directo']))) {
-    $responder(['status' => 'error', 'message' => 'Acceso reservado al personal administrativo y a los supervisores directos.'], 403);
+if (!Auth::puede(Auth::PERM_CLIMA_VIEW, $usuario)) {
+    $responder(['status' => 'error', 'message' => 'No tiene permiso para ver Clima.'], 403);
+}
+if (($_GET['action'] ?? '') === 'eliminar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!Auth::puede(Auth::PERM_CLIMA_DELETE, $usuario)) $responder(['status' => 'error', 'message' => 'No tiene permiso para eliminar lluvias.'], 403);
+    $id = (int)($_POST['id'] ?? 0);
+    $pdo = Database::getConnection();
+    $st = $pdo->prepare('SELECT departamento, inicio FROM lluvias_zona WHERE id = ?');
+    $st->execute([$id]);
+    $lluvia = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$lluvia) $responder(['status' => 'error', 'message' => 'Esa lluvia ya no existe.'], 404);
+    $pdo->prepare('DELETE FROM lluvias_zona WHERE id = ?')->execute([$id]);
+    if (date('Y-m-d', strtotime($lluvia['inicio'])) === date('Y-m-d')) sgsAvisoTeamsLluvia("Aviso de lluvia anulado — {$lluvia['departamento']}",
+        'El inicio de lluvia de las ' . date('H:i', strtotime($lluvia['inicio'])) . ' se registró por error. Anulado por: ' . $usuario['nombre']);
+    win_log_error('audit_rain_deleted', 'Registro de lluvia eliminado', ['actor_id' => (int)$usuario['id'], 'lluvia_id' => $id]);
+    $responder(['status' => 'success', 'message' => 'Lluvia eliminada.']);
 }
 if (($_GET['action'] ?? '') !== 'dashboard') $responder(['status' => 'error', 'message' => 'Acción no válida.'], 404);
 $pdo = Database::getConnection();

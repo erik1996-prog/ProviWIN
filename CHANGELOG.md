@@ -4,6 +4,35 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Aviso de lluvias en Teams (2026-10-23)
+- **Añadido**: cuando un supervisor avisa que empezó a llover o que paró, se publica un mensaje en un grupo de Teams: solo la zona, la hora, quién la reportó primero y quién la finalizó.
+- **Configuración**: la dirección del flujo de Teams va en `09_CONFIG/teams_lluvias.local.txt` (bloqueado a la web y fuera de Git) o en la variable `SGS_TEAMS_LLUVIAS_URL`. Sin ella no se envía nada y el sistema sigue igual. Si Teams falla, el aviso de lluvia se guarda igual y el error queda en el log.
+- **Foto y comentario**: "Está lloviendo" abre una ventana que pide una foto y un comentario corto (obligatorios). El celular reduce la foto a 400 px y baja la calidad hasta que pese 19 KB o menos (Teams acepta mensajes de unos 28 KB); la foto y el comentario van solo al mensaje de Teams, no se guardan en el sistema.
+- **Anular un aviso por error**: al eliminar desde Clima una lluvia de hoy, se publica "Aviso de lluvia anulado" en el grupo, con la hora del inicio y quién lo anuló.
+
+### Roles y permisos: ver, editar y eliminar por módulo (2026-10-23)
+- **Añadido**: permisos propios para los módulos nuevos, que hasta ahora dependían de reglas fijas en el código y no salían en Roles y permisos: Dashboard de partners, Pendientes y rescates, Clima (ver, avisar lluvias, eliminar), Exámenes (ver, generar links, anular), Técnicos y cuadrillas (ver, editar, cargar Excel), Partners (ver, editar, eliminar) y eliminar observaciones. Todos se pueden personalizar por usuario.
+- **Sin cambios de acceso**: los permisos por defecto copian lo que cada rol veía. El supervisor de partner sigue sin entrar a estos módulos aunque se le dé el permiso (`Auth::puede` exige personal de WIN).
+- **Matriz** en Usuarios › Roles y permisos: por módulo y rol, qué puede ver, editar y eliminar.
+- **Clima**: quien tenga "Eliminar registros de lluvia" puede borrar un aviso hecho por error desde la bitácora.
+- Prueba nueva `05_TEST/integration/permisos_modulos_test.php`.
+
+### Clima en vivo: línea de tiempo por zona y matriz (2026-10-23)
+- **Añadido**: línea de tiempo de lluvias por zona (solo lluvias, hora por hora, con la línea de "ahora"); se elige el día y también al tocar un día del calendario. Cada lluvia se ve como intervalo: hora de inicio a la izquierda y de fin a la derecha ("sigue" si no paró). Bajo cada zona, una barra proporcional con el total de horas de lluvia del día. Al pasar el cursor: quién avisó, quién cerró y qué hacían.
+- **En vivo**: la pantalla Clima se actualiza cada 30 s mientras está a la vista (indicador "En vivo · actualizado a las hh:mm"); la matriz tiene botón de pantalla completa y va debajo de la bitácora, con la nube en cada celda con lluvia.
+
+### Matriz mensual de lluvias (2026-10-23)
+- **Añadido** en Indicadores › Clima: matriz de zonas × días del mes con las horas de lluvia (h:mm) y el total por zona, como la matriz mensual de supervisiones. Se arma en el navegador con los datos que ya trae la pantalla (sin consultas nuevas). Celdas en los tonos de la lluvia según las horas (sección 59).
+
+### Manuales para gerencia y dos arreglos de pantalla (2026-10-22)
+- **Añadido**: `01_DOCUMENTACION/09_MANUALES/Manual_Supervisor_SGS.pdf` (7 páginas, celular) y `Manual_Administrador_SGS.pdf` (11 páginas, escritorio), con capturas actuales en `img_manuales/` y estilo común `manual.css`. Las capturas usan datos de ejemplo, que se borraron después.
+- **Corregido**: en Observaciones, en el celular, las tarjetas cortaban los textos por la derecha (cuadrilla, partner, supervisor, estado) y dejaban huecos. Ahora la etiqueta va a la izquierda y el valor a la derecha, con salto de línea.
+- **Corregido**: en el Dashboard de partners, los 6 indicadores en una fila partían las etiquetas a mitad de palabra; en pantallas medianas van en dos filas de 3.
+
+### Cambiar el T2 o registrar uno nuevo en la supervisión (2026-10-21)
+- **Corregido**: con un técnico ya elegido, el campo quedaba fijo y solo se liberaba con la X pequeña de la derecha; al tocar el campo no pasaba nada, y los supervisores reportaban que no podían cambiar el T2 ni registrar uno nuevo. Ahora, al **tocar el campo**, se abre la lista completa con el nombre seleccionado: se elige otro técnico o se escribe uno nuevo (sale "Registrar … como técnico de apoyo"). Si sale sin elegir, queda el que estaba. La X sigue quitándolo. Aplica al T1 y al T2, en la supervisión nueva y en la edición.
+- El servidor ya permitía cambiar y registrar el T2: se comprobó en la supervisión y en Técnicos y cuadrillas.
+
 ### Coordenadas a mano para todos los supervisores (2026-10-20)
 - **Cambiado**: en cualquier modalidad (presencial o remota) el supervisor puede escribir o pegar las coordenadas a mano; antes solo en la remota o siendo administrador. El GPS se sigue tomando solo al iniciar y con "Actualizar ubicación". Si el GPS seguía buscando cuando el supervisor escribe, se detiene para no borrar lo escrito. Cada cambio de coordenadas sigue quedando en el historial (`supervision_coordenadas_historial`).
 - **Eliminado**: la regla que volvía a tomar el GPS al pasar de remota a presencial y las marcas internas de origen y precisión, que ya no se usan.

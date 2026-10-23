@@ -45,7 +45,7 @@ final class UsuarioService
         $out = [];
         foreach (Auth::permissionCatalog() as $clave => $def) {
             if (empty($def['delegable'])) continue;
-            $out[] = ['clave' => $clave, 'grupo' => $def['group'], 'etiqueta' => $def['label']];
+            $out[] = ['clave' => $clave, 'grupo' => $def['group'], 'etiqueta' => $def['label'], 'accion' => $def['action'] ?? null];
         }
         return $out;
     }

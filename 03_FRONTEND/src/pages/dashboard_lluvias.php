@@ -1,13 +1,14 @@
 <?php
 // Clima (2026-10-20): indicador de las lluvias por zona (menú Indicadores → Clima). Cada lluvia: inicio = el primer supervisor que la avisó, fin =
-// el que la cerró, con qué hacía cada uno. Días con lluvia, horas por zona, calendario del mes y bitácora de cada día.
+// el que la cerró, con qué hacía cada uno. Línea de tiempo por zona (solo lluvias), días con lluvia, horas por zona,
+// calendario del mes, bitácora de cada día y matriz mensual.
 // Datos: api/dashboard_lluvias.php. Pantalla: assets/js/dashboard_lluvias.js con las piezas comunes de sgs-dashboard.js.
 // Administración ve todas las zonas; el supervisor directo, las suyas.
 Auth::requireLogin();
 $user = Auth::getLoggedInUser();
 $esAdmin = Auth::isAdministrative();
-if (!$esAdmin && !(($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($user['is_win_directo']))) {
-    echo '<div class="alert alert-danger m-4">Acceso reservado al personal administrativo y a los supervisores directos.</div>';
+if (!Auth::puede(Auth::PERM_CLIMA_VIEW, $user)) {
+    echo '<div class="alert alert-danger m-4">No tiene permiso para ver Clima.</div>';
     return;
 }
 $e = static fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
@@ -18,7 +19,7 @@ $kpis = [
     ['promedio', 'Duración promedio', 'bi-hourglass-split'], ['zona_mas', 'Zona con más lluvia', 'bi-geo-alt'],
 ];
 ?>
-<div class="container-fluid p-3 p-md-4 dsh" id="dll">
+<div class="container-fluid p-3 p-md-4 dsh" id="dll" data-puede-eliminar="<?= Auth::puede(Auth::PERM_CLIMA_DELETE, $user) ? '1' : '0' ?>">
   <div class="sgs-page-actions">
     <span class="sgs-counter" id="dllContador">Cargando…</span>
   </div>
@@ -39,6 +40,15 @@ $kpis = [
     <div class="col"><div class="sgs-kpi p-3 h-100"><span class="sgs-kpi-icon" aria-hidden="true"><i class="bi <?= $icono ?>"></i></span><small class="sgs-kpi-label"><?= $e($texto) ?></small>
       <h3 class="mb-0 sgs-kpi-value<?= $clave === 'zona_mas' ? ' is-text' : '' ?>" data-kpi="<?= $clave ?>">—</h3></div></div>
     <?php endforeach; ?>
+  </div>
+
+  <div class="card p-3 p-md-4 mb-3">
+    <div class="d-flex flex-wrap align-items-end justify-content-between gap-2 mb-3">
+      <div><h5 class="mb-1"><i class="bi bi-calendar-range me-2 text-primary"></i>Línea de tiempo de lluvias</h5>
+        <p class="text-muted small mb-0">Cuándo llovió en cada zona, hora por hora. Pase el cursor sobre una lluvia para ver quién la avisó y quién la cerró.</p></div>
+      <div class="sgs-filtro sgs-filtro--fecha"><label class="form-label" for="dllDiaTl">Día</label><input class="form-control" type="date" id="dllDiaTl"></div>
+    </div>
+    <div class="sgs-gantt" id="dllTimeline"></div>
   </div>
 
   <div class="row g-3 mb-3">
@@ -65,6 +75,18 @@ $kpis = [
       <tbody id="dllBitacora"><tr><td colspan="5" class="text-center text-muted py-4">Cargando…</td></tr></tbody>
     </table></div>
   </div>
+  <div class="card p-3 p-md-4 mt-3 sgs-matriz-card" id="dllMatrizCard">
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
+      <div><h5 class="mb-1"><i class="bi bi-grid-3x3-gap me-2 text-primary"></i>Matriz mensual de lluvias</h5>
+        <p class="text-muted small mb-0">Horas de lluvia por zona y por día del mes (horas:minutos).</p></div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <span class="sgs-en-vivo" id="dllEnVivo"><i aria-hidden="true"></i>En vivo</span>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="dllPantalla"><i class="bi bi-arrows-fullscreen me-1"></i>Pantalla completa</button>
+      </div>
+    </div>
+    <div class="matriz-scroll-box"><table class="table-matriz align-middle" id="dllMatriz"><tbody><tr><td class="text-muted py-3">Cargando…</td></tr></tbody></table></div>
+  </div>
+
   <div class="dsh-tip" id="dllTip" role="tooltip" hidden></div>
 </div>
 <script src="03_FRONTEND/src/assets/js/sgs-dashboard.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>

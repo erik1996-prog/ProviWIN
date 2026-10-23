@@ -9,9 +9,8 @@
 Auth::requireLogin();
 $user = Auth::getLoggedInUser();
 $esAdmin = Auth::isAdministrative();
-$esDirecto = ($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($user['is_win_directo']);
-if (!$esAdmin && !$esDirecto) {
-    echo '<div class="alert alert-danger m-4">Acceso reservado al personal administrativo y a los supervisores directos.</div>';
+if (!Auth::puede(Auth::PERM_EXAMENES_VIEW, $user)) {
+    echo '<div class="alert alert-danger m-4">No tiene permiso para ver Exámenes.</div>';
     return;
 }
 require_once BACKEND_PATH . '/config/examen_motor.php';
@@ -27,7 +26,7 @@ $examenes = sgsExamenesDisponibles();
   <div class="sgs-page-actions">
     <span class="sgs-counter" id="exdContador">Cargando…</span>
     <a class="btn btn-outline-secondary" id="exdExcel" href="api/examenes.php?action=dashboard_excel" data-base="api/examenes.php?action=dashboard_excel"><i class="bi bi-file-earmark-arrow-down me-1"></i>Descargar Excel</a>
-    <a class="btn btn-win" href="index.php?page=cuadrillas"><i class="bi bi-link-45deg me-1"></i>Generar link de examen</a>
+    <?php if (Auth::puede(Auth::PERM_EXAMENES_EDIT, $user) && Auth::puede(Auth::PERM_CUADRILLAS_VIEW, $user)): ?><a class="btn btn-win" href="index.php?page=cuadrillas"><i class="bi bi-link-45deg me-1"></i>Generar link de examen</a><?php endif; ?>
   </div>
 
   <form class="card sgs-toolbar-card p-3 mb-3" id="exdFiltros">

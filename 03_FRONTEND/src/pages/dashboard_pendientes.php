@@ -9,8 +9,8 @@
 Auth::requireLogin();
 $user = Auth::getLoggedInUser();
 $esAdmin = Auth::isAdministrative();
-if (!$esAdmin && !(($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($user['is_win_directo']))) {
-    echo '<div class="alert alert-danger m-4">Acceso reservado al personal administrativo y a los supervisores directos.</div>';
+if (!Auth::puede(Auth::PERM_PENDIENTES_VIEW, $user)) {
+    echo '<div class="alert alert-danger m-4">No tiene permiso para ver Pendientes y rescates.</div>';
     return;
 }
 $pdo = Database::getConnection();

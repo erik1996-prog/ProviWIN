@@ -348,8 +348,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'actualizar_plazo') {
 // Eliminar una observación (solo administrador, 2026-10-11). Antes de borrarla se guarda una copia completa
 // en el registro de auditoría (08_LOGS) para poder recuperarla si fuera necesario.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'eliminar') {
-    if (!Auth::hasRole([Auth::ROLE_ADMINISTRADOR])) {
-        http_response_code(403); echo json_encode(['status'=>'error','message'=>'Solo el administrador puede eliminar observaciones.']); exit;
+    if (!Auth::puede(Auth::PERM_OBSERVATION_DELETE)) {
+        http_response_code(403); echo json_encode(['status'=>'error','message'=>'No tiene permiso para eliminar observaciones.']); exit;
     }
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
     $obsId = (int)($input['observacion_id'] ?? 0);

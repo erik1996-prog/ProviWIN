@@ -100,3 +100,30 @@ function sgsLluviasDelSupervisor(array $lluviasDelDia, int $usuarioId, array $zo
     usort($tramos, static fn($a, $b) => $a['ts_inicio'] <=> $b['ts_inicio']);
     return $tramos;
 }
+
+/**
+ * Aviso a Teams (2026-10-23): al iniciar y al terminar una lluvia se publica un mensaje en el grupo de Teams.
+ * La URL del flujo de Teams (Workflows › "solicitud de webhook") es secreta: variable de entorno SGS_TEAMS_LLUVIAS_URL
+ * o el archivo 09_CONFIG/teams_lluvias.local.txt (carpeta bloqueada por web y fuera de git). Sin URL no se envía nada.
+ * Si Teams no responde, la lluvia se guarda igual (espera máxima 4 s).
+ */
+function sgsAvisoTeamsLluvia(string $titulo, string $detalle, string $comentario = '', string $fotoJpeg = ''): bool {
+    $url = trim((string)(getenv('SGS_TEAMS_LLUVIAS_URL') ?: @file_get_contents(dirname(__DIR__, 3) . '/09_CONFIG/teams_lluvias.local.txt')));
+    if (!preg_match('#^https://\S+$#', $url) || !function_exists('curl_init')) return false;
+    $tarjeta = ['type' => 'message', 'attachments' => [['contentType' => 'application/vnd.microsoft.card.adaptive', 'content' => [
+        '$schema' => 'http://adaptivecards.io/schemas/adaptive-card.json', 'type' => 'AdaptiveCard', 'version' => '1.4',
+        'body' => array_values([['type' => 'TextBlock', 'text' => $titulo, 'weight' => 'Bolder', 'size' => 'Medium', 'wrap' => true],
+                   ['type' => 'TextBlock', 'text' => $detalle, 'wrap' => true, 'spacing' => 'Small']]
+            // Teams acepta mensajes de ~28 KB: la foto llega reducida (≤ 20 KB) y va dentro del mensaje
+            + ($comentario !== '' ? [2 => ['type' => 'TextBlock', 'text' => "Comentario: {$comentario}", 'wrap' => true]] : [])
+            + ($fotoJpeg !== '' ? [3 => ['type' => 'Image', 'url' => 'data:image/jpeg;base64,' . base64_encode($fotoJpeg), 'size' => 'Stretch', 'altText' => 'Foto de la lluvia']] : [])),
+    ]]]];
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 4, CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json'], CURLOPT_POSTFIELDS => json_encode($tarjeta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
+    curl_exec($ch);
+    $codigo = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    unset($ch);
+    if ($codigo < 200 || $codigo >= 300) win_log_error('teams_lluvia_error', 'No se pudo publicar el aviso de lluvia en Teams', ['http' => $codigo]);
+    return $codigo >= 200 && $codigo < 300;
+}

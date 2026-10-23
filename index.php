@@ -33,17 +33,17 @@ $allowedViews = [
     'supervision_lista'      => ['file' => 'supervision_lista.php',      'title' => 'Supervisiones',            'perm' => Auth::PERM_SUPERVISION_VIEW],
     'supervision_registro'   => ['file' => 'supervision_lista.php',      'title' => 'Registro de supervisión',  'perm' => Auth::PERM_SUPERVISION_VIEW],
     'admin_dashboard'        => ['file' => 'admin_dashboard.php',        'title' => 'Dashboard de supervisiones', 'perm' => Auth::PERM_DASHBOARD_VIEW],
-    'cuadrillas'             => ['file' => 'cuadrillas.php',             'title' => 'Técnicos y cuadrillas',    'perm' => Auth::PERM_SUPERVISION_VIEW],
-    'examenes'               => ['file' => 'examenes.php',               'title' => 'Exámenes',                 'perm' => Auth::PERM_SUPERVISION_VIEW],
-    'dashboard_partners'     => ['file' => 'dashboard_partners.php',     'title' => 'Dashboard de partners',    'perm' => Auth::PERM_DASHBOARD_VIEW],
-    'dashboard_lluvias'      => ['file' => 'dashboard_lluvias.php',      'title' => 'Clima',                    'perm' => Auth::PERM_SUPERVISION_VIEW],
-    'dashboard_pendientes'   => ['file' => 'dashboard_pendientes.php',   'title' => 'Pendientes y rescates',    'perm' => Auth::PERM_SUPERVISION_VIEW],
+    'cuadrillas'             => ['file' => 'cuadrillas.php',             'title' => 'Técnicos y cuadrillas',    'perm' => Auth::PERM_CUADRILLAS_VIEW],
+    'examenes'               => ['file' => 'examenes.php',               'title' => 'Exámenes',                 'perm' => Auth::PERM_EXAMENES_VIEW],
+    'dashboard_partners'     => ['file' => 'dashboard_partners.php',     'title' => 'Dashboard de partners',    'perm' => Auth::PERM_PARTNERS_DASHBOARD],
+    'dashboard_lluvias'      => ['file' => 'dashboard_lluvias.php',      'title' => 'Clima',                    'perm' => Auth::PERM_CLIMA_VIEW],
+    'dashboard_pendientes'   => ['file' => 'dashboard_pendientes.php',   'title' => 'Pendientes y rescates',    'perm' => Auth::PERM_PENDIENTES_VIEW],
     'timeline_supervisores'  => ['file' => 'timeline_supervisores.php',  'title' => 'Línea de tiempo',          'perm' => Auth::PERM_TIMELINE_VIEW],
     'registro_observaciones' => ['file' => 'registro_observaciones.php', 'title' => 'Observaciones',            'perm' => Auth::PERM_OBSERVATION_VIEW],
     'observaciones_partner'  => ['file' => 'registro_observaciones.php', 'title' => 'Observaciones',            'perm' => Auth::PERM_OBSERVATION_VIEW],
     'control_observaciones'  => ['file' => 'control_observaciones.php',  'title' => 'Control de observaciones', 'perm' => Auth::PERM_OBSERVATION_REVIEW],
     // Usuarios: basta con uno de los tres permisos; la pantalla muestra solo lo que cada uno puede hacer.
-    'partners'               => ['file' => 'partners.php',               'title' => 'Partners',                 'perm' => Auth::PERM_USERS_MANAGE],
+    'partners'               => ['file' => 'partners.php',               'title' => 'Partners',                 'perm' => Auth::PERM_PARTNERS_VIEW],
     'usuarios'               => ['file' => 'usuarios.php',               'title' => 'Usuarios y roles',         'perm' => [Auth::PERM_USERS_MANAGE, Auth::PERM_STAFF_MANAGE, Auth::PERM_USERS_VIEW]],
     'asistencia'             => ['file' => 'asistencia.php',             'title' => 'Inicio de turno',          'perm' => null],
     'mi_informacion'         => ['file' => 'mi_informacion.php',         'title' => 'Mi información',           'perm' => null],
@@ -73,13 +73,13 @@ if ($isPartnerSupervisor && !in_array($page, ['mi_informacion', 'supervision_lis
 }
 
 // Usuarios no está aquí: entra quien tenga ver usuarios, agregar personal o administrar (se revisa abajo).
-$administrativeViews = ['admin_dashboard', 'dashboard_partners', 'timeline_supervisores', 'control_observaciones'];
+$administrativeViews = ['admin_dashboard', 'timeline_supervisores', 'control_observaciones'];
 if (in_array($page, $administrativeViews, true) && !Auth::isAdministrative()) {
     $page = 'supervision_lista';
 }
-// Cuadrillas (2026-10-15): administración y supervisores directos (la API aplica la misma regla).
-// Exámenes y Pendientes y rescates (2026-10-20): dashboards para los mismos que ven Cuadrillas.
-if (in_array($page, ['cuadrillas', 'examenes', 'dashboard_pendientes', 'dashboard_lluvias'], true) && !Auth::isAdministrative() && !$isDirectSupervisorView) {
+// Módulos de gestión (2026-10-23): además de su permiso (ver, editar, eliminar en Roles y permisos), solo personal de WIN
+// (administrativo o supervisor directo). Las APIs aplican la misma regla con Auth::puede().
+if (in_array($page, ['cuadrillas', 'examenes', 'dashboard_pendientes', 'dashboard_lluvias', 'dashboard_partners', 'partners'], true) && !Auth::esPersonalWin($user)) {
     $page = 'supervision_lista';
 }
 
