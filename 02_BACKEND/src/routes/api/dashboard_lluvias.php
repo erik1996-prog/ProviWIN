@@ -5,6 +5,11 @@
 // Administración ve todas las zonas; el supervisor directo, las suyas. Pocas filas por mes: se resumen aquí mismo.
 //   POST ?action=eliminar  id → borra un registro de lluvia (permiso "Eliminar registros de lluvia", 2026-10-23).
 //     Si era de hoy, avisa en Teams que el aviso se anuló (el inicio ya se había publicado en el grupo).
+//   POST ?action=enviar_corte → publica ya en Teams el corte de lluvias (matriz del mes hasta ayer), el mismo del cron de las
+//     08:00 (07_SCRIPTS/corte_lluvias.php). Solo personal administrativo (2026-10-23).
+//   Envíos programados del corte (tabla lluvias_cortes_programados, solo personal administrativo):
+//     GET ?action=programas · POST ?action=programa_guardar (hora HH:MM, incluye_hoy 0/1)
+//     POST ?action=programa_estado (id, activo 0/1) · POST ?action=programa_eliminar (id)
 header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../../config/config.php';
@@ -38,7 +43,42 @@ if (($_GET['action'] ?? '') === 'eliminar' && $_SERVER['REQUEST_METHOD'] === 'PO
     win_log_error('audit_rain_deleted', 'Registro de lluvia eliminado', ['actor_id' => (int)$usuario['id'], 'lluvia_id' => $id]);
     $responder(['status' => 'success', 'message' => 'Lluvia eliminada.']);
 }
-if (($_GET['action'] ?? '') !== 'dashboard') $responder(['status' => 'error', 'message' => 'Acción no válida.'], 404);
+if (($_GET['action'] ?? '') === 'enviar_corte' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!$esAdmin) $responder(['status' => 'error', 'message' => 'Solo el personal administrativo puede enviar el corte.'], 403);
+    require_once __DIR__ . '/../../config/lluvias_corte.php';
+    require_once __DIR__ . '/../../config/examen_enlaces.php'; // sgsUrlSistema
+    $url = sgsUrlSistema();
+    $ok = sgsPublicarCorteLluvias(Database::getConnection(), date('Y-m-d', strtotime('-1 day')), str_starts_with($url, 'https://') ? $url : null);
+    win_log_error('audit_rain_report_sent', 'Corte de lluvias enviado a Teams a mano', ['actor_id' => (int)$usuario['id'], 'ok' => $ok]);
+    $responder($ok ? ['status' => 'success', 'message' => 'Corte enviado al grupo de Teams.']
+        : ['status' => 'error', 'message' => 'No se pudo enviar el corte. Revise que esté configurado el grupo de Teams (09_CONFIG/teams_lluvias.local.txt).'], $ok ? 200 : 502);
+}
+$accion = (string)($_GET['action'] ?? '');
+if (str_starts_with($accion, 'programa')) {
+    if (!$esAdmin) $responder(['status' => 'error', 'message' => 'Solo el personal administrativo programa los envíos.'], 403);
+    $pdo = Database::getConnection();
+    $lista = static fn() => $pdo->query("SELECT id, TIME_FORMAT(hora, '%H:%i') AS hora, incluye_hoy, activo, ultimo_envio FROM lluvias_cortes_programados ORDER BY hora")->fetchAll(PDO::FETCH_ASSOC);
+    $id = (int)($_POST['id'] ?? 0);
+    if ($accion !== 'programas' && $_SERVER['REQUEST_METHOD'] !== 'POST') $responder(['status' => 'error', 'message' => 'Acción no válida.'], 405);
+    if ($accion === 'programa_guardar') {
+        $hora = (string)($_POST['hora'] ?? '');
+        if (!preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $hora)) $responder(['status' => 'error', 'message' => 'Elija una hora válida.'], 422);
+        if (count($lista()) >= 8) $responder(['status' => 'error', 'message' => 'Puede programar hasta 8 envíos al día.'], 422);
+        $st = $pdo->prepare('INSERT IGNORE INTO lluvias_cortes_programados (hora, incluye_hoy, creado_por) VALUES (?, ?, ?)');
+        $st->execute(["$hora:00", (int)!empty($_POST['incluye_hoy']), (int)$usuario['id']]);
+        if (!$st->rowCount()) $responder(['status' => 'error', 'message' => "Ya hay un envío programado a las {$hora}."], 409);
+        $mensaje = "Envío programado a las {$hora}.";
+    } elseif ($accion === 'programa_estado') {
+        $pdo->prepare('UPDATE lluvias_cortes_programados SET activo = ? WHERE id = ?')->execute([(int)!empty($_POST['activo']), $id]);
+        $mensaje = !empty($_POST['activo']) ? 'Envío activado.' : 'Envío pausado.';
+    } elseif ($accion === 'programa_eliminar') {
+        $pdo->prepare('DELETE FROM lluvias_cortes_programados WHERE id = ?')->execute([$id]);
+        $mensaje = 'Envío eliminado.';
+    } elseif ($accion !== 'programas') $responder(['status' => 'error', 'message' => 'Acción no válida.'], 404);
+    if (isset($mensaje)) win_log_error('audit_rain_report_schedule', $mensaje, ['actor_id' => (int)$usuario['id'], 'accion' => $accion]);
+    $responder(['status' => 'success', 'data' => $lista(), 'message' => $mensaje ?? '']);
+}
+if ($accion !== 'dashboard') $responder(['status' => 'error', 'message' => 'Acción no válida.'], 404);
 $pdo = Database::getConnection();
 sgsCerrarLluviasViejas($pdo);
 

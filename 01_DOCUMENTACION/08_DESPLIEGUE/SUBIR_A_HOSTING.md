@@ -43,6 +43,7 @@ Sin Terminal: crear una tarea **Cron** con ese mismo comando para que corra una 
 |---|---|---|
 | Todos los días, 23:59 | `php ~/public_html/<carpeta>/07_SCRIPTS/cerrar_turnos.php` | Cierra los turnos olvidados |
 | Todos los días, 02:00 | `php ~/public_html/<carpeta>/07_SCRIPTS/respaldar.php todo diario` | Respaldo de la base y del sistema (además de los automáticos) |
+| Cada 15 minutos (`*/15 * * * *`) | `php ~/public_html/<carpeta>/07_SCRIPTS/corte_lluvias.php --programados --url=https://<dominio>/<carpeta>` | Corte de lluvias en el grupo de Teams a las horas de Clima › "Programar envíos" (necesita GD y `09_CONFIG/teams_lluvias.local.txt`) |
 
 La hora del cron es la del servidor, que puede no ser la de Lima: revisarla en cPanel. El sistema trabaja en hora de Lima.
 

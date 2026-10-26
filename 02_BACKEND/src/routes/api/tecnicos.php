@@ -123,6 +123,10 @@ try {
             throw new Exception('Escriba los nombres y apellidos del técnico (solo letras, de 5 a 120 caracteres).');
         }
         if (!preg_match('/^\d{8}$/', $dni)) throw new Exception('El DNI debe tener 8 dígitos.');
+        // Zona (2026-10-24): la de la supervisión donde se registra; antes quedaba "Sin zona"
+        $departamento = sgsDepartmentAlias((string)($_POST['departamento'] ?? ''));
+        if (!in_array($departamento, sgsOperationalDepartments(), true)) $departamento = null;
+        $provincia = $departamento ? (mb_substr(mb_strtoupper(trim((string)($_POST['provincia'] ?? '')), 'UTF-8'), 0, 100) ?: null) : null;
 
         $stmtPartner = $pdo->prepare('SELECT nombre_partner FROM partners WHERE id = :id AND estado = 1');
         $stmtPartner->execute([':id' => $partnerId]);
@@ -140,15 +144,15 @@ try {
         $stmtNombre->execute([':nom' => $nombre]);
         if ($stmtNombre->fetch()) throw new Exception('Ya existe un técnico con ese nombre. Búsquelo en la lista.');
 
-        $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, dni, tipo_tecnico, estado_operativo, partner_id, fecha_registro) VALUES (:nom, :dni, 2, 'Habilitado', :partner, NOW())")
-            ->execute([':nom' => $nombre, ':dni' => $dni, ':partner' => $partnerId]);
+        $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, dni, tipo_tecnico, estado_operativo, partner_id, departamento, provincia, fecha_registro) VALUES (:nom, :dni, 2, 'Habilitado', :partner, :dep, :prov, NOW())")
+            ->execute([':nom' => $nombre, ':dni' => $dni, ':partner' => $partnerId, ':dep' => $departamento, ':prov' => $provincia]);
         $id = (int)$pdo->lastInsertId();
         win_log_error('audit_technician_created', 'Técnico de apoyo (T2) registrado desde la supervisión', ['target_id' => $id, 'partner_id' => $partnerId]);
         echo json_encode([
             'status' => 'success',
             'message' => "Técnico de apoyo registrado en {$partnerNombre}.",
             'data' => ['id' => $id, 'nombre_tecnico' => $nombre, 'dni' => $dni, 'tipo_tecnico' => 2, 'celular' => null, 'observacion' => null,
-                'estado_operativo' => 'Habilitado', 'partner_id' => $partnerId, 'vehiculo_id' => null, 'unidad_placa' => null, 'unidad_tipo' => null, 'unidad_estado' => null, 'apoyo_id' => null, 'apoyo_nombre' => null],
+                'estado_operativo' => 'Habilitado', 'partner_id' => $partnerId, 'departamento' => $departamento, 'provincia' => $provincia, 'vehiculo_id' => null, 'unidad_placa' => null, 'unidad_tipo' => null, 'unidad_estado' => null, 'apoyo_id' => null, 'apoyo_nombre' => null],
         ]);
         exit;
     }

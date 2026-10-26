@@ -1,6 +1,6 @@
 # Diccionario de datos — SGS
 
-Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-10-20 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
+Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-10-23 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
 Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 
 | # | Tabla | Para qué sirve | En la instalación |
@@ -16,23 +16,24 @@ Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 | 9 | [`usuarios`](#usuarios) | Usuarios del sistema (personal WIN y de partners) | 10 registros |
 | 10 | [`asistencia_supervisores`](#asistencia_supervisores) | Turnos de los supervisores: inicio, fin y horas | vacía |
 | 11 | [`examen_convocatorias`](#examen_convocatorias) | Links generales de examen (un link para un grupo de técnicos) | vacía |
-| 12 | [`lluvias_zona`](#lluvias_zona) | Lluvia avisada por los supervisores en su zona (línea de tiempo) | vacía |
-| 13 | [`tecnicos`](#tecnicos) | Técnicos por partner: líderes (T1) y de apoyo (T2) | 196 registros |
-| 14 | [`usuario_departamentos_acceso`](#usuario_departamentos_acceso) | Zonas adicionales que puede ver cada usuario | 0 registros |
-| 15 | [`usuario_permisos`](#usuario_permisos) | Permisos personalizados por usuario (además de los de su rol) | 0 registros |
-| 16 | [`asistencia_eventos`](#asistencia_eventos) | Pausas dentro del turno (almuerzo, reunión, capacitación) | vacía |
-| 17 | [`examen_convocatoria_tecnicos`](#examen_convocatoria_tecnicos) | Técnicos de cada link general de examen | vacía |
-| 18 | [`examen_enlaces`](#examen_enlaces) | Links de examen enviados a los técnicos | vacía |
-| 19 | [`supervisiones`](#supervisiones) | Supervisiones de campo y órdenes pendientes asignadas | vacía |
-| 20 | [`checklists_tecnicos`](#checklists_tecnicos) | Checklist de cuadrilla por supervisión | vacía |
-| 21 | [`documentos_vencimiento`](#documentos_vencimiento) | Vencimientos de la cuadrilla: SOAT, revisión técnica, extintor (vehículo) y brevete (técnico líder), con historial | vacía |
-| 22 | [`examen_respuestas`](#examen_respuestas) | Resultado de cada pregunta de los exámenes rendidos | vacía |
-| 23 | [`observaciones_supervision`](#observaciones_supervision) | Observaciones en campo, descargos del partner y plazos | vacía |
-| 24 | [`rescate_seguimientos`](#rescate_seguimientos) | Historial del rescate de cada pendiente (inicio, avances, reasignación y cierre) | vacía |
-| 25 | [`supervision_coordenadas_historial`](#supervision_coordenadas_historial) | Cambios de ubicación GPS de cada supervisión | vacía |
-| 26 | [`supervision_estado_historial`](#supervision_estado_historial) | Cambios de estado de cada supervisión (horas reales de inicio y fin) | vacía |
-| 27 | [`checklist_respuestas`](#checklist_respuestas) | Criterios evaluados en cada checklist | vacía |
-| 28 | [`notificaciones`](#notificaciones) | Avisos a los usuarios | vacía |
+| 12 | [`lluvias_cortes_programados`](#lluvias_cortes_programados) | Horarios del corte de lluvias en Teams (Clima) | 1 registros |
+| 13 | [`lluvias_zona`](#lluvias_zona) | Lluvia avisada por los supervisores en su zona (línea de tiempo) | vacía |
+| 14 | [`tecnicos`](#tecnicos) | Técnicos por partner: líderes (T1) y de apoyo (T2) | 196 registros |
+| 15 | [`usuario_departamentos_acceso`](#usuario_departamentos_acceso) | Zonas adicionales que puede ver cada usuario | 0 registros |
+| 16 | [`usuario_permisos`](#usuario_permisos) | Permisos personalizados por usuario (además de los de su rol) | 0 registros |
+| 17 | [`asistencia_eventos`](#asistencia_eventos) | Pausas dentro del turno (almuerzo, reunión, capacitación) | vacía |
+| 18 | [`examen_convocatoria_tecnicos`](#examen_convocatoria_tecnicos) | Técnicos de cada link general de examen | vacía |
+| 19 | [`examen_enlaces`](#examen_enlaces) | Links de examen enviados a los técnicos | vacía |
+| 20 | [`supervisiones`](#supervisiones) | Supervisiones de campo y órdenes pendientes asignadas | vacía |
+| 21 | [`checklists_tecnicos`](#checklists_tecnicos) | Checklist de cuadrilla por supervisión | vacía |
+| 22 | [`documentos_vencimiento`](#documentos_vencimiento) | Vencimientos de la cuadrilla: SOAT, revisión técnica, extintor (vehículo) y brevete (técnico líder), con historial | vacía |
+| 23 | [`examen_respuestas`](#examen_respuestas) | Resultado de cada pregunta de los exámenes rendidos | vacía |
+| 24 | [`observaciones_supervision`](#observaciones_supervision) | Observaciones en campo, descargos del partner y plazos | vacía |
+| 25 | [`rescate_seguimientos`](#rescate_seguimientos) | Historial del rescate de cada pendiente (inicio, avances, reasignación y cierre) | vacía |
+| 26 | [`supervision_coordenadas_historial`](#supervision_coordenadas_historial) | Cambios de ubicación GPS de cada supervisión | vacía |
+| 27 | [`supervision_estado_historial`](#supervision_estado_historial) | Cambios de estado de cada supervisión (horas reales de inicio y fin) | vacía |
+| 28 | [`checklist_respuestas`](#checklist_respuestas) | Criterios evaluados en cada checklist | vacía |
+| 29 | [`notificaciones`](#notificaciones) | Avisos a los usuarios | vacía |
 
 ### `categorias_observacion`
 Categorías de observación
@@ -193,6 +194,19 @@ Links generales de examen (un link para un grupo de técnicos) · Depende de: `u
 | `vence_en` | datetime | no |  |  |
 | `anulado_en` | datetime | sí |  |  |
 | `anulado_por` | int(11) | sí | FK → `usuarios` |  |
+
+### `lluvias_cortes_programados`
+Horarios del corte de lluvias en Teams (Clima) · Depende de: `usuarios`
+
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `hora` | time | no | Única | Hora de Lima en que se envía cada día |
+| `incluye_hoy` | tinyint(1) | no |  | 0 = matriz hasta ayer; 1 = incluye hoy hasta la hora del envío |
+| `activo` | tinyint(1) | no |  |  |
+| `ultimo_envio` | datetime | sí |  | Último envío hecho (no se repite el mismo día) |
+| `creado_por` | int(11) | sí | FK → `usuarios` |  |
+| `creado_en` | datetime | no |  |  |
 
 ### `lluvias_zona`
 Lluvia avisada por los supervisores en su zona (línea de tiempo) · Depende de: `usuarios`

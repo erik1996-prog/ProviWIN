@@ -441,7 +441,7 @@
     const prefix = select.id.startsWith('edit_') ? 'edit' : 'new';
     const partner = document.getElementById(prefix + '_partner');
     if (!partner?.value) { showToast('Seleccione primero el partner de la supervisión.'); partner?.focus(); return; }
-    apoyoDestino = { select, partnerId: partner.value };
+    apoyoDestino = { select, partnerId: partner.value, prefix };
     document.getElementById('nuevo_apoyo_partner').textContent = partner.selectedOptions[0]?.text || '—';
     document.getElementById('nuevo_apoyo_nombre').value = nombre.toLocaleUpperCase('es');
     document.getElementById('nuevo_apoyo_dni').value = '';
@@ -462,6 +462,9 @@
     if (!/^\d{8}$/.test(dni)) return mostrarError('El DNI debe tener 8 dígitos.');
     const datos = new FormData();
     datos.append('partner_id', apoyoDestino.partnerId);
+    // Zona de la supervisión (2026-10-24): el T2 queda registrado en ese departamento y provincia
+    datos.append('departamento', document.getElementById(apoyoDestino.prefix + '_dep')?.value || '');
+    datos.append('provincia', document.getElementById(apoyoDestino.prefix + '_prov')?.value || '');
     datos.append('nombre_tecnico', nombre);
     datos.append('dni', dni);
     boton.disabled = true;
@@ -640,12 +643,14 @@
   }
   const textoLider = t => t.nombre_tecnico + (t.departamento ? '' : ' · sin zona');
 
-  function poblarSelectsTecnicos() {
+  // t1Guardado (2026-10-24): al reabrir una supervisión en proceso, su T1 entra en la lista aunque la zona aún no esté
+  // cargada; antes la lista quedaba la del partner o zona anteriores y el T1 se perdía (quedaba solo el T2).
+  function poblarSelectsTecnicos(t1Guardado = '') {
     // TÉCNICO LÍDER (T1): los del partner y de la zona (departamento) elegidos.
     if (newTec1Nom) {
-      const currentVal1 = newTec1Nom.value;
+      const currentVal1 = t1Guardado || newTec1Nom.value;
       const dep = document.getElementById('new_dep')?.value || '';
-      const t1List = lideresDeZona(newPartner.value, dep);
+      const t1List = lideresDeZona(newPartner.value, dep, currentVal1);
       const vacio = newPartner.value && dep && !t1List.length ? `No hay técnicos líderes de este partner en ${dep}` : 'Seleccione / busque técnico líder (T1)';
       newTec1Nom.innerHTML = `<option value="">${escapeHtml(vacio)}</option>`;
       t1List.forEach(t => {
@@ -809,13 +814,24 @@
       if (vehicleType) vehicleType.value = match?.unidad_tipo || '';
       const vehicleState = document.getElementById(prefix + '_u_estado');
       if (vehicleState && match?.unidad_estado) vehicleState.value = match.unidad_estado; // último estado registrado de su vehículo
-      // Cuadrilla (2026-10-15): su técnico de apoyo habitual, si el T2 está vacío y es de la lista de este partner.
+      // Cuadrilla (2026-10-24): el T2 depende del T1. Al elegir otro T1 (o quitarlo) el T2 pasa a su técnico de apoyo
+      // habitual, o queda vacío; después se puede cambiar. Sin T1 el T2 queda bloqueado. Al abrir el formulario solo se
+      // completa si está vacío (una supervisión guardada conserva el T2 que registró el supervisor).
       const t2 = document.getElementById(prefix + '_tec2_nom');
-      if (t2 && match?.apoyo_nombre && !t2.value && [...t2.options].some(o => o.value === match.apoyo_nombre)) {
-        t2.value = match.apoyo_nombre;
-        t2.dispatchEvent(new Event('change', { bubbles: true }));
+      const previo = select.dataset.ultimoT1;
+      select.dataset.ultimoT1 = select.value;
+      if (t2 && (previo === undefined ? !t2.value : previo !== select.value)) {
+        const habitual = match?.apoyo_nombre && [...t2.options].some(o => o.value === match.apoyo_nombre) ? match.apoyo_nombre : '';
+        if (t2.value !== habitual) { t2.value = habitual; t2.dispatchEvent(new Event('change', { bubbles: true })); }
       }
+      bloquearT2(prefix);
     }
+  }
+  // El T2 (y su DNI) solo se habilitan con un T1 elegido y la sección de personal activa.
+  function bloquearT2(prefix) {
+    const t1 = document.getElementById(prefix + '_tec1_nom');
+    if (!t1) return;
+    [prefix + '_tec2_nom', prefix + '_tec2_dni'].forEach(id => { const c = document.getElementById(id); if (c) c.disabled = t1.disabled || !t1.value; });
   }
 
   newPartner?.addEventListener('change', () => {
@@ -1070,6 +1086,7 @@
       const personal = document.getElementById('new_personal_vehiculo');
       personal.style.display = mostrarPersonal ? '' : 'none';
       personal.querySelectorAll('input,select,textarea,button').forEach(el => el.disabled = !mostrarPersonal);
+      bloquearT2('new');
     }
     const motivoBoxActual = document.getElementById('box_motivo_cancelacion_new');
     const motivoSelectActual = document.getElementById('new_motivo_cancelacion');
@@ -3040,6 +3057,7 @@
         const personal = document.getElementById('edit_personal_vehiculo');
         personal.style.display = mostrar ? '' : 'none';
         personal.querySelectorAll('input,select,textarea,button').forEach(el => el.disabled = !mostrar);
+        bloquearT2('edit');
       }
     }
     editTipoSupervision?.addEventListener('change', aplicarReglasEdicion);
@@ -3882,6 +3900,7 @@
     setValue('new_obs', rec.observaciones);
 
     await Promise.all([cargarListaTecnicos(), cargarCatalogoObservaciones()]);
+    poblarSelectsTecnicos(rec.tecnico1_nombre || '');
     setValue('new_tec1_nom', rec.tecnico1_nombre);
     setTimeout(refrescarVencimientosNuevo, 0); // el técnico y la placa se cargaron sin avisar el cambio
     setValue('new_tec1_dni', rec.tecnico1_dni);
@@ -3897,8 +3916,7 @@
       if (field.tagName === 'SELECT' && ![...field.options].some(o => o.value === String(value))) field.add(new Option(String(value), String(value)));
       field.value = value;
     };
-    setSaved('new_tec2_nom', rec.tecnico2_nombre);
-    setSaved('new_tec2_dni', rec.tecnico2_dni);
+    if (newTec1Nom?.value) { setSaved('new_tec2_nom', rec.tecnico2_nombre); setSaved('new_tec2_dni', rec.tecnico2_dni); bloquearT2('new'); }
     setSaved('new_brevete', rec.brevete_poseedor);
     setSaved('new_u_tipo', rec.unidad_tipo);
     setSaved('new_u_placa', rec.unidad_placa);

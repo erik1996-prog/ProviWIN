@@ -4,6 +4,21 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Corrección: técnicos de apoyo "Sin zona" (2026-10-24)
+- **Corregido**: el T2 registrado desde la supervisión ("Registrar … como técnico de apoyo") quedaba sin zona. Ahora toma el departamento y la provincia de la supervisión.
+- Al finalizar una supervisión, el T2 queda en el departamento y provincia donde trabajó (rota entre cuadrillas: muestra su última zona); el T1 la toma solo si no tenía.
+
+### Corrección: T1 que se perdía y T2 que depende del T1 (2026-10-24)
+- **Corregido**: al reabrir una supervisión en proceso (por ejemplo, cuando el celular recarga la página al apagar la ubicación), la lista de técnicos líderes no se volvía a armar con el partner de esa supervisión: el T1 quedaba vacío y solo quedaban el T2 y el vehículo, y sin T1 el T2 no pasaba a la cuadrilla. Ahora la lista se arma con el partner y el T1 guardados.
+- **Cambiado**: el T2 (y su DNI) se habilitan recién al elegir el T1. Al elegir otro T1 el T2 pasa a su técnico de apoyo habitual (o queda vacío); al quitar el T1 se quitan el T2 y el vehículo. Al abrir una supervisión guardada se conserva el T2 que registró el supervisor.
+
+### Corte diario de lluvias en Teams (2026-10-23)
+- **Añadido**: `07_SCRIPTS/corte_lluvias.php` publica cada mañana (cron 08:00) la matriz mensual de lluvias: zonas × días del mes hasta ayer, con el total y la leyenda de tonos.
+- La imagen la dibuja el servidor (`02_BACKEND/src/config/lluvias_corte.php`, extensión GD) al doble de resolución, con la letra Nunito (`02_BACKEND/recursos/fuentes`, licencia OFL) y los colores de Clima. Se guarda en `uploads/cortes_lluvia/` con nombre al azar (90 días) y el mensaje lleva su enlace, así no tiene el límite de ~28 KB de Teams y se puede ampliar. Botón "Ver en el SGS".
+- **Botón "Enviar corte a Teams"** en Clima, junto a "Pantalla completa" (solo personal administrativo): publica ya el mismo corte, para probarlo o reenviarlo. En un servidor sin https la imagen va dentro del mensaje, con menor resolución.
+- **Programar envíos** en Clima (solo personal administrativo): horas del día en que el corte sale solo (hasta 8), cada una "hasta ayer" o "incluye hoy", con activar/pausar y eliminar. Queda programado el de las 08:00 (hasta ayer). Una sola tarea de cPanel cada 15 minutos (`corte_lluvias.php --programados`) envía lo que toque y no repite el mismo día. Cambio de base `2026-10-23_01_envios_programados_del_corte_de_lluvias` (tabla `lluvias_cortes_programados`).
+- `sgsEnviarTeamsLluvias()` separa el envío de la tarjeta; los avisos de lluvia lo usan.
+
 ### Corrección: el T2 guardado no salía en la siguiente supervisión (2026-10-23)
 - **Corregido**: al finalizar una supervisión, la cuadrilla del técnico líder se actualiza (T2 y vehículo), pero la pantalla seguía usando la lista de técnicos que cargó al abrirse. Si el supervisor iniciaba otra supervisión sin recargar la página, el T2 no se completaba solo. Ahora, después de finalizar, la lista se vuelve a pedir al abrir la siguiente.
 

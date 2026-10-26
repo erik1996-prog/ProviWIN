@@ -1,6 +1,6 @@
 -- 04_DATABASE/03_ESTRUCTURA/esquema_completo.sql
--- Estructura de SGS: 28 tablas en orden de dependencias, sin datos ni DROP.
--- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-10-20. No editar a mano: los cambios van como migración en 02_CAMBIOS.
+-- Estructura de SGS: 29 tablas en orden de dependencias, sin datos ni DROP.
+-- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-10-23. No editar a mano: los cambios van como migración en 02_CAMBIOS.
 
 SET NAMES utf8mb4;
 
@@ -172,6 +172,21 @@ CREATE TABLE IF NOT EXISTS `examen_convocatorias` (
   CONSTRAINT `fk_examen_convocatorias_anulado_por` FOREIGN KEY (`anulado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_examen_convocatorias_generado_por` FOREIGN KEY (`generado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Links generales de examen (un link para un grupo de técnicos)';
+
+-- Tabla `lluvias_cortes_programados`: Horarios del corte de lluvias en Teams (Clima) (depende de: usuarios)
+CREATE TABLE IF NOT EXISTS `lluvias_cortes_programados` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `hora` time NOT NULL COMMENT 'Hora de Lima en que se envía cada día',
+  `incluye_hoy` tinyint(1) NOT NULL DEFAULT 0 COMMENT '0 = matriz hasta ayer; 1 = incluye hoy hasta la hora del envío',
+  `activo` tinyint(1) NOT NULL DEFAULT 1,
+  `ultimo_envio` datetime DEFAULT NULL COMMENT 'Último envío hecho (no se repite el mismo día)',
+  `creado_por` int(11) DEFAULT NULL,
+  `creado_en` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_lluvias_cortes_programados_hora` (`hora`),
+  KEY `idx_lluvias_cortes_programados_creado_por` (`creado_por`),
+  CONSTRAINT `fk_lluvias_cortes_programados_creado_por` FOREIGN KEY (`creado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Horarios del corte de lluvias en Teams (Clima)';
 
 -- Tabla `lluvias_zona`: Lluvia avisada por los supervisores en su zona (línea de tiempo) (depende de: usuarios)
 CREATE TABLE IF NOT EXISTS `lluvias_zona` (

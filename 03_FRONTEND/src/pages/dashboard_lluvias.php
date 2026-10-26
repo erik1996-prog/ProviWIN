@@ -82,6 +82,8 @@ $kpis = [
       <div class="d-flex flex-wrap align-items-center gap-2">
         <span class="sgs-en-vivo" id="dllEnVivo"><i aria-hidden="true"></i>En vivo</span>
         <button type="button" class="btn btn-outline-secondary btn-sm" id="dllPantalla"><i class="bi bi-arrows-fullscreen me-1"></i>Pantalla completa</button>
+        <?php if (Auth::isAdministrative()): ?><button type="button" class="btn btn-outline-secondary btn-sm" id="dllEnviarCorte" title="Publica ahora en el grupo de Teams la matriz del mes hasta ayer (sale sola a las 08:00)"><i class="bi bi-send me-1"></i>Enviar corte a Teams</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="dllProgramar"><i class="bi bi-clock me-1"></i>Programar envíos</button><?php endif; ?>
       </div>
     </div>
     <div class="matriz-scroll-box"><table class="table-matriz align-middle" id="dllMatriz"><tbody><tr><td class="text-muted py-3">Cargando…</td></tr></tbody></table></div>
@@ -89,5 +91,32 @@ $kpis = [
 
   <div class="dsh-tip" id="dllTip" role="tooltip" hidden></div>
 </div>
+<?php if (Auth::isAdministrative()): ?>
+<!-- Envíos programados del corte de lluvias (2026-10-23, tabla lluvias_cortes_programados; los envía 07_SCRIPTS/corte_lluvias.php) -->
+<div class="modal fade" id="mCortes" tabindex="-1" aria-labelledby="mCortesTitulo" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="mCortesTitulo"><i class="bi bi-clock me-2 text-primary"></i>Programar envíos del corte</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">Cada día, a estas horas (hora de Lima), se publica en el grupo de Teams la matriz mensual de lluvias. Puede llegar hasta 15 minutos después de la hora elegida.</p>
+        <div class="table-responsive"><table class="table table-hover mb-0 align-middle sgs-tabla-tarjetas">
+          <thead><tr><th>Hora</th><th>Contenido</th><th>Último envío</th><th>Activo</th><th class="text-end"><span class="visually-hidden">Acciones</span></th></tr></thead>
+          <tbody id="mCortesLista"><tr><td colspan="5" class="text-muted">Cargando…</td></tr></tbody>
+        </table></div>
+        <h6 class="mt-4 mb-2">Agregar un envío</h6>
+        <div class="row g-2 align-items-end">
+          <div class="col-5 col-sm-3"><label class="form-label" for="mCortesHora">Hora</label><input class="form-control" type="time" id="mCortesHora" value="13:00"></div>
+          <div class="col-7 col-sm-4"><label class="form-label" for="mCortesHoy">Contenido</label>
+            <select class="form-select" id="mCortesHoy"><option value="0">Hasta ayer</option><option value="1">Incluye hoy</option></select></div>
+          <div class="col-12 col-sm-5"><button type="button" class="btn btn-win w-100 text-nowrap" id="mCortesAgregar"><i class="bi bi-plus-lg me-1"></i>Agregar envío</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
 <script src="03_FRONTEND/src/assets/js/sgs-dashboard.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
 <script src="03_FRONTEND/src/assets/js/dashboard_lluvias.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>

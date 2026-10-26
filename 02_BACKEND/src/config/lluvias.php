@@ -108,15 +108,19 @@ function sgsLluviasDelSupervisor(array $lluviasDelDia, int $usuarioId, array $zo
  * Si Teams no responde, la lluvia se guarda igual (espera máxima 4 s).
  */
 function sgsAvisoTeamsLluvia(string $titulo, string $detalle, string $comentario = '', string $fotoJpeg = ''): bool {
+    return sgsEnviarTeamsLluvias(array_values([['type' => 'TextBlock', 'text' => $titulo, 'weight' => 'Bolder', 'size' => 'Medium', 'wrap' => true],
+               ['type' => 'TextBlock', 'text' => $detalle, 'wrap' => true, 'spacing' => 'Small']]
+        // Teams acepta mensajes de ~28 KB: la foto llega reducida (≤ 20 KB) y va dentro del mensaje
+        + ($comentario !== '' ? [2 => ['type' => 'TextBlock', 'text' => "Comentario: {$comentario}", 'wrap' => true]] : [])
+        + ($fotoJpeg !== '' ? [3 => ['type' => 'Image', 'url' => 'data:image/jpeg;base64,' . base64_encode($fotoJpeg), 'size' => 'Stretch', 'altText' => 'Foto de la lluvia']] : [])));
+}
+
+/** Publica una tarjeta (Adaptive Card 1.4) en el grupo de Teams de lluvias. Sin dirección configurada no hace nada. */
+function sgsEnviarTeamsLluvias(array $cuerpo): bool {
     $url = trim((string)(getenv('SGS_TEAMS_LLUVIAS_URL') ?: @file_get_contents(dirname(__DIR__, 3) . '/09_CONFIG/teams_lluvias.local.txt')));
     if (!preg_match('#^https://\S+$#', $url) || !function_exists('curl_init')) return false;
     $tarjeta = ['type' => 'message', 'attachments' => [['contentType' => 'application/vnd.microsoft.card.adaptive', 'content' => [
-        '$schema' => 'http://adaptivecards.io/schemas/adaptive-card.json', 'type' => 'AdaptiveCard', 'version' => '1.4',
-        'body' => array_values([['type' => 'TextBlock', 'text' => $titulo, 'weight' => 'Bolder', 'size' => 'Medium', 'wrap' => true],
-                   ['type' => 'TextBlock', 'text' => $detalle, 'wrap' => true, 'spacing' => 'Small']]
-            // Teams acepta mensajes de ~28 KB: la foto llega reducida (≤ 20 KB) y va dentro del mensaje
-            + ($comentario !== '' ? [2 => ['type' => 'TextBlock', 'text' => "Comentario: {$comentario}", 'wrap' => true]] : [])
-            + ($fotoJpeg !== '' ? [3 => ['type' => 'Image', 'url' => 'data:image/jpeg;base64,' . base64_encode($fotoJpeg), 'size' => 'Stretch', 'altText' => 'Foto de la lluvia']] : [])),
+        '$schema' => 'http://adaptivecards.io/schemas/adaptive-card.json', 'type' => 'AdaptiveCard', 'version' => '1.4', 'msteams' => ['width' => 'Full'], 'body' => $cuerpo,
     ]]]];
     $ch = curl_init($url);
     curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 4, CURLOPT_CONNECTTIMEOUT => 3,
@@ -124,6 +128,7 @@ function sgsAvisoTeamsLluvia(string $titulo, string $detalle, string $comentario
     curl_exec($ch);
     $codigo = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     unset($ch);
-    if ($codigo < 200 || $codigo >= 300) win_log_error('teams_lluvia_error', 'No se pudo publicar el aviso de lluvia en Teams', ['http' => $codigo]);
+    if ($codigo < 200 || $codigo >= 300) win_log_error('teams_lluvia_error', 'No se pudo publicar en el grupo de Teams de lluvias', ['http' => $codigo]);
     return $codigo >= 200 && $codigo < 300;
 }
+

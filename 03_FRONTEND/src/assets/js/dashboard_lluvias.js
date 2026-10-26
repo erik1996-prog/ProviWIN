@@ -140,6 +140,43 @@
         } catch (e) { window.showToast?.(e.message || 'No se pudo eliminar.', 'error'); b.disabled = false; }
     });
     // Matriz a pantalla completa (Esc o el mismo botón para salir)
+    // Enviar corte a Teams (2026-10-23, solo administrativo): el mismo que sale a las 08:00, para probarlo o reenviarlo
+    $('dllEnviarCorte')?.addEventListener('click', async (ev) => {
+        const b = ev.currentTarget;
+        if (!confirm('¿Enviar ahora al grupo de Teams el corte de lluvias del mes (hasta ayer)?')) return;
+        b.disabled = true;
+        try {
+            const r = await (await fetch('api/dashboard_lluvias.php?action=enviar_corte', { method: 'POST' })).json();
+            window.showToast?.(r.message, r.status === 'success' ? 'success' : 'error');
+        } catch (e) { window.showToast?.('No se pudo enviar el corte.', 'error'); } finally { b.disabled = false; }
+    });
+    // Programar envíos del corte (2026-10-23, solo administrativo): horas del día en que sale solo a Teams
+    const cortes = async (accion, datos) => {
+        const r = await (await fetch(`api/dashboard_lluvias.php?action=${accion}`, datos ? { method: 'POST', body: new URLSearchParams(datos) } : {})).json();
+        if (r.status !== 'success') throw new Error(r.message || 'No se pudo guardar.');
+        if (r.message) window.showToast?.(r.message, 'success');
+        $('mCortesLista').innerHTML = r.data.length ? r.data.map((p) => `<tr>
+            <td data-label="Hora" class="fw-bold">${D.esc(p.hora)}</td>
+            <td data-label="Contenido">${p.incluye_hoy == 1 ? 'Incluye hoy' : 'Hasta ayer'}</td>
+            <td data-label="Último envío">${p.ultimo_envio ? `${D.fecha(p.ultimo_envio)} ${p.ultimo_envio.slice(11, 16)}` : '—'}</td>
+            <td data-label="Activo"><div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" data-corte-activo="${p.id}" ${p.activo == 1 ? 'checked' : ''} aria-label="Envío de las ${D.esc(p.hora)} activo"></div></td>
+            <td class="text-end"><button type="button" class="sgs-icon-action sgs-icon-action--danger" title="Eliminar" aria-label="Eliminar el envío de las ${D.esc(p.hora)}" data-corte-eliminar="${p.id}"><i class="bi bi-trash3"></i></button></td></tr>`).join('')
+            : '<tr><td colspan="5" class="text-muted"><i class="bi bi-inbox me-1"></i>No hay envíos programados.</td></tr>';
+    };
+    const avisarError = (e) => window.showToast?.(e.message || 'No se pudo guardar.', 'error');
+    $('dllProgramar')?.addEventListener('click', () => {
+        bootstrap.Modal.getOrCreateInstance($('mCortes')).show();
+        cortes('programas').catch(avisarError);
+    });
+    $('mCortesAgregar')?.addEventListener('click', () => cortes('programa_guardar', { hora: $('mCortesHora').value, incluye_hoy: $('mCortesHoy').value }).catch(avisarError));
+    $('mCortesLista')?.addEventListener('change', (ev) => {
+        const c = ev.target.closest('[data-corte-activo]');
+        if (c) cortes('programa_estado', { id: c.dataset.corteActivo, activo: c.checked ? 1 : 0 }).catch((e) => { c.checked = !c.checked; avisarError(e); });
+    });
+    $('mCortesLista')?.addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-corte-eliminar]');
+        if (b && confirm('¿Eliminar este envío programado?')) cortes('programa_eliminar', { id: b.dataset.corteEliminar }).catch(avisarError);
+    });
     const tarjeta = $('dllMatrizCard'), btnPantalla = $('dllPantalla');
     if (btnPantalla && !tarjeta?.requestFullscreen) btnPantalla.classList.add('d-none');
     btnPantalla?.addEventListener('click', () => (document.fullscreenElement ? document.exitFullscreen() : tarjeta.requestFullscreen()).catch(() => {}));
