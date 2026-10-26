@@ -43,6 +43,7 @@ $tablasSgs = [
     'asistencia_eventos' => 'vacia',
     'lluvias_zona' => 'vacia',
     'lluvias_cortes_programados' => 'datos', // horarios del corte de lluvias en Teams (configuración)
+    'ausencias_supervisores' => 'vacia',
     'examen_enlaces' => 'vacia',
     'examen_convocatorias' => 'vacia',
     'examen_convocatoria_tecnicos' => 'vacia',

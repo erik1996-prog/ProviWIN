@@ -127,7 +127,8 @@ $user = Auth::getLoggedInUser();
     });
     document.addEventListener('DOMContentLoaded', () => {
         loadNotifications(true);
-        window.setInterval(() => loadNotifications(true), 60000);
+        // Sistema liviano (2026-10-26): con la pestaña oculta no se consulta; al volver se actualiza (visibilitychange)
+        window.setInterval(() => { if (!document.hidden) loadNotifications(true); }, 60000);
     });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) loadNotifications(true); });
 

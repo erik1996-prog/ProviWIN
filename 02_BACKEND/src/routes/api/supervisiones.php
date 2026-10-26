@@ -1600,15 +1600,11 @@ if ($action === 'list') {
                IF(s.fecha_asignacion IS NOT NULL AND s.partner_id=u.partner_id AND UPPER(TRIM(COALESCE(p.nombre_partner,''))) NOT IN ('WIN','WIN DIRECTO'),1,0) AS es_asignacion_partner,
                DATE_ADD(s.fecha_asignacion, INTERVAL 24 HOUR) AS fecha_limite_partner,
                IF(s.fecha_asignacion IS NOT NULL AND s.estado_atencion_partner='Pendiente' AND NOW()>DATE_ADD(s.fecha_asignacion,INTERVAL 24 HOUR),1,0) AS plazo_partner_vencido,
-               COALESCE(observaciones.total_observaciones,0) AS total_observaciones
+               -- 2026-10-26: se cuentan solo las de la página (por índice); antes se agrupaba toda la tabla en cada carga
+               (SELECT COUNT(*) FROM observaciones_supervision o WHERE o.supervision_id = s.id) AS total_observaciones
         FROM supervisiones s
         JOIN usuarios u ON s.supervisor_id = u.id
         LEFT JOIN partners p ON s.partner_id = p.id
-        LEFT JOIN (
-            SELECT supervision_id,COUNT(*) total_observaciones
-            FROM observaciones_supervision
-            GROUP BY supervision_id
-        ) observaciones ON observaciones.supervision_id=s.id
         WHERE {$filteredWhereSql}
         ORDER BY {$highlightOrderSql}s.fecha_registro DESC,s.id DESC
         LIMIT :page_limit OFFSET :page_offset

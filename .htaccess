@@ -12,7 +12,7 @@ DirectoryIndex index.php
     RewriteRule ^uploads/(.*)$ /SISTEMA-WIN-PROVINCIA/uploads/$1 [L]
 
     # Carpetas internas de la estructura del proyecto.
-    RewriteRule ^(01_DOCUMENTACION|02_BACKEND|04_DATABASE|05_TEST|07_SCRIPTS|08_LOGS|09_CONFIG|10_RESPALDOS)(/|$) - [F,L]
+    RewriteRule ^(01_DOCUMENTACION|02_BACKEND|04_DATABASE|05_TEST|07_SCRIPTS|08_LOGS|09_CONFIG|10_RESPALDOS|11_PRIVADO)(/|$) - [F,L]
     RewriteRule ^03_FRONTEND/(?!src/assets/) - [F,L]
 
     # Archivos ocultos (.env, .gitignore...).

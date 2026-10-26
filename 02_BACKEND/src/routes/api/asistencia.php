@@ -13,6 +13,7 @@ $user = Auth::getLoggedInUser();
 $pdo = Database::getConnection();
 require_once __DIR__ . '/../../config/turnos.php';
 require_once __DIR__ . '/../../config/lluvias.php';
+require_once __DIR__ . '/../../config/ausencias.php';
 win_run_periodic_task('cierre-turnos', 300, static fn() => sgsCerrarTurnosVencidos($pdo)); // turnos olvidados: se cierran a las 23:59
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 Auth::requireCsrf();
@@ -201,6 +202,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'start') {
     ");
     $stmtCheck->execute([':sup_id' => $user['id']]);
     $turnoHoy = $stmtCheck->fetch();
+    // 2026-10-26: con una ausencia aprobada (vacaciones, descanso médico, licencia) ese día no se inicia turno
+    if (!$turnoHoy && ($ausencia = sgsAusenciaAprobada($pdo, (int)$user['id'], date('Y-m-d')))) {
+        http_response_code(409);
+        echo json_encode(['status' => 'error', 'message' => 'No puede iniciar turno: tiene una ausencia aprobada (' . sgsTextoAusencia($ausencia) . ').'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
     if ($turnoHoy) {
         $mensaje = empty($turnoHoy['fin_turno'])
             ? 'Ya tienes un turno activo iniciado hoy.'
@@ -245,6 +252,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'end') {
 
     if (!$asistencia) {
         echo json_encode(['status' => 'error', 'message' => 'No tienes un turno activo para finalizar.']);
+        exit;
+    }
+
+    // 2026-10-26: no se cierra el turno con una supervisión abierta (Iniciada o En proceso): primero se finaliza o se cancela.
+    // Los rescates no cuentan (quedan Pendientes). El cierre automático de las 23:59 (sgsCerrarTurnosVencidos) no se bloquea.
+    $abierta = $pdo->prepare("SELECT id, codigo_supervision, ticket_codigo FROM supervisiones WHERE supervisor_id = :u AND estado_supervision IN ('Iniciada', 'En proceso') ORDER BY id DESC LIMIT 1");
+    $abierta->execute([':u' => $user['id']]);
+    if ($sup = $abierta->fetch(PDO::FETCH_ASSOC)) {
+        http_response_code(409);
+        echo json_encode(['status' => 'error', 'supervision_abierta' => (int)$sup['id'],
+            'message' => 'No puede cerrar su turno: tiene la supervisión ' . $sup['codigo_supervision'] . ($sup['ticket_codigo'] ? ' (pedido ' . $sup['ticket_codigo'] . ')' : '')
+                . ' en proceso. Finalícela o cancélela primero.'], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -481,6 +500,12 @@ if ($action === 'admin_summary') {
         $asistenciasBySup[$row['supervisor_id']] = $row;
     }
 
+    // Ausencias aprobadas que cubren el día (2026-10-26): vacaciones, descanso médico o licencia
+    $stmtAus = $pdo->prepare("SELECT supervisor_id, tipo, fecha_inicio, fecha_fin FROM ausencias_supervisores WHERE estado = 'Aprobada' AND fecha_inicio <= :f1 AND fecha_fin >= :f2");
+    $stmtAus->execute([':f1' => $fechaFiltro, ':f2' => $fechaFiltro]);
+    $ausenciasBySup = [];
+    foreach ($stmtAus->fetchAll() as $row) $ausenciasBySup[(int)$row['supervisor_id']] = $row;
+
     // Obtener todos los eventos del día
     $stmtEvs = $pdo->prepare("
         SELECT e.*, a.supervisor_id 
@@ -505,7 +530,8 @@ if ($action === 'admin_summary') {
         'en_capacitacion' => 0,
         'en_remoto' => 0,
         'turno_finalizado' => 0,
-        'sin_iniciar' => 0
+        'sin_iniciar' => 0,
+        'con_ausencia' => 0
     ];
 
     // Inicio de las supervisiones del día de cada supervisor (para la primera acción del turno)
@@ -519,7 +545,8 @@ if ($action === 'admin_summary') {
         $asist = $asistenciasBySup[$supId] ?? null;
         $eventos = $eventosBySup[$supId] ?? [];
 
-        $estadoActual = 'Sin iniciar';
+        $ausencia = $ausenciasBySup[(int)$supId] ?? null;
+        $estadoActual = $ausencia ? $ausencia['tipo'] : 'Sin iniciar';
         $eventoActivo = null;
         $minAlmuerzo = 0;
         $minReunion = 0;
@@ -554,6 +581,7 @@ if ($action === 'admin_summary') {
         elseif ($estadoActual === 'En capacitación') $kpis['en_capacitacion']++;
         elseif ($estadoActual === 'En remoto') $kpis['en_remoto']++;
         elseif ($estadoActual === 'Fuera de turno') $kpis['turno_finalizado']++;
+        elseif ($ausencia && !$asist) $kpis['con_ausencia']++;
         else $kpis['sin_iniciar']++;
 
         $reporte[] = [
@@ -568,6 +596,7 @@ if ($action === 'admin_summary') {
             ],
             'asistencia' => $asist,
             'estado_actual' => $estadoActual,
+            'ausencia' => $ausencia ? sgsTextoAusencia($ausencia) : null,
             'evento_activo' => $eventoActivo,
             'minutos_almuerzo' => $minAlmuerzo,
             'minutos_reunion' => $minReunion,
@@ -612,253 +641,7 @@ if ($action === 'list_filters') {
     exit;
 }
 
-// -------------------------------------------------------------
-// 8. CALENDARIO MES DE ASISTENCIA CON REGLAS DE COLOR Y SUPERVISIONES
-// -------------------------------------------------------------
-if ($action === 'asistencia_calendario') {
-    $mes = intval($_GET['mes'] ?? date('m'));
-    $anio = intval($_GET['anio'] ?? date('Y'));
-    $targetSupId = intval($_GET['supervisor_id'] ?? 0);
-
-    // Si es supervisor estándar (no admin), restringir estrictamente a su propio ID
-    if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
-        $targetSupId = $user['id'];
-    }
-
-    // Calcular días en el mes usando función estándar de PHP (date 't')
-    $diasEnMes = intval(date('t', strtotime(sprintf('%04d-%02d-01', $anio, $mes))));
-    $hoyStr = date('Y-m-d');
-
-    $asistenciasDict = [];
-    $supervisionesDict = [];
-    $supervisorInfo = null;
-
-    if ($targetSupId > 0) {
-        // Datos del supervisor
-        $stmtSupInfo = $pdo->prepare("
-            SELECT u.id, u.nombre_completo, u.dni, u.rol, u.avatar, p.nombre_partner
-            FROM usuarios u
-            LEFT JOIN partners p ON u.partner_id = p.id
-            WHERE u.id = :id
-        ");
-        $stmtSupInfo->execute([':id' => $targetSupId]);
-        $supervisorInfo = $stmtSupInfo->fetch() ?: null;
-
-        // Obtener asistencias del supervisor
-        $stmtAsist = $pdo->prepare("
-            SELECT fecha, inicio_turno, fin_turno, horas_trabajadas, horas_extras, estado_turno
-            FROM asistencia_supervisores
-            WHERE supervisor_id = :sup_id 
-              AND MONTH(fecha) = :mes 
-              AND YEAR(fecha) = :anio
-        ");
-        $stmtAsist->execute([':sup_id' => $targetSupId, ':mes' => $mes, ':anio' => $anio]);
-        foreach ($stmtAsist->fetchAll() as $row) {
-            $asistenciasDict[$row['fecha']] = $row;
-        }
-
-        // Obtener supervisiones del supervisor
-        $stmtSupsCount = $pdo->prepare("
-            SELECT DATE(fecha_registro) as fecha_dia, COUNT(*) as total
-            FROM supervisiones
-            WHERE supervisor_id = :sup_id 
-              AND estado_supervision IN ('Culminada', 'Finalizado')
-              AND MONTH(fecha_registro) = :mes 
-              AND YEAR(fecha_registro) = :anio
-            GROUP BY DATE(fecha_registro)
-        ");
-        $stmtSupsCount->execute([':sup_id' => $targetSupId, ':mes' => $mes, ':anio' => $anio]);
-        foreach ($stmtSupsCount->fetchAll() as $row) {
-            $supervisionesDict[$row['fecha_dia']] = intval($row['total']);
-        }
-    } else {
-        // Modo sin supervisor seleccionado: totalizar supervisiones globales del mes
-        $stmtSupsAll = $pdo->prepare("
-            SELECT DATE(fecha_registro) as fecha_dia, COUNT(*) as total
-            FROM supervisiones
-            WHERE estado_supervision IN ('Culminada', 'Finalizado')
-              AND MONTH(fecha_registro) = :mes AND YEAR(fecha_registro) = :anio
-            GROUP BY DATE(fecha_registro)
-        ");
-        $stmtSupsAll->execute([':mes' => $mes, ':anio' => $anio]);
-        foreach ($stmtSupsAll->fetchAll() as $row) {
-            $supervisionesDict[$row['fecha_dia']] = intval($row['total']);
-        }
-    }
-
-    $primerDiaSemana = intval(date('w', strtotime(sprintf('%04d-%02d-01', $anio, $mes))));
-    $diasCalendario = [];
-
-    $diasEsp = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-
-    $totalAsistencias = 0;
-    $totalFaltas = 0;
-    $totalDomingos = 0;
-    $totalVacaciones = 0;
-    $totalDescansoMedico = 0;
-    $totalPaternidad = 0;
-    $totalFallecimiento = 0;
-    $totalSupervisionesMes = 0;
-
-    for ($d = 1; $d <= $diasEnMes; $d++) {
-        $fechaStr = sprintf('%04d-%02d-%02d', $anio, $mes, $d);
-        $w = intval(date('w', strtotime($fechaStr))); // 0 = Domingo
-        $esDomingo = ($w === 0);
-        $esFuturo = ($fechaStr > $hoyStr);
-
-        $asistenciaData = $asistenciasDict[$fechaStr] ?? null;
-        $estTurno = $asistenciaData ? $asistenciaData['estado_turno'] : '';
-        $esLicencia = in_array($estTurno, ['Vacaciones', 'Descanso Médico', 'Licencia Paternidad', 'Permiso Fallecimiento']);
-        $asistio = ($asistenciaData !== null && !$esLicencia);
-        $countSups = $supervisionesDict[$fechaStr] ?? 0;
-        $totalSupervisionesMes += $countSups;
-
-        $estadoColor = 'futuro';
-        $etiquetaEstado = 'Pendiente';
-
-        if ($esDomingo) {
-            $estadoColor = 'plomo';
-            $etiquetaEstado = 'Domingo (Descanso)';
-            $totalDomingos++;
-        } elseif ($estTurno === 'Vacaciones') {
-            $estadoColor = 'vacaciones';
-            $etiquetaEstado = 'Vacaciones';
-            $totalVacaciones++;
-        } elseif ($estTurno === 'Descanso Médico') {
-            $estadoColor = 'medico';
-            $etiquetaEstado = 'Descanso Médico';
-            $totalDescansoMedico++;
-        } elseif ($estTurno === 'Licencia Paternidad') {
-            $estadoColor = 'paternidad';
-            $etiquetaEstado = 'Licencia Paternidad';
-            $totalPaternidad++;
-        } elseif ($estTurno === 'Permiso Fallecimiento') {
-            $estadoColor = 'fallecimiento';
-            $etiquetaEstado = 'Permiso Fallecimiento';
-            $totalFallecimiento++;
-        } elseif ($targetSupId === 0) {
-            $estadoColor = 'futuro';
-            $etiquetaEstado = 'Seleccione supervisor';
-        } elseif ($esFuturo) {
-            $estadoColor = 'futuro';
-            $etiquetaEstado = 'Futuro';
-        } elseif ($asistio) {
-            $estadoColor = 'verde';
-            $etiquetaEstado = 'Asistió';
-            $totalAsistencias++;
-        } else {
-            $estadoColor = 'rojo';
-            $etiquetaEstado = 'Falta';
-            $totalFaltas++;
-        }
-
-        $diasCalendario[] = [
-            'dia' => $d,
-            'fecha' => $fechaStr,
-            'dia_semana_num' => $w,
-            'dia_semana_nombre' => $diasEsp[$w],
-            'es_domingo' => $esDomingo,
-            'es_licencia' => $esLicencia,
-            'tipo_licencia' => $esLicencia ? $estTurno : null,
-            'es_futuro' => $esFuturo,
-            'asistio' => $asistio,
-            'estado_color' => $estadoColor,
-            'etiqueta_estado' => $etiquetaEstado,
-            'total_supervisiones' => $countSups,
-            'asistencia_detail' => $asistenciaData
-        ];
-    }
-
-    ob_clean();
-    echo json_encode([
-        'status' => 'success',
-        'mes' => $mes,
-        'anio' => $anio,
-        'primer_dia_semana' => $primerDiaSemana,
-        'dias_en_mes' => $diasEnMes,
-        'supervisor_id' => $targetSupId,
-        'supervisor' => $supervisorInfo,
-        'dias' => $diasCalendario,
-        'resumen' => [
-            'asistencias' => $totalAsistencias,
-            'faltas' => $totalFaltas,
-            'domingos' => $totalDomingos,
-            'vacaciones' => $totalVacaciones,
-            'descanso_medico' => $totalDescansoMedico,
-            'paternidad' => $totalPaternidad,
-            'fallecimiento' => $totalFallecimiento,
-            'total_permisos' => ($totalVacaciones + $totalDescansoMedico + $totalPaternidad + $totalFallecimiento),
-            'total_supervisiones' => $totalSupervisionesMes
-        ]
-    ]);
-    exit;
-}
-
-// -------------------------------------------------------------
-// 9. REGISTRAR PERMISOS Y LICENCIAS (Vacaciones, Descanso Médico, Paternidad, Fallecimiento)
-// -------------------------------------------------------------
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($action === 'registrar_permiso' || $action === 'registrar_vacaciones')) {
-    $data = getRequestData();
-    $supId = intval($data['supervisor_id'] ?? 0);
-    $tipoPermiso = trim($data['tipo_permiso'] ?? 'Vacaciones');
-    $fechaInicio = $data['fecha_inicio'] ?? '';
-    $fechaFin = $data['fecha_fin'] ?? '';
-    $obs = !empty($data['observaciones']) ? trim($data['observaciones']) : "Permiso Autorizado ({$tipoPermiso})";
-
-    $tiposValidos = ['Vacaciones', 'Descanso Médico', 'Licencia Paternidad', 'Permiso Fallecimiento'];
-    if (!in_array($tipoPermiso, $tiposValidos)) {
-        $tipoPermiso = 'Vacaciones';
-    }
-
-    if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
-        $supId = $user['id']; // Supervisor solo su propia solicitud
-    }
-
-    if ($supId <= 0 || empty($fechaInicio) || empty($fechaFin)) {
-        ob_clean();
-        echo json_encode(['status' => 'error', 'message' => 'Complete el supervisor, tipo de permiso y el rango de fechas.']);
-        exit;
-    }
-
-    $dtInicio = new DateTime($fechaInicio);
-    $dtFin = new DateTime($fechaFin);
-
-    if ($dtInicio > $dtFin) {
-        ob_clean();
-        echo json_encode(['status' => 'error', 'message' => 'La fecha de inicio no puede ser posterior a la fecha de fin.']);
-        exit;
-    }
-
-    $interval = new DateInterval('P1D');
-    $period = new DatePeriod($dtInicio, $interval, $dtFin->modify('+1 day'));
-
-    $stmtUpsert = $pdo->prepare("
-        INSERT INTO asistencia_supervisores (supervisor_id, fecha, inicio_turno, fin_turno, estado_turno, observaciones)
-        VALUES (:sup_id, :fecha, CONCAT(:fecha2, ' 08:00:00'), CONCAT(:fecha3, ' 17:00:00'), :tipo, :obs)
-        ON DUPLICATE KEY UPDATE estado_turno = VALUES(estado_turno), observaciones = VALUES(observaciones)
-    ");
-
-    $diasRegistrados = 0;
-    foreach ($period as $dt) {
-        $fStr = $dt->format('Y-m-d');
-        $stmtUpsert->execute([
-            ':sup_id' => $supId,
-            ':fecha' => $fStr,
-            ':fecha2' => $fStr,
-            ':fecha3' => $fStr,
-            ':tipo' => $tipoPermiso,
-            ':obs' => $obs
-        ]);
-        $diasRegistrados++;
-    }
-
-    ob_clean();
-    echo json_encode([
-        'status' => 'success',
-        'message' => "Permiso ({$tipoPermiso}) registrado exitosamente ({$diasRegistrados} día(s))."
-    ]);
-    exit;
-}
+// (2026-10-26) Se quitaron el calendario mensual de asistencia y el registro de permisos y vacaciones: no tenían pantalla.
 
 // -------------------------------------------------------------
 // 10. LÍNEA DE TIEMPO DIARIA DE SUPERVISORES Y DESPLAZAMIENTOS

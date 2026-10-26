@@ -26,7 +26,7 @@ $nombre = trim((string)($user['nombres'] ?? '')) ?: (string)($user['nombre'] ?? 
 
   <main class="sgs-main">
     <div class="sgs-card" id="card">
-      <div class="sgs-logo" role="img" aria-label="WIN" style="-webkit-mask-image:url(<?= $assets ?>/img/win-wordmark-white.png);mask-image:url(<?= $assets ?>/img/win-wordmark-white.png)"></div>
+      <div class="sgs-logo" role="img" aria-label="WIN" style="-webkit-mask-image:url(<?= $assets ?>/img/win-logo-blanco.png);mask-image:url(<?= $assets ?>/img/win-logo-blanco.png)"></div>
       <div class="sgs-system">Sistema de Gestión de Supervisión</div>
 
       <h1>Crea tu contraseña</h1>

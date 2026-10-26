@@ -359,7 +359,7 @@ $user = Auth::getLoggedInUser();
         document.getElementById('filter-timeline-fecha')?.addEventListener('change', () => cargar(true));
         document.getElementById('filter-timeline-buscar')?.addEventListener('input', render);
         document.getElementById('filter-timeline-activos')?.addEventListener('change', render);
-        setInterval(() => cargar(), 60000);
+        setInterval(() => { if (!document.hidden) cargar(); }, 60000); // oculta: no consulta; al volver se actualiza
     });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) cargar(); });
 })();

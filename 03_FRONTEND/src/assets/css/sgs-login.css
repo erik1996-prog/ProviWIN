@@ -113,7 +113,7 @@ body.sgs-login{
 .sgs-examen-dato{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding:10px 12px;border:1px solid var(--win-border);border-radius:10px;font-size:13.5px;color:var(--win-brown)}
 .sgs-examen-dato .bi{color:var(--win-orange)}
 .sgs-examen-nota{text-align:center;color:var(--win-gray)}
-.sgs-logo--examen{-webkit-mask-image:url(../img/win-wordmark-white.png);mask-image:url(../img/win-wordmark-white.png)}
+.sgs-logo--examen{-webkit-mask-image:url(../img/win-logo-blanco.png);mask-image:url(../img/win-logo-blanco.png)}
 
 /* Aviso de mayúsculas activadas en la contraseña (2026-10-16, aviso-mayusculas.js) */
 .sgs-mayus{display:flex;align-items:center;gap:6px;margin-top:6px;padding:5px 10px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--win-warning-dark);background:var(--win-warning-soft)}

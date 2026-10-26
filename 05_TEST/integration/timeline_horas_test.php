@@ -147,7 +147,7 @@ try {
     };
     $l1 = $como($uno, 'tlh.uno'); $l2 = $como($dos, 'tlh.dos');
     // Al avisar se pide comentario y foto (JPEG reducido en el celular; aquÃ­ basta su cabecera)
-    $conFoto = ['comentario' => 'Lluvia de prueba', 'foto' => base64_encode("ÿØÿàprueba")];
+    $conFoto = ['comentario' => 'Lluvia de prueba', 'foto' => base64_encode("\xFF\xD8\xFF\xE0prueba")];
     $r = $l1("$base/api/lluvias.php?action=avisar", ['zona' => 'AREQUIPA'] + $conFoto);
     $check('sin turno abierto hoy no se avisa la lluvia', ($r['status'] ?? '') === 'error', $r);
     $hoy = date('Y-m-d');
@@ -188,6 +188,8 @@ try {
     $r = $l1("$base/api/dashboard_lluvias.php?action=dashboard");
     $check('el supervisor directo tambiÃ©n ve el indicador (de su zona)', ($r['status'] ?? '') === 'success', $r);
     $l1("$base/api/lluvias.php?action=avisar", ['zona' => 'AREQUIPA'] + $conFoto);
+    // Desde 2026-10-26 el turno no se cierra con una supervisiÃ³n abierta: Uno termina la suya antes
+    $pdo->exec("UPDATE supervisiones SET estado_supervision = 'Finalizada' WHERE ticket_codigo = 'PRUEBA-TLH-HOY'");
     $l1("$base/api/asistencia.php?action=end", []);
     $abiertas = (int)$pdo->query("SELECT COUNT(*) FROM lluvias_zona WHERE departamento = 'AREQUIPA' AND fin IS NULL")->fetchColumn();
     $auto = $pdo->query("SELECT comentario_fin FROM lluvias_zona WHERE reportado_por = $d1 ORDER BY id DESC LIMIT 1")->fetchColumn();

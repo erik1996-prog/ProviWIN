@@ -144,7 +144,8 @@ class Auth {
     }
 
     public static function permissionCatalog(): array {
-        return [
+        static $catalogo = null;
+        return $catalogo ??= [
             self::PERM_SUPERVISION_VIEW => ['group'=>'Supervisiones','label'=>'Ver el módulo de supervisiones','action'=>'ver','delegable'=>true],
             self::PERM_SUPERVISION_VIEW_ALL => ['group'=>'Supervisiones · Visibilidad','label'=>'Global: ver registros de todos los usuarios','delegable'=>true],
             self::PERM_SUPERVISION_CREATE => ['group'=>'Supervisiones','label'=>'Editar: registrar y completar supervisiones','action'=>'editar','delegable'=>true],
@@ -190,20 +191,6 @@ class Auth {
 
     public static function roleDefaultPermissions(string $role): array {
         return self::ROLE_PERMISSIONS[$role] ?? [];
-    }
-
-    public static function requirePermission(string $permission): void {
-        self::requireLogin();
-        if (!self::can($permission)) {
-            http_response_code(403);
-            if ((defined('WIN_JSON_RESPONSE') && WIN_JSON_RESPONSE) || str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json')) {
-                header('Content-Type: application/json; charset=utf-8');
-                echo json_encode(['status' => 'error', 'message' => 'No tiene permisos para realizar esta acción.']);
-            } else {
-                header('Location: index.php?page=unauthorized');
-            }
-            exit;
-        }
     }
 
     public static function isLoggedIn(): bool {
@@ -426,10 +413,6 @@ class Auth {
         ]);
     }
 
-    public static function isAdministrator(): bool {
-        return self::hasRole([self::ROLE_ADMINISTRADOR]);
-    }
-
     public static function mustChangePassword(): bool { return !empty($_SESSION['debe_cambiar_password']); }
 
     public static function requireLogin(): void {
@@ -461,14 +444,6 @@ class Auth {
         if (PHP_SAPI !== 'cli' && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
             && str_contains($_SERVER['SCRIPT_NAME'] ?? '', '/api/') && session_status() === PHP_SESSION_ACTIVE) {
             session_write_close();
-        }
-    }
-
-    public static function requireRoles(array $allowedRoles): void {
-        self::requireLogin();
-        if (!self::hasRole($allowedRoles)) {
-            header('Location: index.php?page=unauthorized');
-            exit;
         }
     }
 }

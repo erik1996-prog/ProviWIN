@@ -73,7 +73,7 @@ function sgsRespaldarSistema(string $motivo = 'manual'): string
     $tar = "$nombre.tar";
     $base = str_replace('\\', '/', BASE_PATH);
     // Fuera del respaldo: historial de git, respaldos anteriores, logs y las fotos (van aparte, cada semana)
-    $excluir = '#^(\.git|10_RESPALDOS|08_LOGS|uploads)(/|$)#';
+    $excluir = '#^(\.git|10_RESPALDOS|08_LOGS|uploads|11_PRIVADO)(/|$)#'; // 11_PRIVADO va con las fotos
     try {
         $archivo = new PharData($tar);
         $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($base, FilesystemIterator::SKIP_DOTS));
@@ -95,7 +95,8 @@ function sgsRespaldarSistema(string $motivo = 'manual'): string
     return $final;
 }
 
-/** Respalda las fotos (uploads: supervisiones, observaciones, checklists, documentos, avatares). Devuelve el .tar.gz. */
+/** Respalda las fotos (uploads: supervisiones, observaciones, checklists, documentos, avatares) y los sustentos privados
+ * (11_PRIVADO: certificados de ausencias, 2026-10-26). Devuelve el .tar.gz. */
 function sgsRespaldarFotos(string $motivo = 'manual'): string
 {
     $dir = SGS_RESPALDOS_PATH . '/fotos';
@@ -112,6 +113,10 @@ function sgsRespaldarFotos(string $motivo = 'manual'): string
             foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($uploads, FilesystemIterator::SKIP_DOTS)) as $f) {
                 if ($f->isFile()) $archivo->addFile($f->getPathname(), 'uploads/' . substr(str_replace('\\', '/', $f->getPathname()), strlen($uploads) + 1));
             }
+        }
+        $privado = str_replace('\\', '/', BASE_PATH) . '/11_PRIVADO';
+        if (is_dir($privado)) foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($privado, FilesystemIterator::SKIP_DOTS)) as $f) {
+            if ($f->isFile()) $archivo->addFile($f->getPathname(), '11_PRIVADO/' . substr(str_replace('\\', '/', $f->getPathname()), strlen($privado) + 1));
         }
         $archivo->compress(Phar::GZ);
         unset($archivo);

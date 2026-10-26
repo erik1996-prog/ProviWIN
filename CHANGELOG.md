@@ -4,6 +4,25 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Vacaciones, descansos médicos y licencias (2026-10-26)
+- **Añadido**: en Mi turno, el supervisor directo registra vacaciones, descanso médico o licencias (paternidad, fallecimiento, otra) con fechas, comentario y sustento (foto o PDF; obligatorio en descanso médico). Hasta 60 días por solicitud, hasta 30 días hacia atrás, sin cruzar fechas con otra suya. Puede anular las pendientes.
+- En el Monitor de turnos, administración, gerencia y coordinación aprueban o rechazan (con motivo) y pueden anular una aprobada. Avisos en la campana a los jefes al pedir y al supervisor al decidir.
+- Con una ausencia aprobada ese día **no se inicia turno**, y el Monitor muestra al supervisor con su ausencia (no como "Sin iniciar").
+- El sustento es un dato personal: se guarda en `11_PRIVADO/ausencias` (bloqueada a la web y fuera de Git) y solo se abre por el sistema para el dueño y los jefes; entra en el respaldo de fotos.
+- Cambio de base `2026-10-26_02_vacaciones_descanso_medico_y_licencias_de_supervisores` (tabla nueva `ausencias_supervisores`). Prueba nueva `05_TEST/integration/ausencias_test.php`.
+
+### Revisión de rendimiento para ~2000 usuarios (2026-10-26)
+- **Campana de notificaciones**: con la pestaña oculta ya no consulta cada minuto (al volver se actualiza). Era la consulta automática más repetida: corre en todas las pantallas de todos los usuarios. Igual en la Línea de tiempo de supervisores.
+- **Lista de supervisiones**: el número de observaciones se cuenta solo para las filas de la página (por índice); antes se agrupaba toda la tabla de observaciones en cada carga.
+- **Logo**: `win-logo-blanco.png` de 23 KB (416 px) reemplaza a `win-wordmark-white.png` de 440 KB (1935 px); se carga en todas las pantallas y en celular con datos se notaba.
+- **Base**: cambio `2026-10-26_01_quitar_indices_duplicados` quita dos índices repetidos (supervisiones.partner_id y asistencia_eventos.asistencia_id), que hacían más lento cada guardado sin acelerar consultas.
+- **Código sin uso eliminado**: acción `asistencia_calendario` (sin pantalla y con un error: contaba estados que no existen, siempre daba 0) y `registrar_permiso`/`registrar_vacaciones` (sin pantalla; un supervisor podía marcarse vacaciones llamándola directo). Funciones `Auth::isAdministrator`, `Auth::requirePermission`, `Auth::requireRoles` y `nombreCortoSupervisor`, que nadie llamaba.
+- `Auth::permissionCatalog()` se arma una sola vez por petición.
+
+### Cerrar turno solo sin supervisiones abiertas (2026-10-26)
+- **Cambiado**: "Finalizar turno" no cierra el turno si el supervisor tiene una supervisión Iniciada o En proceso: avisa cuál (código y pedido) y ofrece ir a terminarla. Los rescates (Pendientes) no bloquean, y el cierre automático de las 23:59 sigue igual.
+- Prueba nueva `05_TEST/integration/cierre_turno_supervision_abierta_test.php`.
+
 ### Corrección: técnicos de apoyo "Sin zona" (2026-10-24)
 - **Corregido**: el T2 registrado desde la supervisión ("Registrar … como técnico de apoyo") quedaba sin zona. Ahora toma el departamento y la provincia de la supervisión.
 - Al finalizar una supervisión, el T2 queda en el departamento y provincia donde trabajó (rota entre cuadrillas: muestra su última zona); el T1 la toma solo si no tenía.

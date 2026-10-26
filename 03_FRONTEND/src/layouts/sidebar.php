@@ -63,7 +63,7 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
     <div class="sidebar-fixed-top flex-shrink-0">
         <div class="sgs-brand">
             <div class="menu-label-text">
-                <img class="sgs-brand-logo" src="03_FRONTEND/src/assets/img/win-wordmark-white.png" width="96" height="40" alt="WIN">
+                <img class="sgs-brand-logo" src="03_FRONTEND/src/assets/img/win-logo-blanco.png" width="96" height="40" alt="WIN">
                 <div class="sgs-brand-sub"><?= htmlspecialchars(SYSTEM_CODE) ?> · Gestión de Supervisión</div>
             </div>
             <button type="button" id="sidebarCloseMobile" class="btn btn-link text-white p-1 d-lg-none ms-auto" aria-label="Ocultar menú lateral" title="Ocultar menú">

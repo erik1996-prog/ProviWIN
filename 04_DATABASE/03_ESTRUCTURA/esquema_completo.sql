@@ -1,6 +1,6 @@
 -- 04_DATABASE/03_ESTRUCTURA/esquema_completo.sql
--- Estructura de SGS: 29 tablas en orden de dependencias, sin datos ni DROP.
--- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-10-23. No editar a mano: los cambios van como migración en 02_CAMBIOS.
+-- Estructura de SGS: 30 tablas en orden de dependencias, sin datos ni DROP.
+-- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-10-26. No editar a mano: los cambios van como migración en 02_CAMBIOS.
 
 SET NAMES utf8mb4;
 
@@ -152,6 +152,28 @@ CREATE TABLE IF NOT EXISTS `asistencia_supervisores` (
   CONSTRAINT `fk_asistencia_supervisores_supervisor_id` FOREIGN KEY (`supervisor_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Turnos de los supervisores: inicio, fin y horas';
 
+-- Tabla `ausencias_supervisores`: Vacaciones, descansos médicos y licencias de los supervisores (Mi turno) (depende de: usuarios)
+CREATE TABLE IF NOT EXISTS `ausencias_supervisores` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `supervisor_id` int(11) NOT NULL,
+  `tipo` enum('Vacaciones','Descanso médico','Licencia por paternidad','Licencia por fallecimiento','Otra licencia') NOT NULL,
+  `fecha_inicio` date NOT NULL,
+  `fecha_fin` date NOT NULL,
+  `comentario` varchar(300) DEFAULT NULL,
+  `sustento` varchar(120) DEFAULT NULL COMMENT 'Archivo en 11_PRIVADO/ausencias (privado)',
+  `estado` enum('Pendiente','Aprobada','Rechazada','Anulada') NOT NULL DEFAULT 'Pendiente',
+  `revisado_por` int(11) DEFAULT NULL,
+  `revisado_en` datetime DEFAULT NULL,
+  `motivo_revision` varchar(300) DEFAULT NULL COMMENT 'Motivo del rechazo o de la anulación',
+  `creado_en` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_ausencias_supervisores_supervisor_fechas` (`supervisor_id`,`fecha_inicio`,`fecha_fin`),
+  KEY `idx_ausencias_supervisores_estado_inicio` (`estado`,`fecha_inicio`),
+  KEY `idx_ausencias_supervisores_revisado_por` (`revisado_por`),
+  CONSTRAINT `fk_ausencias_supervisores_revisado_por` FOREIGN KEY (`revisado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_ausencias_supervisores_supervisor_id` FOREIGN KEY (`supervisor_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Vacaciones, descansos médicos y licencias de los supervisores (Mi turno)';
+
 -- Tabla `examen_convocatorias`: Links generales de examen (un link para un grupo de técnicos) (depende de: usuarios)
 CREATE TABLE IF NOT EXISTS `examen_convocatorias` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -286,7 +308,6 @@ CREATE TABLE IF NOT EXISTS `asistencia_eventos` (
   `longitud` varchar(50) DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
-  KEY `idx_asistencia_eventos_asistencia_id` (`asistencia_id`),
   KEY `idx_asistencia_eventos_asistencia_id_inicio_evento` (`asistencia_id`,`inicio_evento`),
   CONSTRAINT `fk_asistencia_eventos_asistencia_id` FOREIGN KEY (`asistencia_id`) REFERENCES `asistencia_supervisores` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Pausas dentro del turno (almuerzo, reunión, capacitación)';
@@ -406,7 +427,6 @@ CREATE TABLE IF NOT EXISTS `supervisiones` (
   `datos_pendiente` longtext DEFAULT NULL COMMENT 'Copia (JSON) de la pendiente al iniciarla: si se cancela, vuelve a este estado. Se borra al finalizar.',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_supervisiones_codigo_supervision` (`codigo_supervision`),
-  KEY `idx_supervisiones_partner_id` (`partner_id`),
   KEY `idx_supervisiones_supervisor_id_fecha_registro` (`supervisor_id`,`fecha_registro`),
   KEY `idx_supervisiones_asignado_por` (`asignado_por`),
   KEY `idx_supervisiones_zona_asignacion_partner_id_estado_supervision` (`zona_asignacion`,`partner_id`,`estado_supervision`),

@@ -383,7 +383,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     })
                 });
                 const res = await resp.json();
-                alert(res.message);
+                // Con una supervisión abierta no se cierra el turno (2026-10-26): se ofrece ir a terminarla
+                if (res.supervision_abierta) {
+                    if (confirm(res.message + '\n\n¿Ir a la supervisión ahora?')) { window.location.href = 'index.php?page=supervision_lista'; return; }
+                } else alert(res.message);
                 loadSupervisorStatus();
             } catch (e) {
                 alert('Error al finalizar turno.');
@@ -602,6 +605,7 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (estado === 'En capacitación') badgeClass = 'bg-primary text-white';
             else if (estado === 'En remoto') badgeClass = 'badge-en-remoto';
             else if (estado === 'Fuera de turno') badgeClass = 'bg-dark text-white';
+            else if (item.ausencia) badgeClass = 'bg-primary text-white'; // vacaciones, descanso médico o licencia aprobada
 
             const iniStr = asist ? asist.inicio_turno.substring(11, 16) : '--:--';
             // Primera acción del turno (supervisión, reunión, capacitación o remoto) y cuánto tardó desde el inicio
@@ -628,7 +632,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </td>
                     <td><span class="badge bg-light text-dark border">${escapeHtml(sup.partner)}</span></td>
-                    <td><span class="badge ${badgeClass} px-2 py-1.5 fw-bold">${escapeHtml(estado)}</span></td>
+                    <td><span class="badge ${badgeClass} px-2 py-1.5 fw-bold"${item.ausencia ? ` title="${escapeHtml(item.ausencia)}"` : ''}>${escapeHtml(estado)}</span>${item.ausencia ? `<small class="d-block text-muted fw-normal">${escapeHtml(item.ausencia)}</small>` : ''}</td>
                     <td class="fw-semibold">${iniStr}${primeraAccion}</td>
                     <td class="fw-semibold">${finStr}</td>
                     <td><span class="fw-bold text-dark">${hTrab}</span></td>

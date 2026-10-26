@@ -23,3 +23,6 @@ uploads/
 
 # Scripts de instalación: llevan datos reales (usuarios, DNI). Se regeneran con 07_SCRIPTS/generar_instalacion.php
 04_DATABASE/01_INSTALACION/*.sql
+
+# Sustentos de ausencias (certificados médicos): datos personales, nunca al repositorio
+11_PRIVADO/

@@ -121,6 +121,21 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
                 </div>
                 <div class="col-12 col-lg-5"><div class="card card-win attendance-history-card p-3 p-md-4 shadow-sm border-0 h-100"><h5 class="mb-3 pb-3 border-bottom"><i class="bi bi-journal-text me-2 text-primary"></i>Historial del día</h5><div id="container-timeline-today" class="timeline-today" aria-live="polite"><p class="text-muted small text-center my-3">No hay eventos registrados hoy.</p></div></div></div>
             </div>
+            <?php if ($isReadOnlyWinSupervisor): ?>
+            <!-- Vacaciones y licencias (2026-10-26, assets/js/ausencias.js, api/ausencias.php): las aprueba su jefe -->
+            <div class="card card-win p-3 p-md-4 shadow-sm border-0 mt-3 mt-md-4" id="ausMias">
+                <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
+                    <div><h5 class="mb-1"><i class="bi bi-calendar2-x me-2 text-primary"></i>Vacaciones y licencias</h5>
+                        <p class="text-muted small mb-0">Registre sus vacaciones, descansos médicos y licencias. Su jefe las aprueba; esos días no podrá iniciar turno.</p></div>
+                    <button type="button" class="btn btn-win" id="ausNueva"><i class="bi bi-plus-lg me-1"></i>Registrar ausencia</button>
+                </div>
+                <div class="alert alert-info d-none" id="ausHoy" role="status"></div>
+                <div class="table-responsive"><table class="table table-hover mb-0 align-middle sgs-tabla-tarjetas">
+                    <thead><tr><th>Tipo</th><th>Fechas</th><th>Días</th><th>Estado</th><th class="text-end"><span class="visually-hidden">Acciones</span></th></tr></thead>
+                    <tbody id="ausMiasLista"><tr><td colspan="5" class="text-muted">Cargando…</td></tr></tbody>
+                </table></div>
+            </div>
+            <?php endif; ?>
         </div>
 
         <?php if ($isAdmin): ?>
@@ -174,6 +189,22 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
                     </div>
                 </div>
 
+                <!-- Vacaciones y licencias por aprobar (2026-10-26, assets/js/ausencias.js, api/ausencias.php) -->
+                <div class="card card-win p-3 p-md-4 mb-4 shadow-sm border-0" id="ausJefes">
+                    <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
+                        <div><h5 class="mb-1"><i class="bi bi-calendar2-x me-2 text-primary"></i>Vacaciones y licencias</h5>
+                            <p class="text-muted small mb-0">Solicitudes de los supervisores. Con una aprobada, esos días no pueden iniciar turno.</p></div>
+                        <div class="sgs-segmented" role="group" aria-label="Solicitudes">
+                            <button type="button" class="filter-tab-btn active" data-aus-estado="Pendiente">Por aprobar <span class="sgs-seg-count" id="ausPendientes">0</span></button>
+                            <button type="button" class="filter-tab-btn" data-aus-estado="vigentes">Aprobadas vigentes</button>
+                            <button type="button" class="filter-tab-btn" data-aus-estado="todas">Últimos 90 días</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive"><table class="table table-hover mb-0 align-middle sgs-tabla-tarjetas">
+                        <thead><tr><th class="sgs-col-persona">Supervisor</th><th>Tipo</th><th>Fechas</th><th>Días</th><th>Sustento</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead>
+                        <tbody id="ausJefesLista"><tr><td colspan="7" class="text-muted">Cargando…</td></tr></tbody>
+                    </table></div>
+                </div>
                 <!-- Filtros & Herramientas -->
                 <div class="card card-win p-3 mb-4 shadow-sm border-0">
                     <div class="row g-2 align-items-center">
@@ -305,6 +336,63 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
     </div>
 </div>
 <?php endif; ?>
+<?php if ($isReadOnlyWinSupervisor): ?>
+<div class="modal fade" id="modalAusencia" tabindex="-1" aria-labelledby="modalAusenciaTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" id="formAusencia" novalidate>
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalAusenciaTitulo"><i class="bi bi-calendar2-x me-2 text-primary"></i>Registrar ausencia</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="ausTipo">Tipo</label>
+                <select class="form-select" id="ausTipo" name="tipo" required>
+                    <option value="">Seleccione</option>
+                    <?php foreach (['Vacaciones', 'Descanso médico', 'Licencia por paternidad', 'Licencia por fallecimiento', 'Otra licencia'] as $tipoAus): ?>
+                    <option value="<?= htmlspecialchars($tipoAus) ?>"><?= htmlspecialchars($tipoAus) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="row g-2 mt-1">
+                    <div class="col-6"><label class="form-label" for="ausInicio">Desde</label><input class="form-control" type="date" id="ausInicio" name="fecha_inicio" required></div>
+                    <div class="col-6"><label class="form-label" for="ausFin">Hasta</label><input class="form-control" type="date" id="ausFin" name="fecha_fin" required></div>
+                </div>
+                <label class="form-label mt-3" for="ausSustento">Sustento <span class="text-muted" id="ausSustentoNota">(opcional)</span></label>
+                <input class="form-control" type="file" id="ausSustento" name="sustento" accept="image/jpeg,image/png,image/webp,application/pdf">
+                <small class="text-muted d-block">Foto o PDF del certificado o documento. Solo lo ven usted y sus jefes.</small>
+                <label class="form-label d-block mt-3" for="ausComentario">Comentario <span class="text-muted">(opcional)</span></label>
+                <textarea class="form-control" id="ausComentario" name="comentario" rows="2" maxlength="300"></textarea>
+                <div class="alert alert-danger mt-3 mb-0 d-none" id="ausError" role="alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-win" id="ausEnviar"><i class="bi bi-send me-1"></i>Enviar solicitud</button>
+            </div>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
+<?php if ($isAdmin): ?>
+<div class="modal fade" id="modalAusMotivo" tabindex="-1" aria-labelledby="modalAusMotivoTitulo" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalAusMotivoTitulo">Rechazar solicitud</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted" id="ausMotivoDetalle"></p>
+                <label class="form-label" for="ausMotivo">Motivo</label>
+                <textarea class="form-control" id="ausMotivo" rows="2" maxlength="300"></textarea>
+                <small class="text-muted">El supervisor lo verá en su aviso.</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-outline-danger" id="ausMotivoConfirmar">Rechazar</button>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 <!-- MODAL PARA REGISTRAR MOTIVO DE REUNIÓN -->
 <div class="modal fade" id="modalReunion" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-sm">
@@ -416,4 +504,5 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
 </style>
 
 <script src="03_FRONTEND/src/assets/js/asistencia.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
+<?php if ($isReadOnlyWinSupervisor || $isAdmin): ?><script src="03_FRONTEND/src/assets/js/ausencias.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
 <?php if ($isReadOnlyWinSupervisor && Auth::puede(Auth::PERM_CLIMA_EDIT, $user)): ?><script src="03_FRONTEND/src/assets/js/lluvia.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
