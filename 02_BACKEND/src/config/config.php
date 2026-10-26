@@ -11,6 +11,8 @@ define('BACKEND_PATH', BASE_PATH . '/02_BACKEND/src');
 define('FRONTEND_PATH', BASE_PATH . '/03_FRONTEND/src');
 define('LOG_PATH', BASE_PATH . '/08_LOGS');
 define('STORAGE_PATH', LOG_PATH . '/runtime');
+// Sesión (2026-10-26): se cierra tras 4 horas sin actividad (servidor: Auth::isLoggedIn; pantalla: main.js).
+define('SGS_SESION_INACTIVA', 4 * 3600);
 
 require_once __DIR__ . '/env.php';
 sgs_load_env(BASE_PATH . '/.env');
@@ -70,6 +72,15 @@ if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
         'samesite' => 'Lax',
     ]);
     ini_set('session.use_strict_mode', '1');
+    // Sesiones en una carpeta propia (bloqueada a la web) con su propia limpieza: en un hosting compartido la carpeta
+    // común las borra a los 24 min por defecto. Duran lo que la inactividad permitida, más un margen.
+    $sgsSesiones = STORAGE_PATH . '/sesiones';
+    if (is_dir($sgsSesiones) || @mkdir($sgsSesiones, 0700, true)) {
+        ini_set('session.save_path', $sgsSesiones);
+        ini_set('session.gc_maxlifetime', (string)(SGS_SESION_INACTIVA + 900));
+        ini_set('session.gc_probability', '1');
+        ini_set('session.gc_divisor', '200');
+    }
     session_start();
 }
 

@@ -40,12 +40,21 @@ final class UsuarioService
     }
 
     /** Permisos que el administrador puede marcar por usuario (los reservados no se muestran). */
+    /** Sección del menú de cada pantalla (2026-10-26): el editor de permisos y la matriz las ordenan igual que el menú. */
+    public const SECCION_PANTALLA = [
+        'Dashboard de supervisiones' => 'Indicadores', 'Dashboard de partners' => 'Indicadores', 'Pendientes y rescates' => 'Indicadores',
+        'Clima' => 'Indicadores', 'Exámenes' => 'Indicadores', 'Supervisiones' => 'Supervisiones', 'Línea de tiempo' => 'Seguimiento',
+        'Mi turno' => 'Seguimiento', 'Observaciones' => 'Observaciones', 'Usuarios y roles' => 'Personal', 'Técnicos y cuadrillas' => 'Personal',
+        'Partners' => 'Personal',
+    ];
+
     public static function catalogoSgs(): array
     {
         $out = [];
         foreach (Auth::permissionCatalog() as $clave => $def) {
             if (empty($def['delegable'])) continue;
-            $out[] = ['clave' => $clave, 'grupo' => $def['group'], 'etiqueta' => $def['label'], 'accion' => $def['action'] ?? null];
+            $out[] = ['clave' => $clave, 'grupo' => $def['group'], 'etiqueta' => $def['label'], 'accion' => $def['action'] ?? null,
+                'requiere' => Auth::permisoRequerido($clave), 'seccion' => self::SECCION_PANTALLA[$def['group']] ?? 'Otros'];
         }
         return $out;
     }
@@ -107,7 +116,7 @@ final class UsuarioService
     }
 
     /** Estados de acceso para los contadores de Usuarios y roles (2026-10-15). */
-    public const ESTADOS_ACCESO = ['con_acceso', 'por_ingresar', 'sin_acceso', 'desactivados', 'bloqueados'];
+    public const ESTADOS_ACCESO = ['con_acceso', 'por_ingresar', 'por_activar', 'sin_acceso', 'desactivados', 'bloqueados'];
 
     public function listar(array $filtros, ?array $actor = null): array
     {
@@ -128,9 +137,10 @@ final class UsuarioService
             $fila = $this->filaConZonas($fila);
             if (!$this->dentroDelAlcance($fila, $alcance)) continue;
             $fila['bloqueado'] = isset($bloqueados[(int)$fila['id']]);
+            $fila['protegido'] = in_array((string)($fila['usuario'] ?? ''), Auth::USUARIOS_PROTEGIDOS, true);
             $fila['sin_acceso'] = trim((string)($fila['usuario'] ?? '')) === '';
             $fila['estado_acceso'] = $fila['sin_acceso'] ? 'sin_acceso'
-                : ((int)$fila['activo'] !== 1 ? 'desactivados' : ($fila['ultimo_acceso'] ? 'con_acceso' : 'por_ingresar'));
+                : ((int)$fila['activo'] !== 1 ? (!empty($fila['por_activar']) ? 'por_activar' : 'desactivados') : ($fila['ultimo_acceso'] ? 'con_acceso' : 'por_ingresar'));
             $fila['debe_cambiar_password'] = (int)($fila['debe_cambiar_password'] ?? 0) === 1;
             $conteos['todos']++;
             $conteos[$fila['estado_acceso']]++;
@@ -235,7 +245,9 @@ final class UsuarioService
         ];
     }
 
-    public function guardar(array $in, int $id, int $actorId): array
+    /** $quedaActivo = false (2026-10-26): un usuario nuevo, o al que se le da acceso, queda "Por activar" hasta que la
+     *  cuenta principal lo active (UsuarioController decide según quién lo crea). */
+    public function guardar(array $in, int $id, int $actorId, bool $quedaActivo = true): array
     {
         $d = UsuarioValidator::usuario($in, $id === 0);
         $organizacion = ($in['organizacion'] ?? 'directo') === 'partner' ? 'partner' : 'directo';
@@ -286,14 +298,15 @@ final class UsuarioService
             if ($id > 0) {
                 $this->usuarios->actualizar($id, $d);
                 if ($d['password'] !== '') $this->usuarios->cambiarPassword($id, password_hash($d['password'], PASSWORD_DEFAULT), $d['pedir_cambio']);
-                if ($completaAcceso) $this->usuarios->activar($id);
+                if ($completaAcceso) $quedaActivo ? $this->usuarios->activar($id) : $this->usuarios->dejarPorActivar($id);
             } else {
                 $hash = password_hash($d['password'], PASSWORD_DEFAULT);
-                $id = $this->usuarios->crear($d, $hash);
+                $id = $this->usuarios->crear($d, $hash, $quedaActivo);
                 if ($d['pedir_cambio']) $this->usuarios->cambiarPassword($id, $hash, true);
             }
             $delegables = self::permisosDelegables();
-            if ($d['permisos_personalizados']) $this->usuarios->guardarPermisos($id, array_intersect($d['permisos'], $delegables), $delegables, $actorId);
+            // Sin "Ver" de una pantalla no se guarda editar, eliminar ni opciones de ella (Auth::conDependencias)
+            if ($d['permisos_personalizados']) $this->usuarios->guardarPermisos($id, Auth::conDependencias(array_values(array_intersect($d['permisos'], $delegables))), $delegables, $actorId);
             else $this->usuarios->limpiarPermisos($id);
             $this->usuarios->guardarZonas($id, $operativo ? $zonasAdicionales : [], $actorId);
             $this->pdo->commit();
@@ -301,7 +314,16 @@ final class UsuarioService
             if ($this->pdo->inTransaction()) $this->pdo->rollBack();
             throw $e;
         }
-        return ['id' => $id, 'usuario' => $d['usuario']];
+        return ['id' => $id, 'usuario' => $d['usuario'], 'por_activar' => !$quedaActivo && ($previo === null || $completaAcceso),
+            'nombre' => $d['nombres'] . ' ' . $d['apellidos']];
+    }
+
+    /** Aviso en la campana de la cuenta principal (si existe). */
+    public function avisarCuentaPrincipal(string $titulo, string $mensaje): void
+    {
+        $principal = Auth::cuentaPrincipalId();
+        if ($principal) $this->pdo->prepare('INSERT INTO notificaciones (usuario_id, titulo, mensaje, url_destino) VALUES (:u, :t, :m, :url)')
+            ->execute([':u' => $principal, ':t' => $titulo, ':m' => $mensaje, ':url' => 'index.php?page=usuarios']);
     }
 
     public function cambiarEstado(int $id, bool $activo, int $actorId): void

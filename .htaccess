@@ -23,6 +23,11 @@ DirectoryIndex index.php
     Require all denied
 </FilesMatch>
 
+# App instalable (PWA, 2026-10-26): tipo del manifiesto y sw.js siempre al día (el celular toma sus cambios)
+<IfModule mod_mime.c>
+    AddType application/manifest+json .webmanifest
+</IfModule>
+
 <IfModule mod_headers.c>
     Header always set X-Content-Type-Options "nosniff"
     Header always set X-Frame-Options "SAMEORIGIN"
@@ -31,6 +36,10 @@ DirectoryIndex index.php
     <FilesMatch "\.(css|js|png|jpg|jpeg|gif|webp|svg|woff2?)$">
         Header set Cache-Control "public, max-age=604800"
     </FilesMatch>
+    # Después de la regla anterior, para que sw.js no quede guardado 7 días
+    <Files "sw.js">
+        Header set Cache-Control "no-cache"
+    </Files>
 </IfModule>
 <IfModule mod_deflate.c>
     AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json image/svg+xml

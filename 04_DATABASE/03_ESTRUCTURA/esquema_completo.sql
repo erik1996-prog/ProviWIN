@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
   `observacion` text DEFAULT NULL,
   `partner_id` int(11) DEFAULT NULL,
   `activo` tinyint(1) DEFAULT 1,
+  `por_activar` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'Espera que la cuenta principal lo active (no puede ingresar)',
   `ultimo_acceso` datetime DEFAULT NULL COMMENT 'Último inicio de sesión correcto en SGS',
   `debe_cambiar_password` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1 = al ingresar debe cambiar su contraseña (temporal)',
   `fecha_creacion` datetime DEFAULT current_timestamp(),

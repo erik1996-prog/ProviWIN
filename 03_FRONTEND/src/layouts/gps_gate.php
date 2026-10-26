@@ -1,8 +1,11 @@
 <?php
 // 03_FRONTEND/src/layouts/gps_gate.php - GPS obligatorio para el personal de campo (supervisores directos y de partner).
 // Mientras la ubicación no esté disponible, una pantalla bloquea el uso del sistema y explica cómo activarla.
-// Se vuelve a comprobar cada 3 minutos (no en segundo plano) y cuando cambia el permiso; tolera fallas pasajeras. La última posición queda en sessionStorage
+// Se vuelve a comprobar cada 3 minutos (no en segundo plano) y cuando cambia el permiso; tolera fallas pasajeras. La última posición queda en localStorage
 // ('sgs-gps') y se emite el evento 'sgs:gps' para que los formularios puedan reutilizarla.
+// 2026-10-26 (app instalada): al abrir la app empieza una sesión nueva y esta pantalla salía siempre "Verificando ubicación…"
+// encima de la bienvenida. Ahora la última ubicación sobrevive entre aperturas (localStorage, 15 min) y la primera
+// verificación es silenciosa: la pantalla solo aparece si el GPS falla, falta el permiso o tarda más de 6 segundos.
 ?>
 <div class="sgs-gps-gate" id="sgsGpsGate" role="dialog" aria-modal="true" aria-labelledby="sgsGpsTitulo" hidden>
   <div class="sgs-gps-card">
@@ -27,10 +30,10 @@
   const RECHEQUEO_MS = 3 * 60 * 1000, VIGENCIA_MS = 15 * 60 * 1000, REINTENTO_MS = 60 * 1000;
   let comprobando = false, fallos = 0, ultimaComprobacion = 0;
 
-  const leerGuardado = () => { try { return JSON.parse(sessionStorage.getItem('sgs-gps') || 'null'); } catch (_) { return null; } };
+  const leerGuardado = () => { try { return JSON.parse(localStorage.getItem('sgs-gps') || 'null'); } catch (_) { return null; } };
   const guardar = (pos) => {
     const dato = { lat: pos.coords.latitude, lng: pos.coords.longitude, precision: Math.round(pos.coords.accuracy), t: Date.now() };
-    try { sessionStorage.setItem('sgs-gps', JSON.stringify(dato)); } catch (_) {}
+    try { localStorage.setItem('sgs-gps', JSON.stringify(dato)); } catch (_) {}
     window.dispatchEvent(new CustomEvent('sgs:gps', { detail: dato }));
   };
   const reciente = () => { const p = leerGuardado(); return Boolean(p && Date.now() - p.t < VIGENCIA_MS); };
@@ -90,9 +93,13 @@
   }
 
   btn.addEventListener('click', () => comprobar(true));
-  // Con una ubicación reciente de esta sesión no se bloquea al cambiar de pantalla; se verifica en segundo plano.
+  // Con una ubicación reciente no se bloquea; se verifica en segundo plano. Sin ella, se busca en silencio y la pantalla
+  // aparece solo si a los 6 s aún no hay ubicación (o antes, si falla o falta el permiso).
   if (reciente()) comprobar(false);
-  else { abrir(); estado.textContent = 'Verificando ubicación…'; btn.disabled = true; comprobar(true); }
+  else {
+    const espera = setTimeout(() => { if (comprobando) { abrir(); btn.disabled = true; estado.textContent = 'Buscando tu ubicación…'; } }, 6000);
+    comprobar(true).finally(() => clearTimeout(espera));
+  }
   setInterval(() => comprobar(false), RECHEQUEO_MS);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && Date.now() - ultimaComprobacion > RECHEQUEO_MS) comprobar(false);

@@ -10,7 +10,7 @@ final class UsuarioRepository
     {
         $sql = "SELECT u.id, u.dni, u.nombres, u.apellidos, u.nombre_completo, u.usuario, u.email, u.telefono_personal,
                        u.telefono_corporativo, u.rol, u.partner_id, p.nombre_partner, u.sede, u.zona, u.area_trabajo, u.cargo, u.activo,
-                       u.fecha_creacion, u.ultimo_acceso, u.debe_cambiar_password
+                       u.fecha_creacion, u.ultimo_acceso, u.debe_cambiar_password, u.por_activar
                 FROM usuarios u
                 LEFT JOIN partners p ON p.id = u.partner_id
                 WHERE 1=1";
@@ -65,12 +65,12 @@ final class UsuarioRepository
         while (true) { $st->execute([':u' => $candidate]); if (!$st->fetchColumn()) return $candidate; $candidate = $base . (++$n); }
     }
 
-    public function crear(array $d, string $hash): int
+    public function crear(array $d, string $hash, bool $activo = true): int
     {
         $st = $this->pdo->prepare("INSERT INTO usuarios (dni, nombres, apellidos, nombre_completo, usuario, email, telefono_personal,
-                telefono_corporativo, password_hash, rol, partner_id, sede, zona, area_trabajo, cargo, procesos_copiados, modalidad, turno, activo, fecha_creacion)
-            VALUES (:dni, :nom, :ape, :nc, :usr, :email, :tp, :tc, :hash, :rol, :pid, :sede, :zona, :area, :cargo, :procesos, :mod, :turno, 1, NOW())");
-        $st->execute($this->campos($d) + [':hash' => $hash]);
+                telefono_corporativo, password_hash, rol, partner_id, sede, zona, area_trabajo, cargo, procesos_copiados, modalidad, turno, activo, por_activar, fecha_creacion)
+            VALUES (:dni, :nom, :ape, :nc, :usr, :email, :tp, :tc, :hash, :rol, :pid, :sede, :zona, :area, :cargo, :procesos, :mod, :turno, :activo, :por_activar, NOW())");
+        $st->execute($this->campos($d) + [':hash' => $hash, ':activo' => $activo ? 1 : 0, ':por_activar' => $activo ? 0 : 1]);
         return (int)$this->pdo->lastInsertId();
     }
 
@@ -104,7 +104,13 @@ final class UsuarioRepository
 
     public function activar(int $id): void
     {
-        $this->pdo->prepare('UPDATE usuarios SET activo = 1 WHERE id = :id')->execute([':id' => $id]);
+        $this->pdo->prepare('UPDATE usuarios SET activo = 1, por_activar = 0 WHERE id = :id')->execute([':id' => $id]);
+    }
+
+    /** Queda inactivo hasta que la cuenta principal lo active (2026-10-26). */
+    public function dejarPorActivar(int $id): void
+    {
+        $this->pdo->prepare('UPDATE usuarios SET activo = 0, por_activar = 1 WHERE id = :id')->execute([':id' => $id]);
     }
 
     /** Aviso a los administradores activos. */
@@ -155,7 +161,7 @@ final class UsuarioRepository
 
     public function cambiarEstado(int $id, bool $activo): void
     {
-        $this->pdo->prepare('UPDATE usuarios SET activo = :a WHERE id = :id')->execute([':a' => $activo ? 1 : 0, ':id' => $id]);
+        $this->pdo->prepare('UPDATE usuarios SET activo = :a, por_activar = 0 WHERE id = :id')->execute([':a' => $activo ? 1 : 0, ':id' => $id]);
     }
 
     public function administradoresActivos(int $exceptoId = 0): int

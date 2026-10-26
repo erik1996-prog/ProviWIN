@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="2120" height="2143" viewBox="0 0 2120 2143" font-family="Segoe UI, Nunito, Arial, sans-serif">
 <rect width="100%" height="100%" fill="#F7F5F3"/>
 <text x="50" y="56" font-size="30" font-weight="800" fill="#1A1614">Base de datos de SGS · relaciones entre tablas</text>
-<text x="50" y="86" font-size="15" fill="#5C5552">30 tablas · 54 relaciones · generado 2026-10-26 01:19</text>
+<text x="50" y="86" font-size="15" fill="#5C5552">30 tablas · 54 relaciones · generado 2026-10-26 02:12</text>
 <g font-size="13" fill="#3A2C27">
   <line x1="1560" y1="52" x2="1600" y2="52" stroke="#FF5A0A" stroke-width="2.2"/><text x="1608" y="56">Relación de negocio (color del módulo de destino)</text>
   <line x1="1560" y1="78" x2="1600" y2="78" stroke="#A8A29E" stroke-width="1.2" stroke-dasharray="5 4"/><text x="1608" y="82">Auditoría: quién creó o cambió el registro</text>
@@ -130,7 +130,7 @@
 <text x="62" y="236" font-size="11" font-weight="800" fill="#2563EB"></text><text x="88" y="236" font-size="12" font-family="Consolas, monospace" fill="#1A1614" font-weight="400">dni</text><text x="340" y="236" font-size="10.5" font-family="Consolas, monospace" fill="#8A817C" text-anchor="end">varchar</text>
 <rect x="51" y="242" width="298" height="19" fill="#FAF8F6"/><text x="62" y="255" font-size="11" font-weight="800" fill="#2563EB"></text><text x="88" y="255" font-size="12" font-family="Consolas, monospace" fill="#1A1614" font-weight="400">nombres</text><text x="340" y="255" font-size="10.5" font-family="Consolas, monospace" fill="#8A817C" text-anchor="end">varchar</text>
 <text x="62" y="274" font-size="11" font-weight="800" fill="#2563EB"></text><text x="88" y="274" font-size="12" font-family="Consolas, monospace" fill="#1A1614" font-weight="400">apellidos</text><text x="340" y="274" font-size="10.5" font-family="Consolas, monospace" fill="#8A817C" text-anchor="end">varchar</text>
-<text x="88" y="293" font-size="11.5" fill="#8A817C" font-style="italic">+ 21 columnas más</text>
+<text x="88" y="293" font-size="11.5" fill="#8A817C" font-style="italic">+ 22 columnas más</text>
 </g>
 <g>
   <rect x="50" y="332" width="300" height="175" rx="10" fill="#FFFFFF" stroke="#E2D9D3"/>
@@ -335,7 +335,7 @@
   <rect x="1340" y="677" width="300" height="175" rx="10" fill="#FFFFFF" stroke="#E2D9D3"/>
   <path d="M1340,687 a10,10 0 0 1 10,-10 h280 a10,10 0 0 1 10,10 v24 h-300 z" fill="#B45309"/>
   <text x="1352" y="699" font-size="14" font-weight="800" fill="#FFFFFF">notificaciones</text>
-  <text x="1630" y="699" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="end" opacity="0.92">2 reg.</text>
+  <text x="1630" y="699" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="end" opacity="0.92">6 reg.</text>
 <text x="1352" y="725" font-size="11" font-weight="800" fill="#C2410C">PK</text><text x="1378" y="725" font-size="12" font-family="Consolas, monospace" fill="#1A1614" font-weight="700">id</text><text x="1630" y="725" font-size="10.5" font-family="Consolas, monospace" fill="#8A817C" text-anchor="end">int</text>
 <rect x="1341" y="731" width="298" height="19" fill="#FAF8F6"/><text x="1352" y="744" font-size="11" font-weight="800" fill="#2563EB">FK</text><text x="1378" y="744" font-size="12" font-family="Consolas, monospace" fill="#1A1614" font-weight="700">usuario_id</text><text x="1630" y="744" font-size="10.5" font-family="Consolas, monospace" fill="#8A817C" text-anchor="end">int</text>
 <text x="1352" y="763" font-size="11" font-weight="800" fill="#2563EB">FK</text><text x="1378" y="763" font-size="12" font-family="Consolas, monospace" fill="#1A1614" font-weight="700">observacion_id</text><text x="1630" y="763" font-size="10.5" font-family="Consolas, monospace" fill="#8A817C" text-anchor="end">int</text>
@@ -373,7 +373,7 @@
   <rect x="1770" y="150" width="300" height="80" rx="10" fill="#FFFFFF" stroke="#E2D9D3"/>
   <path d="M1770,160 a10,10 0 0 1 10,-10 h280 a10,10 0 0 1 10,10 v24 h-300 z" fill="#6B7280"/>
   <text x="1782" y="172" font-size="14" font-weight="800" fill="#FFFFFF">sgs_migracion</text>
-  <text x="2060" y="172" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="end" opacity="0.92">25 reg.</text>
+  <text x="2060" y="172" font-size="11" font-weight="700" fill="#FFFFFF" text-anchor="end" opacity="0.92">26 reg.</text>
 <text x="1782" y="198" font-size="11" font-weight="800" fill="#C2410C">PK</text><text x="1808" y="198" font-size="12" font-family="Consolas, monospace" fill="#1A1614" font-weight="700">archivo</text><text x="2060" y="198" font-size="10.5" font-family="Consolas, monospace" fill="#8A817C" text-anchor="end">varchar</text>
 <rect x="1771" y="204" width="298" height="19" fill="#FAF8F6"/><text x="1782" y="217" font-size="11" font-weight="800" fill="#2563EB"></text><text x="1808" y="217" font-size="12" font-family="Consolas, monospace" fill="#1A1614" font-weight="400">fecha_aplicacion</text><text x="2060" y="217" font-size="10.5" font-family="Consolas, monospace" fill="#8A817C" text-anchor="end">datetime</text>
 </g>

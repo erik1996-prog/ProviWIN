@@ -26,10 +26,11 @@ $miId = (int)Auth::getLoggedInUser()['id'];
 .usr-row-off td{opacity:.55}
 .usr-org{font-size:.78rem;font-weight:700;color:var(--sgs-ink-2)}
 .usr-section{font-size:.74rem;font-weight: 700;text-transform:uppercase;letter-spacing:.06em;color:var(--sgs-orange-dark);margin:6px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--sgs-border)}
-.usr-perm-group{margin-bottom:12px}
-.usr-perm-group h6{font-size:.78rem !important;color:var(--sgs-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em}
-.usr-perm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:4px 16px}
-.usr-perm-grid .form-check{font-size:.86rem}
+/* Permisos por pantalla (2026-10-26): Ver / Editar / Eliminar / Opciones; sin "Ver" el resto de la fila se apaga */
+.usr-perm-tabla td,.usr-perm-tabla th{vertical-align:top}
+.usr-perm-tabla .form-check{font-size:.84rem;margin-bottom:2px}
+.usr-perm-tabla .form-check.is-bloqueado{opacity:.45}
+.usr-perm-seccion td{background:var(--sgs-surface-alt);color:var(--sgs-orange-dark);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .usr-zonas{display:flex;flex-wrap:wrap;gap:8px}
 .usr-zonas .btn-check+.btn{min-height:32px !important;font-size:.8rem !important;padding:0 12px !important}
 .role-card{height:100%;display:flex;flex-direction:column;gap:8px;padding:18px !important}
@@ -82,6 +83,7 @@ $miId = (int)Auth::getLoggedInUser()['id'];
         <button type="button" class="filter-tab-btn active" data-estado="">Todos <span class="sgs-seg-count" data-cuenta="todos">0</span></button>
         <button type="button" class="filter-tab-btn" data-estado="con_acceso" title="Activos que ya ingresaron al sistema">Con acceso <span class="sgs-seg-count" data-cuenta="con_acceso">0</span></button>
         <button type="button" class="filter-tab-btn" data-estado="por_ingresar" title="Activos que aún no ingresan por primera vez">Por ingresar <span class="sgs-seg-count" data-cuenta="por_ingresar">0</span></button>
+        <button type="button" class="filter-tab-btn" data-estado="por_activar" title="Creados por otro administrador: esperan que la cuenta principal los active">Por activar <span class="sgs-seg-count" data-cuenta="por_activar">0</span></button>
         <button type="button" class="filter-tab-btn" data-estado="sin_acceso" title="Registrados solo con datos personales: falta darles usuario y contraseña">Sin acceso <span class="sgs-seg-count" data-cuenta="sin_acceso">0</span></button>
         <button type="button" class="filter-tab-btn" data-estado="desactivados">Desactivados <span class="sgs-seg-count" data-cuenta="desactivados">0</span></button>
         <button type="button" class="filter-tab-btn" data-estado="bloqueados" title="3 intentos fallidos de contraseña">Bloqueados <span class="sgs-seg-count" data-cuenta="bloqueados">0</span></button>
@@ -234,6 +236,7 @@ $miId = (int)Auth::getLoggedInUser()['id'];
 document.addEventListener('DOMContentLoaded', () => {
   const MI_ID = <?= $miId ?>;
   const ES_ADMIN = <?= $esAdminUsuarios ? 'true' : 'false' ?>, GESTIONA = <?= $gestionaPersonal ? 'true' : 'false' ?>;
+  const PUEDE_ACTIVAR = <?= Auth::puedeActivarUsuarios($miId) ? 'true' : 'false' ?>; // solo la cuenta principal activa (2026-10-26)
   const $ = (s, el = document) => el.querySelector(s);
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const toast = (m, t = 'success') => (window.showToast ? window.showToast(m, t) : alert(m));
@@ -257,11 +260,35 @@ document.addEventListener('DOMContentLoaded', () => {
   }));
 
   // ---------- Catálogos ----------
+  // Permisos por pantalla (2026-10-26): una fila por pantalla, en el orden del menú; editar, eliminar y opciones
+  // dependen de "Ver" (data-requiere): sin Ver se desmarcan y se bloquean (el servidor aplica la misma regla).
+  const SECCIONES = ['Indicadores', 'Supervisiones', 'Seguimiento', 'Observaciones', 'Personal', 'Otros'];
+  const pantallas = () => {
+    const p = {};
+    CAT.permisos.forEach((x) => (p[x.grupo] = p[x.grupo] || { seccion: x.seccion, items: [] }).items.push(x));
+    return SECCIONES.map((s) => [s, Object.entries(p).filter(([, v]) => v.seccion === s)]).filter(([, l]) => l.length);
+  };
+  const etiquetaCorta = (p) => {
+    if (p.accion === 'ver') return 'Ver';
+    const t = p.etiqueta.replace(/^(Ver|Editar|Eliminar|Global):\s*/i, '');
+    return t.charAt(0).toLocaleUpperCase('es') + t.slice(1);
+  };
   function permisosHtml(prefix) {
-    const grupos = {};
-    CAT.permisos.forEach((p) => (grupos[p.grupo] = grupos[p.grupo] || []).push(p));
-    return Object.entries(grupos).map(([g, items]) => `<div class="usr-perm-group"><h6>${esc(g)}</h6><div class="usr-perm-grid">${items.map((p) => `
-      <div class="form-check"><input class="form-check-input" type="checkbox" name="permisos[]" value="${esc(p.clave)}" id="${prefix}_${esc(p.clave)}"><label class="form-check-label" for="${prefix}_${esc(p.clave)}">${esc(p.etiqueta)}</label></div>`).join('')}</div></div>`).join('');
+    const COLS = [['ver', 'Ver'], ['editar', 'Editar'], ['eliminar', 'Eliminar'], [null, 'Opciones']];
+    const casilla = (p) => `<div class="form-check"><input class="form-check-input" type="checkbox" name="permisos[]" value="${esc(p.clave)}" id="${prefix}_${esc(p.clave)}"${p.requiere ? ` data-requiere="${esc(p.requiere)}"` : ''}><label class="form-check-label" for="${prefix}_${esc(p.clave)}">${esc(etiquetaCorta(p))}</label></div>`;
+    const filas = pantallas().map(([sec, lista]) => `<tr class="usr-perm-seccion"><td colspan="5">${esc(sec)}</td></tr>` + lista.map(([g, v]) => `<tr><td data-label="Pantalla" class="fw-bold">${esc(g)}</td>`
+      + COLS.map(([a, t]) => { const ps = v.items.filter((p) => (p.accion || null) === a); return `<td data-label="${t}">${ps.length ? ps.map(casilla).join('') : '<span class="text-muted">—</span>'}</td>`; }).join('') + '</tr>').join('')).join('');
+    return `<div class="table-responsive"><table class="table table-sm mb-0 sgs-tabla-tarjetas usr-perm-tabla"><thead><tr><th>Pantalla</th>${COLS.map(([, t]) => `<th>${t}</th>`).join('')}</tr></thead><tbody>${filas}</tbody></table></div>`;
+  }
+  function aplicarDependencias(cont) {
+    const personal = $('#chkPersonalizar').checked;
+    cont.querySelectorAll('input[name="permisos[]"]').forEach((c) => {
+      const ver = c.dataset.requiere ? cont.querySelector(`input[value="${c.dataset.requiere}"]`) : null;
+      const puede = !c.dataset.requiere || !!ver?.checked;
+      if (!puede) c.checked = false;
+      c.disabled = !personal || !puede;
+      c.closest('.form-check')?.classList.toggle('is-bloqueado', !puede);
+    });
   }
   const rolPermisos = (rol) => (CAT.roles.find((r) => r.rol === rol) || { permisos: [] }).permisos;
   const setChecks = (container, list) => container.querySelectorAll('input[name="permisos[]"]').forEach((c) => (c.checked = list.includes(c.value)));
@@ -322,15 +349,15 @@ document.addEventListener('DOMContentLoaded', () => {
           <td><div class="d-flex align-items-center gap-2"><span class="usr-avatar">${esc(iniciales(u.nombre_completo))}</span><div><div class="usr-name">${esc(u.nombre_completo)}${yo ? ' <span class="badge bg-light">Tú</span>' : ''}</div><div class="usr-sub">${esc(u.usuario || '—')} · DNI ${esc(u.dni)}</div>${u.cargo || u.area_trabajo ? `<div class="usr-sub">${esc([u.cargo, u.area_trabajo].filter(Boolean).join(' · '))}</div>` : ''}</div></div></td>
           <td data-label="Rol y organización"><div class="usr-celda-doble"><span class="badge ${u.rol === 'Supervisor' ? 'bg-primary' : 'bg-dark'}">${esc(u.rol)}</span><small class="usr-org">${directo ? 'WIN Directo' : esc(u.nombre_partner)}</small></div></td>
           <td data-label="Zonas">${u.todas_zonas ? 'Todas' : (u.zonas && u.zonas.length ? esc(u.zonas.join(', ')) : '—')}</td>
-          ${!ES_ADMIN ? '' : `<td data-label="Estado"><div class="usr-celda-doble"><div class="usr-insignias">${u.sin_acceso ? '<span class="badge bg-warning" title="Registrado solo con datos personales: falta que el administrador le dé acceso">Sin acceso</span>' : `<span class="badge ${activo ? 'bg-success' : 'bg-secondary'}">${activo ? 'Activo' : 'Inactivo'}</span>`}${u.bloqueado ? ' <span class="badge bg-danger" title="3 intentos fallidos"><i class="bi bi-lock"></i> Bloqueado</span>' : ''}${u.debe_cambiar_password && !u.sin_acceso ? ' <span class="badge bg-warning" title="Al ingresar, el sistema le pedirá crear su propia contraseña">Cambiará su contraseña</span>' : ''}</div>
+          ${!ES_ADMIN ? '' : `<td data-label="Estado"><div class="usr-celda-doble"><div class="usr-insignias">${u.sin_acceso ? '<span class="badge bg-warning" title="Registrado solo con datos personales: falta que el administrador le dé acceso">Sin acceso</span>' : (+u.por_activar === 1 && !activo ? '<span class="badge bg-warning" title="Espera que la cuenta principal lo active">Por activar</span>' : `<span class="badge ${activo ? 'bg-success' : 'bg-secondary'}">${activo ? 'Activo' : 'Inactivo'}</span>`)}${u.bloqueado ? ' <span class="badge bg-danger" title="3 intentos fallidos"><i class="bi bi-lock"></i> Bloqueado</span>' : ''}${u.debe_cambiar_password && !u.sin_acceso ? ' <span class="badge bg-warning" title="Al ingresar, el sistema le pedirá crear su propia contraseña">Cambiará su contraseña</span>' : ''}</div>
             <small class="usr-ingreso" title="Último ingreso">${u.ultimo_acceso ? '<i class="bi bi-box-arrow-in-right"></i> ' + esc(fechaHora(u.ultimo_acceso)) : 'Nunca ingresó'}</small></div></td>`}
-          <td class="text-end"><div class="sgs-row-actions">${!ES_ADMIN ? (GESTIONA && u.rol !== 'Administrador'
+          <td class="text-end"><div class="sgs-row-actions">${u.protegido && !yo ? '<span class="badge bg-secondary" title="Solo su titular puede verla o modificarla"><i class="bi bi-shield-lock me-1"></i>Cuenta protegida</span></div></td></tr>' : !ES_ADMIN ? (GESTIONA && u.rol !== 'Administrador'
             ? `<button class="sgs-icon-action" title="Editar datos personales" aria-label="Editar datos personales" data-personal="${u.id}"><i class="bi bi-pencil"></i></button>`
             : `<button class="sgs-icon-action" title="Ver ficha" aria-label="Ver ficha" data-ficha="${u.id}"><i class="bi bi-eye"></i></button>`) + '</div></td></tr>' : `
             <button class="sgs-icon-action" title="${u.sin_acceso ? 'Completar acceso' : 'Editar'}" aria-label="${u.sin_acceso ? 'Completar acceso' : 'Editar'}" data-edit="${u.id}"><i class="bi ${u.sin_acceso ? 'bi-person-gear' : 'bi-pencil'}"></i></button>
             ${u.bloqueado ? `<button class="sgs-icon-action" title="Desbloquear" aria-label="Desbloquear usuario" data-unlock="${u.id}" data-name="${esc(u.nombre_completo)}"><i class="bi bi-unlock"></i></button>` : ''}
             <button class="sgs-icon-action" title="Restablecer contraseña" aria-label="Restablecer contraseña" data-pw="${u.id}" data-name="${esc(u.nombre_completo)}"><i class="bi bi-key"></i></button>
-            ${yo || u.sin_acceso ? '' : `<button class="sgs-icon-action ${activo ? 'sgs-icon-action--danger' : ''}" title="${activo ? 'Desactivar' : 'Activar'}" aria-label="${activo ? 'Desactivar' : 'Activar'}" data-state="${u.id}" data-to="${activo ? 0 : 1}" data-name="${esc(u.nombre_completo)}"><i class="bi ${activo ? 'bi-person-dash' : 'bi-person-check'}"></i></button>`}
+            ${yo || u.sin_acceso || (!activo && !PUEDE_ACTIVAR) ? '' : `<button class="sgs-icon-action ${activo ? 'sgs-icon-action--danger' : ''}" title="${activo ? 'Desactivar' : 'Activar'}" aria-label="${activo ? 'Desactivar' : 'Activar'}" data-state="${u.id}" data-to="${activo ? 0 : 1}" data-name="${esc(u.nombre_completo)}"><i class="bi ${activo ? 'bi-person-dash' : 'bi-person-check'}"></i></button>`}
           </div></td></tr>`}`;
       }).join('') : `<tr><td colspan="${ES_ADMIN ? 5 : 4}" class="text-center text-muted py-4"><i class="bi bi-inbox d-block fs-3 mb-1"></i>No hay personas con esos filtros.</td></tr>`;
     } catch (e) { body.innerHTML = `<tr><td colspan="${ES_ADMIN ? 5 : 4}" class="text-center text-danger py-4">${esc(e.message)}</td></tr>`; }
@@ -355,13 +382,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const todas = $('#chkTodasZonas').checked;
     $('#zonas').querySelectorAll('input').forEach((c) => (c.disabled = todas));
     const personal = $('#chkPersonalizar').checked;
-    $('#permisos').querySelectorAll('input').forEach((c) => (c.disabled = !personal));
     if (!personal) setChecks($('#permisos'), rolPermisos(rol));
+    aplicarDependencias($('#permisos'));
     $('#permHint').textContent = personal ? 'Permisos personalizados solo para este usuario.' : 'Usa los permisos por defecto del rol. Activa "Personalizar" para ajustarlos.';
   }
   ['rol', 'organizacion'].forEach((n) => fU[n].addEventListener('change', syncForm));
 
   $('#chkPersonalizar').addEventListener('change', syncForm);
+  $('#permisos').addEventListener('change', (e) => { if (e.target.name === 'permisos[]') aplicarDependencias($('#permisos')); });
   $('#chkTodasZonas').addEventListener('change', syncForm);
   let zonaBase = '';
   $('#btnGenerarPw').addEventListener('click', () => {
@@ -390,7 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
       $('#chkPersonalizar').checked = !!u.permisos_personalizados;
     } else { fU.rol.value = 'Supervisor'; fU.organizacion.value = 'directo'; llenarLista(fU.area_trabajo, CAT.areas); llenarLista(fU.cargo, CAT.cargos); }
     syncForm();
-    if (u && u.permisos_personalizados) setChecks($('#permisos'), u.permisos || []);
+    if (u && u.permisos_personalizados) { setChecks($('#permisos'), u.permisos || []); aplicarDependencias($('#permisos')); }
     mUsuario.show();
   }
   $('#btnNuevoUsuario')?.addEventListener('click', () => abrirUsuario());
@@ -451,15 +479,15 @@ document.addEventListener('DOMContentLoaded', () => {
     </div></div>`).join('');
     // Matriz: filas = módulos (grupos con permisos de ver/editar/eliminar), columnas = roles
     const ACC = [['ver', 'Ver'], ['editar', 'Editar'], ['eliminar', 'Eliminar']];
-    const modulos = [...new Set(CAT.permisos.filter((p) => p.accion).map((p) => p.grupo))];
+    const conAccion = new Set(CAT.permisos.filter((p) => p.accion).map((p) => p.grupo));
     const celda = (rol, grupo) => ACC.map(([a, txt]) => {
       const perms = CAT.permisos.filter((p) => p.grupo === grupo && p.accion === a);
       if (!perms.length) return '';
       const tiene = perms.filter((p) => rol.permisos.includes(p.clave));
       return `<span class="perm-acc is-${a}${tiene.length ? '' : ' is-no'}" title="${esc(perms.map((p) => `${rol.permisos.includes(p.clave) ? 'Sí' : 'No'}: ${p.etiqueta}`).join('\n'))}">${tiene.length ? '' : '<s>'}${txt}${tiene.length ? '' : '</s>'}</span>`;
     }).join('');
-    $('#matrizPermisos').innerHTML = `<thead><tr><th>Módulo</th>${CAT.roles.map((r) => `<th>${esc(r.rol)}</th>`).join('')}</tr></thead>`
-      + `<tbody>${modulos.map((g) => `<tr><td data-label="Módulo" class="fw-bold">${esc(g)}</td>${CAT.roles.map((r) => `<td data-label="${esc(r.rol)}"><div class="perm-accs">${celda(r, g)}</div></td>`).join('')}</tr>`).join('')}</tbody>`;
+    $('#matrizPermisos').innerHTML = `<thead><tr><th>Pantalla</th>${CAT.roles.map((r) => `<th>${esc(r.rol)}</th>`).join('')}</tr></thead>`
+      + `<tbody>${pantallas().map(([sec, lista]) => `<tr class="usr-perm-seccion"><td colspan="${CAT.roles.length + 1}">${esc(sec)}</td></tr>` + lista.filter(([g]) => conAccion.has(g)).map(([g]) => `<tr><td data-label="Pantalla" class="fw-bold">${esc(g)}</td>${CAT.roles.map((r) => `<td data-label="${esc(r.rol)}"><div class="perm-accs">${celda(r, g)}</div></td>`).join('')}</tr>`).join('')).join('')}</tbody>`;
   }
 
   // ---------- Personal: solo datos personales (agregar, editar o ver ficha) ----------

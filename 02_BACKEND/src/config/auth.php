@@ -140,34 +140,54 @@ class Auth {
                 // Durante una migración pendiente se conservan de forma segura los permisos del rol.
             }
         }
-        return self::$permissionOverrides[$userId][$permission] ?? $allowed;
+        $tiene = self::$permissionOverrides[$userId][$permission] ?? $allowed;
+        // 2026-10-26: sin "Ver" de la pantalla no hay editar, eliminar ni opciones en ella (aunque hubiera quedado marcado)
+        if ($tiene && ($requerido = self::permisoRequerido($permission)) !== null) return self::can($requerido, $user);
+        return $tiene;
+    }
+
+    /** Permiso "Ver" de la pantalla a la que pertenece $permission (null si es el propio Ver o no depende de uno). */
+    public static function permisoRequerido(string $permission): ?string {
+        static $ver = null;
+        if ($ver === null) {
+            $ver = [];
+            foreach (self::permissionCatalog() as $clave => $d) if ($d['delegable'] && ($d['action'] ?? '') === 'ver') $ver[$d['group']] = $clave;
+        }
+        $d = self::permissionCatalog()[$permission] ?? null;
+        if (!$d || ($d['action'] ?? '') === 'ver') return null;
+        return $ver[$d['group']] ?? null;
+    }
+
+    /** Quita de una lista los permisos cuya pantalla no se puede ver (al guardar permisos personalizados). */
+    public static function conDependencias(array $permisos): array {
+        return array_values(array_filter($permisos, static fn($p) => ($r = self::permisoRequerido((string)$p)) === null || in_array($r, $permisos, true)));
     }
 
     public static function permissionCatalog(): array {
         static $catalogo = null;
         return $catalogo ??= [
             self::PERM_SUPERVISION_VIEW => ['group'=>'Supervisiones','label'=>'Ver el módulo de supervisiones','action'=>'ver','delegable'=>true],
-            self::PERM_SUPERVISION_VIEW_ALL => ['group'=>'Supervisiones · Visibilidad','label'=>'Global: ver registros de todos los usuarios','delegable'=>true],
+            self::PERM_SUPERVISION_VIEW_ALL => ['group'=>'Supervisiones','label'=>'Global: ver registros de todos los usuarios','delegable'=>true],
             self::PERM_SUPERVISION_CREATE => ['group'=>'Supervisiones','label'=>'Editar: registrar y completar supervisiones','action'=>'editar','delegable'=>true],
             self::PERM_SUPERVISION_ASSIGN => ['group'=>'Supervisiones','label'=>'Asignar pendientes a responsables','action'=>'editar','delegable'=>true],
             self::PERM_SUPERVISION_FILTERS => ['group'=>'Supervisiones','label'=>'Usar filtros y configuración de columnas','delegable'=>true],
-            self::PERM_SUPERVISION_FILTER_DATE => ['group'=>'Supervisiones · Filtros','label'=>'Rango de fechas','delegable'=>true],
-            self::PERM_SUPERVISION_FILTER_STATUS => ['group'=>'Supervisiones · Filtros','label'=>'Estados de supervisión','delegable'=>true],
-            self::PERM_SUPERVISION_FILTER_COLUMNS => ['group'=>'Supervisiones · Filtros','label'=>'Columnas visibles','delegable'=>true],
+            self::PERM_SUPERVISION_FILTER_DATE => ['group'=>'Supervisiones','label'=>'Rango de fechas','delegable'=>true],
+            self::PERM_SUPERVISION_FILTER_STATUS => ['group'=>'Supervisiones','label'=>'Estados de supervisión','delegable'=>true],
+            self::PERM_SUPERVISION_FILTER_COLUMNS => ['group'=>'Supervisiones','label'=>'Columnas visibles','delegable'=>true],
             self::PERM_SUPERVISION_MAP => ['group'=>'Supervisiones','label'=>'Ver mapa y rutas de pendientes','delegable'=>true],
-            self::PERM_FORM_FINDINGS => ['group'=>'Formularios','label'=>'Abrir formulario de hallazgos','delegable'=>true],
-            self::PERM_FORM_CHECKLIST => ['group'=>'Formularios','label'=>'Abrir checklist técnico','delegable'=>true],
+            self::PERM_FORM_FINDINGS => ['group'=>'Supervisiones','label'=>'Abrir formulario de hallazgos','delegable'=>true],
+            self::PERM_FORM_CHECKLIST => ['group'=>'Supervisiones','label'=>'Abrir checklist técnico','delegable'=>true],
             self::PERM_OBSERVATION_VIEW => ['group'=>'Observaciones','label'=>'Ver observaciones','action'=>'ver','delegable'=>true],
             self::PERM_OBSERVATION_RESPOND => ['group'=>'Observaciones','label'=>'Responder observaciones del partner (levantamiento con fotos)','action'=>'editar','delegable'=>true],
-            self::PERM_OBSERVATION_FILTER_DATE => ['group'=>'Observaciones · Filtros','label'=>'Rango de fechas','delegable'=>true],
-            self::PERM_OBSERVATION_FILTER_ADVANCED => ['group'=>'Observaciones · Filtros','label'=>'Partner, técnico, zona y estado','delegable'=>true],
+            self::PERM_OBSERVATION_FILTER_DATE => ['group'=>'Observaciones','label'=>'Rango de fechas','delegable'=>true],
+            self::PERM_OBSERVATION_FILTER_ADVANCED => ['group'=>'Observaciones','label'=>'Partner, técnico, zona y estado','delegable'=>true],
             self::PERM_OBSERVATION_REVIEW => ['group'=>'Observaciones','label'=>'Revisar y validar observaciones','action'=>'editar','delegable'=>true],
             self::PERM_OBSERVATION_DELETE => ['group'=>'Observaciones','label'=>'Eliminar observaciones','action'=>'eliminar','delegable'=>true],
-            self::PERM_USERS_VIEW => ['group'=>'Usuarios','label'=>'Ver usuarios (solo consulta; el partner ve solo a su partner y sus zonas)','action'=>'ver','delegable'=>true],
-            self::PERM_STAFF_MANAGE => ['group'=>'Usuarios','label'=>'Agregar y editar personal (solo datos personales; sin acceso, rol ni activar)','action'=>'editar','delegable'=>true],
-            self::PERM_DASHBOARD_VIEW => ['group'=>'Indicadores','label'=>'Ver Dashboard de supervisiones','action'=>'ver','delegable'=>true],
-            self::PERM_PARTNERS_DASHBOARD => ['group'=>'Indicadores','label'=>'Ver Dashboard de partners','action'=>'ver','delegable'=>true],
-            self::PERM_PENDIENTES_VIEW => ['group'=>'Indicadores','label'=>'Ver Pendientes y rescates','action'=>'ver','delegable'=>true],
+            self::PERM_USERS_VIEW => ['group'=>'Usuarios y roles','label'=>'Ver usuarios (solo consulta; el partner ve solo a su partner y sus zonas)','action'=>'ver','delegable'=>true],
+            self::PERM_STAFF_MANAGE => ['group'=>'Usuarios y roles','label'=>'Agregar y editar personal (solo datos personales; sin acceso, rol ni activar)','action'=>'editar','delegable'=>true],
+            self::PERM_DASHBOARD_VIEW => ['group'=>'Dashboard de supervisiones','label'=>'Ver Dashboard de supervisiones','action'=>'ver','delegable'=>true],
+            self::PERM_PARTNERS_DASHBOARD => ['group'=>'Dashboard de partners','label'=>'Ver Dashboard de partners','action'=>'ver','delegable'=>true],
+            self::PERM_PENDIENTES_VIEW => ['group'=>'Pendientes y rescates','label'=>'Ver Pendientes y rescates','action'=>'ver','delegable'=>true],
             self::PERM_CLIMA_VIEW => ['group'=>'Clima','label'=>'Ver: indicador de clima y lluvias','action'=>'ver','delegable'=>true],
             self::PERM_CLIMA_EDIT => ['group'=>'Clima','label'=>'Editar: avisar y cerrar lluvias en su zona (Mi turno)','action'=>'editar','delegable'=>true],
             self::PERM_CLIMA_DELETE => ['group'=>'Clima','label'=>'Eliminar registros de lluvia','action'=>'eliminar','delegable'=>true],
@@ -180,8 +200,8 @@ class Auth {
             self::PERM_PARTNERS_VIEW => ['group'=>'Partners','label'=>'Ver partners','action'=>'ver','delegable'=>true],
             self::PERM_PARTNERS_EDIT => ['group'=>'Partners','label'=>'Editar: crear, renombrar, activar y desactivar partners','action'=>'editar','delegable'=>true],
             self::PERM_PARTNERS_DELETE => ['group'=>'Partners','label'=>'Eliminar partners (solo sin historial)','action'=>'eliminar','delegable'=>true],
-            self::PERM_TIMELINE_VIEW => ['group'=>'Indicadores','label'=>'Ver línea de tiempo','action'=>'ver','delegable'=>true],
-            self::PERM_ATTENDANCE_SELF => ['group'=>'Operación personal','label'=>'Registrar el propio turno','action'=>'editar','delegable'=>true],
+            self::PERM_TIMELINE_VIEW => ['group'=>'Línea de tiempo','label'=>'Ver línea de tiempo','action'=>'ver','delegable'=>true],
+            self::PERM_ATTENDANCE_SELF => ['group'=>'Mi turno','label'=>'Registrar el propio turno','action'=>'editar','delegable'=>true],
             self::PERM_USERS_MANAGE => ['group'=>'Reservado','label'=>'Administrar usuarios','delegable'=>false],
             self::PERM_SUPERVISION_DELETE => ['group'=>'Reservado','label'=>'Eliminar supervisiones','delegable'=>false],
             self::PERM_SUPERVISION_IMPORT => ['group'=>'Reservado','label'=>'Importar cancelaciones','delegable'=>false],
@@ -195,6 +215,18 @@ class Auth {
 
     public static function isLoggedIn(): bool {
         if (empty($_SESSION['user_id'])) return false;
+        // 4 horas sin ninguna petición: se cierra la sesión (2026-10-26). La pantalla además la cierra si nadie la usa.
+        if (PHP_SAPI !== 'cli') {
+            $ultimo = (int)($_SESSION['sgs_ultimo_uso'] ?? time());
+            if (time() - $ultimo > SGS_SESION_INACTIVA) {
+                win_log_error('session_idle', 'Sesión cerrada por inactividad', ['user_id' => (int)$_SESSION['user_id']]);
+                self::logout();
+                if (session_status() !== PHP_SESSION_ACTIVE) @session_start();
+                $_SESSION['sgs_motivo_salida'] = 'inactividad';
+                return false;
+            }
+            $_SESSION['sgs_ultimo_uso'] = time();
+        }
         // Una cuenta desactivada o eliminada pierde el acceso aunque su sesión siga abierta.
         // Se revalida contra la BD como máximo una vez por minuto para no consultar en cada llamada.
         if (PHP_SAPI !== 'cli' && time() - (int)($_SESSION['sgs_revalidated_at'] ?? 0) >= 60) {
@@ -245,6 +277,39 @@ class Auth {
     public const LOCKED_MESSAGE = 'Superaste los 3 intentos permitidos y tu usuario quedó bloqueado. Comunícate con el administrador del sistema para recuperar tu acceso.';
     private const LOCK_UNTIL = '2099-12-31 23:59:59'; // indefinido: solo el administrador lo libera
 
+    /** Cuentas protegidas (2026-10-26): nadie más puede verlas en detalle ni modificarlas (datos, rol, permisos, contraseña,
+     * estado, desbloqueo); solo su titular. Para que no las pueda tomar otra cuenta. Como nadie más puede desbloquearlas,
+     * sus intentos fallidos las bloquean 30 minutos, no de forma indefinida. */
+    public const USUARIOS_PROTEGIDOS = ['eplasencia'];
+    private const LOCK_PROTEGIDA_MINUTOS = 30;
+
+    /** Cuenta principal (2026-10-26): la primera cuenta protegida activa. Es la única que activa usuarios; si no existe, cualquier administrador. */
+    public static function cuentaPrincipalId(): ?int {
+        static $id = false;
+        if ($id === false) {
+            $in = implode(',', array_fill(0, count(self::USUARIOS_PROTEGIDOS), '?'));
+            $st = Database::getConnection()->prepare("SELECT id FROM usuarios WHERE activo = 1 AND usuario IN ($in) ORDER BY id LIMIT 1");
+            $st->execute(self::USUARIOS_PROTEGIDOS);
+            $id = ($v = $st->fetchColumn()) ? (int)$v : null;
+        }
+        return $id;
+    }
+
+    public static function puedeActivarUsuarios(int $actorId): bool {
+        $principal = self::cuentaPrincipalId();
+        return $principal === null || $principal === $actorId;
+    }
+
+    public static function esProtegido(int $userId): bool {
+        static $cache = [];
+        if (!array_key_exists($userId, $cache)) {
+            $st = Database::getConnection()->prepare('SELECT usuario FROM usuarios WHERE id = :id');
+            $st->execute([':id' => $userId]);
+            $cache[$userId] = in_array((string)$st->fetchColumn(), self::USUARIOS_PROTEGIDOS, true);
+        }
+        return $cache[$userId];
+    }
+
     private static function accountKey(int $userId): string { return hash('sha256', 'sgs-cuenta|' . $userId); }
 
     public static function accountLocked(int $userId): bool {
@@ -254,14 +319,15 @@ class Auth {
     }
 
     /** Suma un intento fallido y devuelve cuántos quedan (0 = quedó bloqueado). */
-    private static function registerFailedLogin(int $userId): int {
+    private static function registerFailedLogin(int $userId, bool $protegida = false): int {
         $pdo = Database::getConnection(); $key = self::accountKey($userId);
         $pdo->prepare('INSERT INTO login_attempts (fingerprint, attempts, first_attempt_at, last_attempt_at, blocked_until) VALUES (:f, 1, NOW(), NOW(), NULL)
             ON DUPLICATE KEY UPDATE attempts = attempts + 1, last_attempt_at = NOW()')->execute([':f' => $key]);
         $st = $pdo->prepare('SELECT attempts FROM login_attempts WHERE fingerprint = :f'); $st->execute([':f' => $key]);
         $intentos = (int)$st->fetchColumn();
         if ($intentos >= self::MAX_LOGIN_FAILURES) {
-            $pdo->prepare('UPDATE login_attempts SET blocked_until = :hasta WHERE fingerprint = :f')->execute([':hasta' => self::LOCK_UNTIL, ':f' => $key]);
+            $hasta = $protegida ? date('Y-m-d H:i:s', time() + self::LOCK_PROTEGIDA_MINUTOS * 60) : self::LOCK_UNTIL;
+            $pdo->prepare('UPDATE login_attempts SET blocked_until = :hasta WHERE fingerprint = :f')->execute([':hasta' => $hasta, ':f' => $key]);
             return 0;
         }
         return self::MAX_LOGIN_FAILURES - $intentos;
@@ -303,15 +369,18 @@ class Auth {
             return ['status' => 'error', 'message' => 'Usuario o contraseña incorrectos.'];
         }
 
-        // Bloqueo por cuenta: 3 intentos fallidos seguidos bloquean el usuario hasta que el administrador lo libere.
+        // Bloqueo por cuenta: 3 intentos fallidos seguidos bloquean el usuario hasta que el administrador lo libere
+        // (una cuenta protegida, 30 minutos: nadie más puede liberarla).
+        $protegida = in_array((string)$user['usuario'], self::USUARIOS_PROTEGIDOS, true);
+        $mensajeBloqueo = $protegida ? 'Superaste los ' . self::MAX_LOGIN_FAILURES . ' intentos permitidos. Por seguridad, la cuenta quedó bloqueada ' . self::LOCK_PROTEGIDA_MINUTOS . ' minutos.' : self::LOCKED_MESSAGE;
         if (self::accountLocked((int)$user['id'])) {
-            return ['status' => 'error', 'locked' => true, 'cuenta' => true, 'message' => self::LOCKED_MESSAGE];
+            return ['status' => 'error', 'locked' => true, 'cuenta' => true, 'message' => $mensajeBloqueo];
         }
         if (!password_verify($password, $user['password_hash'])) {
-            $restantes = self::registerFailedLogin((int)$user['id']);
+            $restantes = self::registerFailedLogin((int)$user['id'], $protegida);
             if ($restantes <= 0) {
-                win_log_error('audit_account_locked', 'Usuario bloqueado por ' . self::MAX_LOGIN_FAILURES . ' intentos fallidos', ['target_id' => (int)$user['id']]);
-                return ['status' => 'error', 'locked' => true, 'cuenta' => true, 'message' => self::LOCKED_MESSAGE];
+                win_log_error('audit_account_locked', 'Usuario bloqueado por ' . self::MAX_LOGIN_FAILURES . ' intentos fallidos', ['target_id' => (int)$user['id'], 'protegida' => $protegida]);
+                return ['status' => 'error', 'locked' => true, 'cuenta' => true, 'message' => $mensajeBloqueo];
             }
             return ['status' => 'error', 'cuenta' => true, 'message' => 'Usuario o contraseña incorrectos. ' . ($restantes === 1 ? 'Te queda 1 intento.' : "Te quedan {$restantes} intentos.")];
         }
@@ -322,6 +391,7 @@ class Auth {
         // Crear Sesión segura únicamente después de completar la autenticación.
         session_regenerate_id(true);
         $_SESSION['user_id'] = $user['id'];
+        $_SESSION['sgs_ultimo_uso'] = time();
         $_SESSION['user_dni'] = $user['dni'];
         $_SESSION['user_nombres'] = $user['nombres'] ?? '';
         $_SESSION['user_apellidos'] = $user['apellidos'] ?? '';

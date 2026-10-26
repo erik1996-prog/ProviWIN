@@ -1,0 +1,18 @@
+{
+  "name": "SGS WIN · Gestión de Supervisión",
+  "short_name": "SGS WIN",
+  "description": "Sistema de Gestión de Supervisión de WIN: turno, supervisiones, observaciones y clima.",
+  "lang": "es-PE",
+  "start_url": "./index.php?origen=app",
+  "scope": "./",
+  "id": "./?app=sgs-win",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FF5A0A",
+  "theme_color": "#FF5A0A",
+  "icons": [
+    { "src": "03_FRONTEND/src/assets/img/app/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "03_FRONTEND/src/assets/img/app/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "03_FRONTEND/src/assets/img/app/icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

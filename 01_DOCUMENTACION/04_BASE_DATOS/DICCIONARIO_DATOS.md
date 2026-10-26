@@ -153,6 +153,7 @@ Usuarios del sistema (personal WIN y de partners) · Depende de: `partners`
 | `observacion` | text | sí |  |  |
 | `partner_id` | int(11) | sí | FK → `partners` |  |
 | `activo` | tinyint(1) | sí |  |  |
+| `por_activar` | tinyint(1) | no |  | Espera que la cuenta principal lo active (no puede ingresar) |
 | `ultimo_acceso` | datetime | sí |  | Último inicio de sesión correcto en SGS |
 | `debe_cambiar_password` | tinyint(1) | no |  | 1 = al ingresar debe cambiar su contraseña (temporal) |
 | `fecha_creacion` | datetime | sí |  |  |

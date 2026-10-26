@@ -133,9 +133,14 @@ $needsLeaflet = $page === 'admin_dashboard'
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
+    <meta name="sgs-inactividad" content="<?= (int)SGS_SESION_INACTIVA ?>">
     <title><?= htmlspecialchars($pageTitle . ' · ' . SYSTEM_CODE) ?></title>
     <link rel="icon" type="image/svg+xml" href="03_FRONTEND/src/assets/img/favicon.svg?v=<?= rawurlencode(ASSET_VERSION) ?>">
-    <link rel="apple-touch-icon" href="03_FRONTEND/src/assets/img/favicon.svg">
+    <!-- App instalable (PWA, 2026-10-26): manifest.webmanifest + sw.js -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="03_FRONTEND/src/assets/img/app/icono-apple-180.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="SGS WIN">
     <meta name="theme-color" content="#FF5A0A">
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -150,8 +155,14 @@ $needsLeaflet = $page === 'admin_dashboard'
     <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <?php endif; ?>
     <link rel="stylesheet" href="<?= $assets ?>/css/sgs-theme.css?v=<?= rawurlencode(ASSET_VERSION) ?>">
+    <?php $abreApp = ($_GET['origen'] ?? '') === 'app'; if ($abreApp): ?><link rel="stylesheet" href="<?= $assets ?>/css/sgs-bienvenida.css?v=<?= rawurlencode(ASSET_VERSION) ?>"><?php endif; ?>
 </head>
 <body data-page="<?= htmlspecialchars($page) ?>" data-role="<?= $isPartnerSupervisor ? 'partner' : ($isDirectSupervisorView ? 'directo' : 'gestion') ?>">
+<?php if ($abreApp) { // App abierta desde el ícono (2026-10-26): bienvenida con el primer nombre
+    $primerNombre = mb_convert_case(mb_strtolower(strtok(trim((string)($user['nombres'] ?? '')), ' ') ?: '', 'UTF-8'), MB_CASE_TITLE, 'UTF-8');
+    $bienvenidaAlAbrir = true; $bienvenidaSaludo = $primerNombre ? "¡Hola, {$primerNombre}!" : '¡Hola!';
+    require FRONTEND_PATH . '/layouts/bienvenida.php';
+} ?>
     <a class="skip-to-content" href="#main-content-area">Ir al contenido principal</a>
 
     <div id="wrapper">
@@ -176,6 +187,8 @@ $needsLeaflet = $page === 'admin_dashboard'
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="<?= $assets ?>/js/main.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
+    <script src="<?= $assets ?>/js/app-instalable.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
+    <?php if ($abreApp): ?><script src="<?= $assets ?>/js/bienvenida.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
     <?php if (in_array($page, ['mi_informacion', 'usuarios'], true)): ?><script src="<?= $assets ?>/js/password-meter.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><script src="<?= $assets ?>/js/aviso-mayusculas.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
     <?php if (in_array($page, ['cuadrillas', 'supervision_lista'], true)): ?><script src="<?= $assets ?>/js/vencimientos.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
     <script src="<?= $assets ?>/js/error-monitor.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>

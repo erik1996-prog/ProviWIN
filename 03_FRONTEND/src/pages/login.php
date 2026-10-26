@@ -10,13 +10,17 @@ $assets = '03_FRONTEND/src/assets';
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Iniciar sesión · <?= htmlspecialchars(SYSTEM_CODE) ?> WIN</title>
 <link rel="icon" type="image/svg+xml" href="03_FRONTEND/src/assets/img/favicon.svg?v=<?= rawurlencode(ASSET_VERSION) ?>">
-<link rel="apple-touch-icon" href="03_FRONTEND/src/assets/img/favicon.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="03_FRONTEND/src/assets/img/app/icono-apple-180.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SGS WIN">
 <meta name="theme-color" content="#FF5A0A">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="<?= $assets ?>/css/sgs-bienvenida.css?v=<?= rawurlencode(ASSET_VERSION) ?>">
 <link rel="stylesheet" href="<?= $assets ?>/css/sgs-login.css?v=<?= rawurlencode(ASSET_VERSION) ?>.<?= (int)@filemtime(FRONTEND_PATH . '/assets/css/sgs-login.css') ?>">
 </head>
 <body class="sgs-login">
@@ -30,6 +34,9 @@ $assets = '03_FRONTEND/src/assets';
       <h1>Iniciar sesión</h1>
       <p class="sgs-sub">Ingresa tus datos de acceso.</p>
 
+      <?php if (($_GET['motivo'] ?? '') === 'inactividad' || ($_SESSION['sgs_motivo_salida'] ?? '') === 'inactividad'): unset($_SESSION['sgs_motivo_salida']); ?>
+      <div class="alert alert-info sgs-alert" role="status">Tu sesión se cerró por 4 horas sin actividad. Vuelve a ingresar.</div>
+      <?php endif; ?>
       <div class="alert alert-danger sgs-alert d-none" id="loginAlert" role="alert"></div>
 
       <form id="loginForm" novalidate>
@@ -64,7 +71,10 @@ $assets = '03_FRONTEND/src/assets';
     <small>ProviWIN · <?= htmlspecialchars(SYSTEM_CODE) ?> v<?= htmlspecialchars(APP_VERSION) ?></small>
   </footer>
 
+  <?php $bienvenidaAlAbrir = ($_GET['origen'] ?? '') === 'app'; $bienvenidaSaludo = $bienvenidaAlAbrir ? 'SGS WIN' : '¡Hola!'; require FRONTEND_PATH . '/layouts/bienvenida.php'; ?>
 <script src="<?= $assets ?>/js/aviso-mayusculas.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
+<script src="<?= $assets ?>/js/app-instalable.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
+<script src="<?= $assets ?>/js/bienvenida.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
 <script>
 (() => {
   const $ = id => document.getElementById(id);
@@ -91,6 +101,13 @@ $assets = '03_FRONTEND/src/assets';
     alert('Comunícate con el administrador del sistema para recuperar o solicitar tu acceso.');
   }));
 
+  // Bienvenida (~2 s, layouts/bienvenida.php + bienvenida.js) con el primer nombre y luego entra al sistema
+  const bienvenida = (user) => {
+    const nombre = String(user?.nombres || user?.nombre || '').trim().split(/\s+/)[0] || '';
+    const n = nombre ? nombre.charAt(0).toLocaleUpperCase('es') + nombre.slice(1).toLocaleLowerCase('es') : '';
+    window.sgsBienvenida(n ? `¡Hola, ${n}!` : '¡Hola!', () => location.replace('index.php'));
+  };
+
   $('loginForm').onsubmit = async e => {
     e.preventDefault();
     clearError();
@@ -107,7 +124,7 @@ $assets = '03_FRONTEND/src/assets';
         body: JSON.stringify({ usuario, password })
       });
       const data = await res.json().catch(() => ({}));
-      if (data.status === 'success') { location.replace('index.php'); return; }
+      if (data.status === 'success') { bienvenida(data.user); return; }
       $('pass').value = ''; showError(data.message || 'No se pudo iniciar sesión. Inténtelo nuevamente.', 'pass');
     } catch (_) {
       showError('No hay conexión con el servidor. Inténtelo nuevamente.');

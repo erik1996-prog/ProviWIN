@@ -4,6 +4,30 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### App instalable en el celular (PWA, 2026-10-26)
+- **Añadido**: el sistema se instala como app desde Chrome (ícono WIN y nombre "SGS WIN" en la pantalla del celular, abre a pantalla completa con la barra en naranja). Botón "Instalar app" en el menú, que aparece solo cuando el equipo lo permite.
+- `manifest.webmanifest`, íconos en `03_FRONTEND/src/assets/img/app/`, `app-instalable.js` (en index.php y login.php) y `sw.js`. Liviano: el trabajador de fondo no guarda páginas, datos ni la API; solo muestra `offline.html` ("Sin conexión") cuando una pantalla no carga por falta de señal. `.htaccess`: tipo del manifiesto y `sw.js` sin caché.
+- Necesita HTTPS (el hosting ya lo tiene). Base para generar después una APK (TWA) si se quiere.
+- **Bienvenida al abrir la app** desde el ícono (`start_url` con `?origen=app`): la misma animación del ingreso; con sesión saluda por nombre, sin sesión muestra "SGS WIN" y luego el ingreso. Se quita `?origen=app` para que recargar no la repita. La bienvenida pasa a ser un componente (`layouts/bienvenida.php`, `sgs-bienvenida.css`, `bienvenida.js`) que usan el ingreso y la apertura de la app.
+- **Una sola pantalla al abrir**: Android muestra primero su pantalla propia (naranja + logo, no se puede quitar). La bienvenida de la app ahora arranca igual —naranja plano y el logo solo al centro— y desde ahí sube el logo, aparecen las fibras, el saludo y la barra (2,4 s): se ve como una sola animación.
+- **Corregido**: al abrir la app salía siempre "Activa tu ubicación / Verificando ubicación…" (el GPS se revisaba por sesión y cada apertura es una sesión nueva) y tapaba la bienvenida. Ahora la última ubicación sobrevive entre aperturas (localStorage, 15 min), la primera verificación es silenciosa y la pantalla del GPS aparece solo si falla, falta el permiso o tarda más de 6 s. La bienvenida va por encima de todo mientras dura.
+
+### Roles y permisos por pantalla y usuarios por activar (2026-10-26)
+- **Corregido**: quitar "Ver" de una pantalla dejaba marcados Editar, Eliminar o Agregar. Ahora el catálogo es por pantalla (una por cada pantalla del menú) y todo lo de una pantalla depende de su "Ver": en el editor se desmarca y bloquea, al guardar se descarta (`Auth::conDependencias`) y en el servidor no vale aunque hubiera quedado de antes (`Auth::can` exige el "Ver", `Auth::permisoRequerido`).
+- **Rediseño del editor de permisos**: una fila por pantalla, agrupadas como el menú (Indicadores, Supervisiones, Seguimiento, Observaciones, Personal), con columnas Ver / Editar / Eliminar / Opciones. La matriz "Qué puede hacer cada rol" usa las mismas pantallas y secciones.
+- **Usuarios por activar**: si un usuario lo crea (o le da acceso) un administrador que no es la cuenta principal, queda "Por activar": no ingresa hasta que la cuenta principal lo active; ella recibe el aviso en la campana. Solo la cuenta principal activa usuarios; los demás administradores pueden desactivar. Estado nuevo "Por activar" en Usuarios y roles. Cambio de base `2026-10-26_03_usuarios_por_activar_por_la_cuenta_principal` (columna `usuarios.por_activar`).
+- **Roles al día en cada actualización**: prueba nueva `05_TEST/api/catalogo_permisos_test.php` falla si una pantalla pide un permiso que no está en Roles y permisos, si un permiso no tiene pantalla y sección, o si un rol trae editar sin ver. Prueba nueva `05_TEST/integration/usuarios_activacion_permisos_test.php`.
+
+### Seguridad: cuenta protegida y cierre por inactividad (2026-10-26)
+- **Cuenta protegida** (`Auth::USUARIOS_PROTEGIDOS = ['eplasencia']`): ningún otro usuario, ni otro administrador, puede verla en detalle, editarla (datos, rol, permisos), desactivarla, cambiarle la contraseña ni desbloquearla; solo su titular. En Usuarios aparece como "Cuenta protegida" sin botones. Cada intento queda en el registro de auditoría.
+- Como nadie más puede desbloquearla, 3 contraseñas incorrectas la bloquean **30 minutos** (no de forma indefinida), para que nadie la deje fuera a propósito.
+- **Cierre por inactividad: 4 horas** (`SGS_SESION_INACTIVA`). El servidor cierra la sesión sin peticiones en 4 h; la pantalla la cierra si nadie toca, escribe ni mueve nada en 4 h aunque quede abierta (todas las pestañas comparten la hora). El ingreso avisa el motivo.
+- Las sesiones se guardan en una carpeta propia (`08_LOGS/runtime/sesiones`, bloqueada a la web) con su propia limpieza: en un hosting compartido la carpeta común las borraba a los 24 minutos. Al subir este cambio, todos vuelven a ingresar una vez.
+- Prueba nueva `05_TEST/integration/seguridad_sesion_test.php`; las pruebas que fabrican sesiones usan la carpeta nueva.
+
+### Bienvenida al ingresar (2026-10-26)
+- **Añadido**: al iniciar sesión, unos 2 segundos de bienvenida antes de entrar: fondo naranja WIN, pulsos de luz por fibra óptica, el logo, "¡Hola, Nombre!" y una barra de avance. Solo CSS y un SVG en línea (`sgs-login.css`, `login.php`); con "reducir movimiento" se muestra quieta y más corta.
+
 ### Vacaciones, descansos médicos y licencias (2026-10-26)
 - **Añadido**: en Mi turno, el supervisor directo registra vacaciones, descanso médico o licencias (paternidad, fallecimiento, otra) con fechas, comentario y sustento (foto o PDF; obligatorio en descanso médico). Hasta 60 días por solicitud, hasta 30 días hacia atrás, sin cruzar fechas con otra suya. Puede anular las pendientes.
 - En el Monitor de turnos, administración, gerencia y coordinación aprueban o rechazan (con motivo) y pueden anular una aprobada. Avisos en la campana a los jefes al pedir y al supervisor al decidir.

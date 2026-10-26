@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#FF5A0A">
+<title>Sin conexión · SGS WIN</title>
+<!-- offline.html (2026-10-26): la muestra sw.js cuando una pantalla no carga por falta de señal. Sin archivos externos. -->
+<style>
+  :root { --win-orange: #FF5A0A; --win-orange-dark: #D8450B; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; text-align: center; color: #fff;
+    font-family: Nunito, "Segoe UI", system-ui, sans-serif; background: radial-gradient(120% 90% at 50% 40%, var(--win-orange), var(--win-orange-dark)); }
+  .logo { width: 150px; aspect-ratio: 416 / 175; margin: 0 auto 26px; background: #fff;
+    -webkit-mask: url(03_FRONTEND/src/assets/img/win-logo-blanco.png) center / contain no-repeat; mask: url(03_FRONTEND/src/assets/img/win-logo-blanco.png) center / contain no-repeat; }
+  h1 { font-size: 22px; font-weight: 700; margin: 0 0 8px; }
+  p { font-size: 15px; font-weight: 500; opacity: .9; margin: 0 auto 24px; max-width: 320px; line-height: 1.5; }
+  button { border: 0; border-radius: 10px; padding: 12px 22px; font: inherit; font-weight: 700; font-size: 15px; color: var(--win-orange-dark); background: #fff; cursor: pointer; }
+</style>
+</head>
+<body>
+  <main>
+    <div class="logo" role="img" aria-label="WIN"></div>
+    <h1>Sin conexión</h1>
+    <p>No hay señal de internet en este momento. Lo que ya guardaste no se pierde. Cuando vuelva la señal, toca "Reintentar".</p>
+    <button type="button" onclick="location.reload()">Reintentar</button>
+  </main>
+  <script>window.addEventListener('online', () => location.reload());</script>
+</body>
+</html>

@@ -163,6 +163,8 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
     <div class="sgs-sidebar-account flex-shrink-0">
         <ul class="list-unstyled components mb-0">
             <?= $menuItem('index.php?page=mi_informacion', ['mi_informacion'], 'bi-person-vcard', 'Mi información', $currentPage) ?>
+            <!-- Instalar app (2026-10-26, app-instalable.js): aparece solo cuando el celular o la PC permiten instalarla -->
+            <li class="d-none"><a href="#" id="btnInstalarApp" title="Instalar la app en este equipo"><i class="bi bi-phone"></i><span class="menu-label-text">Instalar app</span></a></li>
             <li>
                 <a href="#" id="btn-logout-sidebar" class="sgs-logout" title="Cerrar sesión">
                     <i class="bi bi-box-arrow-right"></i><span class="menu-label-text">Cerrar sesión</span>

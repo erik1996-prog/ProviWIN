@@ -757,3 +757,30 @@ window.winFetchJson = async (resource, options = {}) => {
         setTimeout(() => document.removeEventListener('click', bloquear, { capture: true }), 0);
     });
 })();
+
+// Cierre por inactividad (2026-10-26): si nadie toca, escribe ni mueve la pantalla en 4 horas (meta sgs-inactividad,
+// SGS_SESION_INACTIVA), se cierra la sesión aunque la pestaña quede abierta (las consultas automáticas no cuentan como uso).
+// Todas las pestañas comparten la hora del último uso (localStorage). Se revisa una vez por minuto.
+(() => {
+    const limite = Number(document.querySelector('meta[name="sgs-inactividad"]')?.content || 0) * 1000;
+    const token = document.querySelector('meta[name="csrf-token"]')?.content;
+    if (!limite || !token) return;
+    const CLAVE = 'sgs-ultimo-uso';
+    let ultimo = Date.now(), guardado = 0;
+    const leer = () => { try { return Number(localStorage.getItem(CLAVE)) || 0; } catch (_) { return 0; } };
+    const usar = () => {
+        ultimo = Date.now();
+        if (ultimo - guardado < 30000) return; // se guarda a lo más cada 30 s
+        guardado = ultimo;
+        try { localStorage.setItem(CLAVE, String(ultimo)); } catch (_) {}
+    };
+    ['pointerdown', 'keydown', 'touchstart', 'wheel', 'scroll'].forEach((e) => window.addEventListener(e, usar, { passive: true, capture: true }));
+    usar();
+    let cerrando = false;
+    setInterval(async () => {
+        if (cerrando || Date.now() - Math.max(ultimo, leer()) < limite) return;
+        cerrando = true;
+        try { await fetch('api/auth.php?action=logout', { method: 'POST', headers: { 'X-CSRF-Token': token } }); } catch (_) {}
+        location.replace('index.php?motivo=inactividad');
+    }, 60000);
+})();

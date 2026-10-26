@@ -30,6 +30,13 @@ final class UsuarioController
 
         $in = $this->input();
         $actor = (int)$this->user['id'];
+        // Cuenta protegida (2026-10-26, Auth::USUARIOS_PROTEGIDOS): solo su titular la ve en detalle o la modifica
+        $objetivo = (int)($in['id'] ?? $_GET['id'] ?? 0);
+        if (in_array($action, ['detalle', 'ficha', 'guardar', 'guardar_personal', 'estado', 'restablecer_password', 'desbloquear'], true)
+            && $objetivo > 0 && $objetivo !== $actor && Auth::esProtegido($objetivo)) {
+            win_log_error('audit_protected_account', 'Intento de acción sobre una cuenta protegida', ['actor_id' => $actor, 'target_id' => $objetivo, 'accion' => $action]);
+            return $this->error(403, 'Esta cuenta está protegida: solo su titular puede verla o modificarla.');
+        }
         try {
             switch ($action) {
                 case 'catalogos':
@@ -53,11 +60,17 @@ final class UsuarioController
                     return ['status' => 'success', 'data' => $this->service->detalle((int)($_GET['id'] ?? 0))];
                 case 'guardar':
                     $id = (int)($in['id'] ?? 0);
-                    $r = $this->service->guardar($in, $id, $actor);
-                    win_log_error('audit_user_saved', ($id ? 'Usuario actualizado' : 'Usuario creado') . ": {$r['usuario']}", ['target_id' => $r['id'], 'actor_id' => $actor]);
+                    // 2026-10-26: si no lo crea la cuenta principal, el usuario queda "Por activar" hasta que ella lo active
+                    $r = $this->service->guardar($in, $id, $actor, Auth::puedeActivarUsuarios($actor));
+                    win_log_error('audit_user_saved', ($id ? 'Usuario actualizado' : 'Usuario creado') . ": {$r['usuario']}", ['target_id' => $r['id'], 'actor_id' => $actor, 'por_activar' => $r['por_activar']]);
+                    if ($r['por_activar']) {
+                        $this->service->avisarCuentaPrincipal('Usuario por activar', "{$this->user['nombre']} creó el usuario {$r['usuario']} ({$r['nombre']}). Actívelo en Usuarios y roles para que pueda ingresar.");
+                        return ['status' => 'success', 'message' => "Usuario {$r['usuario']} registrado. Queda por activar: podrá ingresar cuando la cuenta principal lo active.", 'data' => $r];
+                    }
                     return ['status' => 'success', 'message' => $id ? 'Usuario actualizado.' : "Usuario creado: {$r['usuario']}", 'data' => $r];
                 case 'estado':
                     $activo = !empty($in['activo']);
+                    if ($activo && !Auth::puedeActivarUsuarios($actor)) return $this->error(403, 'Solo la cuenta principal activa usuarios. Usted sí puede desactivarlos.');
                     $this->service->cambiarEstado((int)($in['id'] ?? 0), $activo, $actor);
                     win_log_error('audit_user_status', $activo ? 'Usuario activado' : 'Usuario desactivado', ['target_id' => (int)($in['id'] ?? 0), 'actor_id' => $actor]);
                     return ['status' => 'success', 'message' => $activo ? 'Usuario activado.' : 'Usuario desactivado.'];

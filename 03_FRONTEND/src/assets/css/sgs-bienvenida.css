@@ -1,0 +1,45 @@
+/* 03_FRONTEND/src/assets/css/sgs-bienvenida.css - Bienvenida animada (2026-10-26): ~2 s con el logo WIN y pulsos de luz por
+   fibra óptica. Al iniciar sesión (login.php) y al abrir la app instalada (index.php?origen=app). Solo CSS y un SVG en
+   línea (liviano); con "reducir movimiento" se muestra quieta. Colores de marca propios: también se usa fuera de sgs-theme. */
+:root{--win-orange:#FF5A0A;--win-orange-dark:#D8450B}
+.sgs-bienvenida{position:fixed;inset:0;z-index:2100;display:grid;place-items:center;overflow:hidden;color:#fff;text-align:center;
+  background:radial-gradient(120% 90% at 50% 40%,var(--win-orange) 0%,var(--win-orange-dark) 100%);animation:sgs-bv-entra .35s ease-out both}
+.sgs-bienvenida[hidden]{display:none}
+.sgs-bienvenida.is-saliendo{opacity:0;transition:opacity .35s ease}
+.sgs-fibra{position:absolute;inset:0;width:100%;height:100%}
+.sgs-fibra path{fill:none;stroke:#fff;stroke-width:1.5;stroke-linecap:round;opacity:.16}
+.sgs-fibra .pulso{opacity:.95;stroke-width:3;stroke-dasharray:60 1400;stroke-dashoffset:1460;filter:drop-shadow(0 0 6px #fff);animation:sgs-bv-pulso 1.6s cubic-bezier(.5,0,.3,1) infinite}
+.sgs-fibra .pulso.p2{animation-delay:.35s}
+.sgs-fibra .pulso.p3{animation-delay:.7s}
+.sgs-bienvenida-centro{position:relative;padding:24px}
+.sgs-bienvenida-logo{width:clamp(150px,34vw,210px);aspect-ratio:416/175;margin:0 auto 22px;background:#fff;
+  -webkit-mask:url(../img/win-logo-blanco.png) center/contain no-repeat;mask:url(../img/win-logo-blanco.png) center/contain no-repeat;
+  animation:sgs-bv-logo .7s cubic-bezier(.2,.8,.2,1) both, sgs-bv-late 1.6s ease-in-out .7s infinite}
+.sgs-bienvenida-saludo{font-size:clamp(22px,5vw,28px);font-weight:700;margin:0 0 6px;animation:sgs-bv-sube .5s ease-out .25s both}
+.sgs-bienvenida-texto{font-size:14px;font-weight:600;opacity:.88;margin:0 0 18px;min-height:1.4em;animation:sgs-bv-sube .5s ease-out .4s both}
+.sgs-bienvenida-barra{width:min(220px,60vw);height:4px;margin:0 auto;border-radius:4px;background:rgba(255,255,255,.25);overflow:hidden}
+.sgs-bienvenida-barra span{display:block;height:100%;width:100%;border-radius:4px;background:#fff;transform-origin:left;animation:sgs-bv-barra 1.9s cubic-bezier(.4,0,.2,1) both}
+@keyframes sgs-bv-entra{from{opacity:0}to{opacity:1}}
+@keyframes sgs-bv-pulso{to{stroke-dashoffset:0}}
+@keyframes sgs-bv-logo{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:none}}
+@keyframes sgs-bv-late{0%,100%{filter:drop-shadow(0 0 0 rgba(255,255,255,0))}50%{filter:drop-shadow(0 0 14px rgba(255,255,255,.55))}}
+@keyframes sgs-bv-sube{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes sgs-bv-barra{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media (prefers-reduced-motion:reduce){
+  .sgs-bienvenida,.sgs-bienvenida *{animation:none !important}
+  .sgs-fibra .pulso{display:none}
+}
+
+/* Al abrir la app desde el ícono ([data-al-abrir], 2026-10-26): Android muestra primero su pantalla (naranja plano + logo
+   al centro, no se puede quitar). Esta bienvenida arranca igual —naranja plano y el logo solo al centro— y desde ahí sube
+   el logo, aparecen las fibras y el degradado, y entran el saludo y la barra: se ve como una sola animación continua. */
+.sgs-bienvenida[data-al-abrir]{background:var(--win-orange);animation:none}
+.sgs-bienvenida[data-al-abrir]::before{content:"";position:absolute;inset:0;
+  background:radial-gradient(120% 90% at 50% 40%,var(--win-orange) 0%,var(--win-orange-dark) 100%);animation:sgs-bv-entra .7s ease-out .3s both}
+.sgs-bienvenida[data-al-abrir] .sgs-fibra{animation:sgs-bv-entra .7s ease-out .35s both}
+.sgs-bienvenida[data-al-abrir] .sgs-bienvenida-logo{animation:sgs-bv-desde-centro .65s cubic-bezier(.2,.8,.2,1) .2s both, sgs-bv-late 1.6s ease-in-out .9s infinite}
+.sgs-bienvenida[data-al-abrir] .sgs-bienvenida-saludo{animation-delay:.6s}
+.sgs-bienvenida[data-al-abrir] .sgs-bienvenida-texto{animation-delay:.75s}
+.sgs-bienvenida[data-al-abrir] .sgs-bienvenida-barra{animation:sgs-bv-entra .4s ease-out .7s both}
+.sgs-bienvenida[data-al-abrir] .sgs-bienvenida-barra span{animation-delay:.7s;animation-duration:1.5s}
+@keyframes sgs-bv-desde-centro{from{transform:translateY(56px) scale(.82)}to{transform:none}}

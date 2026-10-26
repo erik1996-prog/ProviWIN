@@ -19,7 +19,7 @@ $r = (new UsuarioService($pdo))->guardar(['dni' => '99999904', 'nombres' => 'Car
 $u = $pdo->query("SELECT u.*, p.nombre_partner FROM usuarios u LEFT JOIN partners p ON p.id=u.partner_id WHERE u.id = {$r['id']}")->fetch();
 
 // N sesiones reales en la carpeta de sesiones de PHP (misma que usa Apache)
-$savePath = ini_get('session.save_path') ?: sys_get_temp_dir();
+$savePath = STORAGE_PATH . '/sesiones'; // carpeta propia de sesiones del sistema (config.php, 2026-10-26)
 $ids = [];
 for ($i = 0; $i < $usuarios; $i++) {
     $id = 'sgsload' . bin2hex(random_bytes(12));

@@ -23,7 +23,7 @@ $r = (new UsuarioService($pdo))->guardar(['dni' => '99999905', 'nombres' => 'Fot
 $uid = (int)$r['id'];
 
 $sid = 'sgsfoto' . bin2hex(random_bytes(12));
-$sessFile = (ini_get('session.save_path') ?: sys_get_temp_dir()) . "/sess_$sid";
+$sessFile = STORAGE_PATH . "/sesiones/sess_$sid"; // carpeta propia de sesiones del sistema (config.php, 2026-10-26)
 $data = ['user_id' => $uid, 'user_dni' => '99999905', 'user_usuario' => $r['usuario'], 'user_nombre' => 'Foto Prueba SGS',
     'user_rol' => 'Supervisor', 'user_partner_id' => null, 'user_partner_nombre' => '', 'csrf_token' => 'foto-test'];
 $ser = ''; foreach ($data as $k => $v) $ser .= $k . '|' . serialize($v);
