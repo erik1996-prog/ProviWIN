@@ -200,7 +200,6 @@ CREATE TABLE IF NOT EXISTS `examen_convocatorias` (
 CREATE TABLE IF NOT EXISTS `lluvias_cortes_programados` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `hora` time NOT NULL COMMENT 'Hora de Lima en que se envía cada día',
-  `incluye_hoy` tinyint(1) NOT NULL DEFAULT 0 COMMENT '0 = matriz hasta ayer; 1 = incluye hoy hasta la hora del envío',
   `activo` tinyint(1) NOT NULL DEFAULT 1,
   `ultimo_envio` datetime DEFAULT NULL COMMENT 'Último envío hecho (no se repite el mismo día)',
   `creado_por` int(11) DEFAULT NULL,

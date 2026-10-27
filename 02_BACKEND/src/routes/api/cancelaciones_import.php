@@ -8,6 +8,7 @@ require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/uploads.php';
 require_once __DIR__ . '/../../config/asignacion_cancelaciones.php';
 require_once __DIR__ . '/../../config/excel_lector.php';
+require_once __DIR__ . '/../../config/zonas_peru.php'; // sgsValidarUbicacion: la ubicación debe existir en el catálogo
 require_once __DIR__ . '/../../config/tecnicos_lideres.php'; // sgsNombreLider / sgsPersonaLider: reconocer al técnico de la columna CUADRILLA
 
 Auth::requireLogin();
@@ -299,6 +300,12 @@ try {
         $techId = $lider ? (int)$lider['id'] : null;
         $techName = $lider ? $lider['nombre_tecnico'] : ($crewRaw !== '' ? sgsNombreLider($crewRaw) : null);
         $techDni = $lider && preg_match('/^\d{8}$/', (string)$lider['dni']) ? $lider['dni'] : null;
+
+        // Ubicación (2026-10-26): debe existir en el catálogo de ubicaciones de trabajo; si no, la fila no se carga y se dice
+        // qué no existe. Se guardan los nombres del catálogo (con tildes).
+        $ubicacion = sgsValidarUbicacion($pdo, $department, $province, $district);
+        if ($ubicacion['error'] !== '') $rowErrors[] = $ubicacion['error'];
+        else [$department, $province, $district] = [$ubicacion['departamento'], $ubicacion['provincia'], $ubicacion['distrito']];
 
         // Zone Auto-Recognition
         $normProv = normalizeImportText($province);

@@ -111,6 +111,12 @@ try {
     [$c, $j] = $s['admin']("$base/api/dashboard_lluvias.php?action=eliminar", ['id' => $lluvia]);
     $check('el administrador sí la borra', $c === 200 && ($j['status'] ?? '') === 'success' && (int)$pdo->query("SELECT COUNT(*) FROM lluvias_zona WHERE id = $lluvia")->fetchColumn() === 0, $j);
 
+    echo "Envíos programados del corte (solo la cuenta principal, 2026-10-26)\n";
+    [, , $html] = $s['admin']("$base/index.php?page=dashboard_lluvias");
+    [$c] = $s['admin']("$base/api/dashboard_lluvias.php?action=programa_lista");
+    [$c2] = $s['admin']("$base/api/dashboard_lluvias.php?action=programa_guardar", ['hora' => '09:00']);
+    $check('otro administrador no ve "Programar envíos" ni puede listar o guardar horarios', !str_contains($html, 'id="mCortes"') && $c === 403 && $c2 === 403, [$c, $c2]);
+
     echo "Roles y permisos (catálogo)\n";
     $cat = Auth::permissionCatalog();
     $nuevos = ['dashboard.partners', 'pendientes.view', 'clima.view', 'clima.edit', 'clima.delete', 'examenes.view', 'examenes.edit', 'examenes.delete',

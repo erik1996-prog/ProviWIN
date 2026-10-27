@@ -236,7 +236,7 @@ $miId = (int)Auth::getLoggedInUser()['id'];
 document.addEventListener('DOMContentLoaded', () => {
   const MI_ID = <?= $miId ?>;
   const ES_ADMIN = <?= $esAdminUsuarios ? 'true' : 'false' ?>, GESTIONA = <?= $gestionaPersonal ? 'true' : 'false' ?>;
-  const PUEDE_ACTIVAR = <?= Auth::puedeActivarUsuarios($miId) ? 'true' : 'false' ?>; // solo la cuenta principal activa (2026-10-26)
+  const PUEDE_ACTIVAR = <?= Auth::esCuentaPrincipal($miId) ? 'true' : 'false' ?>; // solo la cuenta principal activa (2026-10-26)
   const $ = (s, el = document) => el.querySelector(s);
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const toast = (m, t = 'success') => (window.showToast ? window.showToast(m, t) : alert(m));

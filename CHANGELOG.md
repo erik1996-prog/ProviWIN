@@ -4,6 +4,23 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Ubicaciones: Huancayo corregido y validación al cargar datos (2026-10-26)
+- **Corregido**: "HUANCAYO" figuraba como departamento en el catálogo de ubicaciones, repitiendo los distritos de JUNÍN › HUANCAYO. Se quitó la repetición y los datos guardados con ese departamento pasan a JUNÍN. Cambio de base `2026-10-26_05_huancayo_no_es_departamento`. Se retiraron los arreglos que lo trataban como alias.
+- **Añadido**: la carga de cancelaciones (Excel) revisa departamento, provincia y distrito contra el catálogo. La fila que no existe no se carga y va a "Filas con problemas" con el motivo y, si es de otro lugar, dónde está. Ejemplos: "HUANCAYO no es un departamento: es una provincia de JUNÍN", "La provincia CHICLAYO no es de AREQUIPA: es de LAMBAYEQUE", "El distrito X no existe en…". Se guardan los nombres del catálogo, con tildes. Igual al registrar un técnico de apoyo con provincia (`sgsValidarUbicacion` en `zonas_peru.php`).
+
+### Foto de la lluvia nítida y programación del corte (2026-10-26)
+- **Añadido**: visor de fotos (`foto.php`). En el celular, al tocar la foto del aviso o el cuadro del corte, ya no se abre el archivo suelto. Se abre una página con fondo oscuro, el título ("Lluvia en AREQUIPA · 27/10 · 08:15" o el del corte) y la imagen, que se amplía con los dedos. Es pública y liviana (sin base ni sesión): el código al azar del enlace es la llave. El título va en un .txt al lado de la imagen, bloqueado por web; ambos se borran a los 90 días.
+- **Corregido**: los envíos programados del corte no salían si no había una tarea programada (cron) en cPanel. Ahora salen también con el uso del sistema: cualquier pantalla revisa, como mucho cada 5 minutos, si ya toca un horario y lo envía después de mostrar la página. Cada horario se aparta antes de enviarlo, para que nunca salga dos veces. El cron sigue sirviendo para la hora exacta.
+- **Cambiado**: solo la cuenta principal programa las horas de envío del corte. A los demás administradores no les sale "Programar envíos" y el servicio les responde 403.
+- **Corregido**: la foto del aviso de lluvia se veía borrosa en Teams, porque el celular la reducía a 400 px y menos de 19 KB. Ahora se envía como archivo a 1600 px (JPEG 82 %). En el servidor (https) se guarda con nombre al azar en `uploads/lluvias_teams/` y se borra sola a los 90 días; Teams recibe el enlace. La foto se ve directo en el mensaje: en el celular, al tocarla se abre en el navegador para ampliarla; en la PC se amplía dentro de Teams (sin botones extra). Sin https (PC local), el servidor la reduce para que entre en el mensaje.
+
+### Corte de lluvias legible en el celular (2026-10-26)
+- **Cambiado**: el corte muestra solo los **últimos 7 días**: los envíos antes de las 12:00 llegan hasta ayer y los de las 12:00 en adelante incluyen el día (corte temprano = días anteriores; corte de la tarde = cómo fue el día) (antes, el mes completo: ancho e ilegible en el celular). Columnas más anchas con la fecha (dd/mm, cruza de un mes a otro sin problema) y letra más grande; el título y el resumen por zona son de esos 7 días.
+- Se quita la opción "Incluye hoy" de los envíos programados: lo decide la hora de cada envío. Cambio de base `2026-10-26_04_corte_de_lluvias_siempre_hasta_ayer` (quita la columna `lluvias_cortes_programados.incluye_hoy`; los horarios se conservan).
+- **Corregido**: en Teams del celular la matriz no se podía ampliar (allowExpand solo funciona en la PC). Ahora, con el corte enviado desde el servidor, en el celular, tocar la imagen la abre en el navegador, donde se amplía con los dedos; en la PC se amplía dentro de Teams. El mensaje ya no lleva botones ni enlace al SGS.
+- **Añadido**: resumen por zona en texto dentro del mensaje (horas del mes y días con lluvia, de mayor a menor; las zonas sin lluvia en una línea), que se lee en el celular sin abrir la imagen.
+- La línea "… used a Workflow template to send this card" la agrega Teams a los mensajes de flujos de trabajo: no se puede quitar.
+
 ### App instalable en el celular (PWA, 2026-10-26)
 - **Añadido**: el sistema se instala como app desde Chrome (ícono WIN y nombre "SGS WIN" en la pantalla del celular, abre a pantalla completa con la barra en naranja). Botón "Instalar app" en el menú, que aparece solo cuando el equipo lo permite.
 - `manifest.webmanifest`, íconos en `03_FRONTEND/src/assets/img/app/`, `app-instalable.js` (en index.php y login.php) y `sw.js`. Liviano: el trabajador de fondo no guarda páginas, datos ni la API; solo muestra `offline.html` ("Sin conexión") cuando una pantalla no carga por falta de señal. `.htaccess`: tipo del manifiesto y `sw.js` sin caché.

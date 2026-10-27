@@ -632,8 +632,7 @@
 
   // Zona (2026-10-15): el T1 se elige solo entre los técnicos líderes del departamento de la supervisión (su zona se
   // carga con la PROVINCIA en el Excel de Cuadrillas). Los que aún no tienen zona salen en todas, al final y marcados.
-  // "HUANCAYO" figura como departamento en el catálogo de ubicaciones: equivale a JUNÍN.
-  const normalizarZona = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim().replace(/^HUANCAYO$/, 'JUNIN');
+  const normalizarZona = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim();
   function lideresDeZona(partnerId, departamento, actual = '') {
     const dep = normalizarZona(departamento);
     return listaTecnicos

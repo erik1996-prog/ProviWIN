@@ -1,0 +1,18 @@
+/* 03_FRONTEND/src/assets/css/sgs-visor-foto.css - Visor público de fotos de Teams (foto.php, 2026-10-26).
+   Fondo oscuro para ver la foto, que ocupa la pantalla y se amplía con los dedos (zoom propio del navegador).
+   Colores del sistema (ink, naranja WIN y gris). */
+:root {
+    --visor-fondo: #141414;
+    --visor-texto: #FFFFFF;
+    --visor-tenue: #B9BBBE;
+    --visor-marca: #FF5A0A;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--visor-fondo); color: var(--visor-texto); }
+body.sgs-visor { font-family: 'Nunito', system-ui, sans-serif; font-weight: 500; min-height: 100vh; display: flex; flex-direction: column; }
+.sgs-visor-cabecera { padding: 14px 16px 10px; border-top: 3px solid var(--visor-marca); }
+.sgs-visor-cabecera h1 { margin: 0; font-size: 15.5px; font-weight: 700; line-height: 1.35; }
+.sgs-visor-cabecera p { margin: 4px 0 0; font-size: 12.5px; color: var(--visor-tenue); }
+.sgs-visor-foto { flex: 1; display: flex; align-items: center; justify-content: center; padding: 0 0 8px; }
+.sgs-visor-foto img { display: block; max-width: 100%; max-height: calc(100vh - 110px); height: auto; }
+.sgs-visor-pie { padding: 8px 16px 14px; font-size: 11.5px; font-weight: 700; color: var(--visor-tenue); letter-spacing: .04em; }

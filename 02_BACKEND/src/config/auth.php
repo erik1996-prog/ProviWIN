@@ -295,7 +295,8 @@ class Auth {
         return $id;
     }
 
-    public static function puedeActivarUsuarios(int $actorId): bool {
+    /** La cuenta principal (o cualquiera, si no existe): activa usuarios y programa los envíos del corte de lluvias. */
+    public static function esCuentaPrincipal(int $actorId): bool {
         $principal = self::cuentaPrincipalId();
         return $principal === null || $principal === $actorId;
     }

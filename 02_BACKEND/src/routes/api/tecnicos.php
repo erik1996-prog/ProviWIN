@@ -126,7 +126,13 @@ try {
         // Zona (2026-10-24): la de la supervisión donde se registra; antes quedaba "Sin zona"
         $departamento = sgsDepartmentAlias((string)($_POST['departamento'] ?? ''));
         if (!in_array($departamento, sgsOperationalDepartments(), true)) $departamento = null;
-        $provincia = $departamento ? (mb_substr(mb_strtoupper(trim((string)($_POST['provincia'] ?? '')), 'UTF-8'), 0, 100) ?: null) : null;
+        $provincia = null;
+        if ($departamento && trim((string)($_POST['provincia'] ?? '')) !== '') { // debe existir en el catálogo (2026-10-26)
+            require_once __DIR__ . '/../../config/zonas_peru.php';
+            $ubicacion = sgsValidarUbicacion($pdo, $departamento, (string)$_POST['provincia']);
+            if ($ubicacion['error'] !== '') throw new Exception($ubicacion['error']);
+            $provincia = $ubicacion['provincia'];
+        }
 
         $stmtPartner = $pdo->prepare('SELECT nombre_partner FROM partners WHERE id = :id AND estado = 1');
         $stmtPartner->execute([':id' => $partnerId]);

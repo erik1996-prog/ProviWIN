@@ -7,6 +7,7 @@
 // La usan: api/lluvias.php (Mi turno), la Línea de tiempo (api/asistencia.php) y el indicador api/dashboard_lluvias.php.
 require_once __DIR__ . '/territorial.php';
 require_once __DIR__ . '/turnos.php';
+require_once __DIR__ . '/visor_fotos.php'; // enlace del visor de fotos de Teams
 
 /** Zonas donde el supervisor puede avisar lluvia: las suyas; si trabaja todas las provincias, todas. */
 function sgsZonasLluvia(int $usuarioId): array {
@@ -101,26 +102,77 @@ function sgsLluviasDelSupervisor(array $lluviasDelDia, int $usuarioId, array $zo
     return $tramos;
 }
 
-/**
+/*
  * Aviso a Teams (2026-10-23): al iniciar y al terminar una lluvia se publica un mensaje en el grupo de Teams.
  * La URL del flujo de Teams (Workflows › "solicitud de webhook") es secreta: variable de entorno SGS_TEAMS_LLUVIAS_URL
  * o el archivo 09_CONFIG/teams_lluvias.local.txt (carpeta bloqueada por web y fuera de git). Sin URL no se envía nada.
  * Si Teams no responde, la lluvia se guarda igual (espera máxima 4 s).
  */
-function sgsAvisoTeamsLluvia(string $titulo, string $detalle, string $comentario = '', string $fotoJpeg = ''): bool {
-    return sgsEnviarTeamsLluvias(array_values([['type' => 'TextBlock', 'text' => $titulo, 'weight' => 'Bolder', 'size' => 'Medium', 'wrap' => true],
-               ['type' => 'TextBlock', 'text' => $detalle, 'wrap' => true, 'spacing' => 'Small']]
-        // Teams acepta mensajes de ~28 KB: la foto llega reducida (≤ 20 KB) y va dentro del mensaje
-        + ($comentario !== '' ? [2 => ['type' => 'TextBlock', 'text' => "Comentario: {$comentario}", 'wrap' => true]] : [])
-        + ($fotoJpeg !== '' ? [3 => ['type' => 'Image', 'url' => 'data:image/jpeg;base64,' . base64_encode($fotoJpeg), 'size' => 'Stretch', 'altText' => 'Foto de la lluvia']] : [])));
+/**
+ * Imagen de un mensaje de Teams (2026-10-26). Con enlace https van dos copias según el ancho de la pantalla (targetWidth):
+ * en el celular (angosta) tocarla abre el visor foto.php (título y la imagen, que se amplía con los dedos; Teams del celular
+ * no amplía imágenes); en la PC se amplía dentro del mismo Teams (allowExpand). Sin enlace (imagen dentro del mensaje) va una sola.
+ */
+function sgsImagenTeams(string $url, string $alt, array $extra = []): array {
+    $imagen = ['type' => 'Image', 'url' => $url, 'size' => 'Stretch', 'altText' => $alt, 'msteams' => ['allowExpand' => true]] + $extra;
+    if (!str_starts_with($url, 'https://')) return [$imagen];
+    return [
+        ['targetWidth' => 'atMost:narrow', 'selectAction' => ['type' => 'Action.OpenUrl', 'title' => 'Ampliar', 'url' => sgsEnlaceVisor($url) ?: $url]] + array_diff_key($imagen, ['msteams' => 1]),
+        ['targetWidth' => 'atLeast:standard'] + $imagen,
+    ];
 }
 
-/** Publica una tarjeta (Adaptive Card 1.4) en el grupo de Teams de lluvias. Sin dirección configurada no hace nada. */
+/** Aviso de inicio, fin o anulación en el grupo de Teams. $foto: enlace https o imagen dentro del mensaje (data:, reducida;
+ *  sin servidor https). Ver sgsFotoLluviaParaTeams y sgsImagenTeams. */
+function sgsAvisoTeamsLluvia(string $titulo, string $detalle, string $comentario = '', string $foto = ''): bool {
+    return sgsEnviarTeamsLluvias(array_merge(array_values(array_filter([
+        ['type' => 'TextBlock', 'text' => $titulo, 'weight' => 'Bolder', 'size' => 'Medium', 'wrap' => true],
+        ['type' => 'TextBlock', 'text' => $detalle, 'wrap' => true, 'spacing' => 'Small'],
+        $comentario !== '' ? ['type' => 'TextBlock', 'text' => "Comentario: {$comentario}", 'wrap' => true] : null,
+    ])), $foto !== '' ? sgsImagenTeams($foto, 'Foto de la lluvia') : []));
+}
+
+/**
+ * Foto del aviso de lluvia para Teams (2026-10-26). Con el sistema en https (el hosting) se guarda en buena calidad en
+ * uploads/lluvias_teams/ con nombre al azar (se borra a los 90 días) y se devuelve su enlace: en Teams se ve nítida y se
+ * amplía en el celular y en la PC. Sin https (una PC local), se reduce para que entre dentro del mensaje (~28 KB).
+ * Devuelve '' si no hay foto válida.
+ */
+function sgsFotoLluviaParaTeams(array $archivo, ?string $urlSistema, string $titulo = ''): string {
+    require_once __DIR__ . '/uploads.php';
+    try {
+        $ok = validateUploadedFile($archivo, ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'], 8 * 1024 * 1024);
+    } catch (RuntimeException $e) {
+        return '';
+    }
+    if ($urlSistema && str_starts_with($urlSistema, 'https://')) {
+        $carpeta = dirname(__DIR__, 3) . '/uploads/lluvias_teams';
+        if (!is_dir($carpeta)) @mkdir($carpeta, 0755, true);
+        foreach (glob("$carpeta/*") ?: [] as $viejo) if (filemtime($viejo) < time() - 90 * 86400) @unlink($viejo);
+        $nombre = date('Y-m-d') . '_' . bin2hex(random_bytes(16)) . '.' . $ok['extension'];
+        if (!move_uploaded_file($archivo['tmp_name'], "$carpeta/$nombre")) return '';
+        sgsTituloDeImagen("$carpeta/$nombre", $titulo); // para el visor foto.php
+        return rtrim($urlSistema, '/') . "/uploads/lluvias_teams/$nombre";
+    }
+    if (!function_exists('imagecreatefromstring') || !($img = @imagecreatefromstring((string)file_get_contents($archivo['tmp_name'])))) return '';
+    foreach ([480, 400, 320, 240] as $ancho) {
+        $alto = (int)round(imagesy($img) * $ancho / max(1, imagesx($img)));
+        $chica = imagecreatetruecolor($ancho, $alto);
+        imagecopyresampled($chica, $img, 0, 0, 0, 0, $ancho, $alto, imagesx($img), imagesy($img));
+        foreach ([60, 45, 35, 25] as $calidad) {
+            ob_start(); imagejpeg($chica, null, $calidad); $jpg = (string)ob_get_clean();
+            if (strlen($jpg) <= 19000) return 'data:image/jpeg;base64,' . base64_encode($jpg);
+        }
+    }
+    return '';
+}
+
+/** Publica una tarjeta (Adaptive Card 1.5) en el grupo de Teams de lluvias. Sin dirección configurada no hace nada. */
 function sgsEnviarTeamsLluvias(array $cuerpo): bool {
     $url = trim((string)(getenv('SGS_TEAMS_LLUVIAS_URL') ?: @file_get_contents(dirname(__DIR__, 3) . '/09_CONFIG/teams_lluvias.local.txt')));
     if (!preg_match('#^https://\S+$#', $url) || !function_exists('curl_init')) return false;
     $tarjeta = ['type' => 'message', 'attachments' => [['contentType' => 'application/vnd.microsoft.card.adaptive', 'content' => [
-        '$schema' => 'http://adaptivecards.io/schemas/adaptive-card.json', 'type' => 'AdaptiveCard', 'version' => '1.4', 'msteams' => ['width' => 'Full'], 'body' => $cuerpo,
+        '$schema' => 'http://adaptivecards.io/schemas/adaptive-card.json', 'type' => 'AdaptiveCard', 'version' => '1.5', 'msteams' => ['width' => 'Full'], 'body' => $cuerpo,
     ]]]];
     $ch = curl_init($url);
     curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 4, CURLOPT_CONNECTTIMEOUT => 3,

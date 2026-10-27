@@ -103,3 +103,60 @@ function sgsDepartamentoOficial(string $texto): string {
     foreach (array_keys(sgsProvinciasPorDepartamento()) as $dep) if (normalizeImportText($dep) === $t) return $dep;
     return mb_strtoupper(trim($texto), 'UTF-8');
 }
+
+/**
+ * Ubicación que llega de un archivo o de un formulario, contra el catálogo de ubicaciones de trabajo (tabla ubigeo, la
+ * misma del formulario de supervisión) (2026-10-26). Compara sin tildes ni mayúsculas y devuelve los nombres tal como
+ * están en el catálogo. Si algo no existe, 'error' dice qué y, si es de otro lugar del Perú, dónde está
+ * ("HUANCAYO no es un departamento: es una provincia de JUNÍN"). Provincia y distrito vacíos no se revisan.
+ * @return array{departamento: string, provincia: string, distrito: string, error: string}
+ */
+function sgsValidarUbicacion(PDO $pdo, string $departamento, string $provincia = '', string $distrito = ''): array {
+    static $catalogo = null;
+    $catalogo ??= $pdo->query('SELECT departamento, provincia, distrito FROM ubigeo')->fetchAll(PDO::FETCH_ASSOC);
+    $n = static fn(string $v) => normalizeImportText($v);
+    [$dep, $prov, $dist] = array_map(static fn($v) => mb_strtoupper(trim($v), 'UTF-8'), [$departamento, $provincia, $distrito]);
+    $r = ['departamento' => $dep, 'provincia' => $prov, 'distrito' => $dist, 'error' => ''];
+    $falla = static fn(string $msg) => ['error' => $msg] + $r;
+    // Dónde está una provincia en el Perú (lista oficial), para orientar el mensaje
+    $depDeProvincia = static function (string $p) use ($n): string {
+        foreach (sgsProvinciasPorDepartamento() as $d => $lista) foreach ($lista as $x) if ($n($x) === $n($p)) return $d;
+        return '';
+    };
+
+    if ($dep === '') return $falla('Falta el departamento.');
+    $filas = array_values(array_filter($catalogo, static fn($u) => $n($u['departamento']) === $n($dep)));
+    if (!$filas) {
+        if (in_array($n($dep), array_map($n, array_keys(sgsProvinciasPorDepartamento())), true)) {
+            return $falla("El departamento {$dep} no es una zona de trabajo del sistema.");
+        }
+        $donde = $depDeProvincia($dep);
+        return $falla($donde !== '' ? "{$dep} no es un departamento: es una provincia de {$donde}." : "El departamento {$dep} no existe.");
+    }
+    $r['departamento'] = $filas[0]['departamento'];
+
+    if ($prov !== '') {
+        $deProv = array_values(array_filter($filas, static fn($u) => $n($u['provincia']) === $n($prov)));
+        if (!$deProv) {
+            $donde = $depDeProvincia($prov);
+            if ($donde !== '' && $n($donde) !== $n($r['departamento'])) return $falla("La provincia {$prov} no es de {$r['departamento']}: es de {$donde}.");
+            return $falla($donde !== '' ? "La provincia {$prov} ({$r['departamento']}) no está en las ubicaciones de trabajo del sistema."
+                : "La provincia {$prov} no existe en {$r['departamento']}.");
+        }
+        $r['provincia'] = $deProv[0]['provincia'];
+        $filas = $deProv;
+    }
+
+    if ($dist !== '') {
+        $deDist = array_values(array_filter($filas, static fn($u) => $n($u['distrito']) === $n($dist)));
+        if (!$deDist) {
+            $otro = array_values(array_filter($catalogo, static fn($u) => $n($u['distrito']) === $n($dist)));
+            $lugar = $prov !== '' ? "la provincia {$r['provincia']} ({$r['departamento']})" : $r['departamento'];
+            return $falla($otro ? "El distrito {$dist} no es de {$lugar}: está en {$otro[0]['provincia']} ({$otro[0]['departamento']})."
+                : "El distrito {$dist} no existe en {$lugar}.");
+        }
+        $r['distrito'] = $deDist[0]['distrito'];
+        if ($prov === '') $r['provincia'] = $deDist[0]['provincia'];
+    }
+    return $r;
+}

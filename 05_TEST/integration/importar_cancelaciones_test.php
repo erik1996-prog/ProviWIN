@@ -69,6 +69,9 @@ PY;
         ['ticket' => 'PRUEBA-CAN-200', 'partner' => $partner['nombre_partner']],     // repetido en el archivo
         ['ticket' => 990000123, 'partner' => $partner['nombre_partner'], 'cuad' => 'P 1 PRUEBA SGI TECNICO QUE NO EXISTE'], // número de Excel, cuadrilla no registrada
         ['ticket' => 'PRUEBA-CAN-300', 'partner' => 'PROVEEDOR QUE NO EXISTE'],      // con problema
+        // Ubicación que no existe en el catálogo (2026-10-26): no se carga y se dice qué no existe
+        ['ticket' => 'PRUEBA-CAN-400', 'partner' => $partner['nombre_partner'], 'dep' => 'HUANCAYO', 'prov' => 'HUANCAYO', 'dist' => 'EL TAMBO'],
+        ['ticket' => 'PRUEBA-CAN-500', 'partner' => $partner['nombre_partner'], 'dist' => 'DISTRITO INVENTADO'],
     ];
     foreach ($filas as &$f) $f += ['dep' => $ubi['departamento'], 'prov' => $ubi['provincia'], 'dist' => $ubi['distrito']];
     unset($f);
@@ -108,7 +111,12 @@ PY;
         && count($r['cuadrillas_no_registradas'] ?? []) === 1 && ($r['cuadrillas_no_registradas'][0]['ticket'] ?? '') === '990000123', [$tecNum, $r['cuadrillas_no_registradas'] ?? null]);
     $check('sin dirección queda vacía', $pdo->query("SELECT direccion FROM supervisiones WHERE ticket_codigo = '990000123'")->fetchColumn() === null);
     $check('el ticket numérico se guardó sin ".0"', (int)$pdo->query("SELECT COUNT(*) FROM supervisiones WHERE ticket_codigo = '990000123'")->fetchColumn() === 1);
-    $check('el proveedor inexistente queda en "filas con problemas"', count($r['observadas'] ?? []) === 1 && ($r['observadas'][0]['ticket'] ?? '') === 'PRUEBA-CAN-300', $r['observadas'] ?? null);
+    $obs = array_column($r['observadas'] ?? [], 'errores', 'ticket');
+    $check('el proveedor inexistente queda en "filas con problemas"', isset($obs['PRUEBA-CAN-300']), $r['observadas'] ?? null);
+    $check('ubicación inexistente: no se carga y se dice qué no existe (HUANCAYO no es departamento; distrito inventado)',
+        str_contains(implode(' ', $obs['PRUEBA-CAN-400'] ?? []), 'HUANCAYO no es un departamento: es una provincia de JUNÍN')
+        && str_contains(implode(' ', $obs['PRUEBA-CAN-500'] ?? []), 'El distrito DISTRITO INVENTADO no existe')
+        && !$pdo->query("SELECT COUNT(*) FROM supervisiones WHERE ticket_codigo IN ('PRUEBA-CAN-400', 'PRUEBA-CAN-500')")->fetchColumn(), $r['observadas'] ?? null);
     $check('sigue habiendo una sola supervisión con PRUEBA-CAN-100', (int)$pdo->query("SELECT COUNT(*) FROM supervisiones WHERE UPPER(TRIM(ticket_codigo)) = 'PRUEBA-CAN-100'")->fetchColumn() === 1);
 
     // La plantilla oficial que descarga el sistema (XML con prefijo x:) debe leerse: vacía, reconoce los encabezados

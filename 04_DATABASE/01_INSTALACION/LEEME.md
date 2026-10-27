@@ -18,7 +18,7 @@ Se instalan **30 tablas**: con sus datos actuales (usuarios, permisos, partners,
 | `04_tabla_partners.sql` | `partners`: Contratas; WIN DIRECTO = personal propio | 12 registros |
 | `05_tabla_sgs_migracion.sql` | `sgs_migracion`: Cambios de base de datos ya aplicados (los registra 07_SCRIPTS/migrar.php) | vacía |
 | `06_tabla_tipificaciones_cancelacion.sql` | `tipificaciones_cancelacion`: Motivos de cancelación (los del Excel de pendientes se agregan solos) | 6 registros |
-| `07_tabla_ubigeo.sql` | `ubigeo`: Departamentos, provincias y distritos de operación | 47 registros |
+| `07_tabla_ubigeo.sql` | `ubigeo`: Departamentos, provincias y distritos de operación | 41 registros |
 | `08_tabla_vehiculos.sql` | `vehiculos`: Vehículos de las cuadrillas | 3 registros |
 | `09_tabla_subopciones_observacion.sql` | `subopciones_observacion`: Tipificaciones de observación con gravedad y penalidad | 84 registros |
 | `10_tabla_usuarios.sql` | `usuarios`: Usuarios del sistema (personal WIN y de partners) | 10 registros |

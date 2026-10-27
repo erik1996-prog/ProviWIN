@@ -9,7 +9,7 @@ $pdo = Database::getConnection();
 $action = $_GET['action'] ?? '';
 
 if ($action === 'departamentos') {
-    // Misma lista que las zonas de trabajo: sin el alias heredado "HUANCAYO" (duplicado de JUNÍN → HUANCAYO).
+    // Misma lista que las zonas de trabajo.
     require_once __DIR__ . '/../../config/territorial.php';
     $data = sgsOperationalDepartments();
     echo json_encode(['status' => 'success', 'data' => $data]);

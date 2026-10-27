@@ -10,7 +10,7 @@ Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 | 3 | [`partners`](#partners) | Contratas; WIN DIRECTO = personal propio | 12 registros |
 | 4 | [`sgs_migracion`](#sgs_migracion) | Cambios de base de datos ya aplicados (los registra 07_SCRIPTS/migrar.php) | vacía |
 | 5 | [`tipificaciones_cancelacion`](#tipificaciones_cancelacion) | Motivos de cancelación (los del Excel de pendientes se agregan solos) | 6 registros |
-| 6 | [`ubigeo`](#ubigeo) | Departamentos, provincias y distritos de operación | 47 registros |
+| 6 | [`ubigeo`](#ubigeo) | Departamentos, provincias y distritos de operación | 41 registros |
 | 7 | [`vehiculos`](#vehiculos) | Vehículos de las cuadrillas | 3 registros |
 | 8 | [`subopciones_observacion`](#subopciones_observacion) | Tipificaciones de observación con gravedad y penalidad | 84 registros |
 | 9 | [`usuarios`](#usuarios) | Usuarios del sistema (personal WIN y de partners) | 10 registros |
@@ -222,7 +222,6 @@ Horarios del corte de lluvias en Teams (Clima) · Depende de: `usuarios`
 |---|---|---|---|---|
 | `id` | int(11) | no | PK |  |
 | `hora` | time | no | Única | Hora de Lima en que se envía cada día |
-| `incluye_hoy` | tinyint(1) | no |  | 0 = matriz hasta ayer; 1 = incluye hoy hasta la hora del envío |
 | `activo` | tinyint(1) | no |  |  |
 | `ultimo_envio` | datetime | sí |  | Último envío hecho (no se repite el mismo día) |
 | `creado_por` | int(11) | sí | FK → `usuarios` |  |

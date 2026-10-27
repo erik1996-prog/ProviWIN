@@ -312,7 +312,8 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
 </div>
 
 <?php if ($isReadOnlyWinSupervisor && Auth::puede(Auth::PERM_CLIMA_EDIT, $user)): ?>
-<!-- Aviso de lluvia (2026-10-23, assets/js/lluvia.js): foto y comentario que se publican en el grupo de Teams (no se guardan) -->
+<!-- Aviso de lluvia (2026-10-23, assets/js/lluvia.js): foto y comentario que se publican en el grupo de Teams (la foto queda 90 días en el
+     servidor para verla nítida y ampliada desde Teams, 2026-10-26) -->
 <div class="modal fade" id="modalLluvia" tabindex="-1" aria-labelledby="modalLluviaTitulo" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content">

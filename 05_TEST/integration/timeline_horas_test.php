@@ -131,7 +131,7 @@ try {
         $llamar = function (string $url, ?array $post = null) use ($frasco, &$csrf): ?array {
             $ch = curl_init($url);
             $o = [CURLOPT_RETURNTRANSFER => true, CURLOPT_COOKIEJAR => $frasco, CURLOPT_COOKIEFILE => $frasco, CURLOPT_TIMEOUT => 60];
-            if ($post !== null) $o += [CURLOPT_POST => true, CURLOPT_POSTFIELDS => http_build_query($post), CURLOPT_HTTPHEADER => ['X-CSRF-Token: ' . $csrf]];
+            if ($post !== null) $o += [CURLOPT_POST => true, CURLOPT_POSTFIELDS => array_filter($post, fn($v) => $v instanceof CURLFile) ? $post : http_build_query($post), CURLOPT_HTTPHEADER => ['X-CSRF-Token: ' . $csrf]];
             curl_setopt_array($ch, $o); $body = (string)curl_exec($ch); curl_close($ch);
             return json_decode($body, true);
         };
@@ -146,8 +146,10 @@ try {
         return $llamar;
     };
     $l1 = $como($uno, 'tlh.uno'); $l2 = $como($dos, 'tlh.dos');
-    // Al avisar se pide comentario y foto (JPEG reducido en el celular; aquí basta su cabecera)
-    $conFoto = ['comentario' => 'Lluvia de prueba', 'foto' => base64_encode("\xFF\xD8\xFF\xE0prueba")];
+    // Al avisar se pide comentario y foto (archivo JPEG, como lo envía el celular: 2026-10-26)
+    $jpeg = tempnam(sys_get_temp_dir(), 'sgsf');
+    imagejpeg(imagecreatetruecolor(64, 48), $jpeg, 80);
+    $conFoto = ['comentario' => 'Lluvia de prueba', 'foto' => new CURLFile($jpeg, 'image/jpeg', 'lluvia.jpg')];
     $r = $l1("$base/api/lluvias.php?action=avisar", ['zona' => 'AREQUIPA'] + $conFoto);
     $check('sin turno abierto hoy no se avisa la lluvia', ($r['status'] ?? '') === 'error', $r);
     $hoy = date('Y-m-d');
@@ -194,7 +196,7 @@ try {
     $abiertas = (int)$pdo->query("SELECT COUNT(*) FROM lluvias_zona WHERE departamento = 'AREQUIPA' AND fin IS NULL")->fetchColumn();
     $auto = $pdo->query("SELECT comentario_fin FROM lluvias_zona WHERE reportado_por = $d1 ORDER BY id DESC LIMIT 1")->fetchColumn();
     $check('si nadie la cierra, se cierra al terminar el turno quien la avisó', $abiertas === 0 && $auto === 'Cierre automático al terminar su turno', [$abiertas, $auto]);
-    @unlink($uno); @unlink($dos);
+    @unlink($uno); @unlink($dos); @unlink($jpeg);
     $check('los bloques de inicio y fin de turno no llevan horas de escala (se dibuja la franja del turno)', !array_filter($u1['timeline_blocks'] ?? [], fn($b) => in_array($b['type'], ['shift_start', 'shift_end'], true) && isset($b['ts_inicio'])));
 } finally {
     if (getenv('SGS_KEEP')) echo "datos conservados para revisar la pantalla\n"; else $cleanup();

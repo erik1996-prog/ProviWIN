@@ -89,7 +89,7 @@ try {
     $check('activado: ya no está por activar y puede ingresar', (int)$fila['activo'] === 1 && (int)$fila['por_activar'] === 0 && ($login['status'] ?? '') === 'success', [$fila, $login['message'] ?? null]);
     $r = $admin("$api?action=estado", ['id' => (int)$nuevo['id'], 'activo' => 0]);
     $check('otro administrador sí puede desactivarlo', ($r['status'] ?? '') === 'success', $r['message'] ?? null);
-    $check('solo la cuenta principal puede activar usuarios', Auth::puedeActivarUsuarios($principal) && !Auth::puedeActivarUsuarios($adminId));
+    $check('solo la cuenta principal puede activar usuarios', Auth::esCuentaPrincipal($principal) && !Auth::esCuentaPrincipal($adminId));
 } finally {
     $cleanup();
 }

@@ -61,7 +61,7 @@ final class UsuarioController
                 case 'guardar':
                     $id = (int)($in['id'] ?? 0);
                     // 2026-10-26: si no lo crea la cuenta principal, el usuario queda "Por activar" hasta que ella lo active
-                    $r = $this->service->guardar($in, $id, $actor, Auth::puedeActivarUsuarios($actor));
+                    $r = $this->service->guardar($in, $id, $actor, Auth::esCuentaPrincipal($actor));
                     win_log_error('audit_user_saved', ($id ? 'Usuario actualizado' : 'Usuario creado') . ": {$r['usuario']}", ['target_id' => $r['id'], 'actor_id' => $actor, 'por_activar' => $r['por_activar']]);
                     if ($r['por_activar']) {
                         $this->service->avisarCuentaPrincipal('Usuario por activar', "{$this->user['nombre']} creó el usuario {$r['usuario']} ({$r['nombre']}). Actívelo en Usuarios y roles para que pueda ingresar.");
@@ -70,7 +70,7 @@ final class UsuarioController
                     return ['status' => 'success', 'message' => $id ? 'Usuario actualizado.' : "Usuario creado: {$r['usuario']}", 'data' => $r];
                 case 'estado':
                     $activo = !empty($in['activo']);
-                    if ($activo && !Auth::puedeActivarUsuarios($actor)) return $this->error(403, 'Solo la cuenta principal activa usuarios. Usted sí puede desactivarlos.');
+                    if ($activo && !Auth::esCuentaPrincipal($actor)) return $this->error(403, 'Solo la cuenta principal activa usuarios. Usted sí puede desactivarlos.');
                     $this->service->cambiarEstado((int)($in['id'] ?? 0), $activo, $actor);
                     win_log_error('audit_user_status', $activo ? 'Usuario activado' : 'Usuario desactivado', ['target_id' => (int)($in['id'] ?? 0), 'actor_id' => $actor]);
                     return ['status' => 'success', 'message' => $activo ? 'Usuario activado.' : 'Usuario desactivado.'];

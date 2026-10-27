@@ -5,13 +5,15 @@
 //   POST ?action=avisar  zona    → con turno abierto: avisa la lluvia (si otro ya la avisó, no se duplica)
 //   POST ?action=paro    zona    → cierra la lluvia de la zona (cualquiera de la zona)
 // Cada inicio y fin se publica en el grupo de Teams si está configurado (sgsAvisoTeamsLluvia).
-// Al avisar llegan también comentario y foto (JPEG ya reducido en el celular, en base64): solo se publican en Teams, no se guardan.
+// Al avisar llegan también comentario y foto (archivo, reducido en el celular a 1600 px): solo se publican en Teams. En el
+// servidor (https) la foto se guarda 90 días en uploads/lluvias_teams para que Teams la muestre nítida y ampliable (2026-10-26).
 header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/auth.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/lluvias.php';
+require_once __DIR__ . '/../../config/examen_enlaces.php'; // sgsUrlSistema
 
 Auth::requireLogin();
 Auth::requireCsrf();
@@ -41,11 +43,12 @@ if (!in_array($zona, $zonas, true)) $responder(['status' => 'error', 'message' =
 if ($action === 'avisar') {
     if (!sgsTurnoAbiertoHoy($pdo, $uid)) $responder(['status' => 'error', 'message' => 'Inicie su turno para avisar la lluvia.'], 409);
     $comentario = trim(preg_replace('/\s+/u', ' ', (string)($_POST['comentario'] ?? '')));
-    $foto = base64_decode((string)($_POST['foto'] ?? ''), true);
     if ($comentario === '' || mb_strlen($comentario) > 200) $responder(['status' => 'error', 'message' => 'Escriba un comentario corto de la lluvia.'], 422);
-    if (!$foto || !str_starts_with($foto, "��") || strlen($foto) > 20000) $responder(['status' => 'error', 'message' => 'Tome una foto de la lluvia.'], 422);
+    $archivoFoto = $_FILES['foto'] ?? [];
+    if (($archivoFoto['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) $responder(['status' => 'error', 'message' => 'Tome una foto de la lluvia.'], 422);
     $r = sgsAvisarLluvia($pdo, $uid, $zona);
-    if ($r['nueva']) sgsAvisoTeamsLluvia("Inicio de lluvia — {$zona}", 'Hora: ' . date('H:i') . " · Reportó: {$usuario['nombre']}", $comentario, $foto);
+    if ($r['nueva']) sgsAvisoTeamsLluvia("Inicio de lluvia — {$zona}", 'Hora: ' . date('H:i') . " · Reportó: {$usuario['nombre']}", $comentario,
+        sgsFotoLluviaParaTeams($archivoFoto, sgsUrlSistema(), "Lluvia en {$zona} · " . date('d/m · H:i')));
     $responder(['status' => 'success', 'data' => $estado(), 'message' => $r['nueva'] ? "Lluvia avisada en {$zona}. Avise cuando pare."
         : "Ya estaba avisada la lluvia en {$zona} por {$r['lluvia']['reportado_por']}."]);
 }
