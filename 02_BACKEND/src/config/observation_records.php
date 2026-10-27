@@ -18,6 +18,11 @@ function observationRegisterScope(array $user): array {
     // Gestión (administrador, gerente, coordinador) ve todo; el resto, solo su alcance.
     $effectiveRole = (string)($user['rol'] ?? '');
     if (in_array($effectiveRole, [Auth::ROLE_ADMINISTRADOR, Auth::ROLE_GERENTE, Auth::ROLE_COORDINADOR], true)) {
+        // Líder con zonas propias (2026-10-27): solo las observaciones de sus zonas
+        if (sgsAlcanceLimitado($user) && sgsUserZones((int)$user['id'])) {
+            $params = [];
+            return [' AND ' . sgsZoneSql(sgsZonaSql('registros'), (int)$user['id'], $params, ':scope_zona'), $params];
+        }
         return ['', []];
     }
     if (($user['rol'] ?? '') === Auth::ROLE_JEFE_OPERACIONES && !empty($user['partner_id'])) {
@@ -28,7 +33,7 @@ function observationRegisterScope(array $user): array {
         // Regla de negocio (2026-10-04): el usuario de un partner ve las observaciones de SU partner
         // y de SU zona (departamento base + accesos adicionales), no solo las de sus órdenes.
         $params = [':scope_partner'=>(int)$user['partner_id']];
-        $zone = sgsZoneSql('registros.departamento', (int)$user['id'], $params, ':scope_zona');
+        $zone = sgsZoneSql(sgsZonaSql('registros'), (int)$user['id'], $params, ':scope_zona'); // zona: departamento o NORTE CHICO
         return [' AND registros.partner_id=:scope_partner AND ' . $zone, $params];
     }
     return [' AND registros.creado_por=:scope_creator', [':scope_creator'=>(int)$user['id']]];

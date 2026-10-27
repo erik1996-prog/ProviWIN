@@ -9,6 +9,10 @@
 //    (2026-10-12: se quitaron los "perfiles de acceso"; no se usaban.)
 //  - Quién ve a quién (2026-10-12): el administrador y el personal directo WIN ven a todos; el personal de un partner,
 //    solo a los de su partner y dentro de sus zonas habilitadas.
+//  - Equipo del líder (2026-10-27, permiso "Registrar… a su equipo", sin "Administrar usuarios"): ve, registra, edita y
+//    da de baja solo a quienes tienen un rol por debajo del suyo, dentro de sus zonas y de su área; asigna solo esos roles,
+//    sus zonas, su área y sus propios permisos. No se modifica a sí mismo. Lo que registra entra de inmediato.
+//    Un líder (Coordinador) con zonas o área propias que solo consulta, también ve solo a su equipo.
 //  - "Agregar y editar personal": solo datos personales. El trabajador nuevo queda "Sin acceso" (sin usuario e inactivo)
 //    hasta que el administrador le asigne usuario, contraseña, rol y zonas.
 
@@ -27,10 +31,10 @@ final class UsuarioService
     /** Para qué sirve cada rol del sistema (se muestra en "Roles y permisos"). El cargo y el área no dan permisos. */
     public const DESCRIPCION_ROLES = [
         'Administrador' => 'Dueño del sistema: ve y configura todo (usuarios, permisos, cargas, eliminaciones).',
-        'Gerente' => 'Consulta general: indicadores, supervisiones y observaciones de todos. No opera ni valida.',
-        'Coordinador' => 'Gestiona el trabajo: ve todo, revisa y valida observaciones, monitorea turnos y línea de tiempo.',
+        'Gerente' => 'Consulta: vista general: indicadores, supervisiones y observaciones de todos. No opera ni valida.',
+        'Coordinador' => 'Gestión (líder técnico): revisa y valida observaciones, monitorea turnos y línea de tiempo. Con zonas o área marcadas, ve solo eso; sin ellas, ve todo.',
         'Supervisor' => 'Trabaja en campo. Directo WIN: registra supervisiones y su turno. De un partner: atiende las órdenes asignadas y responde observaciones.',
-        'Jefe de operaciones' => 'Solo para partners: consulta las órdenes, observaciones y personal de su partner.',
+        'Jefe de operaciones' => 'Partner (jefe de operaciones de la contrata): consulta las órdenes, observaciones y personal de su partner.',
     ];
 
     /** Permisos que el administrador puede delegar (los "reservados" quedan fijos por rol). */
@@ -65,21 +69,65 @@ final class UsuarioService
         return array_values(array_filter($this->usuarios->partners(), static fn($p) => !in_array(mb_strtoupper(trim($p['nombre_partner'])), ['WIN', 'WIN DIRECTO'], true)));
     }
 
-    public function catalogos(): array
+    public function catalogos(?array $actor = null): array
     {
+        $eq = $actor ? $this->equipo($actor) : null;
         $roles = [];
         $conteo = $this->usuarios->conteoPorRol();
         foreach (UsuarioValidator::ROLES as $rol) {
-            $roles[] = ['rol' => $rol, 'descripcion' => self::DESCRIPCION_ROLES[$rol] ?? '', 'permisos' => array_values(array_intersect(Auth::roleDefaultPermissions($rol), self::permisosDelegables())), 'usuarios' => $conteo[$rol] ?? 0];
+            if ($eq && Auth::nivelRol($rol) >= $eq['nivel']) continue; // el líder solo asigna roles por debajo del suyo
+            $roles[] = ['rol' => $rol, 'etiqueta' => Auth::etiquetaRol($rol), 'descripcion' => self::DESCRIPCION_ROLES[$rol] ?? '', 'permisos' => array_values(array_intersect(Auth::roleDefaultPermissions($rol), self::permisosDelegables())), 'usuarios' => $conteo[$rol] ?? 0];
         }
-        $departamentos = sgsOperationalDepartments();
+        $departamentos = $eq['zonas'] ?? sgsOperationalDepartments();
+        $permisos = self::catalogoSgs();
+        if ($eq) $permisos = array_values(array_filter($permisos, static fn($p) => in_array($p['clave'], $eq['permisos'], true)));
         return [
+            'equipo' => (bool)$eq,
             'roles' => $roles,
             'partners' => array_values(array_filter($this->usuarios->partners(), static fn($p) => !in_array(mb_strtoupper(trim($p['nombre_partner'])), ['WIN', 'WIN DIRECTO'], true))),
             'departamentos' => $departamentos,
-            'permisos' => self::catalogoSgs(),
-            'areas' => UsuarioValidator::AREAS, 'cargos' => UsuarioValidator::CARGOS, 'procesos' => UsuarioValidator::PROCESOS,
+            'permisos' => $permisos,
+            'areas' => $eq && isset(SGS_AREAS_TRABAJO[$eq['area']]) ? [$eq['area']] : UsuarioValidator::AREAS, 'cargos' => UsuarioValidator::CARGOS, 'procesos' => UsuarioValidator::PROCESOS,
         ];
+    }
+
+    /**
+     * Líder que gestiona a su equipo: límites (nivel de su rol, sus zonas —null = todas—, su área y sus permisos), o null si
+     * administra todo o no tiene el permiso. Con $soloVer también cuenta el líder con zonas o área propias que solo consulta.
+     */
+    public function equipo(array $actor, bool $soloVer = false): ?array
+    {
+        if (Auth::can(Auth::PERM_USERS_MANAGE, $actor)) return null;
+        if (!Auth::can(Auth::PERM_USERS_TEAM, $actor) && !($soloVer && sgsAlcanceLimitado($actor))) return null;
+        $id = (int)$actor['id'];
+        return ['id' => $id, 'nivel' => Auth::nivelRol((string)$actor['rol']), 'zonas' => sgsUserZones($id) ?: null,
+            'area' => sgsUserArea($id), 'permisos' => $this->permisosEfectivos($id, (string)$actor['rol'])];
+    }
+
+    /** ¿El usuario (fila con zonas, todas_zonas, rol y área) está en el equipo del líder? */
+    private function enEquipo(array $u, array $eq): bool
+    {
+        if ((int)$u['id'] === $eq['id'] || Auth::nivelRol((string)$u['rol']) >= $eq['nivel']) return false;
+        if ($eq['zonas'] !== null && (!empty($u['todas_zonas']) || !$u['zonas'] || array_diff($u['zonas'], $eq['zonas']))) return false;
+        $area = trim((string)($u['area_trabajo'] ?? ''));
+        return !(isset(SGS_AREAS_TRABAJO[$eq['area']]) && isset(SGS_AREAS_TRABAJO[$area]) && $area !== $eq['area']);
+    }
+
+    /** El usuario debe ser del equipo del líder (si quien actúa es un líder). */
+    public function verificarEquipo(int $id, array $actor): void
+    {
+        $eq = $this->equipo($actor);
+        if (!$eq) return;
+        $u = $this->usuarios->obtener($id) ?? throw new ValidationException('Usuario no encontrado.');
+        if (!$this->enEquipo($this->filaConZonas($u), $eq)) throw new ValidationException('Este usuario no está a su cargo.');
+    }
+
+    /** Permisos que tiene el usuario: los personalizados o, si no tiene, los de su rol. */
+    private function permisosEfectivos(int $id, string $rol): array
+    {
+        $overrides = $this->usuarios->permisosPersonalizados($id);
+        $defaults = array_flip(Auth::roleDefaultPermissions($rol));
+        return array_values(array_filter(self::permisosDelegables(), static fn($p) => $overrides[$p] ?? isset($defaults[$p])));
     }
 
     /** Alcance de quien consulta: null = todos; si no, su partner y sus zonas (null = todas sus zonas). */
@@ -121,6 +169,7 @@ final class UsuarioService
     public function listar(array $filtros, ?array $actor = null): array
     {
         $alcance = $actor ? $this->alcance($actor) : null;
+        $eq = $actor ? $this->equipo($actor, true) : null; // líder: solo su equipo (2026-10-27)
         $f = [
             'q' => mb_substr(trim((string)($filtros['q'] ?? '')), 0, 80),
             'rol' => in_array($filtros['rol'] ?? '', UsuarioValidator::ROLES, true) ? $filtros['rol'] : '',
@@ -135,7 +184,7 @@ final class UsuarioService
         $visibles = [];
         foreach ($lista as $fila) {
             $fila = $this->filaConZonas($fila);
-            if (!$this->dentroDelAlcance($fila, $alcance)) continue;
+            if (!$this->dentroDelAlcance($fila, $alcance) || ($eq && !$this->enEquipo($fila, $eq))) continue;
             $fila['bloqueado'] = isset($bloqueados[(int)$fila['id']]);
             $fila['protegido'] = in_array((string)($fila['usuario'] ?? ''), Auth::USUARIOS_PROTEGIDOS, true);
             $fila['sin_acceso'] = trim((string)($fila['usuario'] ?? '')) === '';
@@ -149,7 +198,13 @@ final class UsuarioService
             unset($fila['sede'], $fila['zona']);
             $visibles[] = $fila;
         }
-        if ($alcance === null) $resumen = array_map('intval', $this->usuarios->resumen());
+        if ($eq) {
+            $suyos = array_filter($this->usuarios->listar(['q' => '', 'rol' => '', 'estado' => '', 'organizacion' => '']), fn($u) => $this->enEquipo($this->filaConZonas($u), $eq));
+            $activos = array_filter($suyos, fn($u) => (int)$u['activo'] === 1);
+            $resumen = ['total' => count($suyos), 'activos' => count($activos), 'partners' => count(array_filter($activos, fn($u) => !in_array(mb_strtoupper(trim((string)$u['nombre_partner'])), ['', 'WIN', 'WIN DIRECTO'], true))),
+                'administradores' => 0];
+            $resumen['directos'] = $resumen['activos'] - $resumen['partners'];
+        } elseif ($alcance === null) $resumen = array_map('intval', $this->usuarios->resumen());
         else {
             // Indicadores solo con el personal que esta persona puede ver.
             $todos = array_filter($this->usuarios->listar(['q' => '', 'rol' => '', 'estado' => '', 'organizacion' => '']),
@@ -228,9 +283,7 @@ final class UsuarioService
     {
         $u = $this->usuarios->obtener($id) ?? throw new ValidationException('Usuario no encontrado.');
         $overrides = $this->usuarios->permisosPersonalizados($id);
-        $defaults = array_flip(Auth::roleDefaultPermissions((string)$u['rol']));
-        $efectivos = [];
-        foreach (self::permisosDelegables() as $p) if ($overrides[$p] ?? isset($defaults[$p])) $efectivos[] = $p;
+        $efectivos = $this->permisosEfectivos($id, (string)$u['rol']);
         $esDirecto = empty($u['nombre_partner']) || in_array(mb_strtoupper(trim($u['nombre_partner'])), ['WIN', 'WIN DIRECTO'], true);
         return [
             'id' => (int)$u['id'], 'dni' => $u['dni'], 'nombres' => $u['nombres'], 'apellidos' => $u['apellidos'], 'usuario' => $u['usuario'],
@@ -247,7 +300,7 @@ final class UsuarioService
 
     /** $quedaActivo = false (2026-10-26): un usuario nuevo, o al que se le da acceso, queda "Por activar" hasta que la
      *  cuenta principal lo active (UsuarioController decide según quién lo crea). */
-    public function guardar(array $in, int $id, int $actorId, bool $quedaActivo = true): array
+    public function guardar(array $in, int $id, int $actorId, bool $quedaActivo = true, ?array $eq = null): array
     {
         $d = UsuarioValidator::usuario($in, $id === 0);
         $organizacion = ($in['organizacion'] ?? 'directo') === 'partner' ? 'partner' : 'directo';
@@ -258,8 +311,9 @@ final class UsuarioService
         }
 
 
-        $operativo = $d['rol'] === Auth::ROLE_SUPERVISOR;   // el jefe de operaciones ve todo su partner: no lleva zonas
-        if ($operativo && !$d['todas_zonas'] && !$d['zonas']) throw new ValidationException('Marque al menos una zona de trabajo (o "Todas las zonas"): define qué puede ver el usuario.', 'zonas');
+        // El jefe de operaciones ve todo su partner: no lleva zonas. El coordinador (líder) puede llevarlas: sin zonas ve todo.
+        $operativo = in_array($d['rol'], [Auth::ROLE_SUPERVISOR, Auth::ROLE_COORDINADOR], true);
+        if ($d['rol'] === Auth::ROLE_SUPERVISOR && !$d['todas_zonas'] && !$d['zonas']) throw new ValidationException('Marque al menos una zona de trabajo (o "Todas las zonas"): define qué puede ver el usuario.', 'zonas');
         // La primera zona es la base; se guarda como sede porque el sistema de origen la usa. Las demás, como accesos adicionales.
         $d['sede'] = $d['todas_zonas'] ? 'PROVINCIAS' : ($d['zonas'] ? sgsSiteFromDepartment($d['zonas'][0]) : '');
         $zonasAdicionales = $d['todas_zonas'] ? [] : array_slice($d['zonas'], 1);
@@ -274,6 +328,7 @@ final class UsuarioService
         $previo = $id > 0 ? $this->usuarios->obtener($id) : null;
         $d['area_trabajo'] = UsuarioValidator::deLista($d['area_trabajo'], UsuarioValidator::AREAS, $previo['area_trabajo'] ?? null, 'area_trabajo', 'área de trabajo');
         $d['cargo'] = UsuarioValidator::deLista($d['cargo'], UsuarioValidator::CARGOS, $previo['cargo'] ?? null, 'cargo', 'cargo');
+        if ($eq) $this->validarEquipo($d, $id, $eq);
         if ($id > 0) {
             $actual = $this->usuarios->obtener($id) ?? throw new ValidationException('Usuario no encontrado.');
             // Personal registrado "Sin acceso": al completarlo el administrador debe darle una contraseña; queda activo.
@@ -316,6 +371,28 @@ final class UsuarioService
         }
         return ['id' => $id, 'usuario' => $d['usuario'], 'por_activar' => !$quedaActivo && ($previo === null || $completaAcceso),
             'nombre' => $d['nombres'] . ' ' . $d['apellidos']];
+    }
+
+    /** Lo que registra o edita un líder debe quedar dentro de su equipo: roles por debajo, sus zonas, su área y sus permisos. */
+    private function validarEquipo(array $d, int $id, array $eq): void
+    {
+        if ($id === $eq['id']) throw new ValidationException('Su propio rol, zonas, área y permisos solo los cambia el administrador.');
+        if ($id > 0) {
+            $u = $this->usuarios->obtener($id) ?? throw new ValidationException('Usuario no encontrado.');
+            if (!$this->enEquipo($this->filaConZonas($u), $eq)) throw new ValidationException('Este usuario no está a su cargo.');
+        }
+        if (Auth::nivelRol($d['rol']) >= $eq['nivel']) throw new ValidationException('Solo puede asignar roles por debajo del suyo.', 'rol');
+        if ($eq['zonas'] !== null) {
+            if ($d['todas_zonas'] || !$d['zonas'] || array_diff($d['zonas'], $eq['zonas'])) {
+                throw new ValidationException('Solo puede asignar sus zonas: ' . implode(', ', $eq['zonas']) . '.', 'zonas');
+            }
+        }
+        if (isset(SGS_AREAS_TRABAJO[$eq['area']]) && $d['area_trabajo'] !== $eq['area']) {
+            throw new ValidationException("Solo puede asignar su área de trabajo: {$eq['area']}.", 'area_trabajo');
+        }
+        if ($d['permisos_personalizados'] && array_diff($d['permisos'], $eq['permisos'])) {
+            throw new ValidationException('Solo puede dar permisos que usted tiene.', 'permisos');
+        }
     }
 
     /** Aviso en la campana de la cuenta principal (si existe). */

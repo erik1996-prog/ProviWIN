@@ -6,7 +6,7 @@
 // Administración ve todas las zonas; el supervisor directo, las suyas.
 Auth::requireLogin();
 $user = Auth::getLoggedInUser();
-$esAdmin = Auth::isAdministrative();
+$esAdmin = Auth::isAdministrative() && !sgsAlcanceLimitado($user); // líder con zonas: solo las suyas
 if (!Auth::puede(Auth::PERM_CLIMA_VIEW, $user)) {
     echo '<div class="alert alert-danger m-4">No tiene permiso para ver Clima.</div>';
     return;

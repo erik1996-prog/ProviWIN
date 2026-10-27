@@ -33,11 +33,28 @@ function sgsMinutosLluviaDelCorte(PDO $pdo, string $hasta): array {
     return $celdas;
 }
 
+/**
+ * Zonas del corte (2026-10-27): las que tienen supervisores directos activos o lluvias en estos días. Así una zona nueva
+ * aún sin supervisores (Lima, Callao o el Norte Chico al empezar) no aparece siempre como "sin lluvia".
+ */
+function sgsZonasDelCorte(PDO $pdo, array $celdas): array {
+    $todas = sgsOperationalDepartments();
+    $conSupervisor = [];
+    $ids = $pdo->query("SELECT u.id FROM usuarios u LEFT JOIN partners p ON p.id = u.partner_id
+        WHERE u.rol = 'Supervisor' AND u.activo = 1 AND " . sgsDirectStaffSql('u', 'p'))->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($ids as $id) {
+        $zonas = sgsUserZones((int)$id);
+        if ($zonas === null) return $todas; // alguien trabaja todas las provincias
+        foreach ($zonas as $z) $conSupervisor[$z] = true;
+    }
+    return array_values(array_filter($todas, static fn($z) => isset($conSupervisor[$z]) || isset($celdas[$z])));
+}
+
 /** PNG de la matriz de los últimos 7 días hasta $hasta (AAAA-MM-DD). $escala 2 = doble resolución; $colores > 0 = paleta sin tramado (más liviana). */
 function sgsImagenMatrizLluvias(array $celdas, string $hasta, float $escala = 2, int $colores = 0): string {
     $fuente = dirname(__DIR__, 2) . '/recursos/fuentes/';
     $normal = $fuente . 'Nunito-Medium.ttf'; $negrita = $fuente . 'Nunito-Bold.ttf';
-    $zonas = sgsOperationalDepartments();
+    $zonas = sgsZonasDelCorte(Database::getConnection(), $celdas);
     $fechas = sgsDiasDelCorte($hasta);
     $dias = count($fechas);
     $s = $escala;
@@ -149,7 +166,7 @@ function sgsPublicarCorteLluvias(PDO $pdo, string $hasta, ?string $urlSistema): 
     }
     // Resumen por zona en texto (2026-10-26): se lee en el celular sin abrir la imagen (la matriz es ancha para un teléfono)
     $porZona = []; $sinLluvia = [];
-    foreach (sgsOperationalDepartments() as $zona) {
+    foreach (sgsZonasDelCorte($pdo, $celdas) as $zona) {
         $dias = $celdas[mb_strtoupper($zona, 'UTF-8')] ?? [];
         $min = array_sum(array_column($dias, 'min'));
         if (!$min) { $sinLluvia[] = mb_convert_case(mb_strtolower($zona, 'UTF-8'), MB_CASE_TITLE, 'UTF-8'); continue; }

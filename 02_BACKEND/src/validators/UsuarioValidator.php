@@ -18,7 +18,7 @@ final class UsuarioValidator
     /** Área de trabajo: el equipo al que pertenece (2026-10-12). No da permisos. */
     public const AREAS = ['Instalaciones', 'Averías', 'Instalaciones y averías', 'Almacén'];
     /** Cargo: su puesto en la empresa (2026-10-12). No da permisos; eso lo define el rol del sistema. */
-    public const CARGOS = ['Supervisor de campo', 'Supervisor de calidad', 'Supervisor UM', 'Coordinador', 'Jefe de operaciones', 'Jefe', 'Gerente',
+    public const CARGOS = ['Supervisor de campo', 'Supervisor de calidad', 'Supervisor UM', 'Líder técnico', 'Coordinador', 'Jefe de operaciones', 'Jefe', 'Gerente',
         'Subgerente', 'Asistente', 'Asesor', 'Almacenero', 'Analista'];
     /** Procesos en los que se le copia en los correos (se guardan en usuarios.procesos_copiados). */
     public const PROCESOS = ['Liquidaciones', 'Penalidades', 'Gestión Phoenix'];

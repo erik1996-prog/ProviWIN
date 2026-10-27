@@ -39,10 +39,13 @@ function getSupervisorTerritorialScope(array $user): string {
     return $scopes[$userId];
 }
 
+/** ¿La orden es de la zona del supervisor (y de su área de trabajo, si la orden trae su clasificación)? Zona = departamento,
+ *  salvo las provincias con zona propia (Norte Chico, 2026-10-27: config/territorial.php). */
 function directSupervisorScopeAllows(array $user, array $supervision): bool {
+    if (array_key_exists('clasificacion_supervision', $supervision) && !sgsAreaPermite((int)($user['id'] ?? 0), $supervision['clasificacion_supervision'])) return false;
     $scope = getSupervisorTerritorialScope($user);
     if ($scope === 'PROVINCIAS') return true;
-    $department = mb_strtoupper(trim((string)($supervision['departamento'] ?? '')), 'UTF-8');
+    $department = sgsZonaDeUbicacion($supervision['departamento'] ?? '', $supervision['provincia'] ?? '');
     if ($department === '') return false;
     if ($scope !== '' && $department === $scope) return true;
     $stmt = Database::getConnection()->prepare("SELECT 1 FROM usuario_departamentos_acceso
@@ -52,14 +55,16 @@ function directSupervisorScopeAllows(array $user, array $supervision): bool {
 }
 
 function pendingTerritorialCondition(string $alias, string $scope, int $userId, string $accessParam, string $departmentParam, array &$params): string {
-    if ($scope === 'PROVINCIAS') return "{$alias}.estado_supervision = 'Pendiente'";
+    if ($scope === 'PROVINCIAS') return "({$alias}.estado_supervision = 'Pendiente' AND " . sgsAreaSql($alias, $userId) . ')';
     $params[$accessParam] = $userId;
-    $scopeParts = ["EXISTS (SELECT 1 FROM usuario_departamentos_acceso uda WHERE uda.usuario_id={$accessParam} AND uda.activo=1 AND UPPER(TRIM(uda.departamento))=UPPER(TRIM({$alias}.departamento)))"];
+    $zona = sgsZonaSql($alias);
+    $scopeParts = ["EXISTS (SELECT 1 FROM usuario_departamentos_acceso uda WHERE uda.usuario_id={$accessParam} AND uda.activo=1 AND UPPER(TRIM(uda.departamento))={$zona})"];
     if ($scope !== '') {
         $params[$departmentParam] = $scope;
-        array_unshift($scopeParts, "UPPER(TRIM({$alias}.departamento))={$departmentParam}");
+        array_unshift($scopeParts, "{$zona}={$departmentParam}");
     }
-    return "({$alias}.estado_supervision = 'Pendiente' AND (" . implode(' OR ', $scopeParts) . '))';
+    // Área de trabajo (2026-10-27): el supervisor de Instalaciones no ve en la bolsa las pendientes de averías, y al revés
+    return "({$alias}.estado_supervision = 'Pendiente' AND " . sgsAreaSql($alias, $userId) . ' AND (' . implode(' OR ', $scopeParts) . '))';
 }
 
 /** Mensaje al negar la edición: si otro supervisor ya tomó la pendiente de la bolsa común, se explica así. */
@@ -73,9 +78,10 @@ function mensajeSinAccesoSupervision(array $user, $supervision, string $porDefec
 }
 
 function canAccessSupervision(array $user, array $supervision, bool $allowPending = false): bool {
-    if (Auth::can(Auth::PERM_SUPERVISION_VIEW_ALL, $user)) return true;
+    // Líder con zonas o área propias (2026-10-27): solo lo de sus zonas y su área
+    if (Auth::can(Auth::PERM_SUPERVISION_VIEW_ALL, $user)) return sgsAlcancePermiteSupervision($user, $supervision);
     $isPendingPoolItem = $allowPending && ($supervision['estado_supervision'] ?? '') === 'Pendiente';
-    if (Auth::isAdministrative()) return true;
+    if (Auth::isAdministrative()) return sgsAlcancePermiteSupervision($user, $supervision);
     if ($user['rol'] === Auth::ROLE_JEFE_OPERACIONES) {
         // Jefe de operaciones: consulta las órdenes asignadas a su partner (no las atiende).
         return (int)($supervision['partner_id'] ?? 0) === (int)($user['partner_id'] ?? 0) && !empty($supervision['fecha_asignacion']);
@@ -94,6 +100,20 @@ function canAccessSupervision(array $user, array $supervision, bool $allowPendin
         return $isPendingPoolItem ? directSupervisorScopeAllows($user, $supervision) : $isOwner;
     }
     return false;
+}
+
+/**
+ * Lado del partner (supervisor de partner y jefe de operaciones, 2026-10-27): revisa la orden sin saber qué partner la
+ * canceló ni qué cuadrilla la atendió (técnicos y placa). Esos datos no se le envían (lista y detalle).
+ */
+function sgsSinOrigenParaPartner(array $user, array $fila): array {
+    $ladoPartner = ($user['rol'] ?? '') === Auth::ROLE_JEFE_OPERACIONES
+        || (($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && empty($user['is_win_directo']) && !empty($user['partner_id']));
+    if (!$ladoPartner) return $fila;
+    foreach (['nombre_partner', 'tecnico1_id', 'tecnico1_nombre', 'tecnico1_dni', 'tecnico2_id', 'tecnico2_nombre', 'tecnico2_dni', 'vehiculo_id', 'unidad_placa'] as $c) {
+        if (array_key_exists($c, $fila)) $fila[$c] = null;
+    }
+    return $fila;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'partner_update') {
@@ -162,7 +182,7 @@ if ($action === 'supervisores_partner') {
         http_response_code(403); echo json_encode(['status'=>'error','message'=>'Solo el administrador o un supervisor directo de WIN puede realizar asignaciones.']); exit;
     }
     $supervisionId = (int)($_GET['supervision_id'] ?? 0);
-    $stmtOrder = $pdo->prepare("SELECT id,supervisor_id,partner_id,departamento,estado_supervision FROM supervisiones WHERE id=:id LIMIT 1");
+    $stmtOrder = $pdo->prepare("SELECT id,supervisor_id,partner_id,departamento,provincia,estado_supervision FROM supervisiones WHERE id=:id LIMIT 1");
     $stmtOrder->execute([':id'=>$supervisionId]);
     $order = $stmtOrder->fetch();
     if (!$order || $order['estado_supervision'] !== 'Pendiente' || !canAccessSupervision($user, $order, true)) {
@@ -178,10 +198,11 @@ if ($action === 'supervisores_partner') {
               WHERE uda.usuario_id=u.id AND uda.activo=1
                 AND UPPER(TRIM(uda.departamento))=UPPER(TRIM(:departamento_acceso))))
         ORDER BY u.nombre_completo");
+    $zonaOrden = sgsZonaDeUbicacion($order['departamento'], $order['provincia']);
     $stmt->execute([
         ':partner'=>(int)$order['partner_id'],
-        ':departamento'=>$order['departamento'],
-        ':departamento_acceso'=>$order['departamento'],
+        ':departamento'=>$zonaOrden,
+        ':departamento_acceso'=>$zonaOrden,
     ]);
     $partnerNameStmt = $pdo->prepare('SELECT nombre_partner FROM partners WHERE id=:id LIMIT 1');
     $partnerNameStmt->execute([':id'=>(int)$order['partner_id']]);
@@ -199,7 +220,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'asignar_partner') {
     $partnerSupervisorId = (int)($_POST['supervisor_partner_id'] ?? 0);
     $pdo->beginTransaction();
     try {
-        $stmtOrder = $pdo->prepare("SELECT id,codigo_supervision,supervisor_id,partner_id,departamento,estado_supervision,rescate_estado FROM supervisiones WHERE id=:id FOR UPDATE");
+        $stmtOrder = $pdo->prepare("SELECT id,codigo_supervision,supervisor_id,partner_id,departamento,provincia,estado_supervision,rescate_estado FROM supervisiones WHERE id=:id FOR UPDATE");
         $stmtOrder->execute([':id'=>$supervisionId]);
         $order = $stmtOrder->fetch();
         if ($order && ($order['rescate_estado'] ?? '') === 'En rescate') {
@@ -215,7 +236,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'asignar_partner') {
               AND (UPPER(TRIM({$departmentSql}))=UPPER(TRIM(:departamento))
                 OR EXISTS (SELECT 1 FROM usuario_departamentos_acceso uda WHERE uda.usuario_id=u.id AND uda.activo=1
                   AND UPPER(TRIM(uda.departamento))=UPPER(TRIM(:departamento_acceso)))) LIMIT 1"); // 2026-10-13: faltaba cerrar el paréntesis del AND (la asignación fallaba con error de SQL)
-        $stmtTarget->execute([':id'=>$partnerSupervisorId,':partner'=>(int)$order['partner_id'],':departamento'=>$order['departamento'],':departamento_acceso'=>$order['departamento']]);
+        $zonaOrden = sgsZonaDeUbicacion($order['departamento'], $order['provincia']);
+        $stmtTarget->execute([':id'=>$partnerSupervisorId,':partner'=>(int)$order['partner_id'],':departamento'=>$zonaOrden,':departamento_acceso'=>$zonaOrden]);
         $target = $stmtTarget->fetch();
         if (!$target) throw new RuntimeException('El supervisor seleccionado no pertenece al partner y departamento de la orden.');
         $stmtUpdate = $pdo->prepare("UPDATE supervisiones SET supervisor_id=:destino,partner_id=:partner,asignado_por=:origen,fecha_asignacion=NOW(),estado_atencion_partner='Pendiente',observacion_atencion_partner=NULL,fecha_atencion_partner=NULL WHERE id=:id AND estado_supervision='Pendiente'");
@@ -284,8 +306,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['rescate_tomar',
                 $destDirecto = $dest && $dest['rol'] === Auth::ROLE_SUPERVISOR && (int)$dest['activo'] === 1
                     && (empty($dest['partner_id']) || in_array(mb_strtoupper(trim((string)$dest['nombre_partner']), 'UTF-8'), ['WIN', 'WIN DIRECTO'], true));
                 if (!$destDirecto) $responder(422, 'El rescate solo se puede reasignar a un supervisor directo activo.');
-                if (!in_array(mb_strtoupper((string)$orden['departamento'], 'UTF-8'), sgsUserZones($destino), true) && sgsUserZones($destino) !== []) {
-                    $responder(422, 'El supervisor elegido no trabaja la zona de la orden (' . $orden['departamento'] . ').');
+                $zonaOrden = sgsZonaDeUbicacion($orden['departamento'], $orden['provincia']);
+                if (!in_array($zonaOrden, sgsUserZones($destino) ?? [$zonaOrden], true) && sgsUserZones($destino) !== []) {
+                    $responder(422, 'El supervisor elegido no trabaja la zona de la orden (' . $zonaOrden . ').');
                 }
                 $sa = $pdo->prepare('SELECT nombre_completo FROM usuarios WHERE id = :id'); $sa->execute([':id' => (int)($orden['rescate_responsable_id'] ?? 0)]);
                 $anterior = (string)$sa->fetchColumn();
@@ -434,7 +457,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
     if ($requestedEditId === 0
         && $workflowUser['rol'] === Auth::ROLE_SUPERVISOR
         && !empty($workflowUser['is_win_directo'])
-        && !directSupervisorScopeAllows($workflowUser, ['departamento' => $departamento])) {
+        && !directSupervisorScopeAllows($workflowUser, ['departamento' => $departamento, 'provincia' => $provincia])) {
         http_response_code(403);
         echo json_encode(['status' => 'error', 'message' => 'El departamento seleccionado está fuera del alcance territorial de su usuario.']);
         exit;
@@ -1437,6 +1460,7 @@ function supervisionListVisibility(array $user, ?string $fechaInicio = null, ?st
     // posteriormente cambie su zona. Las pendientes funcionan como una bolsa común
     // de la zona y dejan de ser compartidas cuando un supervisor las inicia.
     $canViewAllSupervisions = Auth::can(Auth::PERM_SUPERVISION_VIEW_ALL, $user);
+    if (Auth::isAdministrative() || $canViewAllSupervisions) $where[] = sgsAlcanceSupervisionSql($user, 's', $params); // líder: sus zonas y su área
     if ($canViewAllSupervisions && $supervisorIdFilter > 0) {
         $where[] = "s.supervisor_id = :filter_sup_id";
         $params[':filter_sup_id'] = $supervisorIdFilter;
@@ -1621,6 +1645,7 @@ if ($action === 'list') {
     foreach ($data as &$fila) {
         // Asignada a partner = es_asignacion_partner (no basta fecha_asignacion: la carga del Excel la llena siempre).
         $fila['sin_gestionar'] = ($fila['estado_supervision'] ?? '') === 'Pendiente' && empty($fila['rescate_estado']) && empty($fila['es_asignacion_partner']) ? 1 : 0;
+        $fila = sgsSinOrigenParaPartner($user, $fila);
     }
     unset($fila);
 
@@ -1711,7 +1736,7 @@ if ($action === 'detail') {
 
     echo json_encode([
         'status' => 'success',
-        'supervision' => $supervision,
+        'supervision' => sgsSinOrigenParaPartner($user, $supervision),
         'observaciones' => $observaciones,
         'rescate_seguimientos' => $rescateSeguimientos,
     ]);
@@ -1748,7 +1773,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'iniciar_nueva') {
         exit;
     }
     $zonas = sgsUserZones((int)$user['id']);
-    $departamento = is_array($zonas) && count($zonas) === 1 ? $zonas[0] : '';
+    $departamento = is_array($zonas) && count($zonas) === 1 ? sgsDepartamentoDeZona($zonas[0]) : '';
     $codigo = 'SUP-' . date('Ymd') . '-' . random_int(1000, 9999);
     $pdo->beginTransaction();
     try {
@@ -1899,7 +1924,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'corregir_pendiente') {
         $st = $pdo->prepare('SELECT codigo_supervision FROM supervisiones WHERE id <> :id AND UPPER(TRIM(ticket_codigo)) = :t LIMIT 1');
         $st->execute([':id' => $id, ':t' => $ticket]);
         if ($otra = $st->fetchColumn()) throw new RuntimeException("El ticket {$ticket} ya está en la supervisión {$otra}.", 409);
-        $cambiaZona = normalizeImportText((string)$sup['departamento']) !== normalizeImportText($ubicacion['departamento']);
+        $zonaNueva = sgsZonaDeUbicacion($ubicacion['departamento'], $ubicacion['provincia']);
+        $cambiaZona = sgsZonaDeUbicacion($sup['departamento'], $sup['provincia']) !== $zonaNueva;
         // Asignada a un supervisor de partner: el partner y la zona quedan como están (la asignación depende de ellos)
         $asignadaPartner = trim((string)$sup['partner_supervisor']) !== '' && !in_array(mb_strtoupper(trim((string)$sup['partner_supervisor']), 'UTF-8'), ['WIN', 'WIN DIRECTO'], true);
         if ($asignadaPartner && ($cambiaZona || (int)$partner['id'] !== (int)$sup['partner_id'])) {
@@ -1907,8 +1933,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'corregir_pendiente') {
         }
         $supervisorId = (int)$sup['supervisor_id'];
         if ($cambiaZona) {
-            $nuevo = elegirSupervisorCancelacion($pdo, $ubicacion['departamento']);
-            if (!$nuevo) throw new RuntimeException("No hay supervisor directo activo para {$ubicacion['departamento']}.", 422);
+            $nuevo = elegirSupervisorCancelacion($pdo, $zonaNueva, $tipo);
+            if (!$nuevo) throw new RuntimeException("No hay supervisor directo activo para {$zonaNueva}.", 422);
             $supervisorId = (int)$nuevo['id'];
         }
         if ($motivo !== '') { // el motivo debe existir en el catálogo (como en la carga)
@@ -1931,8 +1957,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'corregir_pendiente') {
                 ':lat' => $lat, ':lng' => $lng, ':id' => $id]);
         if ($cambiaZona) {
             $aviso = $pdo->prepare("INSERT INTO notificaciones (usuario_id, titulo, mensaje, url_destino) VALUES (:u, 'Nueva cancelación pendiente en tu zona', :m, 'index.php?page=supervision_lista')");
-            foreach (supervisoresZonaCancelacion($pdo, $ubicacion['departamento']) as $z) {
-                $aviso->execute([':u' => (int)$z['id'], ':m' => "La pendiente {$sup['codigo_supervision']} (ticket {$ticket}) se corrigió y ahora es de {$ubicacion['departamento']}."]);
+            foreach (supervisoresZonaCancelacion($pdo, $zonaNueva, false, $tipo) as $z) {
+                $aviso->execute([':u' => (int)$z['id'], ':m' => "La pendiente {$sup['codigo_supervision']} (ticket {$ticket}) se corrigió y ahora es de {$zonaNueva}."]);
             }
         }
         $pdo->commit();
@@ -1941,7 +1967,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'corregir_pendiente') {
         if (!$e instanceof RuntimeException) win_log_error('pendiente_corregir', $e->getMessage(), ['id' => $id]);
         $responder(in_array($e->getCode(), [404, 409, 422], true) ? $e->getCode() : 500, $e instanceof RuntimeException ? $e->getMessage() : 'No se pudo guardar la corrección.');
     }
-    $responder(200, 'Pendiente corregida' . ($cambiaZona ? " y movida a {$ubicacion['departamento']}." : '.'), 'success');
+    $responder(200, 'Pendiente corregida' . ($cambiaZona ? " y movida a {$zonaNueva}." : '.'), 'success');
 }
 if ($action === 'delete') {
     // Solo POST (2026-10-13): por GET no se revisa el token CSRF y bastaba con abrir un enlace para borrar.

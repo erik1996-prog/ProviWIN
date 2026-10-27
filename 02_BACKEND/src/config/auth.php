@@ -43,6 +43,7 @@ class Auth {
     public const PERM_USERS_VIEW = 'users.view';
     /** Agregar y editar solo datos personales del personal (sin usuario, contraseña, rol, ni activar/desactivar). */
     public const PERM_STAFF_MANAGE = 'users.staff';
+    public const PERM_USERS_TEAM = 'users.team'; // 2026-10-27: el líder registra y da de baja a su equipo (hacia abajo)
     public const PERM_USERS_MANAGE = 'users.manage';
     public const PERM_DASHBOARD_VIEW = 'dashboard.view';
     public const PERM_SYSTEM_MANAGE = 'system.manage';
@@ -65,6 +66,14 @@ class Auth {
     public const PERM_PARTNERS_EDIT = 'partners.edit';
     public const PERM_PARTNERS_DELETE = 'partners.delete';
     public const PERM_OBSERVATION_DELETE = 'observation.delete';
+
+    /** Orden de los roles (2026-10-27): un líder solo asigna roles por debajo del suyo. */
+    public const NIVEL_ROL = ['Administrador' => 5, 'Gerente' => 4, 'Coordinador' => 3, 'Jefe de operaciones' => 2, 'Supervisor' => 1];
+    /** Nombre que se muestra de cada rol (2026-10-27): por lo que hace, para no repetir los cargos. El valor guardado no cambia. */
+    public const ETIQUETAS_ROL = ['Coordinador' => 'Gestión', 'Gerente' => 'Consulta', 'Jefe de operaciones' => 'Partner'];
+
+    public static function nivelRol(string $rol): int { return self::NIVEL_ROL[$rol] ?? 0; }
+    public static function etiquetaRol(string $rol): string { return self::ETIQUETAS_ROL[$rol] ?? $rol; }
 
     private const ROLE_PERMISSIONS = [
         self::ROLE_ADMINISTRADOR => [
@@ -185,6 +194,7 @@ class Auth {
             self::PERM_OBSERVATION_DELETE => ['group'=>'Observaciones','label'=>'Eliminar observaciones','action'=>'eliminar','delegable'=>true],
             self::PERM_USERS_VIEW => ['group'=>'Usuarios y roles','label'=>'Ver usuarios (solo consulta; el partner ve solo a su partner y sus zonas)','action'=>'ver','delegable'=>true],
             self::PERM_STAFF_MANAGE => ['group'=>'Usuarios y roles','label'=>'Agregar y editar personal (solo datos personales; sin acceso, rol ni activar)','action'=>'editar','delegable'=>true],
+            self::PERM_USERS_TEAM => ['group'=>'Usuarios y roles','label'=>'Registrar, editar y dar de baja a su equipo (roles por debajo del suyo, sus zonas, su área y sus permisos)','action'=>'editar','delegable'=>true],
             self::PERM_DASHBOARD_VIEW => ['group'=>'Dashboard de supervisiones','label'=>'Ver Dashboard de supervisiones','action'=>'ver','delegable'=>true],
             self::PERM_PARTNERS_DASHBOARD => ['group'=>'Dashboard de partners','label'=>'Ver Dashboard de partners','action'=>'ver','delegable'=>true],
             self::PERM_PENDIENTES_VIEW => ['group'=>'Pendientes y rescates','label'=>'Ver Pendientes y rescates','action'=>'ver','delegable'=>true],

@@ -4,6 +4,28 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Líder técnico: su equipo, sus zonas y su área (2026-10-27)
+- **Añadido**: cargo **"Líder técnico"**.
+- **Añadido**: permiso **"Registrar, editar y dar de baja a su equipo"** (Usuarios y roles), que el administrador da a un líder. Con él, el líder:
+  - ve en Usuarios solo a quienes tienen un rol por debajo del suyo, dentro de sus zonas y de su área (no a sus pares, superiores ni a los de "todas las zonas");
+  - al registrar o editar, solo le aparecen esos roles, sus zonas, su área y sus propios permisos;
+  - no puede modificarse a sí mismo;
+  - lo que registra entra de inmediato;
+  - puede dar de baja a los suyos; reactivar sigue siendo de la cuenta principal.
+- **Cambiado**: un **Coordinador (Gestión)** con zonas o área marcadas ve solo eso: supervisiones, pendientes, supervisores (línea de tiempo, monitor y dashboard), observaciones, técnicos, exámenes, vencimientos y clima. Sin zonas y con ambas áreas ve todo, como antes. El Coordinador ahora puede llevar zonas (sin zonas = todo).
+- **Cambiado**: los roles se muestran por lo que hacen: Coordinador → **Gestión**, Gerente → **Consulta**, Jefe de operaciones → **Partner** (el valor guardado no cambia). SGA y SGI ya no aparecían en la lista.
+- Prueba nueva: `05_TEST/integration/lider_equipo_test.php`.
+
+### El partner revisa sin saber quién canceló (2026-10-27)
+- **Corregido**: cuando se asigna una orden a un supervisor de partner, él (y el jefe de operaciones del partner) veía qué partner la canceló y qué cuadrilla la atendió (técnicos, DNI y placa). Ahora el servidor no le envía esos datos, ni en la lista ni en el detalle, y en su pantalla no aparecen esas columnas ni esa sección. Así revisa la orden sin sesgo. WIN y el administrador siguen viéndolo todo.
+
+### Zonas de Lima, Callao y Norte Chico, y área de trabajo (2026-10-27)
+- **Añadido**: zonas de trabajo **LIMA**, **CALLAO** y **NORTE CHICO**. El catálogo de ubicaciones suma los distritos oficiales de la provincia de Lima (43), del Callao (7) y de Huaura, Huaral y Barranca (29). Cambio de base `2026-10-27_01_zonas_lima_callao_y_norte_chico`.
+- La zona la calcula el sistema a partir de la ubicación oficial: es el departamento, salvo LIMA / HUAURA, HUARAL o BARRANCA, que son NORTE CHICO (`SGS_ZONAS_POR_PROVINCIA` en `config/territorial.php`). Las direcciones se siguen guardando con su departamento, provincia y distrito reales. Se aplica en la bolsa de pendientes, la carga y la corrección de pendientes, la asignación a partners, los rescates, las observaciones, los dashboards (supervisiones, pendientes y partners) y la zona de los técnicos (Huacho → NORTE CHICO). El supervisor del Norte Chico ve LIMA como departamento, pero solo las provincias Barranca, Huaral y Huaura.
+- **Cambiado**: el **área de trabajo** del usuario (ya existía) ahora filtra la bolsa de pendientes. "Instalaciones" solo ve instalaciones; "Averías" solo averías, postventa, reiteradas y garantías. Con ambas, o con otro valor, ve todo, así que provincias no cambia. La carga de pendientes las asigna y avisa por zona y área.
+- El corte de lluvias solo muestra las zonas con supervisores o con lluvias, así Lima, Callao y el Norte Chico no salen como "sin lluvia" mientras no tengan supervisores.
+- Prueba nueva: `05_TEST/integration/zonas_lima_areas_test.php`.
+
 ### Instalar la app en Huawei y otros celulares (2026-10-27)
 - **Corregido**: en el navegador de Huawei (y en Safari del iPhone, Firefox o los navegadores dentro de WhatsApp o Teams) no aparecía "Instalar app". Solo Chrome, Edge y Samsung avisan que se puede instalar. Ahora, en el celular, el botón aparece igual y muestra los pasos de ese navegador ("Añadir a la pantalla de inicio").
 

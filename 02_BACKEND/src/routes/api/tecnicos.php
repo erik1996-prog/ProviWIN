@@ -36,7 +36,7 @@ try {
         $partnerId = (int)($_GET['partner_id'] ?? 0);
         if ($partnerId > 0) { $where[] = 't.partner_id = :partner'; $params[':partner'] = $partnerId; }
         // Zona del usuario (2026-10-15): igual que la pantalla Cuadrillas.
-        if (!Auth::isAdministrative() && sgsUserZones((int)$usuario['id']) !== null) {
+        if ((!Auth::isAdministrative() || sgsAlcanceLimitado($usuario)) && sgsUserZones((int)$usuario['id']) !== null) {
             $zp = [];
             $where[] = '(' . sgsZoneSql('t.departamento', (int)$usuario['id'], $zp, ':uz') . " OR t.departamento IS NULL OR t.departamento = '')";
             $params += $zp;
@@ -132,6 +132,7 @@ try {
             $ubicacion = sgsValidarUbicacion($pdo, $departamento, (string)$_POST['provincia']);
             if ($ubicacion['error'] !== '') throw new Exception($ubicacion['error']);
             $provincia = $ubicacion['provincia'];
+            $departamento = sgsZonaDeUbicacion($departamento, $provincia); // su zona: LIMA / HUAURA → NORTE CHICO (2026-10-27)
         }
 
         $stmtPartner = $pdo->prepare('SELECT nombre_partner FROM partners WHERE id = :id AND estado = 1');
@@ -169,7 +170,7 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'cuadrilla_guardar') {
         $editor = Auth::getLoggedInUser();
         if (!Auth::puede(Auth::PERM_CUADRILLAS_EDIT, $editor)) { http_response_code(403); throw new Exception('No tiene permiso para editar cuadrillas.'); }
-        $zonasEditor = Auth::isAdministrative() ? null : sgsUserZones((int)$editor['id']); // null = todas
+        $zonasEditor = Auth::isAdministrative() && !sgsAlcanceLimitado($editor) ? null : sgsUserZones((int)$editor['id']); // null = todas
         $id = (int)($_POST['id'] ?? 0);
         $apoyoId = (int)($_POST['apoyo_id'] ?? 0);
         $placa = strtoupper(trim((string)($_POST['placa'] ?? '')));

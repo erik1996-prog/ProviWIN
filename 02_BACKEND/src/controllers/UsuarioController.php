@@ -8,6 +8,8 @@ final class UsuarioController
 {
     /** Acciones que requieren administrar usuarios (PERM_USERS_MANAGE). */
     private const ADMIN = ['catalogos', 'detalle', 'guardar', 'estado', 'restablecer_password', 'desbloquear'];
+    /** De esas, las que también hace un líder con su equipo (PERM_USERS_TEAM, 2026-10-27; el servicio pone los límites). */
+    private const EQUIPO = ['catalogos', 'detalle', 'guardar', 'estado'];
     /** Ver la lista de personal: PERM_USERS_VIEW, PERM_STAFF_MANAGE o PERM_USERS_MANAGE (cada uno con su alcance). */
     private const CONSULTA = ['listar', 'ficha', 'zonas_propias'];
     /** Agregar y editar solo datos personales: PERM_STAFF_MANAGE (o PERM_USERS_MANAGE). */
@@ -26,7 +28,8 @@ final class UsuarioController
         if (in_array($action, self::CONSULTA, true) && !$gestionaPersonal && !Auth::can(Auth::PERM_USERS_VIEW, $this->user)) return $this->error(403, 'No tiene permiso para ver usuarios.');
         if (in_array($action, self::PERSONAL, true) && !$gestionaPersonal) return $this->error(403, 'No tiene permiso para agregar o editar personal.');
         if (in_array($action, self::ESCRITURA, true) && ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') return $this->error(405, 'Use POST para esta acción.');
-        if (in_array($action, self::ADMIN, true) && !Auth::can(Auth::PERM_USERS_MANAGE, $this->user)) return $this->error(403, 'Solo el administrador puede gestionar usuarios y roles.');
+        $lider = !$admin && Auth::can(Auth::PERM_USERS_TEAM, $this->user) && in_array($action, self::EQUIPO, true);
+        if (in_array($action, self::ADMIN, true) && !$admin && !$lider) return $this->error(403, 'Solo el administrador puede gestionar usuarios y roles.');
 
         $in = $this->input();
         $actor = (int)$this->user['id'];
@@ -40,7 +43,7 @@ final class UsuarioController
         try {
             switch ($action) {
                 case 'catalogos':
-                    return ['status' => 'success', 'data' => $this->service->catalogos()];
+                    return ['status' => 'success', 'data' => $this->service->catalogos($this->user)];
                 case 'listar':
                     return ['status' => 'success'] + $this->service->listar($_GET, $this->user);
                 case 'ficha':
@@ -57,11 +60,13 @@ final class UsuarioController
                     win_log_error('audit_staff_saved', ($r['nuevo'] ? 'Personal registrado (sin acceso): ' : 'Datos personales actualizados: ') . $r['nombre'], ['target_id' => $r['id'], 'actor_id' => $actor]);
                     return ['status' => 'success', 'message' => $r['nuevo'] ? "{$r['nombre']} quedó registrado. El administrador le dará acceso al sistema." : 'Datos actualizados.', 'data' => $r];
                 case 'detalle':
+                    $this->service->verificarEquipo((int)($_GET['id'] ?? 0), $this->user); // el líder, solo a su equipo
                     return ['status' => 'success', 'data' => $this->service->detalle((int)($_GET['id'] ?? 0))];
                 case 'guardar':
                     $id = (int)($in['id'] ?? 0);
                     // 2026-10-26: si no lo crea la cuenta principal, el usuario queda "Por activar" hasta que ella lo active
-                    $r = $this->service->guardar($in, $id, $actor, Auth::esCuentaPrincipal($actor));
+                    // Lo que registra un líder con su equipo entra de inmediato (2026-10-27, decisión del administrador)
+                    $r = $this->service->guardar($in, $id, $actor, $lider || Auth::esCuentaPrincipal($actor), $lider ? $this->service->equipo($this->user) : null);
                     win_log_error('audit_user_saved', ($id ? 'Usuario actualizado' : 'Usuario creado') . ": {$r['usuario']}", ['target_id' => $r['id'], 'actor_id' => $actor, 'por_activar' => $r['por_activar']]);
                     if ($r['por_activar']) {
                         $this->service->avisarCuentaPrincipal('Usuario por activar', "{$this->user['nombre']} creó el usuario {$r['usuario']} ({$r['nombre']}). Actívelo en Usuarios y roles para que pueda ingresar.");
@@ -71,6 +76,7 @@ final class UsuarioController
                 case 'estado':
                     $activo = !empty($in['activo']);
                     if ($activo && !Auth::esCuentaPrincipal($actor)) return $this->error(403, 'Solo la cuenta principal activa usuarios. Usted sí puede desactivarlos.');
+                    $this->service->verificarEquipo((int)($in['id'] ?? 0), $this->user); // el líder da de baja solo a su equipo
                     $this->service->cambiarEstado((int)($in['id'] ?? 0), $activo, $actor);
                     win_log_error('audit_user_status', $activo ? 'Usuario activado' : 'Usuario desactivado', ['target_id' => (int)($in['id'] ?? 0), 'actor_id' => $actor]);
                     return ['status' => 'success', 'message' => $activo ? 'Usuario activado.' : 'Usuario desactivado.'];

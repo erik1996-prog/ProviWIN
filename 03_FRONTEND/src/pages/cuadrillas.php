@@ -14,7 +14,7 @@
 Auth::requireLogin();
 $user = Auth::getLoggedInUser();
 $esDirecto = ($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($user['is_win_directo']);
-$esAdmin = Auth::isAdministrative();
+$esAdmin = Auth::isAdministrative() && !sgsAlcanceLimitado($user); // líder con zonas: solo las suyas
 // Permisos (2026-10-23, Roles y permisos): ver, editar cuadrillas (el directo, solo de su zona), cargar Excel y links de examen.
 $puedeEditar = Auth::puede(Auth::PERM_CUADRILLAS_EDIT, $user);
 $puedeImportar = Auth::puede(Auth::PERM_CUADRILLAS_IMPORT, $user);

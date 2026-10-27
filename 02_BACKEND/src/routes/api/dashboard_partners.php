@@ -41,7 +41,7 @@ function sgsCumplimientoPartners(PDO $pdo, array $f): array {
         AND UPPER(TRIM(p.nombre_partner)) NOT IN ('WIN','WIN DIRECTO')";
     $params = [':inicio' => $inicio, ':fin' => $fin];
     if ($partnerId > 0) { $where .= ' AND p.id = :partner'; $params[':partner'] = $partnerId; }
-    if ($depFiltro !== '') { $where .= ' AND s.departamento = :dep'; $params[':dep'] = $depFiltro; }
+    if ($depFiltro !== '') { $where .= ' AND ' . sgsZonaSql('s') . ' = :dep'; $params[':dep'] = $depFiltro; }
 
     $limite = 'DATE_ADD(s.fecha_asignacion, INTERVAL 24 HOUR)';
     $metricas = "COUNT(*) AS asignadas,
@@ -115,7 +115,7 @@ function sgsObservacionesPartners(PDO $pdo, array $f): array {
         $sql = "{$fecha} >= :ini{$n} AND {$fecha} < DATE_ADD(:fin{$n}, INTERVAL 1 DAY) AND UPPER(TRIM(p.nombre_partner)) NOT IN ('WIN','WIN DIRECTO')";
         $params[":ini{$n}"] = $inicio; $params[":fin{$n}"] = $fin;
         if ($partnerId > 0) { $sql .= " AND p.id = :partner{$n}"; $params[":partner{$n}"] = $partnerId; }
-        if ($depFiltro !== '') { $sql .= " AND s.departamento = :dep{$n}"; $params[":dep{$n}"] = $depFiltro; }
+        if ($depFiltro !== '') { $sql .= ' AND ' . sgsZonaSql('s') . " = :dep{$n}"; $params[":dep{$n}"] = $depFiltro; }
         return $sql;
     };
     $base = "SELECT p.id partner_id, p.nombre_partner, 'Campo' tipo, o.gravedad,

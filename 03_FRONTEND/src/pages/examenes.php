@@ -8,7 +8,7 @@
 // (aprobado / no aprobado) solo en las etiquetas de la tabla, siempre con su palabra (verde y rojo no se distinguen con daltonismo).
 Auth::requireLogin();
 $user = Auth::getLoggedInUser();
-$esAdmin = Auth::isAdministrative();
+$esAdmin = Auth::isAdministrative() && !sgsAlcanceLimitado($user); // líder con zonas: solo las suyas
 if (!Auth::puede(Auth::PERM_EXAMENES_VIEW, $user)) {
     echo '<div class="alert alert-danger m-4">No tiene permiso para ver Exámenes.</div>';
     return;

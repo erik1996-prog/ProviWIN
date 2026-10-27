@@ -4,6 +4,7 @@
 // sus 196 provincias (INEI), más algunas ciudades que se usan como zona aunque no son provincia (CHIMBOTE → ÁNCASH).
 // El departamento se guarda con tilde y en mayúsculas, igual que en el resto del sistema (ÁNCASH, JUNÍN…).
 require_once __DIR__ . '/excel_lector.php';
+require_once __DIR__ . '/territorial.php'; // sgsZonaDeUbicacion: Huaura, Huaral y Barranca son la zona NORTE CHICO
 
 /** Departamento => provincias. */
 function sgsProvinciasPorDepartamento(): array {
@@ -56,7 +57,8 @@ function sgsCiudadesZona(): array {
 
 /**
  * Zona a partir de lo que trae el Excel (provincia, ciudad o departamento).
- * Devuelve ['provincia' => …, 'departamento' => …] o null si no se reconoce.
+ * Devuelve ['provincia' => …, 'departamento' => …] o null si no se reconoce. 'departamento' es la ZONA de trabajo
+ * (2026-10-27): el departamento, salvo las provincias con zona propia (LIMA / HUAURA → NORTE CHICO).
  * Orden: departamento (UCAYALI es departamento y también provincia de Loreto: gana el departamento) → provincia →
  * ciudad conocida → distrito registrado en la tabla ubigeo (si se pasa $pdo).
  */
@@ -75,14 +77,14 @@ function sgsZonaDesdeProvincia(string $texto, ?PDO $pdo = null): ?array {
     if (isset($indice['dep'][$t])) {
         $dep = $indice['dep'][$t];
         // Departamento que también es provincia propia (PIURA, ICA…): se guarda la provincia; si no, solo el departamento.
-        foreach ($indice['prov'][$t] ?? [] as [$p, $d]) if ($d === $dep) return ['provincia' => $p, 'departamento' => $dep];
+        foreach ($indice['prov'][$t] ?? [] as [$p, $d]) if ($d === $dep) return ['provincia' => $p, 'departamento' => sgsZonaDeUbicacion($dep, $p)];
         return ['provincia' => null, 'departamento' => $dep];
     }
     if (isset($indice['prov'][$t]) && count($indice['prov'][$t]) === 1) {
         [$p, $d] = $indice['prov'][$t][0];
-        return ['provincia' => $p, 'departamento' => $d];
+        return ['provincia' => $p, 'departamento' => sgsZonaDeUbicacion($d, $p)];
     }
-    foreach (sgsCiudadesZona() as $ciudad => [$p, $d]) if (normalizeImportText($ciudad) === $t) return ['provincia' => $p, 'departamento' => $d];
+    foreach (sgsCiudadesZona() as $ciudad => [$p, $d]) if (normalizeImportText($ciudad) === $t) return ['provincia' => $p, 'departamento' => sgsZonaDeUbicacion($d, $p)];
     if ($pdo) {
         // Distritos de operación (tabla ubigeo). Se corrige el departamento con la lista oficial por si la tabla tiene otro.
         foreach ($pdo->query('SELECT DISTINCT departamento, provincia, distrito FROM ubigeo')->fetchAll(PDO::FETCH_ASSOC) as $u) {
@@ -90,7 +92,7 @@ function sgsZonaDesdeProvincia(string $texto, ?PDO $pdo = null): ?array {
             $prov = normalizeImportText((string)$u['provincia']);
             if (isset($indice['prov'][$prov]) && count($indice['prov'][$prov]) === 1) {
                 [$p, $d] = $indice['prov'][$prov][0];
-                return ['provincia' => $p, 'departamento' => $d];
+                return ['provincia' => $p, 'departamento' => sgsZonaDeUbicacion($d, $p)];
             }
         }
     }

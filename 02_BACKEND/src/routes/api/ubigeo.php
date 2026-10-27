@@ -8,10 +8,11 @@ require_once __DIR__ . '/../../config/database.php';
 $pdo = Database::getConnection();
 $action = $_GET['action'] ?? '';
 
+require_once __DIR__ . '/../../config/territorial.php';
+
 if ($action === 'departamentos') {
-    // Misma lista que las zonas de trabajo.
-    require_once __DIR__ . '/../../config/territorial.php';
-    $data = sgsOperationalDepartments();
+    // Departamentos oficiales del catálogo (la zona de trabajo se calcula aparte: territorial.php, 2026-10-27).
+    $data = sgsDepartamentosUbigeo();
     echo json_encode(['status' => 'success', 'data' => $data]);
     exit;
 }
@@ -21,6 +22,9 @@ if ($action === 'provincias') {
     $stmt = $pdo->prepare("SELECT DISTINCT provincia FROM ubigeo WHERE departamento = :dep ORDER BY provincia ASC");
     $stmt->execute([':dep' => $dep]);
     $data = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    // Con zona (supervisor de una zona, 2026-10-27): solo las provincias de esa zona (NORTE CHICO → Huaura, Huaral, Barranca)
+    $zona = mb_strtoupper(trim((string)($_GET['zona'] ?? '')), 'UTF-8');
+    if ($zona !== '') $data = array_values(array_filter($data, static fn($p) => sgsZonaDeUbicacion($dep, $p) === $zona));
     echo json_encode(['status' => 'success', 'data' => $data]);
     exit;
 }

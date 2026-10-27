@@ -82,7 +82,7 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
             </div>
             <div class="menu-label-text overflow-hidden">
                 <div class="sgs-profile-name text-truncate" title="<?= htmlspecialchars($user['nombre'] ?? '') ?>"><?= htmlspecialchars($shortName) ?></div>
-                <span class="sgs-role-pill"><?= htmlspecialchars($rol) ?></span>
+                <span class="sgs-role-pill"><?= htmlspecialchars(Auth::etiquetaRol($rol)) ?></span>
             </div>
         </div>
     </div>

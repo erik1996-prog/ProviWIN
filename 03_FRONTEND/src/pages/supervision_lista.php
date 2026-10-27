@@ -147,6 +147,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
             <label class="form-check-label d-flex align-items-center gap-2 style-col-check">
               <input type="checkbox" class="form-check-input col-toggle-chk" data-col="estado" checked> Estado
             </label>
+            <?php if (!$esSupervisorPartnerVista): // el partner no ve partner, técnico ni placa de la orden (2026-10-27) ?>
             <hr class="my-1">
             <label class="form-check-label d-flex align-items-center gap-2 style-col-check">
               <input type="checkbox" class="form-check-input col-toggle-chk" data-col="partner_nombre"> Partner / contrata
@@ -157,6 +158,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
             <label class="form-check-label d-flex align-items-center gap-2 style-col-check">
               <input type="checkbox" class="form-check-input col-toggle-chk" data-col="unidad_placa"> Placa del vehículo
             </label>
+            <?php endif; ?>
           </div>
           <div class="mt-2 pt-2 border-top text-end">
             <button type="button" class="btn btn-sm btn-link p-0 text-muted text-decoration-none" id="btnResetColumns">Restablecer</button>
@@ -768,7 +770,9 @@ window.SGS_SUPERVISION = <?= json_encode([
     'partners' => $partnersList,
     'tipificaciones' => $tipificacionesCancelacion,
     'rol' => $effectiveViewUser['rol'] ?? '',
-    'departamento' => $registeredDepartmentScope,
+    'departamento' => $registeredDepartmentScope, // zona de trabajo (LIMA, NORTE CHICO, AREQUIPA…)
+    'departamentoZona' => sgsDepartamentoDeZona((string)$registeredDepartmentScope), // su departamento oficial (NORTE CHICO → LIMA)
+    'zonasPorProvincia' => SGS_ZONAS_POR_PROVINCIA, // provincias con zona propia (LIMA / HUAURA → NORTE CHICO)
     'usuarioId' => (int)($effectiveViewUser['id'] ?? 0),
     'winDirecto' => !empty($effectiveViewUser['is_win_directo']),
     'supervisorPartner' => !empty($esSupervisorPartnerVista),

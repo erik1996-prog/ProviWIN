@@ -20,7 +20,7 @@ require_once __DIR__ . '/../../config/lluvias.php';
 Auth::requireLogin();
 Auth::requireCsrf();
 $usuario = Auth::getLoggedInUser();
-$esAdmin = Auth::isAdministrative();
+$esAdmin = Auth::isAdministrative() && !sgsAlcanceLimitado($usuario); // líder con zonas: solo las suyas
 $responder = static function (array $datos, int $codigo = 200): void {
     http_response_code($codigo);
     echo json_encode($datos, JSON_UNESCAPED_UNICODE);

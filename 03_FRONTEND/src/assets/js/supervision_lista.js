@@ -97,7 +97,8 @@
   const tipificacionesCancelacion = SGS_SUPERVISION.tipificaciones;
 
   const currentUserRole = SGS_SUPERVISION.rol;
-  const currentUserDepartment = SGS_SUPERVISION.departamento;
+  const currentUserDepartment = SGS_SUPERVISION.departamento; // zona de trabajo
+  const currentUserZoneDepartment = SGS_SUPERVISION.departamentoZona; // departamento oficial de esa zona (NORTE CHICO → LIMA)
   const esAdministradorActual = currentUserRole === 'Administrador';
   const currentUserId = SGS_SUPERVISION.usuarioId;
   const esSupervisorWinDirecto = currentUserRole === 'Supervisor' && SGS_SUPERVISION.winDirecto;
@@ -630,11 +631,20 @@
     return tecnicosRequest;
   }
 
-  // Zona (2026-10-15): el T1 se elige solo entre los técnicos líderes del departamento de la supervisión (su zona se
+  // Zona (2026-10-15): el T1 se elige solo entre los técnicos líderes de la zona de la supervisión (su zona se
   // carga con la PROVINCIA en el Excel de Cuadrillas). Los que aún no tienen zona salen en todas, al final y marcados.
+  // 2026-10-27: zona = departamento, salvo provincias con zona propia (LIMA / HUAURA → NORTE CHICO); sin provincia
+  // elegida en un departamento así, aún no se filtra.
   const normalizarZona = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim();
-  function lideresDeZona(partnerId, departamento, actual = '') {
-    const dep = normalizarZona(departamento);
+  const zonasPorProvincia = Object.fromEntries(Object.entries(SGS_SUPERVISION.zonasPorProvincia || {})
+    .map(([d, provs]) => [normalizarZona(d), Object.fromEntries(Object.entries(provs).map(([p, z]) => [normalizarZona(p), normalizarZona(z)]))]));
+  const zonaDe = (departamento, provincia) => {
+    const d = normalizarZona(departamento), especiales = zonasPorProvincia[d];
+    if (!especiales) return d;
+    return provincia ? (especiales[normalizarZona(provincia)] || d) : '';
+  };
+  function lideresDeZona(partnerId, departamento, actual = '', provincia = '') {
+    const dep = zonaDe(departamento, provincia);
     return listaTecnicos
       .filter(t => String(t.partner_id) === String(partnerId) && (t.tipo_tecnico == 1 || !t.tipo_tecnico))
       .filter(t => !dep || !t.departamento || normalizarZona(t.departamento) === dep || (actual && t.nombre_tecnico === actual))
@@ -649,7 +659,7 @@
     if (newTec1Nom) {
       const currentVal1 = t1Guardado || newTec1Nom.value;
       const dep = document.getElementById('new_dep')?.value || '';
-      const t1List = lideresDeZona(newPartner.value, dep, currentVal1);
+      const t1List = lideresDeZona(newPartner.value, dep, currentVal1, document.getElementById('new_prov')?.value || '');
       const vacio = newPartner.value && dep && !t1List.length ? `No hay técnicos líderes de este partner en ${dep}` : 'Seleccione / busque técnico líder (T1)';
       newTec1Nom.innerHTML = `<option value="">${escapeHtml(vacio)}</option>`;
       t1List.forEach(t => {
@@ -1567,12 +1577,16 @@
     { id: 'unidad_placa', label: 'Placa Vehículo', default: false }
   ];
 
+  // El lado del partner no tiene las columnas de partner, técnico ni placa (2026-10-27: el servidor no envía esos datos)
+  const COLUMNAS_SIN_PARTNER = ['partner_nombre', 'tecnico1_nombre', 'unidad_placa'];
   function getActiveColumns() {
+    let cols = null;
     try {
       const saved = JSON.parse(localStorage.getItem('win_supervisiones_active_cols'));
-      if (Array.isArray(saved) && saved.length > 0) return saved;
+      if (Array.isArray(saved) && saved.length > 0) cols = saved;
     } catch (_) {}
-    return ALL_SUPERVISION_COLUMNS.filter(c => c.default).map(c => c.id);
+    cols = cols || ALL_SUPERVISION_COLUMNS.filter(c => c.default).map(c => c.id);
+    return esSupervisorPartnerActual ? cols.filter(c => !COLUMNAS_SIN_PARTNER.includes(c)) : cols;
   }
 
   function saveActiveColumns(cols) {
@@ -2089,7 +2103,7 @@
     };
     // Cuadrilla: líderes del partner y la zona; "actual" deja la que vino del Excel aunque no esté registrada
     const cargarTecnicos = () => {
-      const lideres = lideresDeZona($('cp_partner').value, $('cp_dep').value, rec.tecnico1_nombre);
+      const lideres = lideresDeZona($('cp_partner').value, $('cp_dep').value, rec.tecnico1_nombre, $('cp_prov').value);
       const registrado = lideres.find(t => t.nombre_tecnico === rec.tecnico1_nombre);
       $('cp_tecnico').innerHTML = (rec.tecnico1_nombre && !registrado ? `<option value="actual">${escapeHtml(rec.tecnico1_nombre)} (no registrado)</option>` : '')
         + '<option value="">Sin cuadrilla</option>'
@@ -2113,7 +2127,7 @@
     await cargarListaTecnicos();
     cargarTecnicos();
     $('cp_dep').onchange = async () => { await cargarProvincias(''); await cargarDistritos(''); cargarTecnicos(); };
-    $('cp_prov').onchange = () => cargarDistritos('');
+    $('cp_prov').onchange = () => { cargarDistritos(''); cargarTecnicos(); };
     $('cp_partner').onchange = cargarTecnicos;
     $('formCorregirPendiente').onsubmit = async (ev) => {
       ev.preventDefault();
@@ -2344,12 +2358,7 @@
           <div class="field-bitacora"><label>Código de pedido o ticket</label><input value="${escapeHtml(rec.ticket_codigo||'No aplica')}" disabled></div>
           ${esJefeOperacionesActual ? `<div class="field-bitacora"><label>Supervisor asignado</label><input value="${escapeHtml(rec.responsable||'—')}" disabled></div>` : ''}
         </div></div>
-        <div class="panel-bitacora p-3 mb-3"><p class="section-subtitle-bitacora mt-0">Partner, personal técnico y vehículo</p><div class="grid-bitacora">
-          <div class="field-bitacora"><label>Partner o contrata responsable</label><input value="${escapeHtml(rec.partner_nombre)}" disabled></div>
-          ${rec.tipo_supervision_inicial === 'En caliente' ? `          <div class="field-bitacora"><label>Técnico líder</label><input value="${escapeHtml(rec.tecnico1_nombre||'Sin registrar')}" disabled></div>
-          <div class="field-bitacora"><label>DNI del técnico líder</label><input value="${escapeHtml(rec.tecnico1_dni||'Sin registrar')}" disabled></div>
-          ` : ''}
-        </div></div>
+        <!-- 2026-10-27: el partner revisa sin saber qué partner canceló ni qué cuadrilla atendió (el servidor no los envía) -->
         <div class="panel-bitacora p-3 mb-3"><div class="field-bitacora full"><label>Observación de la atención *</label><textarea name="observacion_atencion_partner" rows="5" ${attended||expired||esJefeOperacionesActual?'disabled':''}>${escapeHtml(rec.observacion_atencion_partner||'')}</textarea></div></div>
         <div class="panel-bitacora p-3 mb-3">
           <div class="grid-bitacora">
@@ -2457,7 +2466,7 @@
     });
 
     let tec1OptionsHtml = '<option value="">Seleccione / busque técnico líder</option>';
-    const t1List = lideresDeZona(rec.partner_id, rec.departamento, rec.tecnico1_nombre); // el ya elegido se conserva aunque sea de otra zona
+    const t1List = lideresDeZona(rec.partner_id, rec.departamento, rec.tecnico1_nombre, rec.provincia); // el ya elegido se conserva aunque sea de otra zona
     t1List.forEach(t => {
       const sel = (t.nombre_tecnico === rec.tecnico1_nombre) ? 'selected' : '';
       tec1OptionsHtml += `<option value="${escapeHtml(t.nombre_tecnico)}" ${sel}>${escapeHtml(textoLider(t))}</option>`;
@@ -2998,7 +3007,7 @@
         if (!select) return;
         if (index === 1) { select.innerHTML = '<option value="">Sin técnico de apoyo (T2)</option>' + opcionesApoyo(this.value, ''); select.dispatchEvent(new Event('change')); return; }
         select.innerHTML = '<option value="">Seleccione técnico</option>';
-        lideresDeZona(this.value, rec.departamento).forEach(t => select.add(new Option(textoLider(t), t.nombre_tecnico)));
+        lideresDeZona(this.value, rec.departamento, '', rec.provincia).forEach(t => select.add(new Option(textoLider(t), t.nombre_tecnico)));
         select.dispatchEvent(new Event('change'));
       });
     });
@@ -4239,7 +4248,7 @@
         cboDep.innerHTML = '<option value="">Seleccione departamento</option>';
         const departments = dDep.data.map(d => (typeof d === 'object' && d !== null) ? (d.departamento || d) : d);
         const visibleDepartments = restrictDepartment
-          ? departments.filter(value => String(value).toLocaleUpperCase('es') === currentUserDepartment.toLocaleUpperCase('es'))
+          ? departments.filter(value => String(value).toLocaleUpperCase('es') === String(currentUserZoneDepartment).toLocaleUpperCase('es'))
           : departments;
         visibleDepartments.forEach(val => {
           cboDep.innerHTML += `<option value="${val}">${val}</option>`;
@@ -4266,7 +4275,8 @@
         }
         cboProv.innerHTML = '<option value="">Cargando...</option>';
         cboDis.innerHTML = '<option value="">Seleccione provincia primero</option>';
-        const r = await fetch(`api/ubigeo.php?action=provincias&departamento=${encodeURIComponent(dep)}`);
+        const zona = restrictDepartment ? `&zona=${encodeURIComponent(currentUserDepartment)}` : ''; // solo las provincias de su zona
+        const r = await fetch(`api/ubigeo.php?action=provincias&departamento=${encodeURIComponent(dep)}${zona}`);
         const d = await r.json();
         if(d.status === 'success') {
           cboProv.innerHTML = '<option value="">Seleccione provincia</option>';
@@ -4281,6 +4291,7 @@
       cboProv.onchange = async () => {
         const dep = cboDep.value;
         const prov = cboProv.value;
+        poblarSelectsTecnicos(); // la provincia define la zona del T1 (LIMA / HUAURA → NORTE CHICO)
         cboDis.innerHTML = '<option value="">Cargando...</option>';
         const r = await fetch(`api/ubigeo.php?action=distritos&departamento=${encodeURIComponent(dep)}&provincia=${encodeURIComponent(prov)}`);
         const d = await r.json();

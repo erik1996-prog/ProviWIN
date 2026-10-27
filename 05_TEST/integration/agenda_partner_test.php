@@ -40,8 +40,9 @@ try {
     $crear = function (string $sufijo, string $asignada, string $atencion) use ($pdo, $sup, $partner, $admin, $ubi) {
         $pdo->prepare("INSERT INTO supervisiones (codigo_supervision, fecha_registro, supervisor_id, asignado_por, derivacion_orden, tipo_servicio, departamento, provincia, distrito,
             ticket_codigo, tipo_supervision_inicial, partner_id, brevete_poseedor, clasificacion_supervision, area_servicio, observacion_servicio, estado_supervision,
-            fecha_asignacion, estado_atencion_partner)
-            VALUES (:code, NOW(), :sup, :adm, 'Líder', 'Regular', :dep, :prov, :dist, :ticket, 'En frío', :partner, 'Ninguno', 'Instalación', 'Instalación', '', 'Pendiente', $asignada, :atencion)")
+            fecha_asignacion, estado_atencion_partner, tecnico1_nombre, tecnico1_dni, unidad_placa)
+            VALUES (:code, NOW(), :sup, :adm, 'Líder', 'Regular', :dep, :prov, :dist, :ticket, 'En frío', :partner, 'Ninguno', 'Instalación', 'Instalación', '', 'Pendiente', $asignada, :atencion,
+                'P 1 CUADRILLA QUE CANCELO', '11112222', 'ABC-123')")
             ->execute([':code' => 'SUP-AGENDA-' . $sufijo, ':sup' => $sup, ':adm' => $admin, ':dep' => $ubi['departamento'], ':prov' => $ubi['provincia'], ':dist' => $ubi['distrito'],
                 ':ticket' => 'PRUEBA-AGENDA-' . $sufijo, ':partner' => $partner, ':atencion' => $atencion]);
     };
@@ -69,6 +70,11 @@ try {
     $check('contadores: 1 pendiente, 1 en proceso, 1 no revisado', ($c['partner_pendiente'] ?? -1) === 1 && ($c['partner_en_proceso'] ?? -1) === 1 && ($c['partner_vencida'] ?? -1) === 1, $c);
     $check('Pendientes = asignada y dentro de las 24 h', $listar('partner_pendiente')['tickets'] === ['PRUEBA-AGENDA-PEND'], $listar('partner_pendiente')['tickets']);
     $check('En proceso = el partner ya registró su atención', $listar('partner_en_proceso')['tickets'] === ['PRUEBA-AGENDA-PROC'], $listar('partner_en_proceso')['tickets']);
+    // 2026-10-27: el partner revisa sin saber qué partner canceló ni qué cuadrilla atendió (no se le envía)
+    $fila = array_values(array_filter($http("$base/api/supervisiones.php?action=list&estado=todos&fecha_inicio=2000-01-01&limit=100")['data'] ?? [], fn($x) => ($x['ticket_codigo'] ?? '') === 'PRUEBA-AGENDA-PEND'))[0] ?? [];
+    $detalle = $http("$base/api/supervisiones.php?action=detail&id=" . (int)($fila['id'] ?? 0))['supervision'] ?? [];
+    $oculto = fn(array $x) => !empty($x) && empty($x['nombre_partner']) && empty($x['tecnico1_nombre']) && empty($x['tecnico1_dni']) && empty($x['unidad_placa']);
+    $check('el supervisor de partner no recibe el partner, la cuadrilla ni la placa (lista y detalle)', $oculto($fila) && $oculto($detalle), [$fila['tecnico1_nombre'] ?? '?', $detalle['tecnico1_nombre'] ?? '?']);
     $check('No revisados = pasaron las 24 h sin atención', $listar('partner_vencida')['tickets'] === ['PRUEBA-AGENDA-VENC'], $listar('partner_vencida')['tickets']);
 } finally {
     $cleanup();

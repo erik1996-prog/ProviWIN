@@ -311,8 +311,9 @@ try {
 
         $assignedSupervisor = null;
         if (!$rowErrors) {
-            $assignedSupervisor = elegirSupervisorCancelacion($pdo, $department);
-            if (!$assignedSupervisor) $rowErrors[] = "No hay supervisor directo activo para la zona {$zone}.";
+            $zonaTrabajo = sgsZonaDeUbicacion($department, $province); // LIMA / HUAURA → NORTE CHICO (2026-10-27)
+            $assignedSupervisor = elegirSupervisorCancelacion($pdo, $zonaTrabajo, $supervisionType);
+            if (!$assignedSupervisor) $rowErrors[] = "No hay supervisor directo activo para la zona {$zonaTrabajo}.";
         }
         if (!empty($rowErrors)) {
             $errors[] = [
@@ -391,7 +392,7 @@ try {
         $pdo->prepare('UPDATE supervisiones SET fecha_asignacion=NOW() WHERE id=:id')->execute([':id'=>$newId]);
         // Bolsa común (2026-10-11): la pendiente no se reparte; se avisa a todos los supervisores de la zona
         // y el primero que la inicia se queda con ella.
-        foreach (supervisoresZonaCancelacion($pdo, $department) as $supZona) {
+        foreach (supervisoresZonaCancelacion($pdo, $zonaTrabajo, false, $supervisionType) as $supZona) {
             $avisosZona[(int)$supZona['id']][$zone] = ($avisosZona[(int)$supZona['id']][$zone] ?? 0) + 1;
         }
         $created++;

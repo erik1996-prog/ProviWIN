@@ -1,9 +1,11 @@
 <?php
 // 03_FRONTEND/src/pages/usuarios.php - Usuarios y roles / Personal.
 // Flujo: pantalla -> api/usuarios.php -> UsuarioController -> UsuarioService -> UsuarioRepository
-// Según el permiso: administrar (todo) · agregar y editar personal (solo datos personales) · ver (solo consulta).
+// Según el permiso: administrar (todo) · su equipo (líder, 2026-10-27: roles por debajo, sus zonas, su área y sus permisos;
+// el servidor pone los límites) · agregar y editar personal (solo datos personales) · ver (solo consulta).
 Auth::requireLogin();
-$esAdminUsuarios = Auth::can(Auth::PERM_USERS_MANAGE);
+$esAdminTotal = Auth::can(Auth::PERM_USERS_MANAGE);
+$esAdminUsuarios = $esAdminTotal || Auth::can(Auth::PERM_USERS_TEAM); // formulario completo (el líder, con sus límites)
 $gestionaPersonal = $esAdminUsuarios || Auth::can(Auth::PERM_STAFF_MANAGE);
 if (!$gestionaPersonal && !Auth::can(Auth::PERM_USERS_VIEW)) {
     echo '<div class="alert alert-danger m-4">No tiene permiso para ver usuarios.</div>';
@@ -54,7 +56,7 @@ $miId = (int)Auth::getLoggedInUser()['id'];
 
 <div class="container-fluid p-3 p-md-4">
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
-    <?php if ($esAdminUsuarios): ?>
+    <?php if ($esAdminTotal): ?>
     <div class="usr-tabs" role="tablist">
       <button class="btn active" data-tab="usuarios" role="tab"><i class="bi bi-people"></i>Usuarios</button>
       <button class="btn" data-tab="roles" role="tab"><i class="bi bi-shield-lock"></i>Roles y permisos</button>
@@ -150,7 +152,8 @@ $miId = (int)Auth::getLoggedInUser()['id'];
           <div class="col-md-6"><label class="form-label">Organización *</label>
             <select class="form-select" name="organizacion"><option value="directo">WIN · Personal directo</option><option value="partner">Partner (contrata)</option></select></div>
           <div class="col-md-6" id="wrapPartner"><label class="form-label">Partner *</label><select class="form-select" name="partner_id"><option value="0">Seleccione…</option></select></div>
-          <div class="col-md-6"><label class="form-label" for="uArea">Área de trabajo</label><select class="form-select" id="uArea" name="area_trabajo"><option value="">—</option></select></div>
+          <div class="col-md-6"><label class="form-label" for="uArea">Área de trabajo</label><select class="form-select" id="uArea" name="area_trabajo" aria-describedby="uAreaAyuda"><option value="">—</option></select>
+            <div class="form-text" id="uAreaAyuda">Instalaciones o Averías: el supervisor solo ve las pendientes de su área. Con ambas, ve todas.</div></div>
           <div class="col-md-6"><label class="form-label" for="uCargo">Cargo</label><select class="form-select" id="uCargo" name="cargo"><option value="">—</option></select></div>
           <div class="col-md-6"><label class="form-label">Rol del sistema *</label><select class="form-select" name="rol"></select></div>
           <div class="col-md-6"><label class="form-label">Modalidad</label><select class="form-select" name="modalidad"><option value="">—</option><option>PRESENCIAL</option><option>REMOTO</option><option>HÍBRIDO</option></select></div>
@@ -162,8 +165,9 @@ $miId = (int)Auth::getLoggedInUser()['id'];
         <div class="usr-zonas mb-3" id="procesos"></div>
 
         <div id="wrapZonas">
-          <div class="usr-section">Zonas de trabajo * <small class="text-muted text-transform-none">(departamentos que el usuario puede ver)</small></div>
-          <div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" role="switch" id="chkTodasZonas" name="todas_zonas" value="1"><label class="form-check-label" for="chkTodasZonas">Todas las zonas</label></div>
+          <div class="usr-section">Zonas de trabajo <small class="text-muted text-transform-none">(lo que el usuario puede ver; el Norte Chico son las provincias Huaura, Huaral y Barranca)</small></div>
+          <p class="form-text mt-0 mb-2 d-none" id="zonasLider">Líder (Gestión): sin zonas ve todo; con zonas, solo esas (y solo su área de trabajo, si es Instalaciones o Averías).</p>
+          <div class="form-check form-switch mb-2" id="wrapTodasZonas"><input class="form-check-input" type="checkbox" role="switch" id="chkTodasZonas" name="todas_zonas" value="1"><label class="form-check-label" for="chkTodasZonas">Todas las zonas</label></div>
           <div class="usr-zonas mb-3" id="zonas"></div>
         </div>
 
@@ -236,6 +240,8 @@ $miId = (int)Auth::getLoggedInUser()['id'];
 document.addEventListener('DOMContentLoaded', () => {
   const MI_ID = <?= $miId ?>;
   const ES_ADMIN = <?= $esAdminUsuarios ? 'true' : 'false' ?>, GESTIONA = <?= $gestionaPersonal ? 'true' : 'false' ?>;
+  const ES_TOTAL = <?= $esAdminTotal ? 'true' : 'false' ?>; // false = líder con su equipo: sin contraseñas ni desbloqueos
+  const ETQ = <?= json_encode(Auth::ETIQUETAS_ROL, JSON_UNESCAPED_UNICODE) ?>, etqRol = (r) => ETQ[r] || r; // nombre que se muestra
   const PUEDE_ACTIVAR = <?= Auth::esCuentaPrincipal($miId) ? 'true' : 'false' ?>; // solo la cuenta principal activa (2026-10-26)
   const $ = (s, el = document) => el.querySelector(s);
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -295,8 +301,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   async function cargarCatalogos() {
     CAT = (await api('catalogos')).data;
-    const rolOpts = CAT.roles.map((r) => `<option value="${esc(r.rol)}">${esc(r.rol)}</option>`).join('');
+    const rolOpts = CAT.roles.map((r) => `<option value="${esc(r.rol)}">${esc(etqRol(r.rol))}</option>`).join('');
     $('#fRol').innerHTML = '<option value="">Todos los roles</option>' + rolOpts;
+    $('#wrapTodasZonas').classList.toggle('d-none', !!CAT.equipo); // el líder solo asigna sus zonas
     $('#fOrg').innerHTML = '<option value="">Todas las organizaciones</option><option value="directo">WIN Directo</option>' + CAT.partners.map((p) => `<option value="${p.id}">${esc(p.nombre_partner)}</option>`).join('');
     const f = $('#formUsuario');
     f.rol.innerHTML = rolOpts;
@@ -347,7 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const activo = +u.activo === 1, yo = +u.id === MI_ID;
         return `<tr class="${activo ? '' : 'usr-row-off'}">
           <td><div class="d-flex align-items-center gap-2"><span class="usr-avatar">${esc(iniciales(u.nombre_completo))}</span><div><div class="usr-name">${esc(u.nombre_completo)}${yo ? ' <span class="badge bg-light">Tú</span>' : ''}</div><div class="usr-sub">${esc(u.usuario || '—')} · DNI ${esc(u.dni)}</div>${u.cargo || u.area_trabajo ? `<div class="usr-sub">${esc([u.cargo, u.area_trabajo].filter(Boolean).join(' · '))}</div>` : ''}</div></div></td>
-          <td data-label="Rol y organización"><div class="usr-celda-doble"><span class="badge ${u.rol === 'Supervisor' ? 'bg-primary' : 'bg-dark'}">${esc(u.rol)}</span><small class="usr-org">${directo ? 'WIN Directo' : esc(u.nombre_partner)}</small></div></td>
+          <td data-label="Rol y organización"><div class="usr-celda-doble"><span class="badge ${u.rol === 'Supervisor' ? 'bg-primary' : 'bg-dark'}">${esc(etqRol(u.rol))}</span><small class="usr-org">${directo ? 'WIN Directo' : esc(u.nombre_partner)}</small></div></td>
           <td data-label="Zonas">${u.todas_zonas ? 'Todas' : (u.zonas && u.zonas.length ? esc(u.zonas.join(', ')) : '—')}</td>
           ${!ES_ADMIN ? '' : `<td data-label="Estado"><div class="usr-celda-doble"><div class="usr-insignias">${u.sin_acceso ? '<span class="badge bg-warning" title="Registrado solo con datos personales: falta que el administrador le dé acceso">Sin acceso</span>' : (+u.por_activar === 1 && !activo ? '<span class="badge bg-warning" title="Espera que la cuenta principal lo active">Por activar</span>' : `<span class="badge ${activo ? 'bg-success' : 'bg-secondary'}">${activo ? 'Activo' : 'Inactivo'}</span>`)}${u.bloqueado ? ' <span class="badge bg-danger" title="3 intentos fallidos"><i class="bi bi-lock"></i> Bloqueado</span>' : ''}${u.debe_cambiar_password && !u.sin_acceso ? ' <span class="badge bg-warning" title="Al ingresar, el sistema le pedirá crear su propia contraseña">Cambiará su contraseña</span>' : ''}</div>
             <small class="usr-ingreso" title="Último ingreso">${u.ultimo_acceso ? '<i class="bi bi-box-arrow-in-right"></i> ' + esc(fechaHora(u.ultimo_acceso)) : 'Nunca ingresó'}</small></div></td>`}
@@ -355,8 +362,8 @@ document.addEventListener('DOMContentLoaded', () => {
             ? `<button class="sgs-icon-action" title="Editar datos personales" aria-label="Editar datos personales" data-personal="${u.id}"><i class="bi bi-pencil"></i></button>`
             : `<button class="sgs-icon-action" title="Ver ficha" aria-label="Ver ficha" data-ficha="${u.id}"><i class="bi bi-eye"></i></button>`) + '</div></td></tr>' : `
             <button class="sgs-icon-action" title="${u.sin_acceso ? 'Completar acceso' : 'Editar'}" aria-label="${u.sin_acceso ? 'Completar acceso' : 'Editar'}" data-edit="${u.id}"><i class="bi ${u.sin_acceso ? 'bi-person-gear' : 'bi-pencil'}"></i></button>
-            ${u.bloqueado ? `<button class="sgs-icon-action" title="Desbloquear" aria-label="Desbloquear usuario" data-unlock="${u.id}" data-name="${esc(u.nombre_completo)}"><i class="bi bi-unlock"></i></button>` : ''}
-            <button class="sgs-icon-action" title="Restablecer contraseña" aria-label="Restablecer contraseña" data-pw="${u.id}" data-name="${esc(u.nombre_completo)}"><i class="bi bi-key"></i></button>
+            ${u.bloqueado && ES_TOTAL ? `<button class="sgs-icon-action" title="Desbloquear" aria-label="Desbloquear usuario" data-unlock="${u.id}" data-name="${esc(u.nombre_completo)}"><i class="bi bi-unlock"></i></button>` : ''}
+            ${ES_TOTAL ? `<button class="sgs-icon-action" title="Restablecer contraseña" aria-label="Restablecer contraseña" data-pw="${u.id}" data-name="${esc(u.nombre_completo)}"><i class="bi bi-key"></i></button>` : ''}
             ${yo || u.sin_acceso || (!activo && !PUEDE_ACTIVAR) ? '' : `<button class="sgs-icon-action ${activo ? 'sgs-icon-action--danger' : ''}" title="${activo ? 'Desactivar' : 'Activar'}" aria-label="${activo ? 'Desactivar' : 'Activar'}" data-state="${u.id}" data-to="${activo ? 0 : 1}" data-name="${esc(u.nombre_completo)}"><i class="bi ${activo ? 'bi-person-dash' : 'bi-person-check'}"></i></button>`}
           </div></td></tr>`}`;
       }).join('') : `<tr><td colspan="${ES_ADMIN ? 5 : 4}" class="text-center text-muted py-4"><i class="bi bi-inbox d-block fs-3 mb-1"></i>No hay personas con esos filtros.</td></tr>`;
@@ -377,8 +384,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function syncForm() {
     const partner = fU.organizacion.value === 'partner';
     $('#wrapPartner').classList.toggle('d-none', !partner);
-    const rol = fU.rol.value, esSup = rol === 'Supervisor';   // el jefe de operaciones no lleva zonas
-    $('#wrapZonas').classList.toggle('d-none', !esSup);
+    // Llevan zonas el supervisor y el coordinador (líder: sin zonas ve todo); el jefe de operaciones ve todo su partner
+    const rol = fU.rol.value, conZonas = ['Supervisor', 'Coordinador'].includes(rol);
+    $('#wrapZonas').classList.toggle('d-none', !conZonas);
+    $('#zonasLider').classList.toggle('d-none', rol !== 'Coordinador');
     const todas = $('#chkTodasZonas').checked;
     $('#zonas').querySelectorAll('input').forEach((c) => (c.disabled = todas));
     const personal = $('#chkPersonalizar').checked;
@@ -472,7 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const etiquetaPermiso = (k) => (CAT.permisos.find((p) => p.clave === k) || { etiqueta: k }).etiqueta;
   function renderRoles() {
     $('#rolesSistema').innerHTML = CAT.roles.map((r) => `<div class="col-md-6 col-xl-4"><div class="card role-card is-system">
-      <div class="d-flex justify-content-between align-items-center"><h5><i class="bi bi-shield-lock me-1"></i>${esc(r.rol)}</h5><span class="badge bg-light">Sistema</span></div>
+      <div class="d-flex justify-content-between align-items-center"><h5><i class="bi bi-shield-lock me-1"></i>${esc(etqRol(r.rol))}</h5><span class="badge bg-light">Sistema</span></div>
       <div class="role-meta"><span class="sgs-chip"><i class="bi bi-people"></i>${r.usuarios} activos</span><span class="sgs-chip"><i class="bi bi-check2-square"></i>${r.permisos.length} permisos</span></div>
       ${r.descripcion ? `<p class="small mb-1">${esc(r.descripcion)}</p>` : ''}
       <div class="role-perms">${r.permisos.slice(0, 6).map((p) => esc(etiquetaPermiso(p))).join(' · ')}${r.permisos.length > 6 ? ` · y ${r.permisos.length - 6} más` : ''}</div>
@@ -486,8 +495,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const tiene = perms.filter((p) => rol.permisos.includes(p.clave));
       return `<span class="perm-acc is-${a}${tiene.length ? '' : ' is-no'}" title="${esc(perms.map((p) => `${rol.permisos.includes(p.clave) ? 'Sí' : 'No'}: ${p.etiqueta}`).join('\n'))}">${tiene.length ? '' : '<s>'}${txt}${tiene.length ? '' : '</s>'}</span>`;
     }).join('');
-    $('#matrizPermisos').innerHTML = `<thead><tr><th>Pantalla</th>${CAT.roles.map((r) => `<th>${esc(r.rol)}</th>`).join('')}</tr></thead>`
-      + `<tbody>${pantallas().map(([sec, lista]) => `<tr class="usr-perm-seccion"><td colspan="${CAT.roles.length + 1}">${esc(sec)}</td></tr>` + lista.filter(([g]) => conAccion.has(g)).map(([g]) => `<tr><td data-label="Pantalla" class="fw-bold">${esc(g)}</td>${CAT.roles.map((r) => `<td data-label="${esc(r.rol)}"><div class="perm-accs">${celda(r, g)}</div></td>`).join('')}</tr>`).join('')).join('')}</tbody>`;
+    $('#matrizPermisos').innerHTML = `<thead><tr><th>Pantalla</th>${CAT.roles.map((r) => `<th>${esc(etqRol(r.rol))}</th>`).join('')}</tr></thead>`
+      + `<tbody>${pantallas().map(([sec, lista]) => `<tr class="usr-perm-seccion"><td colspan="${CAT.roles.length + 1}">${esc(sec)}</td></tr>` + lista.filter(([g]) => conAccion.has(g)).map(([g]) => `<tr><td data-label="Pantalla" class="fw-bold">${esc(g)}</td>${CAT.roles.map((r) => `<td data-label="${esc(etqRol(r.rol))}"><div class="perm-accs">${celda(r, g)}</div></td>`).join('')}</tr>`).join('')).join('')}</tbody>`;
   }
 
   // ---------- Personal: solo datos personales (agregar, editar o ver ficha) ----------
@@ -517,7 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#btnGuardarPersonal').classList.toggle('d-none', soloVer);
     const info = $('#pInfo');
     info.classList.toggle('d-none', !u);
-    info.innerHTML = u ? `<div class="d-flex flex-wrap gap-2"><span class="badge ${u.rol === 'Supervisor' ? 'bg-primary' : 'bg-dark'}">${esc(u.rol)}</span><span class="sgs-chip">${esc(u.nombre_partner || 'WIN Directo')}</span><span class="sgs-chip">${u.zonas && u.zonas.length ? esc(u.zonas.join(', ')) : 'Todas las zonas'}</span></div>` : '';
+    info.innerHTML = u ? `<div class="d-flex flex-wrap gap-2"><span class="badge ${u.rol === 'Supervisor' ? 'bg-primary' : 'bg-dark'}">${esc(etqRol(u.rol))}</span><span class="sgs-chip">${esc(u.nombre_partner || 'WIN Directo')}</span><span class="sgs-chip">${u.zonas && u.zonas.length ? esc(u.zonas.join(', ')) : 'Todas las zonas'}</span></div>` : '';
     syncPersonal();
     mPersonal.show();
   }

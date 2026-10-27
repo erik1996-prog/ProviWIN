@@ -8,7 +8,7 @@
 // dashboard_pendientes.js con las piezas comunes de sgs-dashboard.js (las mismas del dashboard de Exámenes).
 Auth::requireLogin();
 $user = Auth::getLoggedInUser();
-$esAdmin = Auth::isAdministrative();
+$esAdmin = Auth::isAdministrative() && !sgsAlcanceLimitado($user); // líder con zonas: solo las suyas
 if (!Auth::puede(Auth::PERM_PENDIENTES_VIEW, $user)) {
     echo '<div class="alert alert-danger m-4">No tiene permiso para ver Pendientes y rescates.</div>';
     return;

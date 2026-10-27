@@ -173,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'responder_checklist_pa
         http_response_code(403); echo json_encode(['status'=>'error','message'=>'Solo el partner asignado puede responder este checklist.']); exit;
     }
     $supervisionId=(int)($_POST['supervision_id']??0); $respuestaGeneral=trim((string)($_POST['respuesta_general']??''));
-    $stmt=$pdo->prepare("SELECT ct.*,s.partner_id,s.supervisor_id,s.departamento AS departamento_orden,COALESCE(ct.fecha_limite_respuesta,CASE WEEKDAY(ct.fecha_registro) WHEN 0 THEN DATE_ADD(ct.fecha_registro,INTERVAL 3 DAY) WHEN 1 THEN DATE_ADD(ct.fecha_registro,INTERVAL 3 DAY) WHEN 2 THEN DATE_ADD(ct.fecha_registro,INTERVAL 3 DAY) WHEN 3 THEN DATE_ADD(ct.fecha_registro,INTERVAL 4 DAY) WHEN 4 THEN DATE_ADD(ct.fecha_registro,INTERVAL 4 DAY) WHEN 5 THEN DATE_ADD(ct.fecha_registro,INTERVAL 4 DAY) ELSE DATE_ADD(ct.fecha_registro,INTERVAL 3 DAY) END) fecha_limite FROM checklists_tecnicos ct JOIN supervisiones s ON s.id=ct.supervision_id WHERE ct.supervision_id=:id ORDER BY ct.id DESC LIMIT 1");
+    $stmt=$pdo->prepare("SELECT ct.*,s.partner_id,s.supervisor_id," . sgsZonaSql('s') . " AS departamento_orden,COALESCE(ct.fecha_limite_respuesta,CASE WEEKDAY(ct.fecha_registro) WHEN 0 THEN DATE_ADD(ct.fecha_registro,INTERVAL 3 DAY) WHEN 1 THEN DATE_ADD(ct.fecha_registro,INTERVAL 3 DAY) WHEN 2 THEN DATE_ADD(ct.fecha_registro,INTERVAL 3 DAY) WHEN 3 THEN DATE_ADD(ct.fecha_registro,INTERVAL 4 DAY) WHEN 4 THEN DATE_ADD(ct.fecha_registro,INTERVAL 4 DAY) WHEN 5 THEN DATE_ADD(ct.fecha_registro,INTERVAL 4 DAY) ELSE DATE_ADD(ct.fecha_registro,INTERVAL 3 DAY) END) fecha_limite FROM checklists_tecnicos ct JOIN supervisiones s ON s.id=ct.supervision_id WHERE ct.supervision_id=:id ORDER BY ct.id DESC LIMIT 1");
     $stmt->execute([':id'=>$supervisionId]);$checklist=$stmt->fetch();$checklistId=(int)($checklist['id']??0);
     if(!$checklist){http_response_code(404);echo json_encode(['status'=>'error','message'=>'Checklist no encontrado.']);exit;}
     if($esRepresentantePartner&&(int)$checklist['partner_id']!==(int)$user['partner_id']){http_response_code(403);echo json_encode(['status'=>'error','message'=>'Este checklist no pertenece a su partner.']);exit;}
@@ -227,7 +227,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'responder_partner') {
     }
 
     // Verificar estado actual
-    $stmt = $pdo->prepare("SELECT o.*, s.partner_id, s.supervisor_id, s.departamento AS departamento_orden FROM observaciones_supervision o JOIN supervisiones s ON s.id = o.supervision_id WHERE o.id = :id");
+    $stmt = $pdo->prepare("SELECT o.*, s.partner_id, s.supervisor_id, " . sgsZonaSql('s') . " AS departamento_orden FROM observaciones_supervision o JOIN supervisiones s ON s.id = o.supervision_id WHERE o.id = :id");
     $stmt->execute([':id' => $obsId]);
     $obs = $stmt->fetch();
 

@@ -1,6 +1,6 @@
 # Diccionario de datos — SGS
 
-Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-10-26 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
+Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-10-27 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
 Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 
 | # | Tabla | Para qué sirve | En la instalación |
@@ -10,7 +10,7 @@ Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 | 3 | [`partners`](#partners) | Contratas; WIN DIRECTO = personal propio | 12 registros |
 | 4 | [`sgs_migracion`](#sgs_migracion) | Cambios de base de datos ya aplicados (los registra 07_SCRIPTS/migrar.php) | vacía |
 | 5 | [`tipificaciones_cancelacion`](#tipificaciones_cancelacion) | Motivos de cancelación (los del Excel de pendientes se agregan solos) | 6 registros |
-| 6 | [`ubigeo`](#ubigeo) | Departamentos, provincias y distritos de operación | 41 registros |
+| 6 | [`ubigeo`](#ubigeo) | Departamentos, provincias y distritos de operación | 120 registros |
 | 7 | [`vehiculos`](#vehiculos) | Vehículos de las cuadrillas | 3 registros |
 | 8 | [`subopciones_observacion`](#subopciones_observacion) | Tipificaciones de observación con gravedad y penalidad | 84 registros |
 | 9 | [`usuarios`](#usuarios) | Usuarios del sistema (personal WIN y de partners) | 10 registros |

@@ -486,7 +486,7 @@ if ($action === 'admin_summary') {
     $sqlSupervisores .= " ORDER BY u.nombre_completo ASC";
     $stmtSup = $pdo->prepare($sqlSupervisores);
     $stmtSup->execute($paramsSup);
-    $listaSupervisores = $stmtSup->fetchAll();
+    $listaSupervisores = sgsSupervisoresVisibles($user, $stmtSup->fetchAll()); // líder: los de sus zonas y su área
 
     // Obtener registros de asistencia para la fecha seleccionada
     $stmtAsist = $pdo->prepare("
@@ -625,7 +625,7 @@ if ($action === 'list_filters') {
         WHERE u.activo = 1 AND u.rol IN ('Supervisor', 'Coordinador', 'Administrador') AND " . sgsDirectStaffSql() . "
         ORDER BY u.nombre_completo ASC
     ");
-    $supervisores = $stmtSups->fetchAll();
+    $supervisores = sgsSupervisoresVisibles($user, $stmtSups->fetchAll());
     // Zonas de cada supervisor (null = todas) para filtrar la lista por departamento en pantalla
     foreach ($supervisores as &$s) $s['zonas'] = sgsUserZones((int)$s['id']);
     unset($s);
@@ -659,7 +659,7 @@ if ($action === 'timeline_diaria') {
         ORDER BY u.nombre_completo ASC
     ");
     $stmtSups->execute();
-    $listSupervisores = $stmtSups->fetchAll();
+    $listSupervisores = sgsSupervisoresVisibles($user, $stmtSups->fetchAll());
 
     // Carga por lotes: evita ejecutar varias consultas por cada supervisor.
     $asistenciasPorSupervisor = [];

@@ -19,7 +19,7 @@ require_once __DIR__ . '/../../config/dashboard.php';
 
 Auth::requireLogin();
 $usuario = Auth::getLoggedInUser();
-$esAdmin = Auth::isAdministrative();
+$esAdmin = Auth::isAdministrative() && !sgsAlcanceLimitado($usuario); // líder con zonas: solo las suyas
 $responder = static function (array $datos, int $codigo = 200): void {
     http_response_code($codigo);
     echo json_encode($datos, JSON_UNESCAPED_UNICODE);
@@ -46,7 +46,8 @@ try {
     $cierreSql = "COALESCE(s.rescate_fin, (SELECT MAX(h.fecha_cambio) FROM supervision_estado_historial h WHERE h.supervision_id = s.id AND h.estado_nuevo = 'Finalizada'))";
     $vencidaPartner = "({$transferida} AND NOT {$atendidaPartner} AND s.estado_supervision = 'Pendiente' AND NOW() > s.fecha_asignacion + INTERVAL 24 HOUR)";
 
-    [$where, $params] = sgsFiltrosDashboard(['fecha' => 's.fecha_carga', 'partner' => 's.partner_id', 'zona' => 's.departamento'], $usuario, $esAdmin);
+    $zonaSql = sgsZonaSql('s'); // zona de trabajo: departamento o NORTE CHICO (2026-10-27)
+    [$where, $params] = sgsFiltrosDashboard(['fecha' => 's.fecha_carga', 'partner' => 's.partner_id', 'zona' => $zonaSql], $usuario, $esAdmin);
     array_unshift($where, 's.es_cancelacion = 1', 's.origen_importacion = 1');
     if (($sup = (int)($_GET['supervisor_id'] ?? 0)) > 0) { $where[] = "({$responsableSql}) = :sup"; $params[':sup'] = $sup; }
     $consulta = sgsConsultaDashboard($pdo, "FROM supervisiones s LEFT JOIN partners p ON p.id = s.partner_id
@@ -102,7 +103,7 @@ try {
                 ['nombre' => 'Rescatadas', 'cantidad' => $cuentas['rescatada']],
             ]),
             'antiguedad' => [['nombre' => 'Menos de 24 h', 'cantidad' => (int)$k['a1']], ['nombre' => '1 a 3 días', 'cantidad' => (int)$k['a2']], ['nombre' => 'Más de 3 días', 'cantidad' => (int)$k['a3']]],
-            'por_zona' => $relativo($porGrupo("COALESCE(NULLIF(s.departamento, ''), 'Sin zona')"), 'cargadas'),
+            'por_zona' => $relativo($porGrupo("COALESCE(NULLIF({$zonaSql}, ''), 'Sin zona')"), 'cargadas'),
             'por_partner' => $porGrupo("COALESCE(p.nombre_partner, 'Sin partner')"),
             'motivos' => $relativo($motivos, 'cantidad'),
             'rescates' => $relativo($rescates, 'cantidad'),
@@ -114,13 +115,13 @@ try {
 
     if (in_array($action, ['dashboard_tabla', 'dashboard_excel'], true)) {
         [$extra, $mas] = sgsFiltroTablaDashboard($estadoSql, $grupos, ['s.ticket_codigo', 's.codigo_supervision', 'p.nombre_partner', 's.tipificacion_cancelacion']);
-        $columnas = "s.id, s.codigo_supervision, s.ticket_codigo, s.fecha_carga, s.departamento, s.distrito, s.tipificacion_cancelacion, p.nombre_partner,
+        $columnas = "s.id, s.codigo_supervision, s.ticket_codigo, s.fecha_carga, {$zonaSql} AS zona_trabajo, s.distrito, s.tipificacion_cancelacion, p.nombre_partner,
             rd.nombre_completo AS responsable, IF({$transferida}, us.nombre_completo, NULL) AS atiende_partner, {$estadoSql} AS estado,
             {$cierreSql} AS cierre, s.fecha_atencion_partner";
         $fila = static function (array $x): array {
             $cierre = in_array($x['estado'], ['rescatada', 'correcta'], true) ? $x['cierre'] : ($x['estado'] === 'partner_atendida' ? $x['fecha_atencion_partner'] : null);
             return ['id' => (int)$x['id'], 'ticket' => $x['ticket_codigo'] ?: $x['codigo_supervision'], 'carga' => $x['fecha_carga'],
-                'zona' => $x['departamento'] ?: 'Sin zona', 'distrito' => $x['distrito'], 'motivo' => $x['tipificacion_cancelacion'] ?: '—', 'partner' => $x['nombre_partner'] ?: 'Sin partner',
+                'zona' => $x['zona_trabajo'] ?: 'Sin zona', 'distrito' => $x['distrito'], 'motivo' => $x['tipificacion_cancelacion'] ?: '—', 'partner' => $x['nombre_partner'] ?: 'Sin partner',
                 'responsable' => $x['estado'] === 'pendiente' ? 'Aún no gestionado' : $x['responsable'],
                 'atiende_partner' => $x['atiende_partner'],
                 'estado' => $x['estado'], 'cierre' => $cierre,

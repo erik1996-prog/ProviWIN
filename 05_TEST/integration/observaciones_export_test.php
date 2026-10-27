@@ -20,7 +20,7 @@ $cleanup = function () use ($pdo) {
 $cleanup();
 $admin = (int)$pdo->query("SELECT id FROM usuarios WHERE rol='Administrador' AND activo=1 ORDER BY id LIMIT 1")->fetchColumn();
 (new UsuarioService($pdo))->guardar(['dni' => '99999912', 'nombres' => 'Export', 'apellidos' => 'Prueba SGS', 'email' => 'export.prueba@proviwin.test', 'usuario' => 'export.prueba',
-    'rol' => 'Coordinador', 'organizacion' => 'directo', 'zonas' => ['PIURA'], 'password' => $clave], 0, $admin);
+    'rol' => 'Coordinador', 'organizacion' => 'directo', 'zonas' => [], 'todas_zonas' => true, 'password' => $clave], 0, $admin); // todas las zonas: compara con el total (2026-10-27: con zonas, el coordinador ve solo esas)
 // Dos observaciones temporales sobre una supervisión existente: una en Penalidad Directa y otra Pendiente
 $sup = (int)$pdo->query('SELECT id FROM supervisiones ORDER BY id DESC LIMIT 1')->fetchColumn();
 $sub = $pdo->query('SELECT id, categoria_id FROM subopciones_observacion ORDER BY id LIMIT 1')->fetch();

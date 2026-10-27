@@ -49,7 +49,7 @@ $partnerFiltro=$f_partner_id; $cuadrillaFiltro=$f_cuadrilla; $departamentoFiltro
 $partnerUserScope = '';
 if ($isPartner) {
     $zoneParams = [];
-    $zoneCond = sgsZoneSql('s.departamento', (int)$user['id'], $zoneParams, ':zf');
+    $zoneCond = sgsZoneSql(sgsZonaSql('s'), (int)$user['id'], $zoneParams, ':zf'); // zona: departamento o NORTE CHICO
     uksort($zoneParams, static fn($a, $b) => strlen($b) <=> strlen($a));
     foreach ($zoneParams as $k => $v) $zoneCond = str_replace($k, $pdo->quote($v), $zoneCond);
     $partnerUserScope = ' AND ' . $zoneCond;

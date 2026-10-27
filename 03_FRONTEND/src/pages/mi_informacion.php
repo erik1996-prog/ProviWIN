@@ -105,7 +105,7 @@ $grupos = [
         ['Teléfono corporativo', $profile['telefono_corporativo'] ?? '', 'tel'],
     ]],
     ['Datos laborales', 'bi-briefcase', [
-        ['Usuario', $profile['usuario'] ?? ''], ['Rol', $rolPerfil], ['Organización', $organizacion],
+        ['Usuario', $profile['usuario'] ?? ''], ['Rol', Auth::etiquetaRol($rolPerfil)], ['Organización', $organizacion],
         ['Área de trabajo', $profile['area_trabajo'] ?? ''], 
         ['Modalidad', $profile['modalidad'] ?? ''], ['Turno', $profile['turno'] ?? ''],
     ]],
@@ -179,7 +179,7 @@ $e = static fn($v): string => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         
         <h3 class="sgs-pcard-name"><?= $e($fullName ?: 'Usuario') ?></h3>
         <div class="sgs-pcard-chips">
-          <span class="sgs-chip sgs-chip--brand"><i class="bi bi-person-badge"></i><?= $e($rolPerfil ?: 'Sin rol') ?></span>
+          <span class="sgs-chip sgs-chip--brand"><i class="bi bi-person-badge"></i><?= $e($rolPerfil ? Auth::etiquetaRol($rolPerfil) : 'Sin rol') ?></span>
           <span class="sgs-chip"><i class="bi bi-building"></i><?= $e($isDirectStaff ? 'WIN Directo' : $partnerName) ?></span>
           <span class="sgs-chip <?= $activo ? 'sgs-chip--ok' : 'sgs-chip--off' ?>"><?= $activo ? 'Cuenta activa' : 'Cuenta inactiva' ?></span>
         </div>
