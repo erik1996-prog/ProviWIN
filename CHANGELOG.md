@@ -4,6 +4,9 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Instalar la app en Huawei y otros celulares (2026-10-27)
+- **Corregido**: en el navegador de Huawei (y en Safari del iPhone, Firefox o los navegadores dentro de WhatsApp o Teams) no aparecía "Instalar app". Solo Chrome, Edge y Samsung avisan que se puede instalar. Ahora, en el celular, el botón aparece igual y muestra los pasos de ese navegador ("Añadir a la pantalla de inicio").
+
 ### Corregir pendientes cargadas (2026-10-27)
 - **Añadido**: en el detalle de una cancelación pendiente (cargada por Excel, sin iniciar y sin rescate), quien carga las cancelaciones (el administrador) tiene el botón **"Corregir datos"**. Corrige ticket, gestión o actividad, partner, cuadrilla, departamento, provincia y distrito, dirección, fecha y motivo de cancelación, coordenadas y observación previa.
 - La pendiente sigue sin iniciar. Se valida igual que en la carga: la ubicación contra el catálogo, el ticket que no esté en otra supervisión y el partner activo. Si cambia el departamento, pasa a la bolsa de la nueva zona y se avisa a sus supervisores. Si está asignada a un supervisor de partner, no se cambian su partner ni su zona.
