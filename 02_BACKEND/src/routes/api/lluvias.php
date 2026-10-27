@@ -48,7 +48,7 @@ if ($action === 'avisar') {
     if (($archivoFoto['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) $responder(['status' => 'error', 'message' => 'Tome una foto de la lluvia.'], 422);
     $r = sgsAvisarLluvia($pdo, $uid, $zona);
     if ($r['nueva']) sgsAvisoTeamsLluvia("Inicio de lluvia — {$zona}", 'Hora: ' . date('H:i') . " · Reportó: {$usuario['nombre']}", $comentario,
-        sgsFotoLluviaParaTeams($archivoFoto, sgsUrlSistema(), "Lluvia en {$zona} · " . date('d/m · H:i')));
+        sgsFotoLluviaParaTeams($archivoFoto, sgsUrlSistema()));
     $responder(['status' => 'success', 'data' => $estado(), 'message' => $r['nueva'] ? "Lluvia avisada en {$zona}. Avise cuando pare."
         : "Ya estaba avisada la lluvia en {$zona} por {$r['lluvia']['reportado_por']}."]);
 }

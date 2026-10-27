@@ -129,6 +129,24 @@ PY;
         CURLOPT_POSTFIELDS => ['archivo' => new CURLFile($xlsx, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'cancelaciones.xlsx')]]);
     $check('al subirlo otra vez no ingresa nada: los 4 códigos ya están en Supervisiones', ($r2['creadas'] ?? -1) === 0 && count($r2['ya_supervisados'] ?? []) === 4, $r2);
 
+    // Corregir una pendiente cargada (2026-10-27): el administrador corrige los datos del Excel sin iniciarla
+    $id200 = (int)$pdo->query("SELECT id FROM supervisiones WHERE ticket_codigo = 'PRUEBA-CAN-200' LIMIT 1")->fetchColumn();
+    $corregir = fn(array $cambios) => $http("$base/api/supervisiones.php?action=corregir_pendiente", [CURLOPT_POST => true, CURLOPT_HTTPHEADER => ['X-CSRF-Token: ' . ($m[1] ?? '')],
+        CURLOPT_POSTFIELDS => $cambios + ['id' => $id200, 'ticket' => 'PRUEBA-CAN-200', 'tipo' => 'Avería', 'partner_id' => $partner['id'], 'tecnico1' => 'actual',
+            'departamento' => $ubi['departamento'], 'provincia' => $ubi['provincia'], 'distrito' => $ubi['distrito'], 'direccion' => 'Calle Corregida 456',
+            'fecha_cancelacion' => '2026-10-20', 'motivo' => 'Cliente desistió (prueba)', 'coordenadas' => '-16.3988, -71.5369', 'observacion_previa' => 'Revisar la caja']])[1];
+    $rc = $corregir(['departamento' => 'HUANCAYO', 'provincia' => 'HUANCAYO', 'distrito' => 'EL TAMBO']);
+    $check('corregir con una ubicación que no existe: se rechaza y dice por qué', str_contains($rc['message'] ?? '', 'HUANCAYO no es un departamento'), $rc);
+    $rc = $corregir(['ticket' => ' prueba-can-100 ']);
+    $check('corregir con un ticket que ya tiene otra supervisión: se rechaza', str_contains($rc['message'] ?? '', 'ya está en la supervisión'), $rc);
+    $rc = $corregir(['ticket' => 'prueba-can-201']);
+    $fila = $pdo->query("SELECT ticket_codigo, clasificacion_supervision, direccion, fecha_cancelacion, tipificacion_cancelacion, latitud, observacion_previa, estado_supervision, tecnico1_nombre
+        FROM supervisiones WHERE id = $id200")->fetch(PDO::FETCH_ASSOC);
+    $check('corrección válida: guarda los datos y la pendiente sigue sin iniciar (con su cuadrilla)', ($rc['status'] ?? '') === 'success' && $fila['ticket_codigo'] === 'PRUEBA-CAN-201'
+        && $fila['clasificacion_supervision'] === 'Avería' && $fila['direccion'] === 'Calle Corregida 456' && $fila['fecha_cancelacion'] === '2026-10-20'
+        && $fila['tipificacion_cancelacion'] === 'Cliente desistió (prueba)' && (float)$fila['latitud'] === -16.3988 && $fila['estado_supervision'] === 'Pendiente'
+        && $fila['tecnico1_nombre'] === $tec200['tecnico1_nombre'], [$rc, $fila]);
+    $pdo->exec("DELETE FROM tipificaciones_cancelacion WHERE descripcion = 'Cliente desistió (prueba)'");
     // Seguridad (2026-10-13): eliminar solo por POST y con token; un enlace (GET) o una petición sin token no borra nada.
     $idBorrar = (int)$pdo->query("SELECT id FROM supervisiones WHERE ticket_codigo = '990000123' LIMIT 1")->fetchColumn();
     $existe = fn() => (int)$pdo->query("SELECT COUNT(*) FROM supervisiones WHERE id = $idBorrar")->fetchColumn() === 1;

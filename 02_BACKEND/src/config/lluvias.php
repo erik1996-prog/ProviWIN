@@ -7,7 +7,6 @@
 // La usan: api/lluvias.php (Mi turno), la Línea de tiempo (api/asistencia.php) y el indicador api/dashboard_lluvias.php.
 require_once __DIR__ . '/territorial.php';
 require_once __DIR__ . '/turnos.php';
-require_once __DIR__ . '/visor_fotos.php'; // enlace del visor de fotos de Teams
 
 /** Zonas donde el supervisor puede avisar lluvia: las suyas; si trabaja todas las provincias, todas. */
 function sgsZonasLluvia(int $usuarioId): array {
@@ -110,14 +109,14 @@ function sgsLluviasDelSupervisor(array $lluviasDelDia, int $usuarioId, array $zo
  */
 /**
  * Imagen de un mensaje de Teams (2026-10-26). Con enlace https van dos copias según el ancho de la pantalla (targetWidth):
- * en el celular (angosta) tocarla abre el visor foto.php (título y la imagen, que se amplía con los dedos; Teams del celular
- * no amplía imágenes); en la PC se amplía dentro del mismo Teams (allowExpand). Sin enlace (imagen dentro del mensaje) va una sola.
+ * en el celular (angosta) tocarla abre la imagen en el navegador, donde se amplía con los dedos (Teams del celular no amplía
+ * imágenes); en la PC se amplía dentro del mismo Teams (allowExpand). Sin enlace (imagen dentro del mensaje) va una sola.
  */
 function sgsImagenTeams(string $url, string $alt, array $extra = []): array {
     $imagen = ['type' => 'Image', 'url' => $url, 'size' => 'Stretch', 'altText' => $alt, 'msteams' => ['allowExpand' => true]] + $extra;
     if (!str_starts_with($url, 'https://')) return [$imagen];
     return [
-        ['targetWidth' => 'atMost:narrow', 'selectAction' => ['type' => 'Action.OpenUrl', 'title' => 'Ampliar', 'url' => sgsEnlaceVisor($url) ?: $url]] + array_diff_key($imagen, ['msteams' => 1]),
+        ['targetWidth' => 'atMost:narrow', 'selectAction' => ['type' => 'Action.OpenUrl', 'title' => 'Ampliar', 'url' => $url]] + array_diff_key($imagen, ['msteams' => 1]),
         ['targetWidth' => 'atLeast:standard'] + $imagen,
     ];
 }
@@ -138,7 +137,7 @@ function sgsAvisoTeamsLluvia(string $titulo, string $detalle, string $comentario
  * amplía en el celular y en la PC. Sin https (una PC local), se reduce para que entre dentro del mensaje (~28 KB).
  * Devuelve '' si no hay foto válida.
  */
-function sgsFotoLluviaParaTeams(array $archivo, ?string $urlSistema, string $titulo = ''): string {
+function sgsFotoLluviaParaTeams(array $archivo, ?string $urlSistema): string {
     require_once __DIR__ . '/uploads.php';
     try {
         $ok = validateUploadedFile($archivo, ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'], 8 * 1024 * 1024);
@@ -150,9 +149,7 @@ function sgsFotoLluviaParaTeams(array $archivo, ?string $urlSistema, string $tit
         if (!is_dir($carpeta)) @mkdir($carpeta, 0755, true);
         foreach (glob("$carpeta/*") ?: [] as $viejo) if (filemtime($viejo) < time() - 90 * 86400) @unlink($viejo);
         $nombre = date('Y-m-d') . '_' . bin2hex(random_bytes(16)) . '.' . $ok['extension'];
-        if (!move_uploaded_file($archivo['tmp_name'], "$carpeta/$nombre")) return '';
-        sgsTituloDeImagen("$carpeta/$nombre", $titulo); // para el visor foto.php
-        return rtrim($urlSistema, '/') . "/uploads/lluvias_teams/$nombre";
+        return move_uploaded_file($archivo['tmp_name'], "$carpeta/$nombre") ? rtrim($urlSistema, '/') . "/uploads/lluvias_teams/$nombre" : '';
     }
     if (!function_exists('imagecreatefromstring') || !($img = @imagecreatefromstring((string)file_get_contents($archivo['tmp_name'])))) return '';
     foreach ([480, 400, 320, 240] as $ancho) {

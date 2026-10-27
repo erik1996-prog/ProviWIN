@@ -24,14 +24,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_FILES['archivo'])) {
     exit;
 }
 
-/** Código de seguimiento / ticket tal como se compara y se guarda: " 12345.0 " → "12345", "1.2345E+5" → "123450". */
-function normalizarTicket(string $ticket): string {
-    $ticket = mb_strtoupper(preg_replace('/\s+/u', '', $ticket), 'UTF-8');
-    if (preg_match('/^\d+\.0+$/', $ticket)) $ticket = preg_replace('/\.0+$/', '', $ticket);
-    elseif (preg_match('/^\d+(\.\d+)?E\+\d+$/', $ticket)) $ticket = sprintf('%.0f', (float)$ticket);
-    return $ticket;
-}
-
 /**
  * Traduce un error inesperado de la carga a algo accionable (2026-10-12): qué pasó, en qué fila y qué hacer.
  * Devuelve ['que_paso' => …, 'que_hacer' => …]. Lo que no se reconoce queda como error interno con su código.
@@ -218,22 +210,6 @@ try {
 
     $pdo->beginTransaction();
 
-    $zoneMap = [
-        'SANTA' => 'Chimbote',
-        'CHIMBOTE' => 'Chimbote',
-        'ANCASH' => 'Chimbote',
-        'LAMBAYEQUE' => 'Chiclayo',
-        'CHICLAYO' => 'Chiclayo',
-        'LA LIBERTAD' => 'Trujillo',
-        'TRUJILLO' => 'Trujillo',
-        'AREQUIPA' => 'Arequipa',
-        'PIURA' => 'Piura',
-        'JUNIN' => 'Huancayo',
-        'HUANCAYO' => 'Huancayo',
-        'CUSCO' => 'Cusco',
-        'LIMA' => 'Lima'
-    ];
-
     $filaActual = null;
     foreach ($rows as $rowNumber => $row) {
         $filaActual = $rowNumber;
@@ -307,18 +283,7 @@ try {
         if ($ubicacion['error'] !== '') $rowErrors[] = $ubicacion['error'];
         else [$department, $province, $district] = [$ubicacion['departamento'], $ubicacion['provincia'], $ubicacion['distrito']];
 
-        // Zone Auto-Recognition
-        $normProv = normalizeImportText($province);
-        $normDist = normalizeImportText($district);
-        $normDep = normalizeImportText($department);
-
-        $zone = null;
-        if (isset($zoneMap[$normProv])) $zone = $zoneMap[$normProv];
-        elseif (isset($zoneMap[$normDist])) $zone = $zoneMap[$normDist];
-        elseif (isset($zoneMap[$normDep])) $zone = $zoneMap[$normDep];
-        else {
-            $zone = !empty($province) ? ucfirst(strtolower($province)) : (!empty($department) ? ucfirst(strtolower($department)) : 'Provincias');
-        }
+        $zone = zonaAsignacionCancelacion($department, $province, $district);
 
         // Coordinates parsing
         $lat = null;

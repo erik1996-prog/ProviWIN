@@ -1,4 +1,25 @@
 <?php
+// 02_BACKEND/src/config/asignacion_cancelaciones.php - Cancelaciones pendientes: ticket, zona de asignación y supervisores
+// de la zona. Lo usan la carga del Excel (api/cancelaciones_import.php) y la corrección de pendientes (api/supervisiones.php).
+require_once __DIR__ . '/excel_lector.php'; // normalizeImportText
+
+/** Código de seguimiento / ticket tal como se compara y se guarda: " 12345.0 " → "12345", "1.2345E+5" → "123450". */
+function normalizarTicket(string $ticket): string {
+    $ticket = mb_strtoupper(preg_replace('/\s+/u', '', $ticket), 'UTF-8');
+    if (preg_match('/^\d+\.0+$/', $ticket)) $ticket = preg_replace('/\.0+$/', '', $ticket);
+    elseif (preg_match('/^\d+(\.\d+)?E\+\d+$/', $ticket)) $ticket = sprintf('%.0f', (float)$ticket);
+    return $ticket;
+}
+
+/** Zona de asignación de la pendiente (ciudad de la sede): por provincia, distrito o departamento. */
+function zonaAsignacionCancelacion(string $departamento, string $provincia, string $distrito): string {
+    $mapa = ['SANTA' => 'Chimbote', 'CHIMBOTE' => 'Chimbote', 'ANCASH' => 'Chimbote', 'LAMBAYEQUE' => 'Chiclayo', 'CHICLAYO' => 'Chiclayo',
+        'LA LIBERTAD' => 'Trujillo', 'TRUJILLO' => 'Trujillo', 'AREQUIPA' => 'Arequipa', 'PIURA' => 'Piura', 'JUNIN' => 'Huancayo',
+        'HUANCAYO' => 'Huancayo', 'CUSCO' => 'Cusco', 'LIMA' => 'Lima'];
+    foreach ([$provincia, $distrito, $departamento] as $v) if (isset($mapa[normalizeImportText($v)])) return $mapa[normalizeImportText($v)];
+    return $provincia !== '' ? ucfirst(strtolower($provincia)) : ($departamento !== '' ? ucfirst(strtolower($departamento)) : 'Provincias');
+}
+
 function normalizarZonaCancelacion(string $zona): string {
     $zona = mb_strtoupper(trim($zona), 'UTF-8');
     $zona = strtr($zona, ['Á'=>'A','É'=>'E','Í'=>'I','Ó'=>'O','Ú'=>'U','Ü'=>'U']);

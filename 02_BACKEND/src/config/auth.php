@@ -204,7 +204,7 @@ class Auth {
             self::PERM_ATTENDANCE_SELF => ['group'=>'Mi turno','label'=>'Registrar el propio turno','action'=>'editar','delegable'=>true],
             self::PERM_USERS_MANAGE => ['group'=>'Reservado','label'=>'Administrar usuarios','delegable'=>false],
             self::PERM_SUPERVISION_DELETE => ['group'=>'Reservado','label'=>'Eliminar supervisiones','delegable'=>false],
-            self::PERM_SUPERVISION_IMPORT => ['group'=>'Reservado','label'=>'Importar cancelaciones','delegable'=>false],
+            self::PERM_SUPERVISION_IMPORT => ['group'=>'Reservado','label'=>'Importar cancelaciones y corregir las pendientes cargadas','delegable'=>false],
             self::PERM_SYSTEM_MANAGE => ['group'=>'Reservado','label'=>'Administrar el sistema','delegable'=>false],
         ];
     }

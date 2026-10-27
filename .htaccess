@@ -1,5 +1,4 @@
-# SGS - Reglas de acceso. Solo son públicos: index.php, examen.php (link de examen), foto.php (visor de fotos de Teams),
-# api/*.php y 03_FRONTEND/src/assets/
+# SGS - Reglas de acceso. Solo son públicos: index.php, examen.php (link de examen), api/*.php y 03_FRONTEND/src/assets/
 Options -Indexes
 DirectoryIndex index.php
 

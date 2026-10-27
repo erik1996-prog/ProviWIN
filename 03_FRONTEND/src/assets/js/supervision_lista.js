@@ -2074,6 +2074,71 @@
   document.addEventListener('click',event=>{const button=event.target.closest('.checklist-signature-clear');if(!button)return;const canvas=document.getElementById(button.dataset.canvas);const input=document.getElementById(button.dataset.input);if(canvas)canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);if(input){input.value='';input.dispatchEvent(new Event('input',{bubbles:true}))}});
   initChecklistSignaturePads();
 
+  // Corregir una pendiente cargada (2026-10-27): quien carga cancelaciones corrige los datos del Excel sin iniciarla
+  // (api/supervisiones.php?action=corregir_pendiente). Ventana #modalCorregirPendiente (supervision_lista.php).
+  async function abrirCorreccionPendiente(rec) {
+    const modal = document.getElementById('modalCorregirPendiente');
+    const $ = (id) => document.getElementById(id);
+    const opciones = (lista, actual) => lista.map(v => `<option value="${escapeHtml(v)}" ${v === actual ? 'selected' : ''}>${escapeHtml(v)}</option>`).join('');
+    const pedir = async (url) => { const r = await (await fetch(url)).json(); return r.status === 'success' ? r.data : []; };
+    const cargarProvincias = async (prov) => {
+      $('cp_prov').innerHTML = '<option value="">Seleccione</option>' + opciones(await pedir(`api/ubigeo.php?action=provincias&departamento=${encodeURIComponent($('cp_dep').value)}`), prov);
+    };
+    const cargarDistritos = async (dist) => {
+      $('cp_dist').innerHTML = '<option value="">Seleccione</option>' + opciones(await pedir(`api/ubigeo.php?action=distritos&departamento=${encodeURIComponent($('cp_dep').value)}&provincia=${encodeURIComponent($('cp_prov').value)}`), dist);
+    };
+    // Cuadrilla: líderes del partner y la zona; "actual" deja la que vino del Excel aunque no esté registrada
+    const cargarTecnicos = () => {
+      const lideres = lideresDeZona($('cp_partner').value, $('cp_dep').value, rec.tecnico1_nombre);
+      const registrado = lideres.find(t => t.nombre_tecnico === rec.tecnico1_nombre);
+      $('cp_tecnico').innerHTML = (rec.tecnico1_nombre && !registrado ? `<option value="actual">${escapeHtml(rec.tecnico1_nombre)} (no registrado)</option>` : '')
+        + '<option value="">Sin cuadrilla</option>'
+        + lideres.map(t => `<option value="${t.id}" ${t === registrado ? 'selected' : ''}>${escapeHtml(textoLider(t))}</option>`).join('');
+      if (rec.tecnico1_nombre && !registrado) $('cp_tecnico').value = 'actual';
+    };
+    $('cp_codigo').textContent = rec.codigo;
+    $('cp_ticket').value = rec.ticket_codigo;
+    $('cp_tipo').value = ['Instalación', 'Avería', 'Postventa', 'Reiterada', 'Garantía'].includes(rec.clasificacion) ? rec.clasificacion : 'Instalación';
+    $('cp_partner').innerHTML = partnersData.map(p => `<option value="${p.id}" ${String(p.id) === String(rec.partner_id) ? 'selected' : ''}>${escapeHtml(p.nombre_partner)}</option>`).join('');
+    $('cp_direccion').value = rec.direccion;
+    $('cp_fecha').value = String(rec.fecha_cancelacion || '').slice(0, 10);
+    $('cp_motivo').value = rec.tipificacion_cancelacion;
+    $('cp_motivos').innerHTML = tipificacionesCancelacion.map(t => `<option value="${escapeHtml(t)}"></option>`).join('');
+    $('cp_coordenadas').value = rec.latitud && rec.longitud ? `${rec.latitud}, ${rec.longitud}` : '';
+    $('cp_obs').value = rec.observacion_previa;
+    $('cp_error').classList.add('d-none');
+    $('cp_dep').innerHTML = '<option value="">Seleccione</option>' + opciones(await pedir('api/ubigeo.php?action=departamentos'), rec.departamento);
+    await cargarProvincias(rec.provincia);
+    await cargarDistritos(rec.distrito);
+    await cargarListaTecnicos();
+    cargarTecnicos();
+    $('cp_dep').onchange = async () => { await cargarProvincias(''); await cargarDistritos(''); cargarTecnicos(); };
+    $('cp_prov').onchange = () => cargarDistritos('');
+    $('cp_partner').onchange = cargarTecnicos;
+    $('formCorregirPendiente').onsubmit = async (ev) => {
+      ev.preventDefault();
+      const boton = $('cp_guardar');
+      const datos = new FormData();
+      Object.entries({ id: rec.id, ticket: $('cp_ticket').value, tipo: $('cp_tipo').value, partner_id: $('cp_partner').value, tecnico1: $('cp_tecnico').value,
+        departamento: $('cp_dep').value, provincia: $('cp_prov').value, distrito: $('cp_dist').value, direccion: $('cp_direccion').value,
+        fecha_cancelacion: $('cp_fecha').value, motivo: $('cp_motivo').value, coordenadas: $('cp_coordenadas').value, observacion_previa: $('cp_obs').value,
+      }).forEach(([k, v]) => datos.append(k, v));
+      boton.disabled = true;
+      try {
+        const r = await (await fetch('api/supervisiones.php?action=corregir_pendiente', { method: 'POST', headers: { 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '' }, body: datos })).json();
+        if (r.status !== 'success') throw new Error(r.message || 'No se pudo guardar la corrección.');
+        bootstrap.Modal.getOrCreateInstance(modal).hide();
+        showToast(r.message);
+        records = records.filter(x => x.id !== rec.id); // el detalle vuelve a leer la pendiente ya corregida
+        await loadRecords();
+        openDetail(rec.id);
+      } catch (e) {
+        $('cp_error').textContent = e.message || 'No se pudo guardar la corrección.';
+        $('cp_error').classList.remove('d-none');
+      } finally { boton.disabled = false; }
+    };
+    bootstrap.Modal.getOrCreateInstance(modal).show();
+  }
   async function openDetail(id, forceAdminEdit = false){
     let rec = records.find(r => r.id === Number(id));
     if (forceAdminEdit && !esAdministradorActual) forceAdminEdit = false;
@@ -2840,7 +2905,7 @@
                 ? `<span class="sgs-autoguardado" id="edit_autoguardado" aria-live="polite"></span>
                    <button class="btn-bitacora btn-ghost-bitacora" id="cancelarEdicionBtn" type="button"><i class="bi bi-x-lg me-1"></i>Cancelar</button>
                    <button class="btn-bitacora btn-orange-bitacora" id="saveProgressBtn" type="button"><i class="bi bi-check2-circle me-1"></i>Finalizar supervisión</button>`
-                : `<button class="btn-bitacora ${rec.estado === 'pendiente' ? 'btn-orange-bitacora' : 'btn-ghost-bitacora'}" id="saveProgressBtn" type="button">${rec.estado === 'pendiente' ? 'Iniciar supervisión' : 'Guardar avance y volver al listado'}</button>`)))
+                : `${esCancelacionFrioPendiente && SGS_SUPERVISION.corregirPendientes ? '<button class="btn-bitacora btn-ghost-bitacora" id="btnCorregirPendiente" type="button"><i class="bi bi-pencil-square me-1"></i>Corregir datos</button>' : ''}<button class="btn-bitacora ${rec.estado === 'pendiente' ? 'btn-orange-bitacora' : 'btn-ghost-bitacora'}" id="saveProgressBtn" type="button">${rec.estado === 'pendiente' ? 'Iniciar supervisión' : 'Guardar avance y volver al listado'}</button>`)))
           }
         </div>
       </form>`;
@@ -2850,6 +2915,7 @@
     // Corrección por el administrador (2026-10-15): desde la vista de consulta abre el formulario completo editable.
     document.getElementById('btnCorregirSupervision')?.addEventListener('click', () => openDetail(rec.id, true));
     document.getElementById('btnCancelarCorreccion')?.addEventListener('click', () => openDetail(rec.id));
+    document.getElementById('btnCorregirPendiente')?.addEventListener('click', () => abrirCorreccionPendiente(rec).catch(() => showToast('No se pudo abrir la corrección.')));
     if(esSupervisorPartnerActual){
       const form=document.getElementById('partner-supervision-form');
       const sendPartnerUpdate=async estado=>{

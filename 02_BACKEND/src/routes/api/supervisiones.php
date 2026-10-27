@@ -1839,6 +1839,110 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'cancelar') {
     echo json_encode(['status' => 'success', 'message' => $mensaje, 'volvio_a_pendiente' => is_array($copia)], JSON_UNESCAPED_UNICODE);
     exit;
 }
+// Corregir una pendiente cargada (2026-10-27): quien carga las cancelaciones (el administrador) corrige los datos que
+// vinieron del Excel mientras la pendiente no se inicia ni se toma como rescate. La ubicación se valida contra el
+// catálogo; si cambia el departamento, la pendiente pasa a la bolsa de la nueva zona y se avisa a sus supervisores.
+// tecnico1: "actual" = se deja la cuadrilla como está · "" = sin cuadrilla · id = técnico líder del partner.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'corregir_pendiente') {
+    require_once __DIR__ . '/../../config/asignacion_cancelaciones.php';
+    require_once __DIR__ . '/../../config/zonas_peru.php';
+    $responder = static function (int $codigo, string $mensaje, string $estado = 'error'): void {
+        http_response_code($codigo);
+        echo json_encode(['status' => $estado, 'message' => $mensaje], JSON_UNESCAPED_UNICODE);
+        exit;
+    };
+    if (!Auth::can(Auth::PERM_SUPERVISION_IMPORT, $user)) $responder(403, 'Solo quien carga las cancelaciones puede corregir las pendientes.');
+    $id = (int)($_POST['id'] ?? 0);
+    $texto = static fn(string $k, int $max): string => mb_substr(trim(preg_replace('/\s+/u', ' ', (string)($_POST[$k] ?? ''))), 0, $max);
+    $ticket = normalizarTicket((string)($_POST['ticket'] ?? ''));
+    $tipo = (string)($_POST['tipo'] ?? '');
+    $fecha = (string)($_POST['fecha_cancelacion'] ?? '');
+    $motivo = $texto('motivo', 200);
+    $direccion = $texto('direccion', 255);
+    $obsPrevia = trim((string)($_POST['observacion_previa'] ?? ''));
+    $tecnico = (string)($_POST['tecnico1'] ?? 'actual');
+    $errores = [];
+    if ($ticket === '') $errores[] = 'Escriba el código de pedido o ticket.';
+    if (!in_array($tipo, ['Instalación', 'Avería', 'Postventa', 'Reiterada', 'Garantía'], true)) $errores[] = 'Elija la gestión o actividad.';
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $fecha, $f) || !checkdate((int)$f[2], (int)$f[3], (int)$f[1])) $errores[] = 'La fecha de cancelación no es válida.';
+    [$lat, $lng] = [null, null];
+    $coordenadas = trim((string)($_POST['coordenadas'] ?? ''));
+    if ($coordenadas !== '') {
+        if (preg_match('/^\s*(-?\d{1,3}(?:\.\d+)?)\s*[,;\/\s]\s*(-?\d{1,3}(?:\.\d+)?)\s*$/', $coordenadas, $c) && abs((float)$c[1]) <= 90 && abs((float)$c[2]) <= 180) [$lat, $lng] = [$c[1], $c[2]];
+        else $errores[] = 'Las coordenadas deben ir como "latitud, longitud" (por ejemplo: -16.3988, -71.5369).';
+    }
+    $ubicacion = sgsValidarUbicacion($pdo, (string)($_POST['departamento'] ?? ''), (string)($_POST['provincia'] ?? ''), (string)($_POST['distrito'] ?? ''));
+    if ($ubicacion['error'] !== '') $errores[] = $ubicacion['error'];
+    $st = $pdo->prepare('SELECT id, nombre_partner FROM partners WHERE id = :id AND estado = 1');
+    $st->execute([':id' => (int)($_POST['partner_id'] ?? 0)]);
+    $partner = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$partner) $errores[] = 'Elija un partner activo.';
+    $lider = null;
+    if ($partner && ctype_digit($tecnico)) {
+        $st = $pdo->prepare('SELECT id, nombre_tecnico, dni FROM tecnicos WHERE id = :id AND partner_id = :p AND COALESCE(tipo_tecnico, 1) = 1');
+        $st->execute([':id' => (int)$tecnico, ':p' => $partner['id']]);
+        $lider = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$lider) $errores[] = 'La cuadrilla elegida no es un técnico líder de ese partner.';
+    }
+    if ($errores) $responder(422, implode(' ', $errores));
+
+    $pdo->beginTransaction();
+    try {
+        $st = $pdo->prepare('SELECT s.*, p.nombre_partner AS partner_supervisor FROM supervisiones s JOIN usuarios u ON u.id = s.supervisor_id
+            LEFT JOIN partners p ON p.id = u.partner_id WHERE s.id = :id FOR UPDATE');
+        $st->execute([':id' => $id]);
+        $sup = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$sup) throw new RuntimeException('Esta pendiente ya no existe.', 404);
+        if ($sup['estado_supervision'] !== 'Pendiente' || !(int)$sup['es_cancelacion'] || !(int)$sup['origen_importacion'] || ($sup['rescate_estado'] ?? '') === 'En rescate') {
+            throw new RuntimeException('Solo se corrigen pendientes cargadas que aún no se iniciaron ni están en rescate. Actualice la lista.', 409);
+        }
+        $st = $pdo->prepare('SELECT codigo_supervision FROM supervisiones WHERE id <> :id AND UPPER(TRIM(ticket_codigo)) = :t LIMIT 1');
+        $st->execute([':id' => $id, ':t' => $ticket]);
+        if ($otra = $st->fetchColumn()) throw new RuntimeException("El ticket {$ticket} ya está en la supervisión {$otra}.", 409);
+        $cambiaZona = normalizeImportText((string)$sup['departamento']) !== normalizeImportText($ubicacion['departamento']);
+        // Asignada a un supervisor de partner: el partner y la zona quedan como están (la asignación depende de ellos)
+        $asignadaPartner = trim((string)$sup['partner_supervisor']) !== '' && !in_array(mb_strtoupper(trim((string)$sup['partner_supervisor']), 'UTF-8'), ['WIN', 'WIN DIRECTO'], true);
+        if ($asignadaPartner && ($cambiaZona || (int)$partner['id'] !== (int)$sup['partner_id'])) {
+            throw new RuntimeException('Esta pendiente está asignada a un supervisor de partner: no se puede cambiar su partner ni su departamento.', 409);
+        }
+        $supervisorId = (int)$sup['supervisor_id'];
+        if ($cambiaZona) {
+            $nuevo = elegirSupervisorCancelacion($pdo, $ubicacion['departamento']);
+            if (!$nuevo) throw new RuntimeException("No hay supervisor directo activo para {$ubicacion['departamento']}.", 422);
+            $supervisorId = (int)$nuevo['id'];
+        }
+        if ($motivo !== '') { // el motivo debe existir en el catálogo (como en la carga)
+            $pdo->prepare('INSERT IGNORE INTO tipificaciones_cancelacion (descripcion, estado) VALUES (:d, 1)')->execute([':d' => $motivo]);
+            $st = $pdo->prepare('SELECT descripcion FROM tipificaciones_cancelacion WHERE descripcion = :d LIMIT 1');
+            $st->execute([':d' => $motivo]);
+            $motivo = $st->fetchColumn() ?: $motivo;
+        }
+        [$t1Id, $t1Nombre, $t1Dni] = $tecnico === 'actual' ? [$sup['tecnico1_id'], $sup['tecnico1_nombre'], $sup['tecnico1_dni']]
+            : ($lider ? [(int)$lider['id'], $lider['nombre_tecnico'], preg_match('/^\d{8}$/', (string)$lider['dni']) ? $lider['dni'] : null] : [null, null, null]);
+        $pdo->prepare('UPDATE supervisiones SET ticket_codigo = :ticket, partner_id = :partner, clasificacion_supervision = :tipo, area_servicio = :tipo2,
+                departamento = :dep, provincia = :prov, distrito = :dist, zona_asignacion = :zona, direccion = :dir, supervisor_id = :sup,
+                tecnico1_id = :t1id, tecnico1_nombre = :t1n, tecnico1_dni = :t1d, fecha_cancelacion = :fecha, tipificacion_cancelacion = :motivo,
+                observacion_previa = :obs, latitud = :lat, longitud = :lng WHERE id = :id')
+            ->execute([':ticket' => $ticket, ':partner' => $partner['id'], ':tipo' => $tipo, ':tipo2' => $tipo, ':dep' => $ubicacion['departamento'],
+                ':prov' => $ubicacion['provincia'] ?: null, ':dist' => $ubicacion['distrito'] ?: null,
+                ':zona' => zonaAsignacionCancelacion($ubicacion['departamento'], $ubicacion['provincia'], $ubicacion['distrito']),
+                ':dir' => $direccion !== '' ? $direccion : null, ':sup' => $supervisorId, ':t1id' => $t1Id, ':t1n' => $t1Nombre, ':t1d' => $t1Dni,
+                ':fecha' => $fecha, ':motivo' => $motivo !== '' ? $motivo : null, ':obs' => $obsPrevia !== '' ? $obsPrevia : null,
+                ':lat' => $lat, ':lng' => $lng, ':id' => $id]);
+        if ($cambiaZona) {
+            $aviso = $pdo->prepare("INSERT INTO notificaciones (usuario_id, titulo, mensaje, url_destino) VALUES (:u, 'Nueva cancelación pendiente en tu zona', :m, 'index.php?page=supervision_lista')");
+            foreach (supervisoresZonaCancelacion($pdo, $ubicacion['departamento']) as $z) {
+                $aviso->execute([':u' => (int)$z['id'], ':m' => "La pendiente {$sup['codigo_supervision']} (ticket {$ticket}) se corrigió y ahora es de {$ubicacion['departamento']}."]);
+            }
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        if (!$e instanceof RuntimeException) win_log_error('pendiente_corregir', $e->getMessage(), ['id' => $id]);
+        $responder(in_array($e->getCode(), [404, 409, 422], true) ? $e->getCode() : 500, $e instanceof RuntimeException ? $e->getMessage() : 'No se pudo guardar la corrección.');
+    }
+    $responder(200, 'Pendiente corregida' . ($cambiaZona ? " y movida a {$ubicacion['departamento']}." : '.'), 'success');
+}
 if ($action === 'delete') {
     // Solo POST (2026-10-13): por GET no se revisa el token CSRF y bastaba con abrir un enlace para borrar.
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

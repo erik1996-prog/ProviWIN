@@ -136,10 +136,9 @@ function sgsPublicarCorteLluvias(PDO $pdo, string $hasta, ?string $urlSistema): 
     if ($urlSistema) {
         $carpeta = dirname(__DIR__, 3) . '/uploads/cortes_lluvia';
         if (!is_dir($carpeta)) mkdir($carpeta, 0755, true);
-        foreach (glob("$carpeta/*") ?: [] as $viejo) if (filemtime($viejo) < time() - 90 * 86400) @unlink($viejo); // imagen y título: 90 días
+        foreach (glob("$carpeta/*") ?: [] as $viejo) if (filemtime($viejo) < time() - 90 * 86400) @unlink($viejo); // se guardan 90 días
         $archivo = $hasta . '_' . bin2hex(random_bytes(16)) . '.png';
         file_put_contents("$carpeta/$archivo", sgsImagenMatrizLluvias($celdas, $hasta, 2));
-        sgsTituloDeImagen("$carpeta/$archivo", $titulo); // para el visor foto.php
         $imagen = rtrim($urlSistema, '/') . "/uploads/cortes_lluvia/$archivo";
     } else {
         // Dentro del mensaje (Teams acepta ~28 KB): baja la resolución hasta que la imagen entre (fin de mes = más ancha)

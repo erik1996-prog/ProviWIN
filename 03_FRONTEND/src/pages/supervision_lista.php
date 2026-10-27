@@ -649,6 +649,45 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
 </div>
 <?php endif; ?>
 
+<?php if (Auth::can(Auth::PERM_SUPERVISION_IMPORT)): ?>
+<!-- Corregir una pendiente cargada (2026-10-27): solo quien carga cancelaciones; datos que vinieron del Excel -->
+<div class="modal fade" id="modalCorregirPendiente" tabindex="-1" aria-labelledby="modalCorregirPendienteTitulo" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <form id="formCorregirPendiente" novalidate>
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalCorregirPendienteTitulo"><i class="bi bi-pencil-square me-2 text-primary"></i>Corregir pendiente <span id="cp_codigo"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">Corrige los datos que vinieron del Excel. La pendiente sigue sin iniciar. Si cambias el departamento, pasa a la bolsa de esa zona y se avisa a sus supervisores.</p>
+          <div class="row g-3">
+            <div class="col-md-6"><label class="form-label" for="cp_ticket">Código de pedido / ticket</label><input class="form-control" id="cp_ticket" maxlength="60" autocomplete="off"></div>
+            <div class="col-md-6"><label class="form-label" for="cp_tipo">Gestión o actividad</label>
+              <select class="form-select" id="cp_tipo"><option>Instalación</option><option>Avería</option><option>Postventa</option><option>Reiterada</option><option>Garantía</option></select></div>
+            <div class="col-md-6"><label class="form-label" for="cp_partner">Partner</label><select class="form-select" id="cp_partner"></select></div>
+            <div class="col-md-6"><label class="form-label" for="cp_tecnico">Cuadrilla (técnico líder)</label><select class="form-select" id="cp_tecnico"></select></div>
+            <div class="col-md-4"><label class="form-label" for="cp_dep">Departamento</label><select class="form-select" id="cp_dep"></select></div>
+            <div class="col-md-4"><label class="form-label" for="cp_prov">Provincia</label><select class="form-select" id="cp_prov"></select></div>
+            <div class="col-md-4"><label class="form-label" for="cp_dist">Distrito</label><select class="form-select" id="cp_dist"></select></div>
+            <div class="col-12"><label class="form-label" for="cp_direccion">Dirección del cliente</label><input class="form-control" id="cp_direccion" maxlength="255" autocomplete="off"></div>
+            <div class="col-md-4"><label class="form-label" for="cp_fecha">Fecha de cancelación</label><input class="form-control" id="cp_fecha" type="date"></div>
+            <div class="col-md-8"><label class="form-label" for="cp_motivo">Motivo de cancelación</label><input class="form-control" id="cp_motivo" list="cp_motivos" maxlength="200" autocomplete="off"><datalist id="cp_motivos"></datalist></div>
+            <div class="col-12"><label class="form-label" for="cp_coordenadas">Coordenadas de venta (latitud, longitud)</label><input class="form-control" id="cp_coordenadas" placeholder="-16.3988, -71.5369" autocomplete="off"></div>
+            <div class="col-12"><label class="form-label" for="cp_obs">Observación previa</label><textarea class="form-control" id="cp_obs" rows="2"></textarea></div>
+          </div>
+          <div class="alert alert-danger small mt-3 mb-0 d-none" id="cp_error" role="alert"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-win" id="cp_guardar"><i class="bi bi-check2 me-1"></i>Guardar corrección</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
 <!-- MODAL OCULTO: SOLO CORRECCIÓN DE TÉCNICOS EXISTENTES -->
 <div class="modal fade" id="modalEditarTecnico" tabindex="-1" aria-labelledby="modalEditarTecnicoTitulo" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-sm">
@@ -739,6 +778,7 @@ window.SGS_SUPERVISION = <?= json_encode([
     'seccionesChecklist' => $checklistSecciones,
     'itemsVencimiento' => $itemsVencimiento,
     'inicioVencimiento' => $inicioVencimiento,
+    'corregirPendientes' => Auth::can(Auth::PERM_SUPERVISION_IMPORT), // 2026-10-27: quien carga cancelaciones corrige pendientes
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
 </script>
 <script src="03_FRONTEND/src/assets/js/supervision_lista.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
