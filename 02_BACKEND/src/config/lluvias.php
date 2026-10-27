@@ -52,11 +52,23 @@ function sgsAvisarLluvia(PDO $pdo, int $usuarioId, string $zona): array {
     return ['nueva' => true, 'lluvia' => sgsLluviasAbiertas($pdo, [$zona])[$zona] ?? null];
 }
 
-/** Marca que paró la lluvia de la zona. Devuelve true si había una abierta. */
-function sgsTerminarLluvia(PDO $pdo, int $usuarioId, string $zona): bool {
-    $st = $pdo->prepare('UPDATE lluvias_zona SET fin = NOW(), cerrado_por = ?, comentario_fin = ? WHERE fin IS NULL AND departamento = ?');
-    $st->execute([$usuarioId, sgsQueHaceSupervisor($pdo, $usuarioId), $zona]);
-    return $st->rowCount() > 0;
+/**
+ * Marca que paró la lluvia de la zona. Devuelve la lluvia cerrada (inicio, fin y quién la avisó, para el aviso de Teams con
+ * su duración, 2026-10-27) o null si no había una abierta. La inició quien la reportó primero; la cierra quien avisa que paró.
+ */
+function sgsTerminarLluvia(PDO $pdo, int $usuarioId, string $zona): ?array {
+    $abierta = sgsLluviasAbiertas($pdo, [$zona])[$zona] ?? null;
+    if (!$abierta) return null;
+    $st = $pdo->prepare('UPDATE lluvias_zona SET fin = NOW(), cerrado_por = ?, comentario_fin = ? WHERE id = ? AND fin IS NULL');
+    $st->execute([$usuarioId, sgsQueHaceSupervisor($pdo, $usuarioId), $abierta['id']]);
+    if (!$st->rowCount()) return null; // otro la cerró en ese instante
+    return $abierta + ['fin' => $pdo->query('SELECT fin FROM lluvias_zona WHERE id = ' . (int)$abierta['id'])->fetchColumn()];
+}
+
+/** Duración legible entre dos fechas: "45 min", "1 h 05 min". */
+function sgsDuracionLluvia(string $inicio, string $fin): string {
+    $min = max(0, intdiv(strtotime($fin) - strtotime($inicio), 60));
+    return $min >= 60 ? intdiv($min, 60) . ' h ' . sprintf('%02d', $min % 60) . ' min' : "{$min} min";
 }
 
 /** Al terminar su turno se cierran las lluvias que avisó y siguen abiertas. */

@@ -54,5 +54,7 @@ if ($action === 'avisar') {
 }
 
 $cerro = sgsTerminarLluvia($pdo, $uid, $zona);
-if ($cerro) sgsAvisoTeamsLluvia("Fin de lluvia — {$zona}", 'Hora: ' . date('H:i') . " · Finalizó: {$usuario['nombre']}");
+// Fin de lluvia con su duración (2026-10-27): desde que la reportó el primero hasta que avisa que paró el último
+if ($cerro) sgsAvisoTeamsLluvia("Fin de lluvia — {$zona}", 'Duró ' . sgsDuracionLluvia($cerro['inicio'], $cerro['fin'])
+    . ' (de ' . date('H:i', strtotime($cerro['inicio'])) . ' a ' . date('H:i', strtotime($cerro['fin'])) . ") · Inició: {$cerro['reportado_por']} · Finalizó: {$usuario['nombre']}");
 $responder(['status' => 'success', 'data' => $estado(), 'message' => $cerro ? "Listo: dejó de llover en {$zona}." : "No había lluvia abierta en {$zona}."]);

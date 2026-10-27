@@ -113,6 +113,7 @@ class Auth {
             self::PERM_PARTNERS_DASHBOARD, self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW,
             self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
             self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT,
+            self::PERM_USERS_TEAM, // 2026-10-27: el líder (Gestión) registra a sus supervisores de su zona y área
         ],
         self::ROLE_SUPERVISOR => [
             self::PERM_SUPERVISION_VIEW, self::PERM_SUPERVISION_CREATE,
@@ -194,7 +195,7 @@ class Auth {
             self::PERM_OBSERVATION_DELETE => ['group'=>'Observaciones','label'=>'Eliminar observaciones','action'=>'eliminar','delegable'=>true],
             self::PERM_USERS_VIEW => ['group'=>'Usuarios y roles','label'=>'Ver usuarios (solo consulta; el partner ve solo a su partner y sus zonas)','action'=>'ver','delegable'=>true],
             self::PERM_STAFF_MANAGE => ['group'=>'Usuarios y roles','label'=>'Agregar y editar personal (solo datos personales; sin acceso, rol ni activar)','action'=>'editar','delegable'=>true],
-            self::PERM_USERS_TEAM => ['group'=>'Usuarios y roles','label'=>'Registrar, editar y dar de baja a su equipo (roles por debajo del suyo, sus zonas, su área y sus permisos)','action'=>'editar','delegable'=>true],
+            self::PERM_USERS_TEAM => ['group'=>'Usuarios y roles','label'=>'Registrar, editar y dar de baja a sus supervisores (directos o de partner; sus zonas, su área y sus permisos)','action'=>'editar','delegable'=>true],
             self::PERM_DASHBOARD_VIEW => ['group'=>'Dashboard de supervisiones','label'=>'Ver Dashboard de supervisiones','action'=>'ver','delegable'=>true],
             self::PERM_PARTNERS_DASHBOARD => ['group'=>'Dashboard de partners','label'=>'Ver Dashboard de partners','action'=>'ver','delegable'=>true],
             self::PERM_PENDIENTES_VIEW => ['group'=>'Pendientes y rescates','label'=>'Ver Pendientes y rescates','action'=>'ver','delegable'=>true],

@@ -4,6 +4,26 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Qué registra el líder y con qué acceso (2026-10-27)
+- Supervisor de campo, Supervisor de calidad y Supervisor UM: rol **Supervisor**, con acceso (directo o de partner).
+- Jefe de operaciones de un partner: rol **Partner**, con acceso a las órdenes de su contrata. Al elegir el cargo, la pantalla pone el rol Partner y la organización Partner.
+- Asistente, Asesor, Almacenero y Analista: **sin acceso**, solo sus datos. Se ocultan el usuario, la contraseña y los permisos.
+- Todos con la zona y el área del líder. El líder ve en Usuarios solo a su gente.
+
+### Cargos por debajo del líder (2026-10-27)
+- **Cambiado**: se quita el cargo "Jefe". Si alguien ya lo tiene, se le muestra como "anterior".
+- El líder (coordinador o líder técnico) solo asigna y ve estos cargos: Supervisor de campo, Supervisor de calidad, Supervisor UM, Jefe de operaciones, Asistente, Asesor, Almacenero y Analista. Gerente, Subgerente, Coordinador y Líder técnico están por encima: no los ve ni los asigna.
+
+### El líder registra a sus supervisores sin configurar nada más (2026-10-27)
+- **Corregido**: el rol Gestión no traía el permiso para registrar a su equipo (había que marcarlo a mano) y al líder no le aparecía "Nuevo usuario". Ahora lo trae por defecto.
+- **Cambiado**: el líder solo registra, edita y da de baja **Supervisores** (directos o de partner), siempre con su zona, su área y sus permisos. Antes también podía crear Jefes de operaciones.
+
+### Área de trabajo: VT en lugar de Averías (2026-10-27)
+- **Cambiado**: en WIN a las averías se les dice VT. El área de trabajo ahora es "Instalaciones", "VT (visitas técnicas)", "Instalaciones y VT" o "Almacén". Cambio de base `2026-10-27_02_area_vt_visitas_tecnicas`: renombra a los usuarios que ya tenían "Averías" o "Instalaciones y averías". El tipo de supervisión "Avería" no cambia.
+
+### Fin de lluvia con su duración (2026-10-27)
+- **Añadido**: el aviso de "Fin de lluvia" en Teams dice cuánto duró y de qué hora a qué hora, quién la inició (el primero que la reportó) y quién la finalizó (el que avisa que paró). Por ejemplo: "Duró 1 h 25 min (de 14:05 a 15:30) · Inició: … · Finalizó: …".
+
 ### Líder técnico: su equipo, sus zonas y su área (2026-10-27)
 - **Añadido**: cargo **"Líder técnico"**.
 - **Añadido**: permiso **"Registrar, editar y dar de baja a su equipo"** (Usuarios y roles), que el administrador da a un líder. Con él, el líder:

@@ -16,10 +16,18 @@ final class UsuarioValidator
     /** Turnos de trabajo (2026-10-12: solo día y noche). */
     public const TURNOS = ['Día', 'Noche'];
     /** Área de trabajo: el equipo al que pertenece (2026-10-12). No da permisos. */
-    public const AREAS = ['Instalaciones', 'Averías', 'Instalaciones y averías', 'Almacén'];
+    public const AREAS = ['Instalaciones', 'VT (visitas técnicas)', 'Instalaciones y VT', 'Almacén']; // 2026-10-27: VT = averías
     /** Cargo: su puesto en la empresa (2026-10-12). No da permisos; eso lo define el rol del sistema. */
-    public const CARGOS = ['Supervisor de campo', 'Supervisor de calidad', 'Supervisor UM', 'Líder técnico', 'Coordinador', 'Jefe de operaciones', 'Jefe', 'Gerente',
+    public const CARGOS = ['Supervisor de campo', 'Supervisor de calidad', 'Supervisor UM', 'Líder técnico', 'Coordinador', 'Jefe de operaciones', 'Gerente',
         'Subgerente', 'Asistente', 'Asesor', 'Almacenero', 'Analista'];
+    /**
+     * Cargos que asigna un líder (coordinador o líder técnico) a su gente (2026-10-27, definido por el administrador). Los que
+     * no están aquí (Gerente, Subgerente, Coordinador, Líder técnico) están por encima: el líder no los ve ni los asigna.
+     */
+    public const CARGOS_DEL_LIDER = ['Supervisor de campo', 'Supervisor de calidad', 'Supervisor UM', 'Jefe de operaciones', 'Asistente', 'Asesor',
+        'Almacenero', 'Analista'];
+    /** De esos, los que el líder registra sin acceso al sistema (solo sus datos, 2026-10-27). */
+    public const CARGOS_SIN_ACCESO = ['Asistente', 'Asesor', 'Almacenero', 'Analista'];
     /** Procesos en los que se le copia en los correos (se guardan en usuarios.procesos_copiados). */
     public const PROCESOS = ['Liquidaciones', 'Penalidades', 'Gestión Phoenix'];
 

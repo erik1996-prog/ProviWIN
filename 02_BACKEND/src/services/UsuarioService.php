@@ -9,9 +9,10 @@
 //    (2026-10-12: se quitaron los "perfiles de acceso"; no se usaban.)
 //  - Quién ve a quién (2026-10-12): el administrador y el personal directo WIN ven a todos; el personal de un partner,
 //    solo a los de su partner y dentro de sus zonas habilitadas.
-//  - Equipo del líder (2026-10-27, permiso "Registrar… a su equipo", sin "Administrar usuarios"): ve, registra, edita y
-//    da de baja solo a quienes tienen un rol por debajo del suyo, dentro de sus zonas y de su área; asigna solo esos roles,
-//    sus zonas, su área y sus propios permisos. No se modifica a sí mismo. Lo que registra entra de inmediato.
+//  - Equipo del líder (2026-10-27, permiso "Registrar… a sus supervisores", que el rol Gestión trae por defecto, sin
+//    "Administrar usuarios"): ve, registra, edita y da de baja solo a su gente dentro de sus zonas y de su área: Supervisores
+//    (directos o de partner), el jefe de operaciones de un partner (rol Partner) y, sin acceso, Asistente, Asesor, Almacenero
+//    y Analista. Asigna solo los cargos de debajo, sus zonas, su área y sus propios permisos. No se modifica a sí mismo. Lo que registra entra de inmediato.
 //    Un líder (Coordinador) con zonas o área propias que solo consulta, también ve solo a su equipo.
 //  - "Agregar y editar personal": solo datos personales. El trabajador nuevo queda "Sin acceso" (sin usuario e inactivo)
 //    hasta que el administrador le asigne usuario, contraseña, rol y zonas.
@@ -36,6 +37,9 @@ final class UsuarioService
         'Supervisor' => 'Trabaja en campo. Directo WIN: registra supervisiones y su turno. De un partner: atiende las órdenes asignadas y responde observaciones.',
         'Jefe de operaciones' => 'Partner (jefe de operaciones de la contrata): consulta las órdenes, observaciones y personal de su partner.',
     ];
+
+    /** Roles que asigna un líder a su gente (2026-10-27): Supervisor (directo o de partner) y Partner (jefe de operaciones). */
+    public const ROLES_DEL_LIDER = [Auth::ROLE_SUPERVISOR, Auth::ROLE_JEFE_OPERACIONES];
 
     /** Permisos que el administrador puede delegar (los "reservados" quedan fijos por rol). */
     public static function permisosDelegables(): array
@@ -75,7 +79,7 @@ final class UsuarioService
         $roles = [];
         $conteo = $this->usuarios->conteoPorRol();
         foreach (UsuarioValidator::ROLES as $rol) {
-            if ($eq && Auth::nivelRol($rol) >= $eq['nivel']) continue; // el líder solo asigna roles por debajo del suyo
+            if ($eq && !in_array($rol, self::ROLES_DEL_LIDER, true)) continue; // el líder: supervisores y el jefe de operaciones del partner
             $roles[] = ['rol' => $rol, 'etiqueta' => Auth::etiquetaRol($rol), 'descripcion' => self::DESCRIPCION_ROLES[$rol] ?? '', 'permisos' => array_values(array_intersect(Auth::roleDefaultPermissions($rol), self::permisosDelegables())), 'usuarios' => $conteo[$rol] ?? 0];
         }
         $departamentos = $eq['zonas'] ?? sgsOperationalDepartments();
@@ -87,7 +91,8 @@ final class UsuarioService
             'partners' => array_values(array_filter($this->usuarios->partners(), static fn($p) => !in_array(mb_strtoupper(trim($p['nombre_partner'])), ['WIN', 'WIN DIRECTO'], true))),
             'departamentos' => $departamentos,
             'permisos' => $permisos,
-            'areas' => $eq && isset(SGS_AREAS_TRABAJO[$eq['area']]) ? [$eq['area']] : UsuarioValidator::AREAS, 'cargos' => UsuarioValidator::CARGOS, 'procesos' => UsuarioValidator::PROCESOS,
+            'areas' => $eq && isset(SGS_AREAS_TRABAJO[$eq['area']]) ? [$eq['area']] : UsuarioValidator::AREAS,
+            'cargos' => $eq ? UsuarioValidator::CARGOS_DEL_LIDER : UsuarioValidator::CARGOS, 'cargos_sin_acceso' => UsuarioValidator::CARGOS_SIN_ACCESO, 'procesos' => UsuarioValidator::PROCESOS,
         ];
     }
 
@@ -107,8 +112,10 @@ final class UsuarioService
     /** ¿El usuario (fila con zonas, todas_zonas, rol y área) está en el equipo del líder? */
     private function enEquipo(array $u, array $eq): bool
     {
-        if ((int)$u['id'] === $eq['id'] || Auth::nivelRol((string)$u['rol']) >= $eq['nivel']) return false;
+        if ((int)$u['id'] === $eq['id'] || !in_array($u['rol'], self::ROLES_DEL_LIDER, true) || Auth::nivelRol((string)$u['rol']) >= $eq['nivel']) return false;
         if ($eq['zonas'] !== null && (!empty($u['todas_zonas']) || !$u['zonas'] || array_diff($u['zonas'], $eq['zonas']))) return false;
+        $cargo = trim((string)($u['cargo'] ?? ''));
+        if ($cargo !== '' && !in_array($cargo, UsuarioValidator::CARGOS_DEL_LIDER, true)) return false; // cargo por encima del líder
         $area = trim((string)($u['area_trabajo'] ?? ''));
         return !(isset(SGS_AREAS_TRABAJO[$eq['area']]) && isset(SGS_AREAS_TRABAJO[$area]) && $area !== $eq['area']);
     }
@@ -381,7 +388,13 @@ final class UsuarioService
             $u = $this->usuarios->obtener($id) ?? throw new ValidationException('Usuario no encontrado.');
             if (!$this->enEquipo($this->filaConZonas($u), $eq)) throw new ValidationException('Este usuario no está a su cargo.');
         }
-        if (Auth::nivelRol($d['rol']) >= $eq['nivel']) throw new ValidationException('Solo puede asignar roles por debajo del suyo.', 'rol');
+        if (!in_array($d['rol'], self::ROLES_DEL_LIDER, true)) throw new ValidationException('Como líder solo puede registrar supervisores o al jefe de operaciones de un partner.', 'rol');
+        if ($d['rol'] === Auth::ROLE_JEFE_OPERACIONES && ($d['cargo'] ?? '') !== 'Jefe de operaciones') {
+            throw new ValidationException('El rol Partner es para el cargo Jefe de operaciones.', 'cargo');
+        }
+        if (($d['cargo'] ?? '') !== '' && !in_array($d['cargo'], UsuarioValidator::CARGOS_DEL_LIDER, true)) {
+            throw new ValidationException('Ese cargo está por encima del suyo: elija uno de la lista.', 'cargo');
+        }
         if ($eq['zonas'] !== null) {
             if ($d['todas_zonas'] || !$d['zonas'] || array_diff($d['zonas'], $eq['zonas'])) {
                 throw new ValidationException('Solo puede asignar sus zonas: ' . implode(', ', $eq['zonas']) . '.', 'zonas');
@@ -393,6 +406,37 @@ final class UsuarioService
         if ($d['permisos_personalizados'] && array_diff($d['permisos'], $eq['permisos'])) {
             throw new ValidationException('Solo puede dar permisos que usted tiene.', 'permisos');
         }
+    }
+
+    /**
+     * Líder: registra o actualiza a alguien sin acceso al sistema (Asistente, Asesor, Almacenero, Analista; 2026-10-27). Solo
+     * guarda sus datos, su cargo, su área, su organización y su zona (dentro de los límites del líder); no tiene usuario.
+     */
+    public function guardarSinAcceso(array $in, int $id, array $actor): array
+    {
+        $eq = $this->equipo($actor) ?? throw new ValidationException('No tiene permiso para registrar personal.');
+        $d = UsuarioValidator::personal($in);
+        $previo = $id > 0 ? $this->usuarios->obtener($id) : null;
+        $d['area_trabajo'] = UsuarioValidator::deLista($d['area_trabajo'], UsuarioValidator::AREAS, $previo['area_trabajo'] ?? null, 'area_trabajo', 'área de trabajo');
+        $d['cargo'] = UsuarioValidator::deLista($d['cargo'], UsuarioValidator::CARGOS, $previo['cargo'] ?? null, 'cargo', 'cargo');
+        $zonas = array_values(array_filter(array_map(static fn($z) => mb_strtoupper(trim((string)$z), 'UTF-8'), (array)($in['zonas'] ?? []))));
+        $this->validarEquipo(['rol' => Auth::ROLE_SUPERVISOR, 'cargo' => $d['cargo'], 'todas_zonas' => false, 'zonas' => $zonas,
+            'area_trabajo' => $d['area_trabajo'], 'permisos_personalizados' => false, 'permisos' => []], $id, $eq);
+        if ($previo && trim((string)($previo['usuario'] ?? '')) !== '') throw new ValidationException('Esta persona tiene acceso al sistema: su cargo solo lo cambia el administrador.', 'cargo');
+        if ($dup = $this->usuarios->existeDuplicado($d['dni'], $d['email'], '', $id)) {
+            throw new ValidationException("Ya existe otro usuario con el mismo $dup.", $dup === 'correo' ? 'email' : 'dni');
+        }
+        $nombre = $d['nombres'] . ' ' . $d['apellidos'];
+        if ($id > 0) {
+            $this->usuarios->actualizarPersonal($id, $d);
+            return ['id' => $id, 'usuario' => '', 'nombre' => $nombre, 'por_activar' => false];
+        }
+        $partner = ($in['organizacion'] ?? 'directo') === 'partner';
+        $d['partner_id'] = $partner ? (int)($in['partner_id'] ?? 0) : (int)($this->usuarios->partnerWinDirectoId() ?? 0);
+        if ($partner && $d['partner_id'] < 1) throw new ValidationException('Seleccione el partner del trabajador.', 'partner_id');
+        $d['sede'] = $zonas ? sgsSiteFromDepartment($zonas[0]) : '';
+        $nuevo = $this->usuarios->crearPersonal($d, password_hash(bin2hex(random_bytes(24)), PASSWORD_DEFAULT));
+        return ['id' => $nuevo, 'usuario' => '', 'nombre' => $nombre, 'por_activar' => false];
     }
 
     /** Aviso en la campana de la cuenta principal (si existe). */

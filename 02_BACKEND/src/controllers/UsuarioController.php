@@ -65,6 +65,12 @@ final class UsuarioController
                 case 'guardar':
                     $id = (int)($in['id'] ?? 0);
                     // 2026-10-26: si no lo crea la cuenta principal, el usuario queda "Por activar" hasta que ella lo active
+                    // Líder (2026-10-27): Asistente, Asesor, Almacenero y Analista quedan sin acceso (solo sus datos)
+                    if ($lider && in_array((string)($in['cargo'] ?? ''), UsuarioValidator::CARGOS_SIN_ACCESO, true)) {
+                        $r = $this->service->guardarSinAcceso($in, $id, $this->user);
+                        win_log_error('audit_staff_saved', 'Personal sin acceso registrado por un líder: ' . $r['nombre'], ['target_id' => $r['id'], 'actor_id' => $actor]);
+                        return ['status' => 'success', 'message' => "{$r['nombre']} quedó registrado sin acceso al sistema.", 'data' => $r];
+                    }
                     // Lo que registra un líder con su equipo entra de inmediato (2026-10-27, decisión del administrador)
                     $r = $this->service->guardar($in, $id, $actor, $lider || Auth::esCuentaPrincipal($actor), $lider ? $this->service->equipo($this->user) : null);
                     win_log_error('audit_user_saved', ($id ? 'Usuario actualizado' : 'Usuario creado') . ": {$r['usuario']}", ['target_id' => $r['id'], 'actor_id' => $actor, 'por_activar' => $r['por_activar']]);

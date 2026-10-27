@@ -64,11 +64,11 @@ $check('personal: el partner registra un trabajador → "Sin acceso", su partner
     $actor = ['id' => $supPartner, 'rol' => 'Supervisor', 'partner_id' => $partner, 'is_win_directo' => false, 'nombre_completo' => 'Partner SGS'];
     $r = $svc->guardarPersonal(['dni' => '99999907', 'nombres' => 'Personal', 'apellidos' => 'Prueba SGS', 'email' => 'personal.sgs@gmail.com',
         'organizacion' => 'directo', 'partner_id' => 999, 'zona' => 'LAMBAYEQUE', 'usuario' => 'intruso', 'rol' => 'Administrador',
-        'area_trabajo' => 'Averías', 'cargo' => 'Supervisor de campo', 'turno' => 'Noche', 'modalidad' => 'REMOTO'], 0, $actor);
+        'area_trabajo' => 'VT (visitas técnicas)', 'cargo' => 'Supervisor de campo', 'turno' => 'Noche', 'modalidad' => 'REMOTO'], 0, $actor);
     $nuevo = $r['id'];
     $u = $pdo->query("SELECT usuario, rol, activo, partner_id, turno, modalidad, area_trabajo, cargo FROM usuarios WHERE id=$nuevo")->fetch();
     return $u['usuario'] === null && $u['rol'] === 'Supervisor' && (int)$u['activo'] === 0 && (int)$u['partner_id'] === $partner
-        && $u['turno'] === 'Día' && $u['modalidad'] === 'PRESENCIAL' && $u['area_trabajo'] === 'Averías' && $u['cargo'] === 'Supervisor de campo';
+        && $u['turno'] === 'Día' && $u['modalidad'] === 'PRESENCIAL' && $u['area_trabajo'] === 'VT (visitas técnicas)' && $u['cargo'] === 'Supervisor de campo';
 });
 $check('personal: se avisa a los administradores', fn() => (int)$pdo->query("SELECT COUNT(*) FROM notificaciones WHERE titulo='Nuevo personal por completar' AND mensaje LIKE 'Personal Prueba SGS%'")->fetchColumn() > 0);
 $check('personal: el partner no registra fuera de sus zonas', function () use ($svc, $partner, &$supPartner, $expectError) {

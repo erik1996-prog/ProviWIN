@@ -63,7 +63,7 @@ function pendingTerritorialCondition(string $alias, string $scope, int $userId, 
         $params[$departmentParam] = $scope;
         array_unshift($scopeParts, "{$zona}={$departmentParam}");
     }
-    // Área de trabajo (2026-10-27): el supervisor de Instalaciones no ve en la bolsa las pendientes de averías, y al revés
+    // Área de trabajo (2026-10-27): el supervisor de Instalaciones no ve en la bolsa las pendientes de VT (averías), y al revés
     return "({$alias}.estado_supervision = 'Pendiente' AND " . sgsAreaSql($alias, $userId) . ' AND (' . implode(' OR ', $scopeParts) . '))';
 }
 

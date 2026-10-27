@@ -153,7 +153,7 @@ $miId = (int)Auth::getLoggedInUser()['id'];
             <select class="form-select" name="organizacion"><option value="directo">WIN · Personal directo</option><option value="partner">Partner (contrata)</option></select></div>
           <div class="col-md-6" id="wrapPartner"><label class="form-label">Partner *</label><select class="form-select" name="partner_id"><option value="0">Seleccione…</option></select></div>
           <div class="col-md-6"><label class="form-label" for="uArea">Área de trabajo</label><select class="form-select" id="uArea" name="area_trabajo" aria-describedby="uAreaAyuda"><option value="">—</option></select>
-            <div class="form-text" id="uAreaAyuda">Instalaciones o Averías: el supervisor solo ve las pendientes de su área. Con ambas, ve todas.</div></div>
+            <div class="form-text" id="uAreaAyuda">Instalaciones o VT (visitas técnicas): el supervisor solo ve las pendientes de su área. Con ambas, ve todas.</div></div>
           <div class="col-md-6"><label class="form-label" for="uCargo">Cargo</label><select class="form-select" id="uCargo" name="cargo"><option value="">—</option></select></div>
           <div class="col-md-6"><label class="form-label">Rol del sistema *</label><select class="form-select" name="rol"></select></div>
           <div class="col-md-6"><label class="form-label">Modalidad</label><select class="form-select" name="modalidad"><option value="">—</option><option>PRESENCIAL</option><option>REMOTO</option><option>HÍBRIDO</option></select></div>
@@ -166,11 +166,13 @@ $miId = (int)Auth::getLoggedInUser()['id'];
 
         <div id="wrapZonas">
           <div class="usr-section">Zonas de trabajo <small class="text-muted text-transform-none">(lo que el usuario puede ver; el Norte Chico son las provincias Huaura, Huaral y Barranca)</small></div>
-          <p class="form-text mt-0 mb-2 d-none" id="zonasLider">Líder (Gestión): sin zonas ve todo; con zonas, solo esas (y solo su área de trabajo, si es Instalaciones o Averías).</p>
+          <p class="form-text mt-0 mb-2 d-none" id="zonasLider">Líder (Gestión): sin zonas ve todo; con zonas, solo esas (y solo su área de trabajo, si es Instalaciones o VT).</p>
           <div class="form-check form-switch mb-2" id="wrapTodasZonas"><input class="form-check-input" type="checkbox" role="switch" id="chkTodasZonas" name="todas_zonas" value="1"><label class="form-check-label" for="chkTodasZonas">Todas las zonas</label></div>
           <div class="usr-zonas mb-3" id="zonas"></div>
         </div>
 
+        <div class="alert alert-warning small d-none" id="sinAccesoAviso">Con este cargo la persona queda registrada <strong>sin acceso</strong> al sistema: solo se guardan sus datos.</div>
+        <div id="wrapAcceso">
         <div class="usr-section">Acceso</div>
         <div class="row g-3 mb-3">
           <div class="col-md-6"><label class="form-label">Usuario</label><input class="form-control" name="usuario" placeholder="Se genera si lo dejas vacío"></div>
@@ -187,6 +189,7 @@ $miId = (int)Auth::getLoggedInUser()['id'];
         </div>
         <p class="small text-muted mb-2" id="permHint">Usa los permisos por defecto del rol. Activa "Personalizar" para ajustarlos solo a este usuario.</p>
         <div id="permisos"></div>
+        </div>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-win" id="btnGuardarUsuario"><i class="bi bi-check2"></i>Guardar</button></div>
     </form>
@@ -382,10 +385,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const fU = $('#formUsuario');
 
   function syncForm() {
-    const partner = fU.organizacion.value === 'partner';
-    $('#wrapPartner').classList.toggle('d-none', !partner);
+    // Líder (2026-10-27): Jefe de operaciones → rol Partner de un partner; Asistente, Asesor, Almacenero y Analista, sin acceso
+    const sinAcceso = !!CAT.equipo && (CAT.cargos_sin_acceso || []).includes(fU.cargo.value);
+    if (CAT.equipo && fU.cargo.value === 'Jefe de operaciones') { fU.rol.value = 'Jefe de operaciones'; fU.organizacion.value = 'partner'; }
+    else if (CAT.equipo && fU.rol.value === 'Jefe de operaciones') fU.rol.value = 'Supervisor';
+    if (sinAcceso) fU.rol.value = 'Supervisor';
+    $('#wrapAcceso').classList.toggle('d-none', sinAcceso); $('#sinAccesoAviso').classList.toggle('d-none', !sinAcceso);
+    $('#wrapPartner').classList.toggle('d-none', fU.organizacion.value !== 'partner');
     // Llevan zonas el supervisor y el coordinador (líder: sin zonas ve todo); el jefe de operaciones ve todo su partner
-    const rol = fU.rol.value, conZonas = ['Supervisor', 'Coordinador'].includes(rol);
+    // (el que registra un líder lleva su zona: así queda en su equipo)
+    const rol = fU.rol.value, conZonas = ['Supervisor', 'Coordinador'].includes(rol) || (!!CAT.equipo && rol === 'Jefe de operaciones');
     $('#wrapZonas').classList.toggle('d-none', !conZonas);
     $('#zonasLider').classList.toggle('d-none', rol !== 'Coordinador');
     const todas = $('#chkTodasZonas').checked;
@@ -395,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
     aplicarDependencias($('#permisos'));
     $('#permHint').textContent = personal ? 'Permisos personalizados solo para este usuario.' : 'Usa los permisos por defecto del rol. Activa "Personalizar" para ajustarlos.';
   }
-  ['rol', 'organizacion'].forEach((n) => fU[n].addEventListener('change', syncForm));
+  ['rol', 'organizacion', 'cargo'].forEach((n) => fU[n].addEventListener('change', syncForm));
 
   $('#chkPersonalizar').addEventListener('change', syncForm);
   $('#permisos').addEventListener('change', (e) => { if (e.target.name === 'permisos[]') aplicarDependencias($('#permisos')); });

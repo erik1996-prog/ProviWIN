@@ -1,8 +1,8 @@
 <?php
 // 05_TEST/integration/zonas_lima_areas_test.php - Zonas de Lima, Callao y Norte Chico y área de trabajo (2026-10-27).
 // La zona sale de la ubicación oficial (LIMA / HUAURA → NORTE CHICO) y el área de trabajo del usuario (Instalaciones /
-// Averías) decide qué pendientes de la bolsa ve cada supervisor. Por HTTP contra la API real.
-// Crea un administrador (DNI 99999960), dos supervisores de LIMA (Instalaciones 99999961, Averías 99999962), uno del
+// VT) decide qué pendientes de la bolsa ve cada supervisor. Por HTTP contra la API real.
+// Crea un administrador (DNI 99999960), dos supervisores de LIMA (Instalaciones 99999961, VT 99999962), uno del
 // NORTE CHICO (99999963, ambas áreas) y las pendientes PRUEBA-ZLM-1..4; BORRA todo al final.
 // Uso (solo CLI): php 05_TEST/integration/zonas_lima_areas_test.php [url_base=http://localhost/ProviWIN]
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
@@ -16,7 +16,7 @@ require BACKEND_PATH . '/services/UsuarioService.php';
 $pdo = Database::getConnection();
 
 $usuarios = ['99999960' => ['zlm.admin', 'Administrador', ['LIMA'], ''], '99999961' => ['zlm.inst', 'Supervisor', ['LIMA'], 'Instalaciones'],
-    '99999962' => ['zlm.ave', 'Supervisor', ['LIMA'], 'Averías'], '99999963' => ['zlm.norte', 'Supervisor', ['NORTE CHICO'], 'Instalaciones y averías']];
+    '99999962' => ['zlm.ave', 'Supervisor', ['LIMA'], 'VT (visitas técnicas)'], '99999963' => ['zlm.norte', 'Supervisor', ['NORTE CHICO'], 'Instalaciones y VT']];
 $jars = [];
 $cleanup = function () use ($pdo, $usuarios, &$jars) {
     $pdo->exec("DELETE FROM supervisiones WHERE ticket_codigo LIKE 'PRUEBA-ZLM-%'");
@@ -91,7 +91,7 @@ try {
     };
     $s = ['inst' => $sesion('zlm.inst'), 'ave' => $sesion('zlm.ave'), 'norte' => $sesion('zlm.norte'), 'admin' => $sesion('zlm.admin')];
     $check('Lima · Instalaciones ve solo la instalación de Lima (no la avería, ni Huacho, ni Callao)', $bolsa($s['inst']) === ['PRUEBA-ZLM-1'], $bolsa($s['inst']));
-    $check('Lima · Averías ve solo la avería de Lima', $bolsa($s['ave']) === ['PRUEBA-ZLM-2'], $bolsa($s['ave']));
+    $check('Lima · VT ve solo la avería de Lima', $bolsa($s['ave']) === ['PRUEBA-ZLM-2'], $bolsa($s['ave']));
     $check('Norte Chico ve solo la de Huacho (aunque su departamento sea LIMA)', $bolsa($s['norte']) === ['PRUEBA-ZLM-3'], $bolsa($s['norte']));
     $check('el administrador ve las cuatro', $bolsa($s['admin']) === ['PRUEBA-ZLM-1', 'PRUEBA-ZLM-2', 'PRUEBA-ZLM-3', 'PRUEBA-ZLM-4'], $bolsa($s['admin']));
     [$c1] = $s['inst']("$base/api/supervisiones.php?action=detail&id={$idPend[2]}");
@@ -107,7 +107,7 @@ try {
     $dueñoAveria = elegirSupervisorCancelacion($pdo, 'LIMA', 'Avería');
     $dueñoHuacho = elegirSupervisorCancelacion($pdo, sgsZonaDeUbicacion('LIMA', 'HUAURA'), 'Instalación');
     $pdo->rollBack();
-    $check('una avería de Lima queda con el supervisor de Averías; una instalación de Huacho, con el del Norte Chico',
+    $check('una avería de Lima queda con el supervisor de VT; una instalación de Huacho, con el del Norte Chico',
         (int)($dueñoAveria['id'] ?? 0) === $ids['zlm.ave'] && (int)($dueñoHuacho['id'] ?? 0) === $ids['zlm.norte'], [$dueñoAveria['id'] ?? null, $dueñoHuacho['id'] ?? null]);
     $avisados = array_map('intval', array_column(supervisoresZonaCancelacion($pdo, 'LIMA', false, 'Instalación'), 'id'));
     $check('el aviso de una instalación de Lima llega solo al de Instalaciones de Lima', $avisados === [$ids['zlm.inst']], $avisados);

@@ -175,12 +175,12 @@ function sgsDepartamentosUbigeo(): array
 
 /**
  * Área de trabajo del usuario (2026-10-27, campo "Área de trabajo" de Usuarios): "Instalaciones" ve solo instalaciones y
- * "Averías" solo averías, postventa, reiteradas y garantías (visitas técnicas). "Instalaciones y averías", "Almacén" o
+ * "VT (visitas técnicas)" solo averías, postventa, reiteradas y garantías. "Instalaciones y VT", "Almacén" o
  * vacío: todo, como antes. Se aplica a la bolsa de pendientes y a los avisos de pendientes de su zona.
  */
 const SGS_AREAS_TRABAJO = [
     'Instalaciones' => ['Instalación'],
-    'Averías' => ['Avería', 'Postventa', 'Reiterada', 'Garantía'],
+    'VT (visitas técnicas)' => ['Avería', 'Postventa', 'Reiterada', 'Garantía'],
 ];
 
 /** Clasificaciones de supervisión que el usuario NO ve por su área (vacío = ve todas). */
@@ -231,7 +231,7 @@ function sgsAreaPermite(int $userId, ?string $clasificacion): bool
 
 /**
  * Líder con alcance propio (2026-10-27): un Coordinador (líder técnico) con zonas marcadas o con área Instalaciones o
- * Averías ve solo eso (supervisiones, pendientes, supervisores, línea de tiempo, dashboards, técnicos y usuarios). Sin
+ * VT ve solo eso (supervisiones, pendientes, supervisores, línea de tiempo, dashboards, técnicos y usuarios). Sin
  * zonas y con ambas áreas ve todo, como antes. El administrador y el gerente ven todo siempre.
  */
 function sgsAlcanceLimitado(array $user): bool

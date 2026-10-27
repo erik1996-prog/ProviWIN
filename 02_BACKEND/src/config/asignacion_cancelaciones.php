@@ -42,7 +42,7 @@ function elegirSupervisorCancelacion(PDO $pdo, string $departamento, ?string $cl
  * Supervisores directos que trabajan la zona ($departamento: zona de trabajo, p. ej. LIMA o NORTE CHICO; base o adicional).
  * Si nadie lo tiene, responden los de alcance PROVINCIAS. Todos ellos ven la
  * pendiente en su lista (bolsa común) y reciben el aviso al importarla.
- * Con $clasificacion (2026-10-27) solo los de esa área de trabajo (Instalaciones / Averías; "ambas" siempre entra).
+ * Con $clasificacion (2026-10-27) solo los de esa área de trabajo (Instalaciones / VT; "ambas" siempre entra).
  */
 function supervisoresZonaCancelacion(PDO $pdo, string $departamento, bool $bloquear = false, ?string $clasificacion = null): array {
     $stmt = $pdo->query("SELECT u.id,u.nombre_completo,u.nombres,u.apellidos,u.zona,u.sede,u.area_trabajo FROM usuarios u
