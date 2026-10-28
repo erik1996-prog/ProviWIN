@@ -41,6 +41,7 @@ $allowedViews = [
     'dashboard_partners'     => ['file' => 'dashboard_partners.php',     'title' => 'Dashboard de partners',    'perm' => Auth::PERM_PARTNERS_DASHBOARD],
     'dashboard_lluvias'      => ['file' => 'dashboard_lluvias.php',      'title' => 'Clima',                    'perm' => Auth::PERM_CLIMA_VIEW],
     'dashboard_pendientes'   => ['file' => 'dashboard_pendientes.php',   'title' => 'Pendientes y rescates',    'perm' => Auth::PERM_PENDIENTES_VIEW],
+    'matriz_asistencia'      => ['file' => 'matriz_asistencia.php',      'title' => 'Matriz de asistencia',     'perm' => Auth::PERM_ASISTENCIA_MATRIZ_VIEW],
     'timeline_supervisores'  => ['file' => 'timeline_supervisores.php',  'title' => 'Línea de tiempo',          'perm' => Auth::PERM_TIMELINE_VIEW],
     'registro_observaciones' => ['file' => 'registro_observaciones.php', 'title' => 'Observaciones',            'perm' => Auth::PERM_OBSERVATION_VIEW],
     'observaciones_partner'  => ['file' => 'registro_observaciones.php', 'title' => 'Observaciones',            'perm' => Auth::PERM_OBSERVATION_VIEW],
@@ -82,7 +83,7 @@ if (in_array($page, $administrativeViews, true) && !Auth::isAdministrative()) {
 }
 // Módulos de gestión (2026-10-23): además de su permiso (ver, editar, eliminar en Roles y permisos), solo personal de WIN
 // (administrativo o supervisor directo). Las APIs aplican la misma regla con Auth::puede().
-if (in_array($page, ['cuadrillas', 'examenes', 'dashboard_pendientes', 'dashboard_lluvias', 'dashboard_partners', 'partners'], true) && !Auth::esPersonalWin($user)) {
+if (in_array($page, ['cuadrillas', 'examenes', 'dashboard_pendientes', 'matriz_asistencia', 'dashboard_lluvias', 'dashboard_partners', 'partners'], true) && !Auth::esPersonalWin($user)) {
     $page = 'supervision_lista';
 }
 
@@ -111,6 +112,7 @@ $pageDescriptions = [
     'cuadrillas' => 'Cada técnico líder con su técnico de apoyo, su vehículo y sus documentos (SOAT, revisión técnica, extintor, brevete).',
     'examenes' => 'Resultados de los exámenes de los técnicos: aprobación por partner y zona, temas con más errores y detalle por técnico.',
     'dashboard_pendientes' => 'Cancelaciones cargadas por Excel: pendientes, en validación, en rescate, rescatadas y cancelación correcta.',
+    'matriz_asistencia' => 'Asistencia de cada supervisor directo, día por día: turno, vacaciones, licencias, descansos y faltas.',
     'timeline_supervisores' => 'Jornada del personal directo: turno, supervisiones, traslados y pausas.',
     'control_observaciones' => 'Recurrencia de observaciones y desempeño de técnicos.',
     'guia_estilo' => 'Colores, tipografía y componentes oficiales de SGS. Referencia para crear nuevas secciones.',

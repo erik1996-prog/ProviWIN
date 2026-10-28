@@ -50,7 +50,7 @@ final class UsuarioService
     /** Permisos que el administrador puede marcar por usuario (los reservados no se muestran). */
     /** Sección del menú de cada pantalla (2026-10-26): el editor de permisos y la matriz las ordenan igual que el menú. */
     public const SECCION_PANTALLA = [
-        'Dashboard de supervisiones' => 'Indicadores', 'Dashboard de partners' => 'Indicadores', 'Pendientes y rescates' => 'Indicadores',
+        'Dashboard de supervisiones' => 'Indicadores', 'Dashboard de partners' => 'Indicadores', 'Pendientes y rescates' => 'Indicadores', 'Matriz de asistencia' => 'Indicadores',
         'Clima' => 'Indicadores', 'Exámenes' => 'Indicadores', 'Supervisiones' => 'Supervisiones', 'Línea de tiempo' => 'Seguimiento',
         'Mi turno' => 'Seguimiento', 'Observaciones' => 'Observaciones', 'Usuarios y roles' => 'Personal', 'Técnicos y cuadrillas' => 'Personal',
         'Partners' => 'Personal',

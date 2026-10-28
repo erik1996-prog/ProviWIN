@@ -4,6 +4,29 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Matriz de asistencia (2026-10-28)
+- **Añadido**: pantalla **Matriz de asistencia** (Indicadores). Una fila por supervisor directo y una columna por día del mes, con el código y los colores de la tabla de asistencia de WIN, y los totales por código. Filtros de mes, zona y supervisor, y descarga en Excel.
+- Cómo se llena sola, en este orden:
+  1. La corrección del administrador.
+  2. **C** desde la fecha de cese.
+  3. La licencia aprobada: **V, LSG, LG, DM, SUB, LPF, LP**.
+  4. **A** si inició turno.
+  5. **D** los domingos.
+  6. **FT** en un día pasado sin turno ni licencia.
+
+  Los días antes de que el usuario existiera en el sistema quedan vacíos.
+- **Añadido**: el administrador corrige un día con un clic, por ejemplo un domingo trabajado o una falta justificada. Puede dejar un comentario, el día queda marcado y se puede volver a lo calculado.
+- **Añadido**: en Vacaciones y licencias, los tipos **Licencia sin goce de haber**, **Licencia con goce de haber** y **Subsidio**. "Otra licencia" se quita, y las que ya existían pasan a "Licencia con goce de haber".
+- **Añadido**: al desactivar a un usuario se anota su **fecha de cese**, y al reactivarlo se borra.
+- Permisos nuevos en Roles y permisos: "Ver la matriz de asistencia" (por defecto Administrador, Consulta y Gestión) y "Corregir el código de un día" (por defecto Administrador).
+- Cambio de base `2026-10-28_03_matriz_de_asistencia`: tipos de licencia, `usuarios.fecha_cese` y tabla `asistencia_ajustes`.
+
+### Prioridad alta en pendientes (2026-10-28)
+- **Añadido**: botón **"Marcar prioridad alta"** / "Quitar prioridad alta" en el detalle de una pendiente. Lo usa quien carga las cancelaciones (administrador; el permiso se puede delegar en Roles y permisos).
+- En la pestaña **Pendientes**, las de prioridad salen primero, con la etiqueta **"Prioridad alta"**. Solo la ven los supervisores directos y quien la marca; al partner no se le envía.
+- Cambio de base `2026-10-28_02_prioridad_alta_en_pendientes`: columna `supervisiones.prioridad_alta`.
+- **Corregido**: al cerrar un rescate o validar una atención, la lista se pedía dos veces y podía salir el aviso "No fue posible conectar con el sistema".
+
 ### Cancelaciones transferidas a un partner: correcta o incorrecta, y la valida el directo (2026-10-28)
 - **Cambiado**: el supervisor del partner ya no responde "¿Se puede rescatar?". Ahora elige **Cancelación correcta** o **Cancelación incorrecta**, con su observación. Con "incorrecta" sube al menos una foto; con "correcta", las fotos son opcionales.
 - **Añadido**: el supervisor directo que le transfirió la orden recibe el aviso "Validar atención del partner". Ve lo que respondió el partner (resultado, observación y fotos) y valida con **Cancelación correcta** (se finaliza), **En proceso de rescate** (pasa a rescate a su cargo) o **Rescatado** (se finaliza como rescatada), con un comentario obligatorio. El administrador también puede validar. El supervisor del partner no cambia, así que su cumplimiento de 24 horas sigue igual.

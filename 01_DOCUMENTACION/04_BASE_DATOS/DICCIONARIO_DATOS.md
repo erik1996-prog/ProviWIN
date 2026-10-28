@@ -14,27 +14,28 @@ Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 | 7 | [`vehiculos`](#vehiculos) | Vehículos de las cuadrillas | 3 registros |
 | 8 | [`subopciones_observacion`](#subopciones_observacion) | Tipificaciones de observación con gravedad y penalidad | 84 registros |
 | 9 | [`usuarios`](#usuarios) | Usuarios del sistema (personal WIN y de partners) | 10 registros |
-| 10 | [`asistencia_supervisores`](#asistencia_supervisores) | Turnos de los supervisores: inicio, fin y horas | vacía |
-| 11 | [`ausencias_supervisores`](#ausencias_supervisores) | Vacaciones, descansos médicos y licencias de los supervisores (Mi turno) | vacía |
-| 12 | [`examen_convocatorias`](#examen_convocatorias) | Links generales de examen (un link para un grupo de técnicos) | vacía |
-| 13 | [`lluvias_cortes_programados`](#lluvias_cortes_programados) | Horarios del corte de lluvias en Teams (Clima) | 1 registros |
-| 14 | [`lluvias_zona`](#lluvias_zona) | Lluvia avisada por los supervisores en su zona (línea de tiempo) | vacía |
-| 15 | [`tecnicos`](#tecnicos) | Técnicos por partner: líderes (T1) y de apoyo (T2) | 196 registros |
-| 16 | [`usuario_departamentos_acceso`](#usuario_departamentos_acceso) | Zonas adicionales que puede ver cada usuario | 0 registros |
-| 17 | [`usuario_permisos`](#usuario_permisos) | Permisos personalizados por usuario (además de los de su rol) | 0 registros |
-| 18 | [`asistencia_eventos`](#asistencia_eventos) | Pausas dentro del turno (almuerzo, reunión, capacitación) | vacía |
-| 19 | [`examen_convocatoria_tecnicos`](#examen_convocatoria_tecnicos) | Técnicos de cada link general de examen | vacía |
-| 20 | [`examen_enlaces`](#examen_enlaces) | Links de examen enviados a los técnicos | vacía |
-| 21 | [`supervisiones`](#supervisiones) | Supervisiones de campo y órdenes pendientes asignadas | vacía |
-| 22 | [`checklists_tecnicos`](#checklists_tecnicos) | Checklist de cuadrilla por supervisión | vacía |
-| 23 | [`documentos_vencimiento`](#documentos_vencimiento) | Vencimientos de la cuadrilla: SOAT, revisión técnica, extintor (vehículo) y brevete (técnico líder), con historial | vacía |
-| 24 | [`examen_respuestas`](#examen_respuestas) | Resultado de cada pregunta de los exámenes rendidos | vacía |
-| 25 | [`observaciones_supervision`](#observaciones_supervision) | Observaciones en campo, descargos del partner y plazos | vacía |
-| 26 | [`rescate_seguimientos`](#rescate_seguimientos) | Historial del rescate de cada pendiente (inicio, avances, reasignación y cierre) | vacía |
-| 27 | [`supervision_coordenadas_historial`](#supervision_coordenadas_historial) | Cambios de ubicación GPS de cada supervisión | vacía |
-| 28 | [`supervision_estado_historial`](#supervision_estado_historial) | Cambios de estado de cada supervisión (horas reales de inicio y fin) | vacía |
-| 29 | [`checklist_respuestas`](#checklist_respuestas) | Criterios evaluados en cada checklist | vacía |
-| 30 | [`notificaciones`](#notificaciones) | Avisos a los usuarios | vacía |
+| 10 | [`asistencia_ajustes`](#asistencia_ajustes) | Correcciones del administrador en la matriz de asistencia | vacía |
+| 11 | [`asistencia_supervisores`](#asistencia_supervisores) | Turnos de los supervisores: inicio, fin y horas | vacía |
+| 12 | [`ausencias_supervisores`](#ausencias_supervisores) | Vacaciones, descansos médicos y licencias de los supervisores (Mi turno) | vacía |
+| 13 | [`examen_convocatorias`](#examen_convocatorias) | Links generales de examen (un link para un grupo de técnicos) | vacía |
+| 14 | [`lluvias_cortes_programados`](#lluvias_cortes_programados) | Horarios del corte de lluvias en Teams (Clima) | 1 registros |
+| 15 | [`lluvias_zona`](#lluvias_zona) | Lluvia avisada por los supervisores en su zona (línea de tiempo) | vacía |
+| 16 | [`tecnicos`](#tecnicos) | Técnicos por partner: líderes (T1) y de apoyo (T2) | 196 registros |
+| 17 | [`usuario_departamentos_acceso`](#usuario_departamentos_acceso) | Zonas adicionales que puede ver cada usuario | 0 registros |
+| 18 | [`usuario_permisos`](#usuario_permisos) | Permisos personalizados por usuario (además de los de su rol) | 0 registros |
+| 19 | [`asistencia_eventos`](#asistencia_eventos) | Pausas dentro del turno (almuerzo, reunión, capacitación) | vacía |
+| 20 | [`examen_convocatoria_tecnicos`](#examen_convocatoria_tecnicos) | Técnicos de cada link general de examen | vacía |
+| 21 | [`examen_enlaces`](#examen_enlaces) | Links de examen enviados a los técnicos | vacía |
+| 22 | [`supervisiones`](#supervisiones) | Supervisiones de campo y órdenes pendientes asignadas | vacía |
+| 23 | [`checklists_tecnicos`](#checklists_tecnicos) | Checklist de cuadrilla por supervisión | vacía |
+| 24 | [`documentos_vencimiento`](#documentos_vencimiento) | Vencimientos de la cuadrilla: SOAT, revisión técnica, extintor (vehículo) y brevete (técnico líder), con historial | vacía |
+| 25 | [`examen_respuestas`](#examen_respuestas) | Resultado de cada pregunta de los exámenes rendidos | vacía |
+| 26 | [`observaciones_supervision`](#observaciones_supervision) | Observaciones en campo, descargos del partner y plazos | vacía |
+| 27 | [`rescate_seguimientos`](#rescate_seguimientos) | Historial del rescate de cada pendiente (inicio, avances, reasignación y cierre) | vacía |
+| 28 | [`supervision_coordenadas_historial`](#supervision_coordenadas_historial) | Cambios de ubicación GPS de cada supervisión | vacía |
+| 29 | [`supervision_estado_historial`](#supervision_estado_historial) | Cambios de estado de cada supervisión (horas reales de inicio y fin) | vacía |
+| 30 | [`checklist_respuestas`](#checklist_respuestas) | Criterios evaluados en cada checklist | vacía |
+| 31 | [`notificaciones`](#notificaciones) | Avisos a los usuarios | vacía |
 
 ### `categorias_observacion`
 Categorías de observación
@@ -154,10 +155,24 @@ Usuarios del sistema (personal WIN y de partners) · Depende de: `partners`
 | `partner_id` | int(11) | sí | FK → `partners` |  |
 | `activo` | tinyint(1) | sí |  |  |
 | `por_activar` | tinyint(1) | no |  | Espera que la cuenta principal lo active (no puede ingresar) |
+| `fecha_cese` | date | sí |  | Día en que se desactivó al usuario (Matriz de asistencia: C = cesado desde ese día) |
 | `ultimo_acceso` | datetime | sí |  | Último inicio de sesión correcto en SGS |
 | `debe_cambiar_password` | tinyint(1) | no |  | 1 = al ingresar debe cambiar su contraseña (temporal) |
 | `fecha_creacion` | datetime | sí |  |  |
 | `avatar` | varchar(255) | sí |  |  |
+
+### `asistencia_ajustes`
+Correcciones del administrador en la matriz de asistencia · Depende de: `usuarios`
+
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `supervisor_id` | int(11) | no | FK → `usuarios` |  |
+| `fecha` | date | no |  |  |
+| `codigo` | enum('A','V','LSG','LG','DM','SUB','LPF','LP','D','FT','C') | no |  |  |
+| `comentario` | varchar(200) | sí |  |  |
+| `usuario_id` | int(11) | sí | FK → `usuarios` | Quién hizo la corrección |
+| `actualizado_en` | datetime | no |  |  |
 
 ### `asistencia_supervisores`
 Turnos de los supervisores: inicio, fin y horas · Depende de: `usuarios`
@@ -188,7 +203,7 @@ Vacaciones, descansos médicos y licencias de los supervisores (Mi turno) · Dep
 |---|---|---|---|---|
 | `id` | int(11) | no | PK |  |
 | `supervisor_id` | int(11) | no | FK → `usuarios` |  |
-| `tipo` | enum('Vacaciones','Descanso médico','Licencia por paternidad','Licencia por fallecimiento','Otra licencia') | no |  |  |
+| `tipo` | enum('Vacaciones','Descanso médico','Licencia por paternidad','Licencia por fallecimiento','Licencia sin goce de haber','Licencia con goce de haber','Subsidio') | no |  |  |
 | `fecha_inicio` | date | no |  |  |
 | `fecha_fin` | date | no |  |  |
 | `comentario` | varchar(300) | sí |  |  |
@@ -398,6 +413,7 @@ Supervisiones de campo y órdenes pendientes asignadas · Depende de: `usuarios`
 | `tipificacion_tecnico_correcta` | tinyint(1) | sí |  |  |
 | `tipificacion_corregida_supervisor` | varchar(200) | sí | FK → `tipificaciones_cancelacion` |  |
 | `estado_supervision` | enum('Pendiente','Iniciada','En proceso','Finalizada') | no |  |  |
+| `prioridad_alta` | tinyint(1) | no |  | Pendiente marcada como prioridad alta (sale primero en Pendientes de los supervisores directos) |
 | `latitud` | varchar(50) | sí |  |  |
 | `longitud` | varchar(50) | sí |  |  |
 | `foto_servicio_1` | varchar(255) | sí |  |  |

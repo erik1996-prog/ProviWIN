@@ -103,6 +103,7 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
             [$showAdministrativeMenu && $canViewDashboard, 'index.php?page=admin_dashboard', ['admin_dashboard'], 'bi-speedometer2', 'Dashboard de supervisiones'],
             [$ve(Auth::PERM_PARTNERS_DASHBOARD), 'index.php?page=dashboard_partners', ['dashboard_partners'], 'bi-buildings', 'Dashboard de partners'],
             [$ve(Auth::PERM_PENDIENTES_VIEW), 'index.php?page=dashboard_pendientes', ['dashboard_pendientes'], 'bi-arrow-repeat', 'Pendientes y rescates'],
+            [$ve(Auth::PERM_ASISTENCIA_MATRIZ_VIEW), 'index.php?page=matriz_asistencia', ['matriz_asistencia'], 'bi-calendar3', 'Matriz de asistencia'],
             [$ve(Auth::PERM_CLIMA_VIEW), 'index.php?page=dashboard_lluvias', ['dashboard_lluvias'], 'bi-cloud-sun', 'Clima'],
             [$ve(Auth::PERM_EXAMENES_VIEW), 'index.php?page=examenes', ['examenes'], 'bi-clipboard-check', 'Exámenes'],
         ]],

@@ -50,6 +50,9 @@ class Auth {
     // los tenga: además del permiso se exige personal administrativo o directo (Auth::esPersonalWin).
     public const PERM_PARTNERS_DASHBOARD = 'dashboard.partners';
     public const PERM_PENDIENTES_VIEW = 'pendientes.view';
+    /** Matriz de asistencia mensual (2026-10-28): ver y corregir celdas. */
+    public const PERM_ASISTENCIA_MATRIZ_VIEW = 'asistencia_matriz.view';
+    public const PERM_ASISTENCIA_MATRIZ_EDIT = 'asistencia_matriz.edit';
     public const PERM_CLIMA_VIEW = 'clima.view';
     public const PERM_CLIMA_EDIT = 'clima.edit';
     public const PERM_CLIMA_DELETE = 'clima.delete';
@@ -85,6 +88,7 @@ class Auth {
             self::PERM_SUPERVISION_FILTER_DATE, self::PERM_SUPERVISION_FILTER_STATUS, self::PERM_SUPERVISION_FILTER_COLUMNS,
             self::PERM_OBSERVATION_FILTER_DATE, self::PERM_OBSERVATION_FILTER_ADVANCED,
             self::PERM_PARTNERS_DASHBOARD, self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW, self::PERM_CLIMA_DELETE,
+            self::PERM_ASISTENCIA_MATRIZ_VIEW, self::PERM_ASISTENCIA_MATRIZ_EDIT,
             self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
             self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT,
             self::PERM_PARTNERS_VIEW, self::PERM_PARTNERS_EDIT, self::PERM_PARTNERS_DELETE, self::PERM_OBSERVATION_DELETE,
@@ -95,7 +99,7 @@ class Auth {
             self::PERM_DASHBOARD_VIEW, self::PERM_SUPERVISION_FILTERS,
             self::PERM_SUPERVISION_FILTER_DATE, self::PERM_SUPERVISION_FILTER_STATUS, self::PERM_SUPERVISION_FILTER_COLUMNS,
             self::PERM_OBSERVATION_FILTER_DATE, self::PERM_OBSERVATION_FILTER_ADVANCED,
-            self::PERM_PARTNERS_DASHBOARD, self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW,
+            self::PERM_PARTNERS_DASHBOARD, self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW, self::PERM_ASISTENCIA_MATRIZ_VIEW,
             self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
             self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT,
         ],
@@ -107,7 +111,7 @@ class Auth {
             self::PERM_TIMELINE_VIEW,
             self::PERM_SUPERVISION_FILTER_DATE, self::PERM_SUPERVISION_FILTER_STATUS, self::PERM_SUPERVISION_FILTER_COLUMNS,
             self::PERM_OBSERVATION_FILTER_DATE, self::PERM_OBSERVATION_FILTER_ADVANCED,
-            self::PERM_PARTNERS_DASHBOARD, self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW,
+            self::PERM_PARTNERS_DASHBOARD, self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW, self::PERM_ASISTENCIA_MATRIZ_VIEW,
             self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
             self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT,
             self::PERM_USERS_TEAM, // 2026-10-27: el líder (Gestión) registra a sus supervisores de su zona y área
@@ -194,6 +198,8 @@ class Auth {
             self::PERM_DASHBOARD_VIEW => ['group'=>'Dashboard de supervisiones','label'=>'Ver Dashboard de supervisiones','action'=>'ver','delegable'=>true],
             self::PERM_PARTNERS_DASHBOARD => ['group'=>'Dashboard de partners','label'=>'Ver Dashboard de partners','action'=>'ver','delegable'=>true],
             self::PERM_PENDIENTES_VIEW => ['group'=>'Pendientes y rescates','label'=>'Ver Pendientes y rescates','action'=>'ver','delegable'=>true],
+            self::PERM_ASISTENCIA_MATRIZ_VIEW => ['group'=>'Matriz de asistencia','label'=>'Ver la matriz de asistencia mensual','action'=>'ver','delegable'=>true],
+            self::PERM_ASISTENCIA_MATRIZ_EDIT => ['group'=>'Matriz de asistencia','label'=>'Editar: corregir el código de un día','action'=>'editar','delegable'=>true],
             self::PERM_CLIMA_VIEW => ['group'=>'Clima','label'=>'Ver: indicador de clima y lluvias','action'=>'ver','delegable'=>true],
             self::PERM_CLIMA_EDIT => ['group'=>'Clima','label'=>'Editar: avisar y cerrar lluvias en su zona (Mi turno)','action'=>'editar','delegable'=>true],
             self::PERM_CLIMA_DELETE => ['group'=>'Clima','label'=>'Eliminar registros de lluvia','action'=>'eliminar','delegable'=>true],
@@ -210,7 +216,7 @@ class Auth {
             self::PERM_ATTENDANCE_SELF => ['group'=>'Mi turno','label'=>'Registrar el propio turno','action'=>'editar','delegable'=>true],
             self::PERM_USERS_MANAGE => ['group'=>'Reservado','label'=>'Administrar usuarios','delegable'=>false],
             self::PERM_SUPERVISION_DELETE => ['group'=>'Reservado','label'=>'Eliminar supervisiones','delegable'=>false],
-            self::PERM_SUPERVISION_IMPORT => ['group'=>'Reservado','label'=>'Importar cancelaciones y corregir las pendientes cargadas','delegable'=>false],
+            self::PERM_SUPERVISION_IMPORT => ['group'=>'Reservado','label'=>'Importar cancelaciones, corregir las pendientes cargadas y marcarlas con prioridad alta','delegable'=>false],
             self::PERM_SYSTEM_MANAGE => ['group'=>'Reservado','label'=>'Administrar el sistema','delegable'=>false],
         ];
     }

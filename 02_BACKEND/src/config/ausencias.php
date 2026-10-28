@@ -6,7 +6,9 @@
 // 11_PRIVADO/ausencias, bloqueada a la web, y solo se entrega por api/ausencias.php?action=sustento.
 // La usan: api/ausencias.php y api/asistencia.php (inicio de turno y Monitor de turnos).
 
-const SGS_TIPOS_AUSENCIA = ['Vacaciones', 'Descanso médico', 'Licencia por paternidad', 'Licencia por fallecimiento', 'Otra licencia'];
+// 2026-10-28 (Matriz de asistencia): se agregan LSG, LG y Subsidio; "Otra licencia" pasó a "Licencia con goce de haber".
+const SGS_TIPOS_AUSENCIA = ['Vacaciones', 'Descanso médico', 'Subsidio', 'Licencia por paternidad', 'Licencia por fallecimiento',
+    'Licencia con goce de haber', 'Licencia sin goce de haber'];
 const SGS_AUSENCIA_MAX_DIAS = 60;      // una sola solicitud cubre a lo más 60 días
 const SGS_AUSENCIA_DIAS_ATRAS = 30;    // se puede registrar hasta 30 días hacia atrás (el descanso médico suele llegar después)
 

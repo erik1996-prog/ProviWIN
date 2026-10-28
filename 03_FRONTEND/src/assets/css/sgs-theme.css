@@ -3963,3 +3963,27 @@ button.sgs-cal-dia:hover, button.sgs-cal-dia:focus-visible { outline: 0; box-sha
 /* 61. Aviso de lluvia (2026-10-23): vista previa de la foto que se publica en Teams. */
 .sgs-lluvia-foto { display: block; width: 100%; max-height: 220px; object-fit: cover; border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); }
 .sgs-lluvia-foto[hidden] { display: none; }
+
+/* 62. Matriz de asistencia (2026-10-28): códigos con los colores de la tabla de asistencia de WIN (pedido del usuario).
+   Cada celda lleva su código (A, V, LSG…); el administrador la corrige con un clic (marca .is-ajuste). */
+:root {
+    --sgs-asis-a: #FFC000; --sgs-asis-v: #00B050; --sgs-asis-lsg: #FF9999; --sgs-asis-dm: #00B0F0;
+    --sgs-asis-d: #808080; --sgs-asis-ft: #FF0000; --sgs-asis-c: #000000;
+}
+.sgs-asis { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 24px; padding: 0 4px;
+    border-radius: 6px; font-size: .72rem; font-weight: 700; color: var(--sgs-ink); background: var(--sgs-surface); border: 1px solid var(--sgs-border); }
+.sgs-asis--A { background: var(--sgs-asis-a); border-color: var(--sgs-asis-a); }
+.sgs-asis--V { background: var(--sgs-asis-v); border-color: var(--sgs-asis-v); color: var(--sgs-surface); }
+.sgs-asis--LSG { background: var(--sgs-asis-lsg); border-color: var(--sgs-asis-lsg); }
+.sgs-asis--DM, .sgs-asis--SUB { background: var(--sgs-asis-dm); border-color: var(--sgs-asis-dm); }
+.sgs-asis--D { background: var(--sgs-asis-d); border-color: var(--sgs-asis-d); color: var(--sgs-surface); }
+.sgs-asis--FT { background: var(--sgs-asis-ft); border-color: var(--sgs-asis-ft); color: var(--sgs-surface); }
+.sgs-asis--C { background: var(--sgs-asis-c); border-color: var(--sgs-asis-c); color: var(--sgs-surface); }
+.sgs-asis-vacio { color: var(--sgs-border); }
+.sgs-asis-tabla td.sgs-asis-celda { padding: 3px 2px; text-align: center; }
+.sgs-asis-tabla td.sgs-asis-celda.is-editable { cursor: pointer; }
+.sgs-asis-tabla td.sgs-asis-celda.is-editable:hover .sgs-asis { outline: 2px solid var(--sgs-orange); outline-offset: 1px; }
+.sgs-asis-tabla .is-ajuste .sgs-asis { box-shadow: inset 0 -3px 0 var(--sgs-ink); }
+.sgs-asis-tabla th.is-domingo { color: var(--sgs-asis-d); }
+.sgs-asis-leyenda { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: .78rem; color: var(--sgs-muted); }
+.sgs-asis-leyenda span { display: inline-flex; align-items: center; gap: 6px; }

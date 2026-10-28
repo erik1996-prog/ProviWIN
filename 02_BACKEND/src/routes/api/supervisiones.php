@@ -113,7 +113,7 @@ function sgsSinOrigenParaPartner(array $user, array $fila): array {
     $ladoPartner = ($user['rol'] ?? '') === Auth::ROLE_JEFE_OPERACIONES
         || (($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && empty($user['is_win_directo']) && !empty($user['partner_id']));
     if (!$ladoPartner) return $fila;
-    foreach (['nombre_partner', 'tecnico1_id', 'tecnico1_nombre', 'tecnico1_dni', 'tecnico2_id', 'tecnico2_nombre', 'tecnico2_dni', 'vehiculo_id', 'unidad_placa'] as $c) {
+    foreach (['nombre_partner', 'prioridad_alta', 'tecnico1_id', 'tecnico1_nombre', 'tecnico1_dni', 'tecnico2_id', 'tecnico2_nombre', 'tecnico2_dni', 'vehiculo_id', 'unidad_placa'] as $c) {
         if (array_key_exists($c, $fila)) $fila[$c] = null;
     }
     return $fila;
@@ -1640,6 +1640,8 @@ if ($action === 'list') {
     $stmtPendingMapTotal->execute($pendingMapParams);
     $pendingMapTotal = (int)$stmtPendingMapTotal->fetchColumn();
     $highlightOrderSql = $highlightId > 0 ? 's.id=' . $highlightId . ' DESC,' : '';
+    // En Pendientes, primero las de prioridad alta (2026-10-28).
+    $prioridadOrderSql = $estadoFilter === 'pendiente' ? 's.prioridad_alta DESC,' : '';
 
     $sql = "
         SELECT s.*, u.nombre_completo AS supervisor_nombre, u.dni AS supervisor_dni, p.nombre_partner,
@@ -1652,7 +1654,7 @@ if ($action === 'list') {
         JOIN usuarios u ON s.supervisor_id = u.id
         LEFT JOIN partners p ON s.partner_id = p.id
         WHERE {$filteredWhereSql}
-        ORDER BY {$highlightOrderSql}s.fecha_registro DESC,s.id DESC
+        ORDER BY {$highlightOrderSql}{$prioridadOrderSql}s.fecha_registro DESC,s.id DESC
         LIMIT :page_limit OFFSET :page_offset
     ";
 
@@ -1894,6 +1896,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'cancelar') {
 // vinieron del Excel mientras la pendiente no se inicia ni se toma como rescate. La ubicación se valida contra el
 // catálogo; si cambia el departamento, la pendiente pasa a la bolsa de la nueva zona y se avisa a sus supervisores.
 // tecnico1: "actual" = se deja la cuadrilla como está · "" = sin cuadrilla · id = técnico líder del partner.
+// Prioridad alta (2026-10-28): quien carga las cancelaciones marca o quita la prioridad de una pendiente. En la pestaña
+// Pendientes sale primero y con la etiqueta "Prioridad alta" (solo para los supervisores directos; el partner no la ve).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'prioridad_pendiente') {
+    $responder = static function (int $codigo, string $mensaje, string $estado = 'error'): void {
+        http_response_code($codigo);
+        echo json_encode(['status' => $estado, 'message' => $mensaje], JSON_UNESCAPED_UNICODE);
+        exit;
+    };
+    if (!Auth::can(Auth::PERM_SUPERVISION_IMPORT, $user)) $responder(403, 'Solo quien carga las cancelaciones puede marcar la prioridad.');
+    $id = (int)($_POST['supervision_id'] ?? 0);
+    $prioridad = ($_POST['prioridad'] ?? '') === '1' ? 1 : 0;
+    $st = $pdo->prepare('SELECT id, ticket_codigo, codigo_supervision, estado_supervision FROM supervisiones WHERE id = :id');
+    $st->execute([':id' => $id]);
+    $orden = $st->fetch();
+    if (!$orden) $responder(404, 'La orden no existe.');
+    if ($orden['estado_supervision'] !== 'Pendiente') $responder(409, 'Solo se marca la prioridad de una orden pendiente. Actualice la lista.');
+    $pdo->prepare('UPDATE supervisiones SET prioridad_alta = :p WHERE id = :id')->execute([':p' => $prioridad, ':id' => $id]);
+    $codigo = $orden['ticket_codigo'] ?: $orden['codigo_supervision'];
+    win_log_error('audit_prioridad', "Prioridad alta " . ($prioridad ? 'marcada' : 'quitada') . " en {$codigo}", ['supervision_id' => $id, 'actor_id' => (int)$user['id']]);
+    $responder(200, $prioridad ? "La pendiente {$codigo} quedó con prioridad alta." : "Se quitó la prioridad alta de {$codigo}.", 'success');
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'corregir_pendiente') {
     require_once __DIR__ . '/../../config/asignacion_cancelaciones.php';
     require_once __DIR__ . '/../../config/zonas_peru.php';

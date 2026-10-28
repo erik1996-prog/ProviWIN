@@ -236,6 +236,31 @@ try {
     $check('Pendientes y rescates: cancelación correcta y rescatada', ($estados[$o6] ?? '') === 'correcta' && ($estados[$o7] ?? '') === 'rescatada', $estados);
     foreach ($pdo->query("SELECT foto FROM rescate_seguimientos WHERE supervision_id IN ($o6, $o7) AND foto IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN) as $ruta) @unlink(UPLOAD_DIR . basename($ruta));
 
+    // ---------- Prioridad alta en Pendientes (2026-10-28) ----------
+    $o8 = $nueva('8'); $o9 = $nueva('9');
+    $orden = function (string $u) use ($http, $base, $o8, $o9): array {
+        $r = $http($u, "$base/api/supervisiones.php?action=list&estado=pendiente&fecha_inicio=2000-01-01&limit=100");
+        $ids = array_map('intval', array_column($r['data'] ?? [], 'id'));
+        return [array_search($o8, $ids, true), array_search($o9, $ids, true), array_column($r['data'] ?? [], 'prioridad_alta', 'id')];
+    };
+    [$p8, $p9] = $orden('res.dos');
+    $check('sin prioridad, en Pendientes sale primero la más reciente', $p8 !== false && $p9 !== false && $p9 < $p8, [$p8, $p9]);
+    $prioridad = fn(string $u, int $id, string $p) => $http($u, "$base/api/supervisiones.php?action=prioridad_pendiente", ['supervision_id' => $id, 'prioridad' => $p]);
+    $r = $prioridad('res.dos', $o8, '1');
+    $check('un supervisor directo no puede marcar la prioridad', ($r['status'] ?? '') === 'error', $r);
+    $r = $prioridad('res.admin', $o8, '1');
+    $check('el administrador marca la prioridad alta', ($r['status'] ?? '') === 'success', $r);
+    [$p8, $p9, $marcas] = $orden('res.dos');
+    $check('con prioridad alta sale primero en Pendientes del supervisor directo, con su marca', $p8 !== false && $p8 < $p9 && (int)($marcas[$o8] ?? 0) === 1, [$p8, $p9, $marcas[$o8] ?? null]);
+    $o10 = $transferida('10', 'correcta');
+    $prioridad('res.admin', $o10, '1');
+    $lp = $http('res.partner', "$base/api/supervisiones.php?action=list&estado=todos&fecha_inicio=2000-01-01&limit=100");
+    $filaP = array_values(array_filter($lp['data'] ?? [], fn($x) => (int)$x['id'] === $o10))[0] ?? null;
+    $check('el partner no recibe la prioridad de su orden', $filaP !== null && ($filaP['prioridad_alta'] ?? null) === null, $filaP);
+    $r = $prioridad('res.admin', $o6, '1');
+    $check('una orden finalizada no se marca', ($r['status'] ?? '') === 'error', $r);
+    $r = $prioridad('res.admin', $o8, '0');
+    $check('el administrador quita la prioridad', ($r['status'] ?? '') === 'success' && (int)$pdo->query("SELECT prioridad_alta FROM supervisiones WHERE id=$o8")->fetchColumn() === 0, $r);
     // ---------- Resultado de la validación (Cancelación correcta / En proceso de rescate / Rescatado) ----------
     // a) Desde la pendiente: "En proceso de rescate" la pasa a rescate (sin finalizar ni ocupar su supervisión en proceso)
     $o3 = $nueva('3');

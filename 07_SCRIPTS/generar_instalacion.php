@@ -44,6 +44,7 @@ $tablasSgs = [
     'lluvias_zona' => 'vacia',
     'lluvias_cortes_programados' => 'datos', // horarios del corte de lluvias en Teams (configuración)
     'ausencias_supervisores' => 'vacia',
+    'asistencia_ajustes' => 'vacia', // correcciones de la matriz de asistencia (2026-10-28)
     'examen_enlaces' => 'vacia',
     'examen_convocatorias' => 'vacia',
     'examen_convocatoria_tecnicos' => 'vacia',

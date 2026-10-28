@@ -1,5 +1,5 @@
 -- 04_DATABASE/03_ESTRUCTURA/esquema_completo.sql
--- Estructura de SGS: 30 tablas en orden de dependencias, sin datos ni DROP.
+-- Estructura de SGS: 31 tablas en orden de dependencias, sin datos ni DROP.
 -- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-10-28. No editar a mano: los cambios van como migración en 02_CAMBIOS.
 
 SET NAMES utf8mb4;
@@ -117,6 +117,7 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
   `partner_id` int(11) DEFAULT NULL,
   `activo` tinyint(1) DEFAULT 1,
   `por_activar` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'Espera que la cuenta principal lo active (no puede ingresar)',
+  `fecha_cese` date DEFAULT NULL COMMENT 'Día en que se desactivó al usuario (Matriz de asistencia: C = cesado desde ese día)',
   `ultimo_acceso` datetime DEFAULT NULL COMMENT 'Último inicio de sesión correcto en SGS',
   `debe_cambiar_password` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1 = al ingresar debe cambiar su contraseña (temporal)',
   `fecha_creacion` datetime DEFAULT current_timestamp(),
@@ -128,6 +129,23 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
   KEY `idx_usuarios_partner_id` (`partner_id`),
   CONSTRAINT `fk_usuarios_partner_id` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Usuarios del sistema (personal WIN y de partners)';
+
+-- Tabla `asistencia_ajustes`: Correcciones del administrador en la matriz de asistencia (depende de: usuarios)
+CREATE TABLE IF NOT EXISTS `asistencia_ajustes` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `supervisor_id` int(11) NOT NULL,
+  `fecha` date NOT NULL,
+  `codigo` enum('A','V','LSG','LG','DM','SUB','LPF','LP','D','FT','C') NOT NULL,
+  `comentario` varchar(200) DEFAULT NULL,
+  `usuario_id` int(11) DEFAULT NULL COMMENT 'Quién hizo la corrección',
+  `actualizado_en` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_asistencia_ajustes_supervisor_id_fecha` (`supervisor_id`,`fecha`),
+  KEY `idx_asistencia_ajustes_fecha` (`fecha`),
+  KEY `idx_asistencia_ajustes_usuario_id` (`usuario_id`),
+  CONSTRAINT `fk_asistencia_ajustes_supervisor_id` FOREIGN KEY (`supervisor_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_asistencia_ajustes_usuario_id` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Correcciones del administrador en la matriz de asistencia';
 
 -- Tabla `asistencia_supervisores`: Turnos de los supervisores: inicio, fin y horas (depende de: usuarios)
 CREATE TABLE IF NOT EXISTS `asistencia_supervisores` (
@@ -157,7 +175,7 @@ CREATE TABLE IF NOT EXISTS `asistencia_supervisores` (
 CREATE TABLE IF NOT EXISTS `ausencias_supervisores` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `supervisor_id` int(11) NOT NULL,
-  `tipo` enum('Vacaciones','Descanso médico','Licencia por paternidad','Licencia por fallecimiento','Otra licencia') NOT NULL,
+  `tipo` enum('Vacaciones','Descanso médico','Licencia por paternidad','Licencia por fallecimiento','Licencia sin goce de haber','Licencia con goce de haber','Subsidio') NOT NULL,
   `fecha_inicio` date NOT NULL,
   `fecha_fin` date NOT NULL,
   `comentario` varchar(300) DEFAULT NULL,
@@ -413,6 +431,7 @@ CREATE TABLE IF NOT EXISTS `supervisiones` (
   `tipificacion_tecnico_correcta` tinyint(1) DEFAULT NULL,
   `tipificacion_corregida_supervisor` varchar(200) DEFAULT NULL,
   `estado_supervision` enum('Pendiente','Iniciada','En proceso','Finalizada') NOT NULL DEFAULT 'Iniciada',
+  `prioridad_alta` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'Pendiente marcada como prioridad alta (sale primero en Pendientes de los supervisores directos)',
   `latitud` varchar(50) DEFAULT NULL,
   `longitud` varchar(50) DEFAULT NULL,
   `foto_servicio_1` varchar(255) DEFAULT NULL,

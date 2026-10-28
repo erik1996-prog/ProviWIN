@@ -114,6 +114,12 @@ $colores = [
           <span class="badge bg-success">Activo</span><span class="badge bg-warning">En plazo</span><span class="badge bg-danger">Vencida</span>
           <span class="badge bg-primary">Supervisor</span><span class="badge bg-dark">Administrador</span><span class="badge bg-secondary">Inactivo</span>
         </div>
+        <hr>
+        <h5 class="mb-3"><i class="bi bi-calendar3 me-2 text-primary"></i>Códigos de asistencia</h5>
+        <div class="sgs-asis-leyenda">
+          <?php foreach (['A', 'V', 'LSG', 'LG', 'DM', 'SUB', 'LPF', 'LP', 'D', 'FT', 'C'] as $codigoAsis): ?><span class="sgs-asis sgs-asis--<?= $codigoAsis ?>"><?= $codigoAsis ?></span><?php endforeach; ?>
+        </div>
+        <div class="small text-muted mt-2">Solo en la Matriz de asistencia (sección 62): colores de la tabla de asistencia de WIN.</div>
       </div>
     </div>
 

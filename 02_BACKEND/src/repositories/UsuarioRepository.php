@@ -161,7 +161,9 @@ final class UsuarioRepository
 
     public function cambiarEstado(int $id, bool $activo): void
     {
-        $this->pdo->prepare('UPDATE usuarios SET activo = :a, por_activar = 0 WHERE id = :id')->execute([':a' => $activo ? 1 : 0, ':id' => $id]);
+        // Fecha de cese (2026-10-28, Matriz de asistencia): el día en que se desactiva; al reactivarlo se borra.
+        $this->pdo->prepare('UPDATE usuarios SET activo = :a, por_activar = 0, fecha_cese = ' . ($activo ? 'NULL' : 'COALESCE(fecha_cese, CURDATE())') . ' WHERE id = :id')
+            ->execute([':a' => $activo ? 1 : 0, ':id' => $id]);
     }
 
     public function administradoresActivos(int $exceptoId = 0): int

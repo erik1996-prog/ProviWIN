@@ -349,7 +349,7 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
                 <label class="form-label" for="ausTipo">Tipo</label>
                 <select class="form-select" id="ausTipo" name="tipo" required>
                     <option value="">Seleccione</option>
-                    <?php foreach (['Vacaciones', 'Descanso médico', 'Licencia por paternidad', 'Licencia por fallecimiento', 'Otra licencia'] as $tipoAus): ?>
+                    <?php require_once BACKEND_PATH . '/config/ausencias.php'; foreach (SGS_TIPOS_AUSENCIA as $tipoAus): ?>
                     <option value="<?= htmlspecialchars($tipoAus) ?>"><?= htmlspecialchars($tipoAus) ?></option>
                     <?php endforeach; ?>
                 </select>

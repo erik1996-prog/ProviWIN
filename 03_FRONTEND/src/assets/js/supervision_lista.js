@@ -103,6 +103,8 @@
   const currentUserId = SGS_SUPERVISION.usuarioId;
   const esSupervisorWinDirecto = currentUserRole === 'Supervisor' && SGS_SUPERVISION.winDirecto;
   const esSupervisorPartnerActual = SGS_SUPERVISION.supervisorPartner;
+  // Prioridad alta (2026-10-28): la ven los supervisores directos y quien la marca (quien carga las cancelaciones).
+  const vePrioridad = (currentUserRole === 'Supervisor' && SGS_SUPERVISION.winDirecto) || SGS_SUPERVISION.corregirPendientes;
   const esJefeOperacionesActual = SGS_SUPERVISION.jefeOperaciones;   // solo consulta
   const canUseFindingsForm = SGS_SUPERVISION.formHallazgos;
   const canUseChecklistForm = SGS_SUPERVISION.formChecklist;
@@ -1488,6 +1490,7 @@
       tipo_servicio: item.tipo_servicio || 'Regular', area_servicio: item.area_servicio || 'Instalación', sub_tipo_atencion: item.sub_tipo_atencion || '',
       tipo_supervision_inicial: item.tipo_supervision_inicial || 'En caliente', partner_nombre: item.nombre_partner || '—', partner_id: item.partner_id,
       rescate_estado: item.rescate_estado || '', rescate_inicio: item.rescate_inicio || '', rescate_fin: item.rescate_fin || '',
+      prioridad_alta: Number(item.prioridad_alta || 0),
       rescate_responsable_id: String(item.rescate_responsable_id || ''), partner_cancelacion_incorrecta: Number(item.partner_cancelacion_incorrecta || 0),
       cliente_nombre: item.cliente_nombre || '', cliente_dni: item.cliente_dni || '', ticket_codigo: item.ticket_codigo || '',
       tecnico1_nombre: item.tecnico1_nombre || '', tecnico1_dni: item.tecnico1_dni || '', tecnico2_nombre: item.tecnico2_nombre || '',
@@ -1728,7 +1731,7 @@
             rowHtml += `<td>${escapeHtml(rec.departamento)}</td>`;
             break;
           case 'estado':
-            rowHtml += `<td><span class="badge-exec ${rec.estado}">${labelEstado}</span>${rec.es_asignacion_partner?`<br><small class="${rec.estado_atencion_partner==='Atendida'?'text-success':(Number(rec.plazo_partner_vencido)?'text-danger':'text-warning')}">${rec.estado_atencion_partner==='Atendida'?`Partner atendió · cancelación ${rec.partner_cancelacion_incorrecta===1?'incorrecta':'correcta'}`:(Number(rec.plazo_partner_vencido)?'Partner no atendió · plazo vencido':'Partner pendiente · 24 h')}</small>`:''}${rec.es_asignacion_partner && rec.estado_atencion_partner==='Atendida' && rec.estado==='pendiente' && !rec.rescate_estado ? '<br><small class="text-primary fw-bold"><i class="bi bi-check2-square me-1"></i>Por validar</small>' : ''}</td>`;
+            rowHtml += `<td>${vePrioridad && rec.prioridad_alta === 1 && rec.estado === 'pendiente' ? '<span class="badge bg-danger"><i class="bi bi-flag-fill me-1"></i>Prioridad alta</span><br>' : ''}<span class="badge-exec ${rec.estado}">${labelEstado}</span>${rec.es_asignacion_partner?`<br><small class="${rec.estado_atencion_partner==='Atendida'?'text-success':(Number(rec.plazo_partner_vencido)?'text-danger':'text-warning')}">${rec.estado_atencion_partner==='Atendida'?`Partner atendió · cancelación ${rec.partner_cancelacion_incorrecta===1?'incorrecta':'correcta'}`:(Number(rec.plazo_partner_vencido)?'Partner no atendió · plazo vencido':'Partner pendiente · 24 h')}</small>`:''}${rec.es_asignacion_partner && rec.estado_atencion_partner==='Atendida' && rec.estado==='pendiente' && !rec.rescate_estado ? '<br><small class="text-primary fw-bold"><i class="bi bi-check2-square me-1"></i>Por validar</small>' : ''}</td>`;
             break;
           case 'partner_nombre':
             rowHtml += `<td>${escapeHtml(rec.partner_nombre || 'WIN Directo')}</td>`;
@@ -2343,7 +2346,7 @@
         if (res.status === 'success') {
           records = records.filter(r => r.id !== rec.id); // se vuelve a leer con su nuevo estado
           if (accion === 'avance' || body.get('resultado') === 'En proceso de rescate') { await openDetail(rec.id); loadRecords(); }
-          else { closeDetail(); loadRecords(); }
+          else closeDetail(); // al cerrar se vuelve a leer la lista
         }
       } catch (e) { showToast('No se pudo completar la acción.', 'error'); }
       finally { btn.disabled = false; }
@@ -2932,7 +2935,7 @@
                 ? `<span class="sgs-autoguardado" id="edit_autoguardado" aria-live="polite"></span>
                    <button class="btn-bitacora btn-ghost-bitacora" id="cancelarEdicionBtn" type="button"><i class="bi bi-x-lg me-1"></i>Cancelar</button>
                    <button class="btn-bitacora btn-orange-bitacora" id="saveProgressBtn" type="button"><i class="bi bi-check2-circle me-1"></i>Finalizar supervisión</button>`
-                : `${esCancelacionFrioPendiente && SGS_SUPERVISION.corregirPendientes ? '<button class="btn-bitacora btn-ghost-bitacora" id="btnCorregirPendiente" type="button"><i class="bi bi-pencil-square me-1"></i>Corregir datos</button>' : ''}<button class="btn-bitacora ${rec.estado === 'pendiente' ? 'btn-orange-bitacora' : 'btn-ghost-bitacora'}" id="saveProgressBtn" type="button">${rec.estado === 'pendiente' ? 'Iniciar supervisión' : 'Guardar avance y volver al listado'}</button>`)))
+                : `${rec.estado === 'pendiente' && SGS_SUPERVISION.corregirPendientes ? `<button class="btn-bitacora btn-ghost-bitacora" id="btnPrioridadPendiente" type="button" data-prioridad="${rec.prioridad_alta === 1 ? '0' : '1'}"><i class="bi ${rec.prioridad_alta === 1 ? 'bi-flag' : 'bi-flag-fill'} me-1"></i>${rec.prioridad_alta === 1 ? 'Quitar prioridad alta' : 'Marcar prioridad alta'}</button>` : ''}${esCancelacionFrioPendiente && SGS_SUPERVISION.corregirPendientes ? '<button class="btn-bitacora btn-ghost-bitacora" id="btnCorregirPendiente" type="button"><i class="bi bi-pencil-square me-1"></i>Corregir datos</button>' : ''}<button class="btn-bitacora ${rec.estado === 'pendiente' ? 'btn-orange-bitacora' : 'btn-ghost-bitacora'}" id="saveProgressBtn" type="button">${rec.estado === 'pendiente' ? 'Iniciar supervisión' : 'Guardar avance y volver al listado'}</button>`)))
           }
         </div>
       </form>`;
@@ -2943,6 +2946,17 @@
     document.getElementById('btnCorregirSupervision')?.addEventListener('click', () => openDetail(rec.id, true));
     document.getElementById('btnCancelarCorreccion')?.addEventListener('click', () => openDetail(rec.id));
     document.getElementById('btnCorregirPendiente')?.addEventListener('click', () => abrirCorreccionPendiente(rec).catch(() => showToast('No se pudo abrir la corrección.')));
+    document.getElementById('btnPrioridadPendiente')?.addEventListener('click', async (ev) => {
+      const btn = ev.currentTarget;
+      const body = new FormData(); body.append('supervision_id', rec.id); body.append('prioridad', btn.dataset.prioridad);
+      btn.disabled = true;
+      try {
+        const res = await (await fetch('api/supervisiones.php?action=prioridad_pendiente', { method: 'POST', body })).json();
+        showToast(res.message || 'Listo.', res.status === 'success' ? 'success' : 'error');
+        if (res.status === 'success') closeDetail(); // al cerrar se vuelve a leer la lista
+      } catch (e) { showToast('No se pudo cambiar la prioridad.', 'error'); }
+      finally { btn.disabled = false; }
+    });
     if(esSupervisorPartnerActual){
       const form=document.getElementById('partner-supervision-form');
       const sendPartnerUpdate=async estado=>{
