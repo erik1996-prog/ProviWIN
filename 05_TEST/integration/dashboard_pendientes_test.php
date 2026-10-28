@@ -47,7 +47,7 @@ try {
     $nueva('2', 'Pendiente', 0);                                             // pendiente, menos de 24 h
     $nueva('3', 'En proceso', 1);                                            // en validación
     $nueva('4', 'Pendiente', 2, 'PIURA', 'En proceso de rescate', 'En rescate'); // en rescate
-    $nueva('5', 'Finalizada', 2, 'PIURA', 'Rescate', 'Rescatado', true);      // rescatada (cerrada en ~48 h)
+    $nueva('5', 'Finalizada', 2, 'PIURA', 'Rescatado', 'Rescatado', true);      // rescatada (cerrada en ~48 h)
     $correcta = $nueva('6', 'Finalizada', 1, 'PIURA', 'Cancelación correcta'); // cancelación correcta (cierre por historial)
     $pdo->prepare("INSERT INTO supervision_estado_historial (supervision_id, estado_anterior, estado_nuevo, cambiado_por, fecha_cambio) VALUES (:s, 'En proceso', 'Finalizada', :u, NOW())")
         ->execute([':s' => $correcta, ':u' => $sup]);

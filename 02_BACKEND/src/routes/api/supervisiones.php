@@ -97,7 +97,10 @@ function canAccessSupervision(array $user, array $supervision, bool $allowPendin
         // Rescate (2026-10-13): mientras está "En rescate" sale de la bolsa común; solo la trabaja quien la tomó.
         $esResponsableRescate = (int)($supervision['rescate_responsable_id'] ?? 0) === (int)$user['id'];
         if (($supervision['rescate_estado'] ?? '') === 'En rescate' || $esResponsableRescate) return $esResponsableRescate;
-        return $isPendingPoolItem ? directSupervisorScopeAllows($user, $supervision) : $isOwner;
+        // Atendida por un partner (2026-10-28): sigue siendo del directo que se la transfirió (la valida y la consulta finalizada).
+        // No basta fecha_asignacion/asignado_por: la carga del Excel también los llena.
+        $laTransfirio = ($supervision['estado_atencion_partner'] ?? '') === 'Atendida' && (int)($supervision['asignado_por'] ?? 0) === (int)$user['id'];
+        return $isPendingPoolItem ? directSupervisorScopeAllows($user, $supervision) : ($isOwner || $laTransfirio);
     }
     return false;
 }
@@ -135,43 +138,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'partner_update') {
     }
     $resumenResultado=trim((string)($_POST['observacion_atencion_partner']??''));
     if ($resumenResultado === '') { http_response_code(422); echo json_encode(['status'=>'error','message'=>'Ingrese la observación de la atención.']); exit; }
-    // Rescate propuesto por el partner (2026-10-13): solo propone; el supervisor directo que la asignó decide pasarla a rescate.
-    $rescatable = ($_POST['partner_rescatable'] ?? '0') === '1';
+    // Resultado del partner (2026-10-28): cancelación correcta o incorrecta. Con "incorrecta" sube al menos una foto. Luego el
+    // supervisor directo que se la transfirió valida la atención (action=validar_partner).
+    $resultadoPartner = (string)($_POST['partner_resultado'] ?? '');
+    if (!in_array($resultadoPartner, ['correcta', 'incorrecta'], true)) { http_response_code(422); echo json_encode(['status'=>'error','message'=>'Indique si la cancelación fue correcta o incorrecta.']); exit; }
+    $incorrecta = $resultadoPartner === 'incorrecta';
     $evidencias = [];
-    if ($rescatable) {
-        for ($i = 1; $i <= 3; $i++) {
-            $clave = 'foto_rescate_' . $i;
-            if (!isset($_FILES[$clave]) || ($_FILES[$clave]['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) continue;
-            try {
-                $ok = validateUploadedFile($_FILES[$clave], ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'], 8 * 1024 * 1024);
-                $nombre = randomUploadName('rescate_partner_' . $supervisionId . '_', $ok['extension']);
-                if (!move_uploaded_file($_FILES[$clave]['tmp_name'], UPLOAD_DIR . $nombre)) throw new RuntimeException('No se pudo guardar una evidencia.');
-                $evidencias[] = UPLOAD_URL . $nombre;
-            } catch (RuntimeException $e) { http_response_code(422); echo json_encode(['status'=>'error','message'=>$e->getMessage()]); exit; }
-        }
-        if (!$evidencias) { http_response_code(422); echo json_encode(['status'=>'error','message'=>'Si el servicio se puede rescatar, suba al menos una foto de evidencia.']); exit; }
+    for ($i = 1; $i <= 3; $i++) {
+        $clave = 'foto_partner_' . $i;
+        if (!isset($_FILES[$clave]) || ($_FILES[$clave]['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) continue;
+        try {
+            $ok = validateUploadedFile($_FILES[$clave], ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'], 8 * 1024 * 1024);
+            $nombre = randomUploadName('atencion_partner_' . $supervisionId . '_', $ok['extension']);
+            if (!move_uploaded_file($_FILES[$clave]['tmp_name'], UPLOAD_DIR . $nombre)) throw new RuntimeException('No se pudo guardar una evidencia.');
+            $evidencias[] = UPLOAD_URL . $nombre;
+        } catch (RuntimeException $e) { http_response_code(422); echo json_encode(['status'=>'error','message'=>$e->getMessage()]); exit; }
     }
+    if ($incorrecta && !$evidencias) { http_response_code(422); echo json_encode(['status'=>'error','message'=>'Si la cancelación es incorrecta, suba al menos una foto de evidencia.']); exit; }
     $pdo->beginTransaction();
     try {
-    $update=$pdo->prepare("UPDATE supervisiones SET estado_atencion_partner='Atendida',observacion_atencion_partner=:resumen,fecha_atencion_partner=NOW(),partner_rescatable=:resc
+    $update=$pdo->prepare("UPDATE supervisiones SET estado_atencion_partner='Atendida',observacion_atencion_partner=:resumen,fecha_atencion_partner=NOW(),partner_cancelacion_incorrecta=:inc
       WHERE id=:id AND supervisor_id=:uid AND partner_id=:partner AND estado_supervision='Pendiente'");
-    $update->execute([':resumen'=>$resumenResultado,':resc'=>$rescatable ? 1 : 0,':id'=>$supervisionId,':uid'=>(int)$user['id'],':partner'=>(int)$user['partner_id']]);
-    if ($rescatable) {
-        $propuesta = $pdo->prepare("INSERT INTO rescate_seguimientos (supervision_id, usuario_id, tipo, comentario, foto) VALUES (:s, :u, 'Propuesta del partner', :c, :f)");
-        foreach ($evidencias as $i => $foto) $propuesta->execute([':s'=>$supervisionId, ':u'=>(int)$user['id'], ':c'=>$i === 0 ? $resumenResultado : null, ':f'=>$foto]);
-        if (!empty($target['asignado_por'])) {
-            $codigoAviso = $target['ticket_codigo'] ?: $target['codigo_supervision'];
-            $pdo->prepare("INSERT INTO notificaciones (usuario_id, titulo, mensaje, url_destino) VALUES (:u, 'Se puede rescatar', :m, :url)")
-                ->execute([':u'=>(int)$target['asignado_por'], ':m'=>"El partner indica que la orden {$codigoAviso} se puede rescatar. Revise sus evidencias y pásela a rescate.",
-                    ':url'=>'index.php?page=supervision_lista&highlight=' . $supervisionId]);
-        }
+    $update->execute([':resumen'=>$resumenResultado,':inc'=>$incorrecta ? 1 : 0,':id'=>$supervisionId,':uid'=>(int)$user['id'],':partner'=>(int)$user['partner_id']]);
+    // Historial: la observación va en la primera fila; cada foto, en su fila.
+    $atencion = $pdo->prepare("INSERT INTO rescate_seguimientos (supervision_id, usuario_id, tipo, comentario, foto) VALUES (:s, :u, 'Atención del partner', :c, :f)");
+    foreach ($evidencias ?: [null] as $i => $foto) $atencion->execute([':s'=>$supervisionId, ':u'=>(int)$user['id'], ':c'=>$i === 0 ? $resumenResultado : null, ':f'=>$foto]);
+    if (!empty($target['asignado_por'])) {
+        $codigoAviso = $target['ticket_codigo'] ?: $target['codigo_supervision'];
+        $pdo->prepare("INSERT INTO notificaciones (usuario_id, titulo, mensaje, url_destino) VALUES (:u, 'Validar atención del partner', :m, :url)")
+            ->execute([':u'=>(int)$target['asignado_por'], ':m'=>"El partner atendió la orden {$codigoAviso}: cancelación " . ($incorrecta ? 'incorrecta' : 'correcta') . '. Valide su atención.',
+                ':url'=>'index.php?page=supervision_lista&highlight=' . $supervisionId]);
     }
     $pdo->commit();
     } catch(Throwable $error) {
         if($pdo->inTransaction())$pdo->rollBack();
         http_response_code(422);echo json_encode(['status'=>'error','message'=>'No se pudo guardar la actualización: '.$error->getMessage()]);exit;
     }
-    echo json_encode(['status'=>'success','message'=>$rescatable ? 'Atención registrada. Se avisó al supervisor de WIN que el servicio se puede rescatar.' : 'Atención registrada correctamente.','estado_atencion_partner'=>'Atendida'],JSON_UNESCAPED_UNICODE);exit;
+    echo json_encode(['status'=>'success','message'=>'Atención registrada. Se avisó al supervisor de WIN para que la valide.','estado_atencion_partner'=>'Atendida'],JSON_UNESCAPED_UNICODE);exit;
 }
 
 if ($action === 'supervisores_partner') {
@@ -240,7 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'asignar_partner') {
         $stmtTarget->execute([':id'=>$partnerSupervisorId,':partner'=>(int)$order['partner_id'],':departamento'=>$zonaOrden,':departamento_acceso'=>$zonaOrden]);
         $target = $stmtTarget->fetch();
         if (!$target) throw new RuntimeException('El supervisor seleccionado no pertenece al partner y departamento de la orden.');
-        $stmtUpdate = $pdo->prepare("UPDATE supervisiones SET supervisor_id=:destino,partner_id=:partner,asignado_por=:origen,fecha_asignacion=NOW(),estado_atencion_partner='Pendiente',observacion_atencion_partner=NULL,fecha_atencion_partner=NULL WHERE id=:id AND estado_supervision='Pendiente'");
+        $stmtUpdate = $pdo->prepare("UPDATE supervisiones SET supervisor_id=:destino,partner_id=:partner,asignado_por=:origen,fecha_asignacion=NOW(),estado_atencion_partner='Pendiente',observacion_atencion_partner=NULL,fecha_atencion_partner=NULL,partner_cancelacion_incorrecta=NULL WHERE id=:id AND estado_supervision='Pendiente'");
         $stmtUpdate->execute([':destino'=>$partnerSupervisorId, ':partner'=>(int)$target['partner_id'], ':origen'=>(int)$user['id'], ':id'=>$supervisionId]);
         $stmtNotify = $pdo->prepare("INSERT INTO notificaciones (usuario_id,titulo,mensaje,url_destino) VALUES (:usuario,'Nueva supervisión asignada',:mensaje,:url)");
         $stmtNotify->execute([':usuario'=>$partnerSupervisorId, ':mensaje'=>'Se le asignó la orden pendiente '.$order['codigo_supervision'].' para revisión.', ':url'=>'index.php?page=supervision_lista&highlight='.$supervisionId]);
@@ -254,10 +257,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'asignar_partner') {
 
 // 1. Guardar Nueva Supervisión (Flujo 4 Pasos)
 // ---------- Rescate de pendientes (2026-10-13) ----------
-// Tomar: un supervisor directo toma una pendiente de su zona (no asignada a partner) y le da seguimiento sin plazo.
+// Validar partner (2026-10-28): el supervisor directo que transfirió la orden (o el administrador) valida la atención del
+// partner: Cancelación correcta (se finaliza), En proceso de rescate (pasa a rescate a su cargo) o Rescatado (se finaliza).
 // Avance: comentario y foto opcional. Cerrar: Rescatado / No rescatado (la pendiente queda Finalizada).
 // Reasignar: solo el administrador, a otro supervisor directo que trabaje esa zona.
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['rescate_tomar', 'rescate_avance', 'rescate_cerrar', 'rescate_reasignar'], true)) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['validar_partner', 'rescate_avance', 'rescate_cerrar', 'rescate_reasignar'], true)) {
     $esDirecto = ($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($user['is_win_directo']);
     $esAdmin = ($user['rol'] ?? '') === Auth::ROLE_ADMINISTRADOR;
     $id = (int)($_POST['supervision_id'] ?? 0);
@@ -272,27 +276,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['rescate_tomar',
         if (!$orden) $responder(404, 'La orden no existe.');
         $codigo = $orden['ticket_codigo'] ?: $orden['codigo_supervision'];
 
-        if ($action === 'rescate_tomar') {
-            if (!$esDirecto) $responder(403, 'Solo un supervisor directo puede tomar una pendiente como rescate.');
-            if ($orden['estado_supervision'] !== 'Pendiente' || ($orden['rescate_estado'] ?? '') !== '' && $orden['rescate_estado'] !== null) {
-                $responder(409, ($orden['rescate_estado'] ?? '') === 'En rescate' ? 'Esta pendiente ya está en rescate con otro supervisor.' : 'La orden ya no está pendiente. Actualice la lista.');
+        if ($action === 'validar_partner') {
+            if (!$esDirecto && !$esAdmin) $responder(403, 'Solo el supervisor directo que transfirió la orden puede validar la atención del partner.');
+            if (!$esAdmin && (int)$orden['asignado_por'] !== (int)$user['id']) $responder(403, 'Solo el supervisor que transfirió la orden al partner puede validarla.');
+            if (empty($orden['fecha_asignacion']) || $orden['estado_supervision'] !== 'Pendiente' || ($orden['estado_atencion_partner'] ?? '') !== 'Atendida' || !empty($orden['rescate_estado'])) {
+                $responder(409, 'Esta orden no tiene una atención del partner por validar. Actualice la lista.');
             }
-            if (!empty($orden['fecha_asignacion'])) {
-                // Asignada a un partner: solo si el partner la marcó como rescatable, y la pasa a rescate quien la asignó.
-                // El supervisor asignado (del partner) no cambia, para no alterar su cumplimiento de 24 horas.
-                if ((int)($orden['partner_rescatable'] ?? 0) !== 1 || ($orden['estado_atencion_partner'] ?? '') !== 'Atendida') {
-                    $responder(409, 'La orden está asignada a un partner: solo pasa a rescate cuando el partner la atiende e indica que se puede rescatar.');
-                }
-                if ((int)$orden['asignado_por'] !== (int)$user['id']) $responder(403, 'Solo el supervisor que la asignó al partner puede pasarla a rescate.');
-                $pdo->prepare("UPDATE supervisiones SET rescate_responsable_id = :u, rescate_estado = 'En rescate', rescate_inicio = NOW(), rescate_fin = NULL WHERE id = :id")
+            $resultado = (string)($_POST['resultado'] ?? '');
+            if (!in_array($resultado, ['Cancelación correcta', 'En proceso de rescate', 'Rescatado'], true)) $responder(422, 'Elija el resultado de la validación.');
+            if ($comentario === '') $responder(422, 'Escriba el comentario de la validación.');
+            // El supervisor asignado (del partner) no cambia, para no alterar su cumplimiento de 24 horas.
+            if ($resultado === 'En proceso de rescate') {
+                $pdo->prepare("UPDATE supervisiones SET rescate_responsable_id = :u, rescate_estado = 'En rescate', rescate_inicio = NOW(), rescate_fin = NULL,
+                        estado_cancelacion = 'En proceso de rescate' WHERE id = :id")
                     ->execute([':u' => (int)$user['id'], ':id' => $id]);
             } else {
-                if (!directSupervisorScopeAllows($user, $orden)) $responder(403, 'La orden no pertenece a sus zonas de trabajo.');
-                $pdo->prepare("UPDATE supervisiones SET supervisor_id = :u, rescate_responsable_id = :r, rescate_estado = 'En rescate', rescate_inicio = NOW(), rescate_fin = NULL WHERE id = :id")
-                    ->execute([':u' => (int)$user['id'], ':r' => (int)$user['id'], ':id' => $id]);
+                $rescatado = $resultado === 'Rescatado';
+                $pdo->prepare("UPDATE supervisiones SET estado_supervision = 'Finalizada', estado_cancelacion = :e" . ($rescatado
+                        ? ", rescate_estado = 'Rescatado', rescate_responsable_id = :u, rescate_inicio = NOW(), rescate_fin = NOW()" : '') . ' WHERE id = :id')
+                    ->execute($rescatado ? [':e' => $resultado, ':u' => (int)$user['id'], ':id' => $id] : [':e' => $resultado, ':id' => $id]);
+                $pdo->prepare("INSERT INTO supervision_estado_historial (supervision_id, estado_anterior, estado_nuevo, cambiado_por, comentario) VALUES (:s, 'Pendiente', 'Finalizada', :u, :c)")
+                    ->execute([':s' => $id, ':u' => (int)$user['id'], ':c' => "Validación de la atención del partner: {$resultado}"]);
             }
-            $seguimiento->execute([':s' => $id, ':u' => (int)$user['id'], ':t' => 'Inicio', ':c' => $comentario ?: null, ':f' => null]);
-            $mensaje = "Tomaste la pendiente {$codigo} como rescate. Registra los avances hasta cerrarla.";
+            $seguimiento->execute([':s' => $id, ':u' => (int)$user['id'], ':t' => 'Validación', ':c' => "{$resultado}. {$comentario}", ':f' => null]);
+            $mensaje = ['Cancelación correcta' => "Validada: la cancelación de {$codigo} fue correcta. La orden quedó finalizada.",
+                'En proceso de rescate' => "La orden {$codigo} pasó a rescate a su cargo. Registre los avances hasta cerrarla.",
+                'Rescatado' => "Validada: se rescató el servicio {$codigo}. La orden quedó finalizada."][$resultado];
         } else {
             if (($orden['rescate_estado'] ?? '') !== 'En rescate') $responder(409, 'Esta orden no tiene un rescate en curso.');
             $esDueno = (int)($orden['rescate_responsable_id'] ?? 0) === (int)$user['id'];
@@ -340,7 +349,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['rescate_tomar',
                 if (!in_array($resultado, ['Rescatado', 'No rescatado'], true)) $responder(422, 'Indique si el servicio se rescató o no.');
                 if ($comentario === '') $responder(422, 'Escriba el comentario de cierre del rescate.');
                 $pdo->prepare("UPDATE supervisiones SET rescate_estado = :r, rescate_fin = NOW(), estado_supervision = 'Finalizada',
-                        estado_cancelacion = CASE WHEN es_cancelacion = 1 THEN (CASE WHEN :r2 = 'Rescatado' THEN 'Rescate' ELSE 'Cancelación correcta' END) ELSE estado_cancelacion END,
+                        estado_cancelacion = CASE WHEN es_cancelacion = 1 THEN (CASE WHEN :r2 = 'Rescatado' THEN 'Rescatado' ELSE 'Cancelación correcta' END) ELSE estado_cancelacion END,
                         observacion_servicio = CASE WHEN COALESCE(observacion_servicio,'') = '' THEN :c ELSE observacion_servicio END WHERE id = :id")
                     ->execute([':r' => $resultado, ':r2' => $resultado, ':c' => "Rescate: {$resultado}. {$comentario}", ':id' => $id]);
                 $pdo->prepare("INSERT INTO supervision_estado_historial (supervision_id, estado_anterior, estado_nuevo, cambiado_por, comentario) VALUES (:s, 'Pendiente', 'Finalizada', :u, :c)")
@@ -652,9 +661,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
         http_response_code(422); echo json_encode(['status'=>'error','message'=>'Estado de supervisión no válido.']); exit;
     }
     // Resultado de la validación de una cancelación cargada (2026-10-13): "Cancelación correcta",
-    // "En proceso de rescate" (pasa a rescate con seguimiento; no se finaliza aquí) o "Rescate" (se rescató al validar).
+    // "En proceso de rescate" (pasa a rescate con seguimiento; no se finaliza aquí) o "Rescatado" (se rescató al validar; 2026-10-28 antes "Rescate").
     // 2026-10-15: ya no hay valor por defecto; el supervisor debe elegirlo para finalizar (guardar avance no lo exige).
-    $resultadoCancelacion = $isImportedCancellationEdit && in_array($input['resultado_cancelacion'] ?? '', ['Cancelación correcta', 'En proceso de rescate', 'Rescate'], true)
+    $resultadoCancelacion = $isImportedCancellationEdit && in_array($input['resultado_cancelacion'] ?? '', ['Cancelación correcta', 'En proceso de rescate', 'Rescatado'], true)
         ? $input['resultado_cancelacion'] : null;
     if ($resultadoCancelacion === 'En proceso de rescate' && $estadoSupervision === 'Finalizada') $estadoSupervision = 'En proceso';
     $esCierreDefinitivo = $estadoSupervision === 'Finalizada';
@@ -1377,7 +1386,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
         }
 
         // Resultado de la cancelación cargada: "En proceso de rescate" pasa la orden a rescate (vuelve a Pendiente, a cargo
-        // de quien la validó, sin ocupar su supervisión en proceso); "Rescate" al finalizar la cierra como rescatada.
+        // de quien la validó, sin ocupar su supervisión en proceso); "Rescatado" al finalizar la cierra como rescatada.
         if ($isImportedCancellationEdit && $editId > 0) {
             $quien = (int)($user['id'] ?? 0);
             if ($resultadoCancelacion === 'En proceso de rescate') {
@@ -1388,10 +1397,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
                     ->execute([':s' => $editId, ':u' => $quien, ':c' => trim((string)$observacionServicio) ?: null]);
                 $estadoSupervision = 'Pendiente';
             } elseif ($esCierreDefinitivo) {
-                $rescatada = $resultadoCancelacion === 'Rescate';
+                $rescatada = $resultadoCancelacion === 'Rescatado';
                 $pdo->prepare('UPDATE supervisiones SET estado_cancelacion = :e' . ($rescatada
                         ? ", rescate_estado = 'Rescatado', rescate_responsable_id = :r, rescate_inicio = COALESCE(rescate_inicio, NOW()), rescate_fin = NOW()" : '') . ' WHERE id = :id')
-                    ->execute($rescatada ? [':e' => 'Rescate', ':r' => $quien, ':id' => $editId] : [':e' => 'Cancelación correcta', ':id' => $editId]);
+                    ->execute($rescatada ? [':e' => 'Rescatado', ':r' => $quien, ':id' => $editId] : [':e' => 'Cancelación correcta', ':id' => $editId]);
                 if ($rescatada && ($targetRecord["rescate_estado"] ?? "") !== "Rescatado") { // una corrección del administrador no repite el cierre
                     $pdo->prepare("INSERT INTO rescate_seguimientos (supervision_id, usuario_id, tipo, comentario) VALUES (:s, :u, 'Cierre', :c)")
                         ->execute([':s' => $editId, ':u' => $quien, ':c' => 'Rescatado al validar la cancelación.' . (trim((string)$observacionServicio) !== '' ? ' ' . trim((string)$observacionServicio) : '')]);
@@ -1474,7 +1483,8 @@ function supervisionListVisibility(array $user, ?string $fechaInicio = null, ?st
         $directScope = getSupervisorTerritorialScope($user);
         $isPartnerSupervisor = empty($user['is_win_directo']) && !empty($user['partner_id']);
         if ($isPartnerSupervisor) {
-            $where[] = "s.supervisor_id=:my_user_id AND s.partner_id=:scope_partner_id AND s.estado_supervision='Pendiente' AND s.fecha_asignacion IS NOT NULL";
+            // Sus órdenes pendientes y, desde 2026-10-28, también las que ya atendió (pestaña Finalizadas cuando el directo las valida).
+            $where[] = "s.supervisor_id=:my_user_id AND s.partner_id=:scope_partner_id AND s.fecha_asignacion IS NOT NULL AND (s.estado_supervision='Pendiente' OR s.estado_atencion_partner='Atendida')";
             $params[':my_user_id'] = (int)$user['id'];
             $params[':scope_partner_id'] = (int)$user['partner_id'];
         } else {
@@ -1546,11 +1556,20 @@ if ($action === 'list') {
         WHEN LOWER(TRIM(s.estado_supervision)) IN ('culminada','finalizada','finalizado','cancelada') THEN 'finalizada'
         ELSE 'iniciada' END";
     // "Mi agenda" del partner (2026-10-12), según el plazo de 24 horas desde la asignación:
-    // Pendientes = sin atender y en plazo · En proceso = el partner ya registró su atención · No revisados = vencidas sin atender.
+    // Pendientes = sin atender y en plazo · En proceso = el partner ya registró su atención y falta la validación del directo ·
+    // Finalizadas = el directo ya la validó (cerrada o pasada a rescate, 2026-10-28) · No revisados = vencidas sin atender.
+    // Del lado del directo (2026-10-28): Asignadas a partner = transferidas sin atender · Por validar = el partner ya respondió.
+    // "Transferida" = la tiene un supervisor de ese partner (no basta fecha_asignacion: la carga del Excel la llena siempre).
+    $transferidaSql = "EXISTS (SELECT 1 FROM usuarios ux JOIN partners px ON px.id = ux.partner_id WHERE ux.id = s.supervisor_id
+        AND ux.partner_id = s.partner_id AND UPPER(TRIM(px.nombre_partner)) NOT IN ('WIN','WIN DIRECTO'))";
+    $validadaSql = "(s.estado_supervision IN ('Culminada','Finalizada','Finalizado','Cancelada') OR s.rescate_estado IS NOT NULL)";
     $partnerAgendaSql = [
         'partner_pendiente' => "(s.fecha_asignacion IS NOT NULL AND s.estado_atencion_partner='Pendiente' AND NOW()<=DATE_ADD(s.fecha_asignacion,INTERVAL 24 HOUR))",
-        'partner_en_proceso' => "(s.fecha_asignacion IS NOT NULL AND s.estado_atencion_partner='Atendida')",
+        'partner_en_proceso' => "(s.fecha_asignacion IS NOT NULL AND s.estado_atencion_partner='Atendida' AND NOT {$validadaSql})",
+        'partner_finalizada' => "(s.fecha_asignacion IS NOT NULL AND s.estado_atencion_partner='Atendida' AND {$validadaSql})",
         'partner_vencida' => "(s.fecha_asignacion IS NOT NULL AND s.estado_atencion_partner='Pendiente' AND NOW()>DATE_ADD(s.fecha_asignacion,INTERVAL 24 HOUR))",
+        'asignada_partner' => "(s.estado_supervision='Pendiente' AND s.estado_atencion_partner='Pendiente' AND {$transferidaSql})",
+        'por_validar' => "(s.estado_supervision='Pendiente' AND s.estado_atencion_partner='Atendida' AND s.rescate_estado IS NULL AND {$transferidaSql})",
     ];
     if ($estadoFilter === 'pendiente') {
         $filteredWhere[] = "s.estado_supervision='Pendiente' AND COALESCE(s.rescate_estado,'') <> 'En rescate'";
@@ -1579,7 +1598,10 @@ if ($action === 'list') {
         SUM({$stateSql}='rescate') rescate,
         SUM({$partnerAgendaSql['partner_pendiente']}) partner_pendiente,
         SUM({$partnerAgendaSql['partner_en_proceso']}) partner_en_proceso,
-        SUM({$partnerAgendaSql['partner_vencida']}) partner_vencida
+        SUM({$partnerAgendaSql['partner_finalizada']}) partner_finalizada,
+        SUM({$partnerAgendaSql['partner_vencida']}) partner_vencida,
+        SUM({$partnerAgendaSql['asignada_partner']}) asignada_partner,
+        SUM({$partnerAgendaSql['por_validar']}) por_validar
         FROM supervisiones s WHERE {$countWhereSql}");
     $stmtCounts->execute($countParams);
     $counts = $stmtCounts->fetch() ?: [];
@@ -1662,7 +1684,10 @@ if ($action === 'list') {
                 'iniciada' => (int)($counts['iniciada'] ?? 0),
                 'partner_pendiente' => (int)($counts['partner_pendiente'] ?? 0),
                 'partner_en_proceso' => (int)($counts['partner_en_proceso'] ?? 0),
+                'partner_finalizada' => (int)($counts['partner_finalizada'] ?? 0),
                 'partner_vencida' => (int)($counts['partner_vencida'] ?? 0),
+                'asignada_partner' => (int)($counts['asignada_partner'] ?? 0),
+                'por_validar' => (int)($counts['por_validar'] ?? 0),
                 'finalizada' => (int)($counts['finalizada'] ?? 0),
                 'pendiente' => (int)($counts['pendiente'] ?? 0),
                 'rescate' => (int)($counts['rescate'] ?? 0),
@@ -1693,7 +1718,8 @@ if ($action === 'detail') {
     $id = intval($_GET['id'] ?? 0);
     $stmt = $pdo->prepare("
         SELECT s.*, u.nombre_completo AS supervisor_nombre, u.dni AS supervisor_dni, p.nombre_partner,
-               rr.nombre_completo AS rescate_responsable_nombre, ua.nombre_completo AS asignado_por_nombre
+               rr.nombre_completo AS rescate_responsable_nombre, ua.nombre_completo AS asignado_por_nombre,
+               IF(s.fecha_asignacion IS NOT NULL AND s.partner_id=u.partner_id AND UPPER(TRIM(COALESCE(p.nombre_partner,''))) NOT IN ('WIN','WIN DIRECTO'),1,0) AS es_asignacion_partner
         FROM supervisiones s
         JOIN usuarios u ON s.supervisor_id = u.id
         LEFT JOIN partners p ON s.partner_id = p.id

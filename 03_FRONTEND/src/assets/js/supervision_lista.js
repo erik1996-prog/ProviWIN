@@ -1488,7 +1488,7 @@
       tipo_servicio: item.tipo_servicio || 'Regular', area_servicio: item.area_servicio || 'Instalación', sub_tipo_atencion: item.sub_tipo_atencion || '',
       tipo_supervision_inicial: item.tipo_supervision_inicial || 'En caliente', partner_nombre: item.nombre_partner || '—', partner_id: item.partner_id,
       rescate_estado: item.rescate_estado || '', rescate_inicio: item.rescate_inicio || '', rescate_fin: item.rescate_fin || '',
-      rescate_responsable_id: String(item.rescate_responsable_id || ''), partner_rescatable: Number(item.partner_rescatable || 0),
+      rescate_responsable_id: String(item.rescate_responsable_id || ''), partner_cancelacion_incorrecta: Number(item.partner_cancelacion_incorrecta || 0),
       cliente_nombre: item.cliente_nombre || '', cliente_dni: item.cliente_dni || '', ticket_codigo: item.ticket_codigo || '',
       tecnico1_nombre: item.tecnico1_nombre || '', tecnico1_dni: item.tecnico1_dni || '', tecnico2_nombre: item.tecnico2_nombre || '',
       tecnico2_dni: item.tecnico2_dni || '', brevete_poseedor: item.brevete_poseedor || '', unidad_tipo: item.unidad_tipo || '',
@@ -1642,7 +1642,8 @@
     }
 
     const countValues = {todos:countTodos,iniciada:countIniciada,finalizada:countFinalizada,pendiente:countPendiente,rescate:Number(listCounts.rescate || 0),
-      partner_pendiente:Number(listCounts.partner_pendiente || 0),partner_en_proceso:Number(listCounts.partner_en_proceso || 0),partner_vencida:Number(listCounts.partner_vencida || 0)};
+      partner_pendiente:Number(listCounts.partner_pendiente || 0),partner_en_proceso:Number(listCounts.partner_en_proceso || 0),partner_vencida:Number(listCounts.partner_vencida || 0),
+      partner_finalizada:Number(listCounts.partner_finalizada || 0),asignada_partner:Number(listCounts.asignada_partner || 0),por_validar:Number(listCounts.por_validar || 0)};
     Object.entries(countValues).forEach(([key,value]) => {
       const target = document.getElementById(`count-${key}`);
       if (target) target.textContent = value;
@@ -1727,7 +1728,7 @@
             rowHtml += `<td>${escapeHtml(rec.departamento)}</td>`;
             break;
           case 'estado':
-            rowHtml += `<td><span class="badge-exec ${rec.estado}">${labelEstado}</span>${rec.es_asignacion_partner?`<br><small class="${rec.estado_atencion_partner==='Atendida'?'text-success':(Number(rec.plazo_partner_vencido)?'text-danger':'text-warning')}">${rec.estado_atencion_partner==='Atendida'?'Partner atendió':(Number(rec.plazo_partner_vencido)?'Partner no atendió · plazo vencido':'Partner pendiente · 24 h')}</small>`:''}${rec.partner_rescatable===1 && !rec.rescate_estado ? '<br><small class="text-success fw-bold"><i class="bi bi-life-preserver me-1"></i>Se puede rescatar</small>' : ''}</td>`;
+            rowHtml += `<td><span class="badge-exec ${rec.estado}">${labelEstado}</span>${rec.es_asignacion_partner?`<br><small class="${rec.estado_atencion_partner==='Atendida'?'text-success':(Number(rec.plazo_partner_vencido)?'text-danger':'text-warning')}">${rec.estado_atencion_partner==='Atendida'?`Partner atendió · cancelación ${rec.partner_cancelacion_incorrecta===1?'incorrecta':'correcta'}`:(Number(rec.plazo_partner_vencido)?'Partner no atendió · plazo vencido':'Partner pendiente · 24 h')}</small>`:''}${rec.es_asignacion_partner && rec.estado_atencion_partner==='Atendida' && rec.estado==='pendiente' && !rec.rescate_estado ? '<br><small class="text-primary fw-bold"><i class="bi bi-check2-square me-1"></i>Por validar</small>' : ''}</td>`;
             break;
           case 'partner_nombre':
             rowHtml += `<td>${escapeHtml(rec.partner_nombre || 'WIN Directo')}</td>`;
@@ -2179,7 +2180,7 @@
         rec.rescate_responsable_id = String(data.supervision.rescate_responsable_id || '');
         rec.rescate_responsable_nombre = data.supervision.rescate_responsable_nombre || '';
         rec.asignado_por_nombre = data.supervision.asignado_por_nombre || '';
-        rec.partner_rescatable = Number(data.supervision.partner_rescatable || 0);
+        rec.partner_cancelacion_incorrecta = Number(data.supervision.partner_cancelacion_incorrecta || 0);
         if (rec.rescate_estado === 'En rescate') rec.estado = 'rescate';
       }
       detailContent.innerHTML = buildDetailContent(rec, obsVinculadas, forceAdminEdit);
@@ -2205,50 +2206,58 @@
     viewDetail.classList.add('open');
     window.scrollTo({top:0, behavior:'smooth'});
   }
-  // ---------- Rescate de pendientes (2026-10-13) ----------
-  // Pendiente libre de la zona → "Tomar como rescate". En rescate → historial, avances y cierre (quien lo tomó o el
-  // administrador) y reasignación (solo el administrador). Cerrado → resultado e historial de consulta.
+  // ---------- Atención del partner y rescate (2026-10-13; 2026-10-28 validación del directo) ----------
+  // Orden transferida a un partner: lo que respondió (cancelación correcta o incorrecta, observación y fotos) y la validación
+  // del supervisor directo que la transfirió (o del administrador): Cancelación correcta, En proceso de rescate o Rescatado.
+  // En rescate → historial, avances y cierre (quien lo tomó o el administrador) y reasignación (solo el administrador).
   function renderRescate(rec, seguimientos) {
     const fmtFH = (v) => { if (!v) return '—'; const [d, h] = String(v).split(' '); return `${d.split('-').reverse().join('/')} ${(h || '').slice(0, 5)}`; };
-    if (esSupervisorPartnerActual || esJefeOperacionesActual) return; // el partner solo propone (en su formulario)
+    if (esSupervisorPartnerActual || esJefeOperacionesActual) return; // el partner responde en su formulario
     const esDueno = String(rec.rescate_responsable_id) === String(currentUserId);
-    const puedeTomar = false; // 2026-10-13: el rescate se elige en "Resultado de la validación" del formulario
-    const propuesta = seguimientos.filter(g => g.tipo === 'Propuesta del partner');
+    const atencion = seguimientos.filter(g => g.tipo === 'Atención del partner');
+    const validacion = seguimientos.filter(g => g.tipo === 'Validación').pop();
+    const historialRescate = seguimientos.filter(g => g.tipo !== 'Atención del partner'); // la validación abre el rescate
     let html = '';
-    if (rec.partner_rescatable === 1 && !rec.rescate_estado && rec.estado === 'pendiente') {
-      // Orden asignada a un partner que indicó que se puede rescatar: la pasa a rescate quien la asignó.
-      const puedePasar = esSupervisorWinDirecto && String(rec.asignado_por) === String(currentUserId);
-      html = `<div class="sgs-rescate card p-3 mb-3" id="rescatePanel">
-        <h5 class="mb-1"><i class="bi bi-life-preserver me-2 text-primary"></i>El partner indica que se puede rescatar</h5>
+    if (rec.es_asignacion_partner && rec.estado_atencion_partner === 'Atendida') {
+      const incorrecta = rec.partner_cancelacion_incorrecta === 1;
+      const porValidar = !validacion && !rec.rescate_estado && rec.estado === 'pendiente';
+      const puedeValidar = porValidar && (esAdministradorActual || (esSupervisorWinDirecto && String(rec.asignado_por) === String(currentUserId)));
+      const fotos = atencion.filter(g => g.foto).map((g, i) => `<button type="button" class="btn btn-sm btn-outline-secondary" data-rescate-foto="${escapeHtml(g.foto)}"><i class="bi bi-image me-1"></i>Evidencia ${i + 1}</button>`).join('');
+      html += `<div class="sgs-rescate card p-3 mb-3" id="partnerValidacionPanel">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+          <h5 class="mb-0"><i class="bi bi-building-check me-2 text-primary"></i>Atención del partner</h5>
+          <span class="badge ${incorrecta ? 'bg-danger' : 'bg-success'}">Cancelación ${incorrecta ? 'incorrecta' : 'correcta'}</span>
+        </div>
         <p class="small text-muted mb-2">${escapeHtml(rec.partner_nombre)} · atendida el ${fmtFH(rec.fecha_atencion_partner)}</p>
         <div class="mb-2">${escapeHtml(rec.observacion_atencion_partner || '—')}</div>
-        <div class="d-flex flex-wrap gap-2 mb-3">${propuesta.filter(g => g.foto).map((g, i) => `<button type="button" class="btn btn-sm btn-outline-secondary" data-rescate-foto="${escapeHtml(g.foto)}"><i class="bi bi-image me-1"></i>Evidencia ${i + 1}</button>`).join('') || '<span class="small text-muted">Sin fotos.</span>'}</div>
-        ${puedePasar ? `
-        <label class="form-label" for="rescateComentarioInicio">Comentario (opcional)</label>
-        <textarea class="form-control mb-2" id="rescateComentarioInicio" rows="2" maxlength="1000" placeholder="Ej.: se coordinará con el cliente"></textarea>
-        <div class="text-end"><button type="button" class="btn btn-win" data-rescate="tomar"><i class="bi bi-life-preserver me-1"></i>Pasar a rescate</button></div>`
-        : `<p class="small mb-0 text-muted">La decide el supervisor que la asignó${rec.asignado_por_nombre ? `: <strong>${escapeHtml(rec.asignado_por_nombre)}</strong>` : ''}.</p>`}
+        <div class="d-flex flex-wrap gap-2 mb-2">${fotos || '<span class="small text-muted">Sin fotos.</span>'}</div>
+        ${validacion ? `<div class="sgs-rescate-bloque">
+          <div class="small"><strong>Validación del supervisor directo</strong> · ${fmtFH(validacion.fecha)} · ${escapeHtml(validacion.usuario || '—')}</div>
+          <div>${escapeHtml(validacion.comentario || '')}</div>
+        </div>` : ''}
+        ${puedeValidar ? `<div class="sgs-rescate-bloque">
+          <label class="form-label" for="validacionResultado">Resultado de la validación *</label>
+          <select class="form-select mb-2" id="validacionResultado">
+            <option value="">Seleccione el resultado de la validación</option>
+            ${['Cancelación correcta', 'En proceso de rescate', 'Rescatado'].map(o => `<option value="${o}">${o}</option>`).join('')}
+          </select>
+          <label class="form-label" for="validacionComentario">Comentario *</label>
+          <textarea class="form-control mb-2" id="validacionComentario" rows="2" maxlength="2000" placeholder="Qué revisó de la atención del partner"></textarea>
+          <div class="text-end"><button type="button" class="btn btn-win" data-rescate="validar"><i class="bi bi-check2-square me-1"></i>Guardar validación</button></div>
+        </div>` : (porValidar ? `<p class="small mb-0 text-muted">La valida el supervisor que la transfirió${rec.asignado_por_nombre ? `: <strong>${escapeHtml(rec.asignado_por_nombre)}</strong>` : ''}.</p>` : '')}
       </div>`;
-    } else if (puedeTomar) {
-      html = `<div class="sgs-rescate card p-3 mb-3" id="rescatePanel">
-        <h5 class="mb-1"><i class="bi bi-life-preserver me-2 text-primary"></i>¿La va a rescatar?</h5>
-        <p class="text-muted small mb-2">Tómela como rescate para darle seguimiento, sin plazo, hasta cerrarla. Sale de la lista de pendientes de los demás y no ocupa su supervisión en proceso.</p>
-        <label class="form-label" for="rescateComentarioInicio">Comentario (opcional)</label>
-        <textarea class="form-control mb-2" id="rescateComentarioInicio" rows="2" maxlength="1000" placeholder="Ej.: cliente pidió que lo llamen el lunes"></textarea>
-        <div class="text-end"><button type="button" class="btn btn-win" data-rescate="tomar"><i class="bi bi-life-preserver me-1"></i>Tomar como rescate</button></div>
-      </div>`;
-    } else if (rec.rescate_estado) {
-      const abierto = rec.rescate_estado === 'En rescate';
+    }
+    if (rec.rescate_estado) {      const abierto = rec.rescate_estado === 'En rescate';
       const insignia = abierto ? 'bg-warning' : (rec.rescate_estado === 'Rescatado' ? 'bg-success' : 'bg-danger');
-      const iconos = { 'Propuesta del partner': 'bi-megaphone', 'Inicio': 'bi-play-circle', 'Avance': 'bi-chat-left-text', 'Reasignación': 'bi-arrow-left-right', 'Cierre': 'bi-flag' };
-      const historial = seguimientos.length ? seguimientos.map((g) => `<li>
+      const iconos = { 'Validación': 'bi-check2-square', 'Inicio': 'bi-play-circle', 'Avance': 'bi-chat-left-text', 'Reasignación': 'bi-arrow-left-right', 'Cierre': 'bi-flag' };
+      const historial = historialRescate.length ? historialRescate.map((g) => `<li>
           <i class="bi ${iconos[g.tipo] || 'bi-dot'}" aria-hidden="true"></i>
           <div><div class="small"><strong>${escapeHtml(g.tipo)}</strong> · ${fmtFH(g.fecha)} · ${escapeHtml(g.usuario || '—')}</div>
           ${g.comentario ? `<div>${escapeHtml(g.comentario)}</div>` : ''}
           ${g.foto ? `<button type="button" class="btn btn-sm btn-outline-secondary mt-1" data-rescate-foto="${escapeHtml(g.foto)}"><i class="bi bi-image me-1"></i>Ver foto</button>` : ''}</div>
         </li>`).join('') : '<li class="text-muted small">Sin movimientos registrados.</li>';
       const puedeTrabajar = abierto && (esDueno || esAdministradorActual);
-      html = `<div class="sgs-rescate card p-3 mb-3" id="rescatePanel">
+      html += `<div class="sgs-rescate card p-3 mb-3" id="rescatePanel">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
           <h5 class="mb-0"><i class="bi bi-life-preserver me-2 text-primary"></i>Rescate</h5>
           <span class="badge ${insignia}">${escapeHtml(rec.rescate_estado)}</span>
@@ -2269,7 +2278,7 @@
           <textarea class="form-control mb-2" id="rescateCierre" rows="2" maxlength="2000" placeholder="Resultado final (obligatorio)"></textarea>
           <div class="d-flex flex-wrap gap-2 justify-content-end">
             <button type="button" class="btn btn-outline-secondary" data-rescate="cerrar" data-resultado="No rescatado"><i class="bi bi-x-circle me-1"></i>Cancelación correcta</button>
-            <button type="button" class="btn btn-win" data-rescate="cerrar" data-resultado="Rescatado"><i class="bi bi-check2-circle me-1"></i>Rescate</button>
+            <button type="button" class="btn btn-win" data-rescate="cerrar" data-resultado="Rescatado"><i class="bi bi-check2-circle me-1"></i>Rescatado</button>
           </div>
         </div>` : ''}
         ${abierto && esAdministradorActual ? `
@@ -2285,7 +2294,6 @@
     if (!html) return;
     detailContent.insertAdjacentHTML('afterbegin', html);
     if (rec.estado === 'rescate') document.getElementById('saveProgressBtn')?.remove(); // se trabaja desde el rescate
-    const panel = document.getElementById('rescatePanel');
     if (esAdministradorActual && document.getElementById('rescateReasignar')) {
       fetch('api/asistencia.php?action=list_filters').then(r => r.json()).then(d => {
         const sel = document.getElementById('rescateReasignar'); if (!sel) return;
@@ -2294,7 +2302,7 @@
         sel.innerHTML = '<option value="">Seleccione un supervisor…</option>' + lista.map(u => `<option value="${Number(u.id)}">${escapeHtml(u.nombre_completo)}</option>`).join('');
       }).catch(() => {});
     }
-    panel.addEventListener('click', async (ev) => {
+    const alHacerClic = async (ev) => {
       const fotoBtn = ev.target.closest('[data-rescate-foto]');
       if (fotoBtn) { window.sgsVerFoto ? window.sgsVerFoto(fotoBtn.dataset.rescateFoto) : window.open(fotoBtn.dataset.rescateFoto, '_blank', 'noopener'); return; }
       const btn = ev.target.closest('[data-rescate]');
@@ -2302,7 +2310,16 @@
       const accion = btn.dataset.rescate;
       const body = new FormData();
       body.append('supervision_id', rec.id);
-      if (accion === 'tomar') body.append('comentario', document.getElementById('rescateComentarioInicio')?.value || '');
+      if (accion === 'validar') {
+        const resultado = document.getElementById('validacionResultado')?.value || '';
+        const comentario = (document.getElementById('validacionComentario')?.value || '').trim();
+        if (!resultado) { showToast('Elija el resultado de la validación.', 'error'); document.getElementById('validacionResultado')?.focus(); return; }
+        if (!comentario) { showToast('Escriba el comentario de la validación.', 'error'); document.getElementById('validacionComentario')?.focus(); return; }
+        const avisos = { 'Cancelación correcta': '¿Validar como CANCELACIÓN CORRECTA? La orden quedará finalizada.',
+          'En proceso de rescate': '¿Pasar la orden a RESCATE? Quedará a su cargo hasta cerrarla.', 'Rescatado': '¿Validar como RESCATADO (se rescató el servicio)? La orden quedará finalizada.' };
+        if (!confirm(avisos[resultado])) return;
+        body.append('resultado', resultado); body.append('comentario', comentario);
+      }
       if (accion === 'avance') {
         body.append('comentario', document.getElementById('rescateAvance')?.value || '');
         const foto = document.getElementById('rescateFoto')?.files?.[0]; if (foto) body.append('foto', foto);
@@ -2310,7 +2327,7 @@
       if (accion === 'cerrar') {
         const comentario = (document.getElementById('rescateCierre')?.value || '').trim();
         if (!comentario) { showToast('Escriba el resultado final antes de cerrar el rescate.', 'error'); document.getElementById('rescateCierre')?.focus(); return; }
-        if (!confirm(btn.dataset.resultado === 'Rescatado' ? '¿Cerrar como RESCATE (se rescató el servicio)? La orden quedará finalizada.' : '¿Cerrar como CANCELACIÓN CORRECTA (no se rescató)? La orden quedará finalizada.')) return;
+        if (!confirm(btn.dataset.resultado === 'Rescatado' ? '¿Cerrar como RESCATADO (se rescató el servicio)? La orden quedará finalizada.' : '¿Cerrar como CANCELACIÓN CORRECTA (no se rescató)? La orden quedará finalizada.')) return;
         body.append('comentario', comentario); body.append('resultado', btn.dataset.resultado);
       }
       if (accion === 'reasignar') {
@@ -2320,17 +2337,18 @@
       }
       btn.disabled = true;
       try {
-        const resp = await fetch(`api/supervisiones.php?action=rescate_${accion}`, { method: 'POST', body });
+        const resp = await fetch(`api/supervisiones.php?action=${accion === 'validar' ? 'validar_partner' : `rescate_${accion}`}`, { method: 'POST', body });
         const res = await resp.json();
         showToast(res.message || 'Listo.', res.status === 'success' ? 'success' : 'error');
         if (res.status === 'success') {
           records = records.filter(r => r.id !== rec.id); // se vuelve a leer con su nuevo estado
-          if (accion === 'cerrar' || accion === 'reasignar') { closeDetail(); loadRecords(); }
-          else { await openDetail(rec.id); loadRecords(); }
+          if (accion === 'avance' || body.get('resultado') === 'En proceso de rescate') { await openDetail(rec.id); loadRecords(); }
+          else { closeDetail(); loadRecords(); }
         }
-      } catch (e) { showToast('No se pudo completar la acción del rescate.', 'error'); }
+      } catch (e) { showToast('No se pudo completar la acción.', 'error'); }
       finally { btn.disabled = false; }
-    });
+    };
+    ['partnerValidacionPanel', 'rescatePanel'].forEach(id => document.getElementById(id)?.addEventListener('click', alHacerClic));
   }
 
   function closeDetail(){
@@ -2362,19 +2380,19 @@
         <div class="panel-bitacora p-3 mb-3"><div class="field-bitacora full"><label>Observación de la atención *</label><textarea name="observacion_atencion_partner" rows="5" ${attended||expired||esJefeOperacionesActual?'disabled':''}>${escapeHtml(rec.observacion_atencion_partner||'')}</textarea></div></div>
         <div class="panel-bitacora p-3 mb-3">
           <div class="grid-bitacora">
-            <div class="field-bitacora"><label for="partner_rescatable">¿Se puede rescatar el servicio? *</label>
-              <select id="partner_rescatable" name="partner_rescatable" ${attended||expired||esJefeOperacionesActual?'disabled':''}>
-                <option value="0" ${Number(rec.partner_rescatable)===1?'':'selected'}>No</option>
-                <option value="1" ${Number(rec.partner_rescatable)===1?'selected':''}>Sí, se puede rescatar</option>
+            <div class="field-bitacora"><label for="partner_resultado">Resultado de la cancelación *</label>
+              <select id="partner_resultado" name="partner_resultado" ${attended||expired||esJefeOperacionesActual?'disabled':''}>
+                <option value="">Seleccione el resultado</option>
+                <option value="correcta" ${attended && rec.partner_cancelacion_incorrecta!==1?'selected':''}>Cancelación correcta</option>
+                <option value="incorrecta" ${attended && rec.partner_cancelacion_incorrecta===1?'selected':''}>Cancelación incorrecta</option>
               </select></div>
           </div>
-          <div id="partner_rescate_evidencias" class="${attended||expired||esJefeOperacionesActual||Number(rec.partner_rescatable)!==1?'d-none':''}">
-            <p class="small text-muted mt-2 mb-2"><i class="bi bi-life-preserver me-1"></i>Suba sus evidencias (al menos una foto). El supervisor de WIN que le asignó la orden decidirá si la pasa a rescate.</p>
+          ${attended||expired||esJefeOperacionesActual ? '' : `<div id="partner_evidencias">
+            <p class="small text-muted mt-2 mb-2"><i class="bi bi-camera me-1"></i>Evidencias: si la cancelación es incorrecta, suba al menos una foto. Luego el supervisor de WIN que le asignó la orden valida su atención.</p>
             <div class="grid-bitacora">
-              ${[1,2,3].map(i => `<div class="field-bitacora"><label for="foto_rescate_${i}">Evidencia ${i}${i===1?' *':''}</label><input type="file" class="form-control" id="foto_rescate_${i}" name="foto_rescate_${i}" accept="image/*"></div>`).join('')}
+              ${[1,2,3].map(i => `<div class="field-bitacora"><label for="foto_partner_${i}">Evidencia ${i}</label><input type="file" class="form-control" id="foto_partner_${i}" name="foto_partner_${i}" accept="image/*"></div>`).join('')}
             </div>
-          </div>
-          ${attended && Number(rec.partner_rescatable)===1 ? '<p class="small mt-2 mb-0"><span class="badge bg-success">Indicó que se puede rescatar</span></p>' : ''}
+          </div>`}
         </div>
         <div class="form-actions-bitacora">${esJefeOperacionesActual && !attended && !expired?'<span class="badge bg-warning p-2">Pendiente de atención del supervisor</span>':attended?'<span class="badge bg-success p-2">Atención registrada</span>':(expired?'<span class="badge bg-danger p-2">Plazo de 24 horas vencido</span>':'<button type="button" class="btn-bitacora btn-orange-bitacora" id="partnerSaveProgress">Registrar atención</button>')}</div>
       </form>`;
@@ -2767,7 +2785,7 @@
                 <label for="edit_resultado_cancelacion">Resultado de la validación *</label>
                 <select id="edit_resultado_cancelacion" name="resultado_cancelacion">
                   <option value="">Seleccione el resultado de la validación</option>
-                  ${['Cancelación correcta', 'En proceso de rescate', 'Rescate'].map(o => `<option value="${o}" ${rec.estado_cancelacion === o ? 'selected' : ''}>${o}</option>`).join('')}
+                  ${['Cancelación correcta', 'En proceso de rescate', 'Rescatado'].map(o => `<option value="${o}" ${rec.estado_cancelacion === o ? 'selected' : ''}>${o}</option>`).join('')}
                 </select>
                 <small class="text-muted" id="edit_resultado_cancelacion_ayuda"></small>
               </div>
@@ -2932,12 +2950,12 @@
         const data=new FormData(form);data.append('supervision_id',rec.id);
         try{const response=await fetch('api/supervisiones.php?action=partner_update',{method:'POST',headers:{'X-CSRF-Token':document.querySelector('meta[name="csrf-token"]')?.content||''},body:data});const result=await response.json();showToast(result.message,result.status==='success'?'success':'error');if(result.status==='success')closeDetail();}catch(e){showToast('No se pudo guardar la validación.','error');}
       };
-      const selRescatable = document.getElementById('partner_rescatable');
-      selRescatable?.addEventListener('change', () => document.getElementById('partner_rescate_evidencias')?.classList.toggle('d-none', selRescatable.value !== '1'));
+      const selResultado = document.getElementById('partner_resultado');
       document.getElementById('partnerSaveProgress')?.addEventListener('click',()=>{
-        if (selRescatable?.value === '1' && ![1,2,3].some(i => document.getElementById(`foto_rescate_${i}`)?.files?.length)) {
-          showToast('Si el servicio se puede rescatar, suba al menos una foto de evidencia.', 'error');
-          document.getElementById('foto_rescate_1')?.focus();
+        if (!selResultado?.value) { showToast('Indique si la cancelación fue correcta o incorrecta.', 'error'); selResultado?.focus(); return; }
+        if (selResultado.value === 'incorrecta' && ![1,2,3].some(i => document.getElementById(`foto_partner_${i}`)?.files?.length)) {
+          showToast('Si la cancelación es incorrecta, suba al menos una foto de evidencia.', 'error');
+          document.getElementById('foto_partner_1')?.focus();
           return;
         }
         sendPartnerUpdate();
@@ -3302,7 +3320,7 @@
       const ayudas = {
         'Cancelación correcta': 'La cancelación es correcta: se valida y se finaliza.',
         'En proceso de rescate': 'Pasa a rescate: queda a su cargo y le da seguimiento hasta cerrarla (no ocupa su supervisión en proceso).',
-        'Rescate': 'El servicio se rescató: se finaliza como rescatada.',
+        'Rescatado': 'El servicio se rescató: se finaliza como rescatada.',
       };
       const pendienteResultado = !selResultado.disabled && !selResultado.value;
       if (ayudaResultado) ayudaResultado.textContent = ayudas[selResultado.value]

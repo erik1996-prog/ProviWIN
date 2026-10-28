@@ -1,6 +1,6 @@
 -- 04_DATABASE/03_ESTRUCTURA/esquema_completo.sql
 -- Estructura de SGS: 30 tablas en orden de dependencias, sin datos ni DROP.
--- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-10-27. No editar a mano: los cambios van como migración en 02_CAMBIOS.
+-- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-10-28. No editar a mano: los cambios van como migración en 02_CAMBIOS.
 
 SET NAMES utf8mb4;
 
@@ -371,7 +371,7 @@ CREATE TABLE IF NOT EXISTS `supervisiones` (
   `fecha_asignacion` datetime DEFAULT NULL,
   `estado_atencion_partner` enum('Pendiente','Atendida') NOT NULL DEFAULT 'Pendiente',
   `observacion_atencion_partner` text DEFAULT NULL,
-  `partner_rescatable` tinyint(1) DEFAULT NULL COMMENT 'El partner indicó al atender que el servicio se puede rescatar (1) o no (0)',
+  `partner_cancelacion_incorrecta` tinyint(1) DEFAULT NULL COMMENT 'Resultado del supervisor del partner al atender: cancelación incorrecta (1) o correcta (0)',
   `fecha_atencion_partner` datetime DEFAULT NULL,
   `zona_asignacion` varchar(100) DEFAULT NULL,
   `derivacion_orden` enum('Autogestión','Mesa de supervisión','Líder','Coordinador','Gerente') NOT NULL,
@@ -582,7 +582,7 @@ CREATE TABLE IF NOT EXISTS `rescate_seguimientos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `supervision_id` int(11) NOT NULL,
   `usuario_id` int(11) DEFAULT NULL,
-  `tipo` enum('Propuesta del partner','Inicio','Avance','Reasignación','Cierre') NOT NULL DEFAULT 'Avance',
+  `tipo` enum('Atención del partner','Validación','Inicio','Avance','Reasignación','Cierre') NOT NULL DEFAULT 'Avance',
   `comentario` text DEFAULT NULL,
   `foto` varchar(255) DEFAULT NULL,
   `fecha` datetime NOT NULL DEFAULT current_timestamp(),

@@ -1,6 +1,6 @@
 # Diccionario de datos — SGS
 
-Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-10-27 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
+Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-10-28 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
 Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 
 | # | Tabla | Para qué sirve | En la instalación |
@@ -356,7 +356,7 @@ Supervisiones de campo y órdenes pendientes asignadas · Depende de: `usuarios`
 | `fecha_asignacion` | datetime | sí |  |  |
 | `estado_atencion_partner` | enum('Pendiente','Atendida') | no |  |  |
 | `observacion_atencion_partner` | text | sí |  |  |
-| `partner_rescatable` | tinyint(1) | sí |  | El partner indicó al atender que el servicio se puede rescatar (1) o no (0) |
+| `partner_cancelacion_incorrecta` | tinyint(1) | sí |  | Resultado del supervisor del partner al atender: cancelación incorrecta (1) o correcta (0) |
 | `fecha_atencion_partner` | datetime | sí |  |  |
 | `zona_asignacion` | varchar(100) | sí |  |  |
 | `derivacion_orden` | enum('Autogestión','Mesa de supervisión','Líder','Coordinador','Gerente') | no |  |  |
@@ -513,7 +513,7 @@ Historial del rescate de cada pendiente (inicio, avances, reasignación y cierre
 | `id` | int(11) | no | PK |  |
 | `supervision_id` | int(11) | no | FK → `supervisiones` |  |
 | `usuario_id` | int(11) | sí | FK → `usuarios` |  |
-| `tipo` | enum('Propuesta del partner','Inicio','Avance','Reasignación','Cierre') | no |  |  |
+| `tipo` | enum('Atención del partner','Validación','Inicio','Avance','Reasignación','Cierre') | no |  |  |
 | `comentario` | text | sí |  |  |
 | `foto` | varchar(255) | sí |  |  |
 | `fecha` | datetime | no |  |  |

@@ -25,7 +25,7 @@ $kpis = [
     ['cargadas', 'Cargadas', 'bi-cloud-arrow-up', ''], ['pendiente', 'Pendientes sin tomar', 'bi-hourglass-split', 'pendientes_texto'],
     ['en_rescate', 'En rescate', 'bi-life-preserver', ''], ['rescatada', 'Rescatadas', 'bi-arrow-counterclockwise', ''],
     ['correcta', 'Cancelación correcta', 'bi-check2-square', ''], ['en_validacion', 'En validación', 'bi-search', ''],
-    ['en_partner', 'En partner', 'bi-buildings', 'vencidas_texto'], ['partner_atendida', 'Atendidas por partner', 'bi-building-check', ''],
+    ['en_partner', 'En partner', 'bi-buildings', 'vencidas_texto'], ['partner_atendida', 'Partner: por validar', 'bi-building-check', ''],
     ['pct_rescate', '% de rescate', 'bi-graph-up-arrow', 'pct_rescate_texto'], ['horas_promedio', 'Tiempo de atención', 'bi-stopwatch', 'horas_texto'],
 ];
 $graficos = [
@@ -97,7 +97,7 @@ $graficos = [
   <div class="card p-3 p-md-4">
     <div class="sgs-toolbar mb-2">
       <div class="sgs-segmented" role="group" aria-label="Estado" id="dpdEstados">
-        <?php foreach (['' => 'Todas', 'pendiente' => 'Pendientes', 'en_validacion' => 'En validación', 'en_rescate' => 'En rescate', 'rescatada' => 'Rescatadas', 'correcta' => 'Cancelación correcta', 'en_partner' => 'En partner', 'partner_atendida' => 'Atendidas por partner'] as $clave => $texto): ?>
+        <?php foreach (['' => 'Todas', 'pendiente' => 'Pendientes', 'en_validacion' => 'En validación', 'en_rescate' => 'En rescate', 'rescatada' => 'Rescatadas', 'correcta' => 'Cancelación correcta', 'en_partner' => 'En partner', 'partner_atendida' => 'Partner: por validar'] as $clave => $texto): ?>
         <button type="button" class="filter-tab-btn <?= $clave === '' ? 'active' : '' ?>" data-estado="<?= $clave ?>"><?= $texto ?> <span class="sgs-seg-count" data-cuenta="<?= $clave ?>">0</span></button>
         <?php endforeach; ?>
       </div>

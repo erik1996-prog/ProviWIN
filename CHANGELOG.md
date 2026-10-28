@@ -4,6 +4,18 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Cancelaciones transferidas a un partner: correcta o incorrecta, y la valida el directo (2026-10-28)
+- **Cambiado**: el supervisor del partner ya no responde "¿Se puede rescatar?". Ahora elige **Cancelación correcta** o **Cancelación incorrecta**, con su observación. Con "incorrecta" sube al menos una foto; con "correcta", las fotos son opcionales.
+- **Añadido**: el supervisor directo que le transfirió la orden recibe el aviso "Validar atención del partner". Ve lo que respondió el partner (resultado, observación y fotos) y valida con **Cancelación correcta** (se finaliza), **En proceso de rescate** (pasa a rescate a su cargo) o **Rescatado** (se finaliza como rescatada), con un comentario obligatorio. El administrador también puede validar. El supervisor del partner no cambia, así que su cumplimiento de 24 horas sigue igual.
+- **Cambiado**: el resultado "Rescate" ahora se llama **"Rescatado"**, en el formulario y en el cierre del rescate.
+- **Cambiado**: en Pendientes y rescates, "Atendidas por partner" pasa a ser **"Partner: por validar"**. En la lista de Supervisiones, esas órdenes muestran "Por validar".
+- **Corregido**: el directo que transfirió una orden puede abrirla cuando ya está finalizada. Al transferir de nuevo una orden, se borra el resultado anterior del partner.
+- **Añadido**: pestaña **Finalizadas** en "Mi agenda" del partner, con las órdenes que el directo ya validó (cerradas o pasadas a rescate). "En proceso" ya no incluye las validadas. El partner sigue viendo sus órdenes finalizadas, solo para consulta.
+- **Añadido**: pestañas **Asignadas a partner** (transferidas que el partner aún no atiende) y **Por validar** (el partner ya respondió) en Supervisiones del directo.
+- **Corregido**: las pestañas de "Mi agenda" del partner (Pendientes, En proceso, No revisados) no se veían: una regla de estilo de la primera versión las ocultaba.
+- **Eliminado**: "Tomar como rescate" desde la bolsa, que ya no aparecía en pantalla. Se entra a rescate con el "Resultado de la validación".
+- Cambio de base `2026-10-28_01_partner_cancelacion_correcta_y_validacion_del_directo`: renombra la columna `partner_rescatable` a `partner_cancelacion_incorrecta` (conserva los datos), agrega el tipo "Validación" al historial ("Propuesta del partner" pasa a ser "Atención del partner") y cambia "Rescate" por "Rescatado" en las cancelaciones ya cerradas.
+
 ### Sistema más liviano (2026-10-27)
 - **Cambiado**: Técnicos y cuadrillas muestra 50 filas por página (Anterior / Siguiente). La página pasó de 383 KB a 130 KB por visita. Los totales, los filtros y el link general de examen siguen tomando a todos los técnicos del filtro.
 - **Cambiado**: el programa de 7 pantallas pasó de la página a archivos `.js` que el navegador y Cloudflare guardan: Dashboard, Línea de tiempo, Usuarios, Observaciones, Cuadrillas, Mi información y Partners (unos 140 KB que ya no se descargan en cada visita).

@@ -1,7 +1,8 @@
 <?php
-// 05_TEST/integration/rescate_pendientes_test.php - Rescate de pendientes: un supervisor directo toma una pendiente como
-// rescate (sale de la bolsa de los demás), registra avances sin plazo, el administrador puede reasignarla y se cierra como
-// Rescatado / No rescatado (queda Finalizada). Por HTTP contra la API real.
+// 05_TEST/integration/rescate_pendientes_test.php - Rescate de pendientes: un supervisor directo la pasa a rescate con el
+// "Resultado de la validación" (sale de la bolsa de los demás), registra avances sin plazo, el administrador puede reasignarla
+// y se cierra como Rescatado / No rescatado (queda Finalizada). Orden transferida a un partner (2026-10-28): el partner dice
+// si la cancelación fue correcta o incorrecta y el directo que se la transfirió valida su atención. Por HTTP contra la API real.
 // Crea un administrador (DNI 99999995), dos supervisores directos de LAMBAYEQUE (99999996-97), uno de PIURA (99999998),
 // un supervisor de partner (99999990) y las pendientes PRUEBA-RES-1 y PRUEBA-RES-2; BORRA todo al final.
 // Uso (solo CLI): php 05_TEST/integration/rescate_pendientes_test.php [url_base=http://localhost/ProviWIN]
@@ -50,13 +51,6 @@ try {
     }
     $pdo->prepare("INSERT INTO asistencia_supervisores (supervisor_id, fecha, inicio_turno, estado_turno) VALUES (:s, CURRENT_DATE(), NOW(), 'En turno')")->execute([':s' => $ids['res.dos']]);
     $ubi = $pdo->query("SELECT departamento, provincia, distrito FROM ubigeo WHERE departamento='LAMBAYEQUE' LIMIT 1")->fetch();
-    // Pendiente importada (en la bolsa de LAMBAYEQUE, asignada por carga a "uno")
-    $pdo->prepare("INSERT INTO supervisiones (codigo_supervision, fecha_registro, fecha_carga, supervisor_id, asignado_por, derivacion_orden, tipo_servicio, departamento, provincia, distrito,
-        ticket_codigo, tipo_supervision_inicial, partner_id, brevete_poseedor, clasificacion_supervision, area_servicio, observacion_servicio, estado_servicio_caliente,
-        es_cancelacion, origen_importacion, estado_supervision)
-        VALUES ('SUP-RES-1', NOW(), NOW(), :sup, :adm, 'Líder', 'Regular', :dep, :prov, :dist, 'PRUEBA-RES-1', 'En frío', :p, 'Ninguno', 'Instalación', 'Instalación', '', 'Cancelada', 1, 1, 'Pendiente')")
-        ->execute([':sup' => $ids['res.uno'], ':adm' => $ids['res.admin'], ':dep' => $ubi['departamento'], ':prov' => $ubi['provincia'], ':dist' => $ubi['distrito'], ':p' => $partner]);
-    $orden = (int)$pdo->lastInsertId();
 
     $http = function (string $quien, string $url, array $post = null) use (&$jars, $base): array {
         $jars[$quien] ??= tempnam(sys_get_temp_dir(), 'sgsx');
@@ -79,6 +73,28 @@ try {
         preg_match('/<meta name="csrf-token" content="([^"]+)"/', (string)curl_exec($ch), $m); curl_close($ch);
         $GLOBALS['csrf'][$u] = $m[1] ?? '';
     }
+    $foto = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sgs_rescate_partner.png';
+    $nueva = function (string $suf) use ($pdo, $ids, $ubi, $partner): int {
+        $pdo->prepare("INSERT INTO supervisiones (codigo_supervision, fecha_registro, fecha_carga, supervisor_id, asignado_por, derivacion_orden, tipo_servicio, departamento, provincia, distrito,
+            ticket_codigo, tipo_supervision_inicial, partner_id, brevete_poseedor, clasificacion_supervision, area_servicio, observacion_servicio, estado_servicio_caliente,
+            es_cancelacion, tipificacion_cancelacion, origen_importacion, estado_supervision)
+            VALUES (:c, NOW(), NOW(), :sup, :adm, 'Líder', 'Regular', :dep, :prov, :dist, :t, 'En frío', :p, 'Ninguno', 'Instalación', 'Instalación', '', 'Cancelada', 1,
+            (SELECT descripcion FROM tipificaciones_cancelacion LIMIT 1), 1, 'Pendiente')")
+            ->execute([':c' => "SUP-RES-$suf", ':t' => "PRUEBA-RES-$suf", ':sup' => $ids['res.uno'], ':adm' => $ids['res.admin'], ':dep' => $ubi['departamento'],
+                ':prov' => $ubi['provincia'], ':dist' => $ubi['distrito'], ':p' => $partner]);
+        return (int)$pdo->lastInsertId();
+    };
+    $editar = function (int $id, string $suf, string $estado, string $resultado, bool $conFoto = false, string $quien = 'res.dos') use ($http, $base, $ubi, $partner, $foto): array {
+        $campos = ['supervision_id_edit' => $id, 'estado_supervision' => $estado, 'resultado_cancelacion' => $resultado, 'tipo_supervision' => 'Instalación',
+            'tipo_supervision_inicial' => 'En frío', 'derivacion_orden' => 'Líder', 'tipo_servicio' => 'Regular', 'departamento' => $ubi['departamento'], 'provincia' => $ubi['provincia'],
+            'distrito' => $ubi['distrito'], 'ticket_codigo' => "PRUEBA-RES-$suf", 'partner_id' => $partner, 'es_cancelacion' => '1', 'observacion_servicio' => 'Validada con el cliente',
+            'latitud' => '-6.77', 'longitud' => '-79.84'];
+        if ($conFoto) $campos['foto_servicio_1'] = new CURLFile($foto, 'image/png', 'evidencia.png');
+        return $http($quien, "$base/api/supervisiones.php?action=create", $campos);
+    };
+    file_put_contents($foto, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='));
+    // Pendiente importada (en la bolsa de LAMBAYEQUE, asignada por carga a "uno")
+    $orden = $nueva('1');
     $ve = function (string $u, string $estado) use ($http, $base, $orden): bool {
         $r = $http($u, "$base/api/supervisiones.php?action=list&estado=$estado&fecha_inicio=2000-01-01&limit=100");
         foreach (($r['data'] ?? []) as $f) if ((int)$f['id'] === $orden) return true;
@@ -87,19 +103,17 @@ try {
     $accion = fn(string $u, string $a, array $campos = []) => $http($u, "$base/api/supervisiones.php?action=rescate_$a", ['supervision_id' => $orden] + $campos);
 
     $check('antes del rescate, "dos" la ve en Pendientes (bolsa de la zona)', $ve('res.dos', 'pendiente'));
-    $r = $accion('res.piura', 'tomar');
-    $check('un supervisor de otra zona no puede tomarla', ($r['status'] ?? '') === 'error' && str_contains($r['message'] ?? '', 'zonas'), $r);
-    $r = $accion('res.dos', 'tomar', ['comentario' => 'Cliente pidió llamada el lunes']);
-    $check('"dos" la toma como rescate', ($r['status'] ?? '') === 'success', $r);
+    $r = $editar($orden, '1', 'Iniciada', 'En proceso de rescate', false, 'res.piura');
+    $check('un supervisor de otra zona no puede pasarla a rescate', ($r['status'] ?? '') !== 'success', $r);
+    $r = $editar($orden, '1', 'Iniciada', 'En proceso de rescate');
+    $check('"dos" la pasa a rescate con el resultado de la validación', ($r['status'] ?? '') === 'success', $r);
     $fila = $pdo->query("SELECT supervisor_id, rescate_estado, estado_supervision FROM supervisiones WHERE id=$orden")->fetch();
     $check('queda a su nombre, "En rescate" y sigue Pendiente (no ocupa su supervisión en proceso)', (int)$fila['supervisor_id'] === $ids['res.dos'] && $fila['rescate_estado'] === 'En rescate' && $fila['estado_supervision'] === 'Pendiente', $fila);
     $check('sale de la bolsa: "uno" ya no la ve en Pendientes', !$ve('res.uno', 'pendiente'));
     $check('"dos" la ve en la pestaña En rescate (y no en Pendientes)', $ve('res.dos', 'rescate') && !$ve('res.dos', 'pendiente'));
-    $r = $accion('res.uno', 'tomar');
-    $check('"uno" no puede tomarla (ya está en rescate)', ($r['status'] ?? '') === 'error', $r);
-    $r = $http('res.dos', "$base/api/supervisiones.php?action=create", ['supervision_id_edit' => $orden, 'estado_supervision' => 'Iniciada', 'tipo_supervision' => 'Instalación',
-        'tipo_supervision_inicial' => 'En frío', 'derivacion_orden' => 'Líder', 'tipo_servicio' => 'Regular', 'departamento' => $ubi['departamento'], 'provincia' => $ubi['provincia'],
-        'distrito' => $ubi['distrito'], 'ticket_codigo' => 'PRUEBA-RES-1', 'partner_id' => $partner]);
+    $r = $editar($orden, '1', 'Iniciada', 'Cancelación correcta', false, 'res.uno');
+    $check('"uno" no puede trabajarla (ya está en rescate)', ($r['status'] ?? '') === 'error', $r);
+    $r = $editar($orden, '1', 'Iniciada', '');
     $check('no se puede iniciar como supervisión normal mientras está en rescate', ($r['status'] ?? '') === 'error' && str_contains($r['message'] ?? '', 'rescate'), $r);
     $r = $http('res.admin', "$base/api/supervisiones.php?action=asignar_partner", ['supervision_id' => $orden, 'supervisor_partner_id' => 1]);
     $check('no se puede asignar a un partner mientras está en rescate', ($r['status'] ?? '') === 'error' && str_contains($r['message'] ?? '', 'rescate'), $r);
@@ -130,32 +144,50 @@ try {
     $uno = array_column($p['data']['directos'] ?? [], null, 'id')[$ids['res.uno']] ?? [];
     $check('Pendientes y rescates la cuenta como rescatada y atendida por "uno"', ($p['data']['kpis']['rescatada'] ?? 0) === 1 && ($uno['rescatadas'] ?? 0) === 1 && ($uno['cerradas'] ?? 0) === 1, $p['data'] ?? $p);
 
-    // ---------- Rescate propuesto por el partner ----------
-    // "dos" asigna una pendiente al partner; el partner la atiende e indica que se puede rescatar (con evidencia);
-    // solo "dos" (quien la asignó) la pasa a rescate. El supervisor asignado (del partner) no cambia.
-    $pdo->prepare("INSERT INTO supervisiones (codigo_supervision, fecha_registro, fecha_carga, supervisor_id, asignado_por, derivacion_orden, tipo_servicio, departamento, provincia, distrito,
-        ticket_codigo, tipo_supervision_inicial, partner_id, brevete_poseedor, clasificacion_supervision, area_servicio, observacion_servicio, estado_servicio_caliente,
-        es_cancelacion, origen_importacion, estado_supervision)
-        VALUES ('SUP-RES-2', NOW(), NOW(), :sup, :adm, 'Líder', 'Regular', :dep, :prov, :dist, 'PRUEBA-RES-2', 'En frío', :p, 'Ninguno', 'Instalación', 'Instalación', '', 'Cancelada', 1, 1, 'Pendiente')")
-        ->execute([':sup' => $ids['res.uno'], ':adm' => $ids['res.admin'], ':dep' => $ubi['departamento'], ':prov' => $ubi['provincia'], ':dist' => $ubi['distrito'], ':p' => $partner]);
-    $orden2 = (int)$pdo->lastInsertId();
+    // ---------- Orden transferida al partner (2026-10-28) ----------
+    // "dos" la transfiere al partner; el partner dice si la cancelación fue correcta o incorrecta (incorrecta, con evidencia)
+    // y solo "dos" (quien la transfirió) valida su atención. El supervisor asignado (del partner) no cambia.
+    $orden2 = $nueva('2');
     $r = $http('res.dos', "$base/api/supervisiones.php?action=asignar_partner", ['supervision_id' => $orden2, 'supervisor_partner_id' => $ids['res.partner']]);
     $check('"dos" asigna la pendiente al supervisor del partner', ($r['status'] ?? '') === 'success', $r);
-    $foto = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'sgs_rescate_partner.png';
-    file_put_contents($foto, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='));
-    $r = $http('res.partner', "$base/api/supervisiones.php?action=partner_update", ['supervision_id' => $orden2, 'observacion_atencion_partner' => 'Cliente acepta reprogramar', 'partner_rescatable' => '1']);
-    $check('el partner no puede indicar "se puede rescatar" sin evidencia', ($r['status'] ?? '') === 'error' && str_contains($r['message'] ?? '', 'evidencia'), $r);
+    // Pestañas (2026-10-28): en cuáles aparece la orden para cada uno
+    $pestana = function (string $u, string $estado, int $id) use ($http, $base): bool {
+        $r = $http($u, "$base/api/supervisiones.php?action=list&estado=$estado&fecha_inicio=2000-01-01&limit=100");
+        foreach (($r['data'] ?? []) as $f) if ((int)$f['id'] === $id) return true;
+        return false;
+    };
+    $check('"dos" la ve en "Asignadas a partner" (y no en "Por validar"); el partner, en sus Pendientes', $pestana('res.dos', 'asignada_partner', $orden2)
+        && !$pestana('res.dos', 'por_validar', $orden2) && $pestana('res.partner', 'partner_pendiente', $orden2));
+    $validar = fn(string $u, int $id, array $campos) => $http($u, "$base/api/supervisiones.php?action=validar_partner", ['supervision_id' => $id] + $campos);
+    $r = $validar('res.dos', $orden2, ['resultado' => 'Cancelación correcta', 'comentario' => 'antes de tiempo']);
+    $check('no se valida antes de que el partner la atienda', ($r['status'] ?? '') === 'error', $r);
+    $r = $http('res.partner', "$base/api/supervisiones.php?action=partner_update", ['supervision_id' => $orden2, 'observacion_atencion_partner' => 'Cliente acepta reprogramar']);
+    $check('el partner debe elegir si la cancelación fue correcta o incorrecta', ($r['status'] ?? '') === 'error' && str_contains($r['message'] ?? '', 'correcta o incorrecta'), $r);
+    $r = $http('res.partner', "$base/api/supervisiones.php?action=partner_update", ['supervision_id' => $orden2, 'observacion_atencion_partner' => 'Cliente acepta reprogramar', 'partner_resultado' => 'incorrecta']);
+    $check('"cancelación incorrecta" sin evidencia no se acepta', ($r['status'] ?? '') === 'error' && str_contains($r['message'] ?? '', 'evidencia'), $r);
     $r = $http('res.partner', "$base/api/supervisiones.php?action=partner_update", ['supervision_id' => $orden2, 'observacion_atencion_partner' => 'Cliente acepta reprogramar',
-        'partner_rescatable' => '1', 'foto_rescate_1' => new CURLFile($foto, 'image/png', 'evidencia.png')]);
-    $check('el partner atiende e indica que se puede rescatar, con su evidencia', ($r['status'] ?? '') === 'success', $r);
-    $avisos = (int)$pdo->query("SELECT COUNT(*) FROM notificaciones WHERE usuario_id = {$ids['res.dos']} AND titulo = 'Se puede rescatar'")->fetchColumn();
-    $check('se avisa al supervisor directo que la asignó', $avisos === 1, $avisos);
-    $r = $http('res.partner', "$base/api/supervisiones.php?action=rescate_tomar", ['supervision_id' => $orden2]);
-    $check('el supervisor del partner no puede pasarla a rescate (solo propone)', ($r['status'] ?? '') === 'error', $r);
-    $r = $http('res.uno', "$base/api/supervisiones.php?action=rescate_tomar", ['supervision_id' => $orden2]);
-    $check('otro supervisor directo no puede pasarla a rescate (solo quien la asignó)', ($r['status'] ?? '') === 'error', $r);
-    $r = $http('res.dos', "$base/api/supervisiones.php?action=rescate_tomar", ['supervision_id' => $orden2, 'comentario' => 'Coordinaré con el cliente']);
-    $check('"dos" (quien la asignó) la pasa a rescate', ($r['status'] ?? '') === 'success', $r);
+        'partner_resultado' => 'incorrecta', 'foto_partner_1' => new CURLFile($foto, 'image/png', 'evidencia.png')]);
+    $check('el partner registra "cancelación incorrecta" con su evidencia', ($r['status'] ?? '') === 'success'
+        && (int)$pdo->query("SELECT partner_cancelacion_incorrecta FROM supervisiones WHERE id=$orden2")->fetchColumn() === 1, $r);
+    $avisos = (int)$pdo->query("SELECT COUNT(*) FROM notificaciones WHERE usuario_id = {$ids['res.dos']} AND titulo = 'Validar atención del partner'")->fetchColumn();
+    $check('se avisa al supervisor directo que la transfirió para que la valide', $avisos === 1, $avisos);
+    $check('"dos" la ve en "Por validar" (ya no en "Asignadas a partner"); el partner, en "En proceso"', $pestana('res.dos', 'por_validar', $orden2)
+        && !$pestana('res.dos', 'asignada_partner', $orden2) && $pestana('res.partner', 'partner_en_proceso', $orden2) && !$pestana('res.partner', 'partner_finalizada', $orden2));
+    $p = $http('res.admin', "$base/api/dashboard_pendientes.php?action=dashboard_tabla&desde=" . date('Y-m-d') . '&hasta=' . date('Y-m-d') . "&supervisor_id={$ids['res.dos']}");
+    $det = array_values(array_filter($p['data']['filas'] ?? [], fn($x) => (int)$x['id'] === $orden2))[0] ?? null;
+    $check('Pendientes y rescates la muestra como "Partner: por validar"', $det && $det['estado'] === 'partner_atendida', $det);
+    $r = $validar('res.partner', $orden2, ['resultado' => 'Cancelación correcta', 'comentario' => 'x']);
+    $check('el supervisor del partner no puede validar', ($r['status'] ?? '') === 'error', $r);
+    $r = $validar('res.uno', $orden2, ['resultado' => 'Cancelación correcta', 'comentario' => 'x']);
+    $check('otro supervisor directo no puede validar (solo quien la transfirió)', ($r['status'] ?? '') === 'error', $r);
+    $r = $validar('res.dos', $orden2, ['resultado' => 'En proceso de rescate']);
+    $check('validar sin comentario no se acepta', ($r['status'] ?? '') === 'error', $r);
+    $r = $validar('res.dos', $orden2, ['resultado' => 'En proceso de rescate', 'comentario' => 'Coordinaré con el cliente']);
+    $check('"dos" (quien la transfirió) valida: En proceso de rescate', ($r['status'] ?? '') === 'success', $r);
+    $r = $validar('res.dos', $orden2, ['resultado' => 'Rescatado', 'comentario' => 'otra vez']);
+    $check('una atención ya validada no se vuelve a validar', ($r['status'] ?? '') === 'error', $r);
+    $check('validada: el partner la ve en "Finalizadas" (ya no en "En proceso") y sale de "Por validar" de "dos"', $pestana('res.partner', 'partner_finalizada', $orden2)
+        && !$pestana('res.partner', 'partner_en_proceso', $orden2) && !$pestana('res.dos', 'por_validar', $orden2));
     $fila = $pdo->query("SELECT supervisor_id, rescate_responsable_id, rescate_estado FROM supervisiones WHERE id=$orden2")->fetch();
     $check('el rescate queda a cargo de "dos" y el supervisor asignado sigue siendo el del partner', (int)$fila['rescate_responsable_id'] === $ids['res.dos']
         && (int)$fila['supervisor_id'] === $ids['res.partner'] && $fila['rescate_estado'] === 'En rescate', $fila);
@@ -170,34 +202,41 @@ try {
     $r = $http('res.dos', "$base/api/supervisiones.php?action=rescate_cerrar", ['supervision_id' => $orden2, 'resultado' => 'No rescatado', 'comentario' => 'El cliente desistió']);
     $check('"dos" cierra el rescate como No rescatado', ($r['status'] ?? '') === 'success', $r);
     $tipos2 = $pdo->query("SELECT tipo FROM rescate_seguimientos WHERE supervision_id=$orden2 ORDER BY id")->fetchAll(PDO::FETCH_COLUMN);
-    $check('historial: propuesta del partner, inicio y cierre', $tipos2 === ['Propuesta del partner', 'Inicio', 'Cierre'], $tipos2);
+    $check('historial: atención del partner, validación y cierre', $tipos2 === ['Atención del partner', 'Validación', 'Cierre'], $tipos2);
     $p = $http('res.admin', "$base/api/dashboard_pendientes.php?action=dashboard_tabla&desde=$hoy&hasta=$hoy&supervisor_id={$ids['res.dos']}");
     $det = array_values(array_filter($p['data']['filas'] ?? [], fn($x) => (int)$x['id'] === $orden2))[0] ?? null;
     $check('Pendientes y rescates la muestra con "dos" como responsable y cancelación correcta (no rescatada)', $det && $det['estado'] === 'correcta' && str_contains($det['responsable'] ?? '', 'res.dos'), $det);
     foreach ($pdo->query("SELECT foto FROM rescate_seguimientos WHERE supervision_id=$orden2 AND foto IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN) as $ruta) @unlink(UPLOAD_DIR . basename($ruta));
     $cancel = $pdo->query("SELECT id, estado_cancelacion FROM supervisiones WHERE id IN ($orden, $orden2)")->fetchAll(PDO::FETCH_KEY_PAIR);
-    $check('al cerrar un rescate se anota en la cancelación: Rescate / Cancelación correcta', ($cancel[$orden] ?? '') === 'Rescate' && ($cancel[$orden2] ?? '') === 'Cancelación correcta', $cancel);
+    $check('al cerrar un rescate se anota en la cancelación: Rescatado / Cancelación correcta', ($cancel[$orden] ?? '') === 'Rescatado' && ($cancel[$orden2] ?? '') === 'Cancelación correcta', $cancel);
 
-    // ---------- Resultado de la validación (Cancelación correcta / En proceso de rescate / Rescate) ----------
-    $nueva = function (string $suf) use ($pdo, $ids, $ubi, $partner): int {
-        $pdo->prepare("INSERT INTO supervisiones (codigo_supervision, fecha_registro, fecha_carga, supervisor_id, asignado_por, derivacion_orden, tipo_servicio, departamento, provincia, distrito,
-            ticket_codigo, tipo_supervision_inicial, partner_id, brevete_poseedor, clasificacion_supervision, area_servicio, observacion_servicio, estado_servicio_caliente,
-            es_cancelacion, tipificacion_cancelacion, origen_importacion, estado_supervision)
-            VALUES (:c, NOW(), NOW(), :sup, :adm, 'Líder', 'Regular', :dep, :prov, :dist, :t, 'En frío', :p, 'Ninguno', 'Instalación', 'Instalación', '', 'Cancelada', 1,
-            (SELECT descripcion FROM tipificaciones_cancelacion LIMIT 1), 1, 'Pendiente')")
-            ->execute([':c' => "SUP-RES-$suf", ':t' => "PRUEBA-RES-$suf", ':sup' => $ids['res.uno'], ':adm' => $ids['res.admin'], ':dep' => $ubi['departamento'],
-                ':prov' => $ubi['provincia'], ':dist' => $ubi['distrito'], ':p' => $partner]);
-        return (int)$pdo->lastInsertId();
+    $transferida = function (string $suf, string $resultadoPartner) use ($nueva, $http, $base, $ids, $foto): int {
+        $id = $nueva($suf);
+        $http('res.dos', "$base/api/supervisiones.php?action=asignar_partner", ['supervision_id' => $id, 'supervisor_partner_id' => $ids['res.partner']]);
+        $http('res.partner', "$base/api/supervisiones.php?action=partner_update", ['supervision_id' => $id, 'observacion_atencion_partner' => 'Revisada en campo',
+            'partner_resultado' => $resultadoPartner] + ($resultadoPartner === 'incorrecta' ? ['foto_partner_1' => new CURLFile($foto, 'image/png', 'evidencia.png')] : []));
+        return $id;
     };
-    $editar = function (int $id, string $suf, string $estado, string $resultado, bool $conFoto = false) use ($http, $base, $ubi, $partner, $foto): array {
-        $campos = ['supervision_id_edit' => $id, 'estado_supervision' => $estado, 'resultado_cancelacion' => $resultado, 'tipo_supervision' => 'Instalación',
-            'tipo_supervision_inicial' => 'En frío', 'derivacion_orden' => 'Líder', 'tipo_servicio' => 'Regular', 'departamento' => $ubi['departamento'], 'provincia' => $ubi['provincia'],
-            'distrito' => $ubi['distrito'], 'ticket_codigo' => "PRUEBA-RES-$suf", 'partner_id' => $partner, 'es_cancelacion' => '1', 'observacion_servicio' => 'Validada con el cliente',
-            'latitud' => '-6.77', 'longitud' => '-79.84'];
-        if ($conFoto) $campos['foto_servicio_1'] = new CURLFile($foto, 'image/png', 'evidencia.png');
-        return $http('res.dos', "$base/api/supervisiones.php?action=create", $campos);
-    };
-    file_put_contents($foto, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='));
+    $o6 = $transferida('6', 'correcta');
+    $r = $validar('res.dos', $o6, ['resultado' => 'Cancelación correcta', 'comentario' => 'Coincide con lo revisado']);
+    $f6 = $pdo->query("SELECT estado_supervision, rescate_estado, estado_cancelacion, partner_cancelacion_incorrecta FROM supervisiones WHERE id=$o6")->fetch();
+    $check('partner "correcta" + validación "Cancelación correcta": se finaliza sin rescate', ($r['status'] ?? '') === 'success' && $f6['estado_supervision'] === 'Finalizada'
+        && $f6['rescate_estado'] === null && $f6['estado_cancelacion'] === 'Cancelación correcta' && (int)$f6['partner_cancelacion_incorrecta'] === 0, [$r, $f6]);
+    $d6 = $http('res.dos', "$base/api/supervisiones.php?action=detail&id=$o6");
+    $check('"dos" consulta la orden finalizada que transfirió, con la atención y su validación', ($d6['status'] ?? '') === 'success'
+        && array_column($d6['rescate_seguimientos'] ?? [], 'tipo') === ['Atención del partner', 'Validación'], $d6['message'] ?? array_column($d6['rescate_seguimientos'] ?? [], 'tipo'));
+    $check('finalizada por la validación: el partner la sigue viendo, en "Finalizadas"', $pestana('res.partner', 'partner_finalizada', $o6) && $pestana('res.partner', 'todos', $o6));
+    $o7 = $transferida('7', 'incorrecta');
+    $r = $validar('res.admin', $o7, ['resultado' => 'Rescatado', 'comentario' => 'Se reprogramó la instalación']);
+    $f7 = $pdo->query("SELECT estado_supervision, rescate_estado, estado_cancelacion, supervisor_id FROM supervisiones WHERE id=$o7")->fetch();
+    $check('el administrador también valida: "Rescatado" finaliza como rescatada y el supervisor del partner no cambia', ($r['status'] ?? '') === 'success'
+        && $f7['estado_supervision'] === 'Finalizada' && $f7['rescate_estado'] === 'Rescatado' && $f7['estado_cancelacion'] === 'Rescatado' && (int)$f7['supervisor_id'] === $ids['res.partner'], [$r, $f7]);
+    $p = $http('res.admin', "$base/api/dashboard_pendientes.php?action=dashboard_tabla&desde=" . date('Y-m-d') . '&hasta=' . date('Y-m-d'));
+    $estados = array_column(array_filter($p['data']['filas'] ?? [], fn($x) => in_array((int)$x['id'], [$o6, $o7], true)), 'estado', 'id');
+    $check('Pendientes y rescates: cancelación correcta y rescatada', ($estados[$o6] ?? '') === 'correcta' && ($estados[$o7] ?? '') === 'rescatada', $estados);
+    foreach ($pdo->query("SELECT foto FROM rescate_seguimientos WHERE supervision_id IN ($o6, $o7) AND foto IS NOT NULL")->fetchAll(PDO::FETCH_COLUMN) as $ruta) @unlink(UPLOAD_DIR . basename($ruta));
+
+    // ---------- Resultado de la validación (Cancelación correcta / En proceso de rescate / Rescatado) ----------
     // a) Desde la pendiente: "En proceso de rescate" la pasa a rescate (sin finalizar ni ocupar su supervisión en proceso)
     $o3 = $nueva('3');
     $r = $editar($o3, '3', 'Iniciada', 'En proceso de rescate');
@@ -207,12 +246,12 @@ try {
         && $f3['estado_cancelacion'] === 'En proceso de rescate', [$r, $f3]);
     $activa = (int)$pdo->query("SELECT COUNT(*) FROM supervisiones WHERE supervisor_id = {$ids['res.dos']} AND estado_supervision IN ('Iniciada','En proceso')")->fetchColumn();
     $check('no le queda ninguna supervisión "en proceso" (el rescate no la ocupa)', $activa === 0, $activa);
-    // b) "Rescate": se valida y se finaliza como rescatada
+    // b) "Rescatado": se valida y se finaliza como rescatada
     $o4 = $nueva('4');
     $editar($o4, '4', 'Iniciada', 'Cancelación correcta');
-    $r = $editar($o4, '4', 'Finalizada', 'Rescate', true);
+    $r = $editar($o4, '4', 'Finalizada', 'Rescatado', true);
     $f4 = $pdo->query("SELECT estado_supervision, rescate_estado, estado_cancelacion FROM supervisiones WHERE id=$o4")->fetch();
-    $check('"Rescate" finaliza la orden como rescatada', ($r['status'] ?? '') === 'success' && $f4['estado_supervision'] === 'Finalizada' && $f4['rescate_estado'] === 'Rescatado' && $f4['estado_cancelacion'] === 'Rescate', [$r, $f4]);
+    $check('"Rescatado" finaliza la orden como rescatada', ($r['status'] ?? '') === 'success' && $f4['estado_supervision'] === 'Finalizada' && $f4['rescate_estado'] === 'Rescatado' && $f4['estado_cancelacion'] === 'Rescatado', [$r, $f4]);
     // c) Sin resultado elegido (2026-10-15) se puede iniciar y guardar avance, pero no finalizar
     $o5 = $nueva('5');
     $r = $editar($o5, '5', 'Iniciada', '');

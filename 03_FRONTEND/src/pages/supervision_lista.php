@@ -111,6 +111,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
           <button type="button" class="filter-tab-btn active" data-filter="todos">Todas <span class="sgs-seg-count" id="count-todos">0</span></button>
           <button type="button" class="filter-tab-btn" data-filter="partner_pendiente" title="Asignadas, sin atender y dentro de las 24 horas">Pendientes <span class="sgs-seg-count" id="count-partner_pendiente">0</span></button>
           <button type="button" class="filter-tab-btn" data-filter="partner_en_proceso" title="Ya registraste la atención; falta que WIN la cierre">En proceso <span class="sgs-seg-count" id="count-partner_en_proceso">0</span></button>
+          <button type="button" class="filter-tab-btn" data-filter="partner_finalizada" title="El supervisor de WIN ya validó tu atención">Finalizadas <span class="sgs-seg-count" id="count-partner_finalizada">0</span></button>
           <button type="button" class="filter-tab-btn" data-filter="partner_vencida" title="Pasaron las 24 horas sin atención">No revisados <span class="sgs-seg-count" id="count-partner_vencida">0</span></button>
         </div>
         <?php elseif ($canFilterSupervisionStatus): ?>
@@ -119,6 +120,8 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
           <button type="button" class="filter-tab-btn" data-filter="iniciada">En proceso <span class="sgs-seg-count" id="count-iniciada">0</span></button>
           <button type="button" class="filter-tab-btn" data-filter="finalizada">Finalizadas <span class="sgs-seg-count" id="count-finalizada">0</span></button>
           <button type="button" class="filter-tab-btn" data-filter="pendiente">Pendientes <span class="sgs-seg-count" id="count-pendiente">0</span></button>
+          <button type="button" class="filter-tab-btn" data-filter="asignada_partner" title="Transferidas a un partner que aún no las atiende (24 horas)">Asignadas a partner <span class="sgs-seg-count" id="count-asignada_partner">0</span></button>
+          <button type="button" class="filter-tab-btn" data-filter="por_validar" title="El partner ya respondió: falta su validación">Por validar <span class="sgs-seg-count" id="count-por_validar">0</span></button>
           <button type="button" class="filter-tab-btn" data-filter="rescate" title="Pendientes tomadas como rescate: seguimiento hasta cerrarlas">En rescate <span class="sgs-seg-count" id="count-rescate">0</span></button>
         </div>
         <?php endif; ?>

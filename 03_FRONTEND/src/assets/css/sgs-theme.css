@@ -2424,10 +2424,6 @@ body:not(.modal-open) #main-content-area > [id*="toast"] {
 #main-content-area .obs-kpi {
     height: 100% !important;
 }
-/* Partner: su agenda solo contiene órdenes pendientes asignadas; las pestañas de estado no aplican */
-body[data-role="partner"] #filterTabs {
-    display: none !important;
-}
 /* Celular: correcciones heredadas del sistema de origen
    - #content reservaba 54px para la antigua barra fija oscura (ahora la barra es sticky y propia)
    - el botón de menú heredaba color blanco y quedaba invisible sobre la barra clara */

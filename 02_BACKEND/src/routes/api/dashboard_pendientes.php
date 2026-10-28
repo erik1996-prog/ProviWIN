@@ -9,7 +9,8 @@
 //   GET ?action=dashboard_excel  → las mismas órdenes, todas, en Excel
 // Estados: pendiente (sin tomar) · en_validacion · en_rescate · rescatada · correcta (cancelación correcta, también las
 // que fueron a rescate y no se rescataron) · en_partner (un directo la transfirió y el partner aún no la atiende) ·
-// partner_atendida. Una transferida sigue siendo del directo que la transfirió (responsable); el partner tiene 24 h.
+// partner_atendida (el partner la atendió y falta la validación del directo que se la transfirió, 2026-10-28).
+// Una transferida sigue siendo del directo que la transfirió (responsable); el partner tiene 24 h.
 header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../../config/config.php';
@@ -34,7 +35,7 @@ try {
     $transferida = "(s.fecha_asignacion IS NOT NULL AND us.partner_id IS NOT NULL AND us.partner_id = s.partner_id AND UPPER(TRIM(COALESCE(p.nombre_partner, ''))) NOT IN ('WIN', 'WIN DIRECTO'))";
     $atendidaPartner = "(s.estado_atencion_partner = 'Atendida')";
     $estadoSql = "CASE WHEN s.rescate_estado = 'En rescate' THEN 'en_rescate'
-        WHEN s.rescate_estado = 'Rescatado' OR s.estado_cancelacion = 'Rescate' THEN 'rescatada'
+        WHEN s.rescate_estado = 'Rescatado' OR s.estado_cancelacion = 'Rescatado' THEN 'rescatada'
         WHEN s.estado_supervision IN ('Finalizada', 'Culminada', 'Finalizado') THEN 'correcta'
         WHEN s.estado_supervision IN ('Iniciada', 'En proceso') THEN 'en_validacion'
         WHEN {$transferida} AND {$atendidaPartner} THEN 'partner_atendida'
@@ -54,7 +55,7 @@ try {
         LEFT JOIN usuarios us ON us.id = s.supervisor_id LEFT JOIN usuarios ur ON ur.id = s.rescate_responsable_id
         LEFT JOIN usuarios rd ON rd.id = ({$responsableSql})", $where, $params);
     $etiquetas = ['pendiente' => 'Pendiente', 'en_validacion' => 'En validación', 'en_rescate' => 'En rescate', 'rescatada' => 'Rescatada',
-        'correcta' => 'Cancelación correcta', 'en_partner' => 'En partner', 'partner_atendida' => 'Atendida por partner'];
+        'correcta' => 'Cancelación correcta', 'en_partner' => 'En partner', 'partner_atendida' => 'Partner: por validar'];
     $grupos = array_map(static fn($e) => [$e], array_combine(array_keys($etiquetas), array_keys($etiquetas)));
     $relativo = static fn(array $lista, string $campo): array => array_map(static fn($x) => $x + ['pct' => sgsPorcentaje($x[$campo], max(1, ...array_column($lista, $campo)))], $lista);
     $enteros = static fn(array $x): array => array_map(static fn($v) => is_numeric($v) ? $v + 0 : $v, $x);
