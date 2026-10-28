@@ -52,25 +52,40 @@ function sgsDirectStaffSql(string $u = 'u', string $p = 'p'): string
 }
 
 /**
+ * Rol, área y zonas de varios usuarios, leídos de la BD (reflejan cambios sin pedir un nuevo inicio de sesión) y guardados
+ * para el resto de la petición. Antes de recorrer una lista de usuarios se llama con todos sus id: así son 2 consultas en
+ * total y no 3 por usuario (2026-10-27, sistema liviano). Devuelve [id => ['rol', 'area', 'zonas']].
+ */
+function sgsPrecargarUsuarios(array $ids): array
+{
+    static $cache = [];
+    $faltan = array_values(array_diff(array_unique(array_map('intval', $ids)), array_keys($cache)));
+    if (!$faltan) return $cache;
+    $pdo = Database::getConnection();
+    $lista = implode(',', $faltan); // enteros
+    $filas = [];
+    foreach ($pdo->query("SELECT id, sede, zona, rol, area_trabajo FROM usuarios WHERE id IN ($lista)")->fetchAll() as $u) $filas[(int)$u['id']] = $u;
+    foreach ($faltan as $id) {
+        $u = $filas[$id] ?? [];
+        $base = operationalDepartmentFromSite((string)(($u['sede'] ?? '') ?: ($u['zona'] ?? '')));
+        $cache[$id] = ['rol' => (string)($u['rol'] ?? ''), 'area' => trim((string)($u['area_trabajo'] ?? '')),
+            'zonas' => $base === 'PROVINCIAS' ? null : ($base !== '' ? [mb_strtoupper($base, 'UTF-8')] : [])];
+    }
+    foreach ($pdo->query("SELECT usuario_id, departamento FROM usuario_departamentos_acceso WHERE activo = 1 AND usuario_id IN ($lista)")->fetchAll() as $a) {
+        $id = (int)$a['usuario_id'];
+        if ($cache[$id]['zonas'] !== null) $cache[$id]['zonas'][] = mb_strtoupper(trim((string)$a['departamento']), 'UTF-8');
+    }
+    foreach ($faltan as $id) if ($cache[$id]['zonas'] !== null) $cache[$id]['zonas'] = array_values(array_unique(array_filter($cache[$id]['zonas'])));
+    return $cache;
+}
+
+/**
  * Zona de trabajo de un usuario: departamento base (según su sede) + departamentos con acceso adicional.
  * Devuelve null si la sede es "Provincias" (alcance total) o una lista de departamentos en MAYÚSCULAS.
- * Se lee de la BD para reflejar cambios de zona sin pedir un nuevo inicio de sesión.
  */
 function sgsUserZones(int $userId): ?array
 {
-    static $cache = [];
-    if (array_key_exists($userId, $cache)) return $cache[$userId];
-    $pdo = Database::getConnection();
-    $st = $pdo->prepare('SELECT sede, zona FROM usuarios WHERE id = :id LIMIT 1');
-    $st->execute([':id' => $userId]);
-    $u = $st->fetch() ?: [];
-    $base = operationalDepartmentFromSite((string)(($u['sede'] ?? '') ?: ($u['zona'] ?? '')));
-    if ($base === 'PROVINCIAS') return $cache[$userId] = null;
-    $zones = $base !== '' ? [mb_strtoupper($base, 'UTF-8')] : [];
-    $st = $pdo->prepare('SELECT departamento FROM usuario_departamentos_acceso WHERE usuario_id = :id AND activo = 1');
-    $st->execute([':id' => $userId]);
-    foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $d) $zones[] = mb_strtoupper(trim((string)$d), 'UTF-8');
-    return $cache[$userId] = array_values(array_unique(array_filter($zones)));
+    return sgsPrecargarUsuarios([$userId])[$userId]['zonas'];
 }
 
 /** Condición SQL "el departamento pertenece a la zona del usuario". Sin zona asignada no ve nada. */
@@ -193,25 +208,13 @@ function sgsClasificacionesFueraDeArea(?string $area): array
 /** Rol del usuario, leído de la base. */
 function sgsUserRol(int $userId): string
 {
-    static $cache = [];
-    if (!array_key_exists($userId, $cache)) {
-        $st = Database::getConnection()->prepare('SELECT rol FROM usuarios WHERE id = :id');
-        $st->execute([':id' => $userId]);
-        $cache[$userId] = (string)$st->fetchColumn();
-    }
-    return $cache[$userId];
+    return sgsPrecargarUsuarios([$userId])[$userId]['rol'];
 }
 
 /** Área de trabajo del usuario, leída de la base (refleja cambios sin volver a iniciar sesión). */
 function sgsUserArea(int $userId): string
 {
-    static $cache = [];
-    if (!array_key_exists($userId, $cache)) {
-        $st = Database::getConnection()->prepare('SELECT area_trabajo FROM usuarios WHERE id = :id');
-        $st->execute([':id' => $userId]);
-        $cache[$userId] = trim((string)$st->fetchColumn());
-    }
-    return $cache[$userId];
+    return sgsPrecargarUsuarios([$userId])[$userId]['area'];
 }
 
 /** Condición SQL "la supervisión es del área del usuario" (alias con clasificacion_supervision). */
@@ -269,6 +272,7 @@ function sgsSupervisoresVisibles(array $viewer, array $supervisores): array
 {
     if (!sgsAlcanceLimitado($viewer)) return $supervisores;
     $yo = (int)$viewer['id'];
+    sgsPrecargarUsuarios(array_merge([$yo], array_column($supervisores, 'id')));
     $zonas = sgsUserZones($yo);
     $miArea = sgsUserArea($yo);
     return array_values(array_filter($supervisores, static function ($s) use ($yo, $zonas, $miArea, $viewer) {

@@ -3534,19 +3534,6 @@
   // ---------- VISTA 2: NAVEGACIÓN Y CREACIÓN EN PANTALLA DEDICADA ----------
   const newSectionOneIds = ['new_tipo_supervision','new_sub_tipo_atencion','new_derivacion','new_tipo_servicio','new_tipo_sup','new_dep','new_prov','new_dis'];
 
-  function newSectionOneComplete(showError = false) {
-    const missing = newSectionOneIds.map(id => document.getElementById(id)).find(field =>
-      field && !field.disabled && (!String(field.value || '').trim() || !field.checkValidity())
-    );
-    if (missing && showError) {
-      showToast('Complete toda la sección 1: Información general de la supervisión.');
-      missing.reportValidity?.();
-      missing.scrollIntoView({behavior:'smooth',block:'center'});
-      missing.focus({preventScroll:true});
-    }
-    return !missing;
-  }
-
   // Todo lo que falta para finalizar la supervisión nueva / en proceso: [{el, texto}] (2026-10-16).
   function faltantesNuevo() {
     const lista = [];
@@ -3611,10 +3598,6 @@
     if (newWorkflowStatus) newWorkflowStatus.textContent = completo
       ? 'Formulario completo. Ya puede finalizar la supervisión.'
       : 'Todo se guarda solo mientras llena el formulario. Al finalizar se le indicará lo que falte.';
-  }
-
-  function updateReturnButtons() {
-    if (cancelNewBtn) cancelNewBtn.innerHTML = '<i class="bi bi-arrow-left me-1"></i>Volver al listado';
   }
 
   // Nombre visible de un campo (su etiqueta, sin el asterisco).
@@ -3863,9 +3846,6 @@
       img.onload = () => { const ctx = canvas?.getContext('2d'); if (ctx) { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0); } };
       img.src = datos.firma;
     }
-  }
-  function freezeNewSectionOne() {
-    newSectionOneIds.map(id => document.getElementById(id)).forEach(field => { if (field) field.disabled = true; });
   }
 
   function resetNewWorkflowForm() {

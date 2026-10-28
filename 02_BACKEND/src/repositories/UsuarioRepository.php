@@ -212,6 +212,17 @@ final class UsuarioRepository
         return $st->fetchAll(PDO::FETCH_COLUMN);
     }
 
+    /** Zonas adicionales de varios usuarios en una sola consulta: [id => [departamentos]]. */
+    public function zonasAdicionalesDe(array $ids): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        if (!$ids) return [];
+        $map = [];
+        foreach ($this->pdo->query('SELECT usuario_id, UPPER(departamento) AS departamento FROM usuario_departamentos_acceso WHERE activo = 1 AND usuario_id IN (' . implode(',', $ids) . ') ORDER BY departamento')->fetchAll() as $a)
+            $map[(int)$a['usuario_id']][] = $a['departamento'];
+        return $map;
+    }
+
     public function guardarZonas(int $userId, array $zonas, int $otorgadoPor): void
     {
         $this->pdo->prepare('UPDATE usuario_departamentos_acceso SET activo = 0, fecha_actualizacion = NOW() WHERE usuario_id = :u')->execute([':u' => $userId]);

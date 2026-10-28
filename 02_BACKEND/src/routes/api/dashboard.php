@@ -74,8 +74,9 @@ function sgsDashboardDepartamento(): string {
 /** Deja solo a los supervisores que trabajan ese departamento (zona base o adicional; "todas las zonas" siempre entra). */
 function sgsSupervisoresDelDepartamento(array $supervisores, string $dep): array {
     if ($dep === '') return $supervisores;
-    return array_values(array_filter($supervisores, static function ($s) use ($dep) {
-        $zonas = sgsUserZones((int)$s['id']);
+    $datos = sgsPrecargarUsuarios(array_column($supervisores, 'id'));
+    return array_values(array_filter($supervisores, static function ($s) use ($dep, $datos) {
+        $zonas = $datos[(int)$s['id']]['zonas'];
         return $zonas === null || in_array($dep, $zonas, true);
     }));
 }

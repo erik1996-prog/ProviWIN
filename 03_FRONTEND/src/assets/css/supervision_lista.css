@@ -56,74 +56,6 @@
   }
 
   /* Botones Ejecutivos & Toolbar */
-  .action-toolbar-bitacora {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 20px;
-  }
-  .action-buttons-group {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .new-btn-bitacora {
-    font-size: 13.5px;
-    font-weight: 600;
-    background: var(--win-orange-gradient);
-    color: #ffffff;
-    border: none;
-    padding: 9px 18px;
-    border-radius: 8px;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    box-shadow: 0 4px 14px rgba(255,90,10, 0.35);
-  }
-  .new-btn-bitacora:hover { opacity: 0.96; transform: translateY(-2px); box-shadow: 0 6px 18px rgba(255,90,10, 0.45); }
-  .new-btn-bitacora:active { transform: translateY(0); }
-  .new-btn-bitacora:disabled { cursor:not-allowed; opacity:.6; filter:grayscale(.35); transform:none; box-shadow:none; }
-
-  .btn-action-excel {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--sgs-ink);
-    background: #ffffff;
-    border: 1px solid var(--win-border);
-    padding: 9px 15px;
-    border-radius: 8px;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    transition: all 0.15s ease;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.02);
-  }
-  .btn-action-excel:hover { background: var(--sgs-surface-alt); color: var(--sgs-ink); border-color: var(--sgs-border-strong); transform: translateY(-1px); }
-
-  .btn-action-upload {
-    font-size: 13px;
-    font-weight: 600;
-    color: #ffffff;
-    background: var(--sgs-surface);
-    border: 1px solid rgba(255,255,255,0.1);
-    padding: 9px 16px;
-    border-radius: 8px;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    transition: all 0.2s ease;
-    box-shadow: 0 4px 12px rgba(20, 20, 20, 0.2);
-  }
-  .btn-action-upload:hover { opacity: 0.95; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(20, 20, 20, 0.3); }
 
   .back-btn-bitacora {
     font-size: 13px;
@@ -143,15 +75,6 @@
   .back-btn-bitacora:hover { background: var(--sgs-surface-alt); color: var(--win-text-dark); border-color: var(--sgs-border-strong); }
 
   /* Filtros por Estado */
-  .filter-tabs-bitacora {
-    display: inline-flex;
-    background: #ffffff;
-    padding: 4px;
-    border-radius: 8px;
-    border: 1px solid var(--win-border);
-    gap: 4px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
-  }
   .filter-tab-btn {
     font-size: 12.5px;
     font-weight: 600;
@@ -173,121 +96,7 @@
     box-shadow: 0 2px 6px rgba(20, 20, 20, 0.15);
   }
 
-  /* Panel de Control Unificado en una Sola Línea Recta */
-  .supervision-control-panel-inline {
-    background: #ffffff;
-    border: 1px solid var(--win-border);
-    border-radius: 12px;
-    padding: 12px 18px;
-    margin-bottom: 22px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  /* Filtro de Fechas Compacto */
-  .filter-date-panel-compact {
-    display: inline-flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-    background: #ffffff;
-    border: 1px solid var(--win-border);
-    border-radius: 8px;
-    padding: 4px 12px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.02);
-  }
-  .admin-scope-filters {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .admin-scope-filter {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .admin-scope-filter label {
-    margin: 0;
-    color: var(--win-text-muted);
-    font-size: 11.5px;
-    font-weight: 700;
-    white-space: nowrap;
-  }
-  .admin-scope-filter select {
-    min-width: 170px;
-    max-width: 220px;
-    height: 34px;
-    padding: 4px 30px 4px 9px;
-    border: 1px solid var(--win-border);
-    border-radius: 7px;
-    background-color: var(--sgs-surface-alt);
-    color: var(--win-text-dark);
-    font-size: 12px;
-  }
-  .admin-scope-filter select:focus {
-    border-color: var(--win-orange);
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(255,90,10, 0.15);
-  }
-  .filter-date-group {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .filter-date-group label {
-    font-size: 11.5px;
-    font-weight: 600;
-    color: var(--win-text-muted);
-    margin: 0;
-    white-space: nowrap;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-  .filter-date-group input[type="date"] {
-    font-family: var(--sgs-font);
-    font-size: 12px;
-    padding: 4px 8px;
-    height: 32px;
-    border: 1px solid var(--win-border);
-    border-radius: 6px;
-    background: var(--sgs-surface-alt);
-    color: var(--win-text-dark);
-    max-width: 140px;
-    transition: all 0.15s ease;
-  }
-  .filter-date-group input[type="date"]:focus {
-    background: #ffffff;
-    border-color: var(--win-orange);
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(255,90,10, 0.15);
-  }
-
   /* Botón Selector de Columnas Visibles */
-  .btn-action-columns {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--sgs-ink);
-    background: #ffffff;
-    border: 1px solid var(--win-border);
-    padding: 6px 14px;
-    border-radius: 8px;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    transition: all 0.15s ease;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.02);
-  }
-  .btn-action-columns:hover {
-    background: var(--sgs-surface-alt);
-    border-color: var(--sgs-border-strong);
-  }
   .style-col-check {
     font-size: 12.5px;
     color: var(--win-text-dark);
@@ -499,7 +308,6 @@
   .optional-module-toggle { background:var(--sgs-surface-alt); border:1px solid var(--win-border); border-radius:8px; padding:14px; margin-bottom:12px; }
   .optional-module-toggle label { margin:0; }
   .cancel-validation-grid { display:grid; grid-template-columns:1fr; gap:14px; }
-  .floating-start-action { position:static; display:flex; width:max-content; min-width:230px; margin:24px 0 0 auto; justify-content:center; box-shadow:0 8px 22px rgba(0,0,0,.16); }
 
   .form-actions-bitacora {
     display: flex;
@@ -690,31 +498,11 @@
     .wrap-bitacora { padding: 14px 10px; }
     .masthead-bitacora { padding: 18px; align-items: flex-start; flex-direction: column; gap: 12px; }
     .masthead-bitacora .meta-bitacora { width: 100%; text-align: left; }
-    .supervision-control-panel-inline { padding: 14px 12px; gap: 12px; flex-direction: column; align-items: stretch; }
-    .filter-date-panel-compact { width: 100%; justify-content: space-between; }
-    .admin-scope-filters { display: grid; grid-template-columns: 1fr; width: 100%; }
-    .admin-scope-filter { align-items: stretch; flex-direction: column; gap: 4px; }
-    .admin-scope-filter select { width: 100%; max-width: none; }
-    .btn-action-columns { width: 100%; justify-content: center; }
-    .action-buttons-group { flex-direction: column; width: 100%; gap: 8px; }
-    .action-buttons-group .new-btn-bitacora,
-    .action-buttons-group .btn-action-excel,
-    .action-buttons-group .btn-action-upload {
-      width: 100%;
-      justify-content: center;
-    }
-    .filter-tabs-bitacora {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-      width: 100%;
-      overflow: visible;
-    }
     .filter-tab-btn { width: 100%; text-align: center; white-space: normal; line-height: 1.2; padding: 8px 6px; }
     .form-panel-bitacora, .detail-panel-bitacora { padding: 18px 14px; }
     .grid-bitacora { grid-template-columns: 1fr; gap: 14px; }
     .form-actions-bitacora { flex-direction: column-reverse; }
-    .form-actions-bitacora .btn-bitacora, .new-btn-bitacora { justify-content: center; width: 100%; }
-    .floating-start-action { width:100%; min-width:0; margin-top:20px; }
+    .form-actions-bitacora .btn-bitacora { justify-content: center; width: 100%; }
     .cancel-validation-grid { grid-template-columns:1fr; }
   }
 

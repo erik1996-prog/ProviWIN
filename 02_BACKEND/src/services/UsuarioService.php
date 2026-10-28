@@ -155,9 +155,17 @@ final class UsuarioService
         return (bool)array_intersect($fila['zonas'] ?? [], $alcance['zonas']);
     }
 
-    private function filaConZonas(array $u): array
+    /** Varias filas con sus zonas: las adicionales de todas se leen en una sola consulta (2026-10-27, sistema liviano). */
+    private function filasConZonas(array $filas): array
     {
-        $u['zonas'] = $this->zonasDe($u);
+        $adicionales = $this->usuarios->zonasAdicionalesDe(array_column($filas, 'id'));
+        return array_map(fn($u) => $this->filaConZonas($u, $adicionales[(int)$u['id']] ?? []), $filas);
+    }
+
+    /** $adicionales: zonas adicionales ya leídas (null = leerlas ahora). */
+    private function filaConZonas(array $u, ?array $adicionales = null): array
+    {
+        $u['zonas'] = $this->zonasDe($u, $adicionales);
         $u['todas_zonas'] = $this->esTodasZonas($u);
         return $u;
     }
@@ -189,8 +197,7 @@ final class UsuarioService
         $lista = $this->usuarios->listar($f);
         $bloqueados = array_flip(Auth::lockedAccountIds(array_column($lista, 'id')));
         $visibles = [];
-        foreach ($lista as $fila) {
-            $fila = $this->filaConZonas($fila);
+        foreach ($this->filasConZonas($lista) as $fila) {
             if (!$this->dentroDelAlcance($fila, $alcance) || ($eq && !$this->enEquipo($fila, $eq))) continue;
             $fila['bloqueado'] = isset($bloqueados[(int)$fila['id']]);
             $fila['protegido'] = in_array((string)($fila['usuario'] ?? ''), Auth::USUARIOS_PROTEGIDOS, true);
@@ -206,7 +213,7 @@ final class UsuarioService
             $visibles[] = $fila;
         }
         if ($eq) {
-            $suyos = array_filter($this->usuarios->listar(['q' => '', 'rol' => '', 'estado' => '', 'organizacion' => '']), fn($u) => $this->enEquipo($this->filaConZonas($u), $eq));
+            $suyos = array_filter($this->filasConZonas($this->usuarios->listar(['q' => '', 'rol' => '', 'estado' => '', 'organizacion' => ''])), fn($u) => $this->enEquipo($u, $eq));
             $activos = array_filter($suyos, fn($u) => (int)$u['activo'] === 1);
             $resumen = ['total' => count($suyos), 'activos' => count($activos), 'partners' => count(array_filter($activos, fn($u) => !in_array(mb_strtoupper(trim((string)$u['nombre_partner'])), ['', 'WIN', 'WIN DIRECTO'], true))),
                 'administradores' => 0];
@@ -214,8 +221,8 @@ final class UsuarioService
         } elseif ($alcance === null) $resumen = array_map('intval', $this->usuarios->resumen());
         else {
             // Indicadores solo con el personal que esta persona puede ver.
-            $todos = array_filter($this->usuarios->listar(['q' => '', 'rol' => '', 'estado' => '', 'organizacion' => '']),
-                fn($u) => $this->dentroDelAlcance($this->filaConZonas($u), $alcance));
+            $todos = array_filter($this->filasConZonas($this->usuarios->listar(['q' => '', 'rol' => '', 'estado' => '', 'organizacion' => ''])),
+                fn($u) => $this->dentroDelAlcance($u, $alcance));
             $activos = array_filter($todos, fn($u) => (int)$u['activo'] === 1);
             $resumen = ['total' => count($todos), 'activos' => count($activos), 'directos' => 0, 'partners' => count($activos),
                 'administradores' => 0];
@@ -519,12 +526,12 @@ final class UsuarioService
     }
 
     /** Zonas de trabajo efectivas: departamento de la sede + accesos adicionales (sin repetir). */
-    private function zonasDe(array $u): array
+    private function zonasDe(array $u, ?array $adicionales = null): array
     {
         if ($this->esTodasZonas($u)) return [];
         $base = mb_strtoupper(operationalDepartmentFromSite((string)(($u['sede'] ?? '') ?: ($u['zona'] ?? ''))), 'UTF-8');
         $zonas = $base !== '' && $base !== 'PROVINCIAS' ? [$base] : [];
-        foreach ($this->usuarios->zonasAdicionales((int)$u['id']) as $z) if (!in_array($z, $zonas, true)) $zonas[] = $z;
+        foreach ($adicionales ?? $this->usuarios->zonasAdicionales((int)$u['id']) as $z) if (!in_array($z, $zonas, true)) $zonas[] = $z;
         return $zonas;
     }
 

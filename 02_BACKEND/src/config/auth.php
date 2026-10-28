@@ -8,13 +8,10 @@ require_once __DIR__ . '/database.php';
 
 class Auth {
     // Roles permitidos en el sistema
-    public const ROLE_ADMIN = 'Administrador';
     public const ROLE_ADMINISTRADOR = 'Administrador';
     public const ROLE_GERENTE = 'Gerente';
     public const ROLE_COORDINADOR = 'Coordinador';
     public const ROLE_SUPERVISOR = 'Supervisor';
-    public const ROLE_SGA = 'SGA';
-    public const ROLE_SGI = 'SGI';
     /** Jefe de operaciones de un partner (2026-10-12, reemplaza al rol "Partner"): solo consulta lo de su partner. */
     public const ROLE_JEFE_OPERACIONES = 'Jefe de operaciones';
 
@@ -129,8 +126,6 @@ class Auth {
             self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT,
         ],
         self::ROLE_JEFE_OPERACIONES => [self::PERM_SUPERVISION_VIEW, self::PERM_OBSERVATION_VIEW, self::PERM_OBSERVATION_FILTER_DATE, self::PERM_USERS_VIEW],
-        self::ROLE_SGA => [],
-        self::ROLE_SGI => [],
     ];
 
     private static array $permissionOverrides = [];

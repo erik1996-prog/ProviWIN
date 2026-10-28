@@ -42,8 +42,9 @@ function sgsZonasDelCorte(PDO $pdo, array $celdas): array {
     $conSupervisor = [];
     $ids = $pdo->query("SELECT u.id FROM usuarios u LEFT JOIN partners p ON p.id = u.partner_id
         WHERE u.rol = 'Supervisor' AND u.activo = 1 AND " . sgsDirectStaffSql('u', 'p'))->fetchAll(PDO::FETCH_COLUMN);
+    $datos = sgsPrecargarUsuarios($ids);
     foreach ($ids as $id) {
-        $zonas = sgsUserZones((int)$id);
+        $zonas = $datos[(int)$id]['zonas'];
         if ($zonas === null) return $todas; // alguien trabaja todas las provincias
         foreach ($zonas as $z) $conSupervisor[$z] = true;
     }

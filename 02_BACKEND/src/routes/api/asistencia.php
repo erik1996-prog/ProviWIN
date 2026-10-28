@@ -627,7 +627,8 @@ if ($action === 'list_filters') {
     ");
     $supervisores = sgsSupervisoresVisibles($user, $stmtSups->fetchAll());
     // Zonas de cada supervisor (null = todas) para filtrar la lista por departamento en pantalla
-    foreach ($supervisores as &$s) $s['zonas'] = sgsUserZones((int)$s['id']);
+    $datos = sgsPrecargarUsuarios(array_column($supervisores, 'id'));
+    foreach ($supervisores as &$s) $s['zonas'] = $datos[(int)$s['id']]['zonas'];
     unset($s);
     // Partners (2026-10-11: no se enviaban y el filtro del Dashboard quedaba vacío)
     $partners = $pdo->query("SELECT id, nombre_partner FROM partners WHERE estado = 1 AND UPPER(TRIM(nombre_partner)) NOT IN ('WIN', 'WIN DIRECTO') ORDER BY nombre_partner")->fetchAll();

@@ -4,6 +4,13 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Sistema más liviano (2026-10-27)
+- **Cambiado**: Técnicos y cuadrillas muestra 50 filas por página (Anterior / Siguiente). La página pasó de 383 KB a 130 KB por visita. Los totales, los filtros y el link general de examen siguen tomando a todos los técnicos del filtro.
+- **Cambiado**: el programa de 7 pantallas pasó de la página a archivos `.js` que el navegador y Cloudflare guardan: Dashboard, Línea de tiempo, Usuarios, Observaciones, Cuadrillas, Mi información y Partners (unos 140 KB que ya no se descargan en cada visita).
+- **Cambiado**: el rol, el área y las zonas de una lista de usuarios se leen en 2 consultas en total y no en 3 por usuario: filtros del Dashboard y la Línea de tiempo, Usuarios y roles, supervisores visibles para el líder y el corte de lluvias.
+- **Eliminado**: código sin uso: 3 funciones de Supervisiones, los roles antiguos SGA, SGI y el alias ROLE_ADMIN, y unos 18 KB de estilos de pantallas que ya no existen.
+- Regla del proyecto: skill `sgs-liviano` (`.claude/skills/sgs-liviano`) con las reglas de rendimiento y cómo medirlas.
+
 ### Qué registra el líder y con qué acceso (2026-10-27)
 - Supervisor de campo, Supervisor de calidad y Supervisor UM: rol **Supervisor**, con acceso (directo o de partner).
 - Jefe de operaciones de un partner: rol **Partner**, con acceso a las órdenes de su contrata. Al elegir el cargo, la pantalla pone el rol Partner y la organización Partner.

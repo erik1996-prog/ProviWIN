@@ -118,74 +118,6 @@ body {
 .form-select:focus {
     color: #2d3748;
 }
-/* Wizard / Pasos de Registro Operativo */
-.wizard-steps {
-    display: flex;
-    justify-content: space-between;
-    position: relative;
-    margin-bottom: 30px;
-}
-.wizard-steps::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background-color: #e2e8f0;
-    z-index: 1;
-    transform: translateY(-50%);
-}
-.wizard-step {
-    position: relative;
-    z-index: 2;
-    background-color: #ffffff;
-    border: 2px solid #cbd5e0;
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    color: #718096;
-    transition: all 0.3s ease;
-}
-.wizard-step.active {
-    border-color: var(--win-orange);
-    background-color: var(--win-orange);
-    color: #ffffff;
-    box-shadow: 0 0 12px rgba(255,90,10, 0.4);
-}
-.wizard-step.completed {
-    border-color: #28a745;
-    background-color: #28a745;
-    color: #ffffff;
-}
-.wizard-title {
-    font-size: 0.75rem;
-    color: #4a5568;
-    text-align: center;
-    margin-top: 6px;
-    font-weight: 600;
-}
-/* Tablas y Matriz Responsiva Ajustada */
-.table-win {
-    color: #2d3748;
-    border-color: #e2e8f0;
-}
-.table-win th {
-    background-color: #f8fafc;
-    color: #2d3748;
-    font-weight: 700;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    border-bottom: 2px solid #e2e8f0;
-}
-.table-win td {
-    vertical-align: middle;
-    border-color: #edf2f7;
-}
 /* Estilos Específicos Matriz Mensual Pinned Columns */
 .matriz-scroll-box {
     overflow-x: auto;
@@ -306,14 +238,6 @@ body {
         bottom: 0;
         left: 0;
         z-index: 1050;
-    }
-    .wizard-title {
-        font-size: 0.65rem;
-    }
-    .wizard-step {
-        width: 34px;
-        height: 34px;
-        font-size: 0.85rem;
     }
 }
 /* Experiencia ejecutiva y retroalimentación de transacciones.
@@ -579,8 +503,7 @@ a:focus-visible,
 }
 .table-responsive,
 .table-panel-bitacora,
-.matriz-scroll-box,
-.timeline-console-box {
+.matriz-scroll-box {
     scrollbar-color: var(--win-orange) #f1f5f9;
     scrollbar-width: thin;
 }
@@ -613,20 +536,6 @@ a:focus-visible,
     }
     .btn:not(.btn-sm) {
         min-height: 42px;
-    }
-    .wizard-steps {
-        gap: 4px;
-    }
-    .wizard-steps::before {
-        display: none;
-    }
-    .wizard-step {
-        width: 30px;
-        height: 30px;
-    }
-    .wizard-title {
-        max-width: 66px;
-        line-height: 1.15;
     }
 }
 /* Chat flotante: siempre disponible sin interrumpir el flujo de trabajo. */
@@ -1020,9 +929,6 @@ a {
 /* Botones y acciones */
 .btn,
 .btn-bitacora,
-.new-btn-bitacora,
-.btn-action-excel,
-.btn-action-upload,
 .back-btn-bitacora {
     min-height: 40px;
     padding: .55rem .9rem;
@@ -1037,10 +943,7 @@ a {
     font-size: .76rem;
 }
 .btn:hover:not(:disabled),
-.btn-bitacora:hover:not(:disabled),
-.new-btn-bitacora:hover:not(:disabled),
-.btn-action-excel:hover:not(:disabled),
-.btn-action-upload:hover:not(:disabled) {
+.btn-bitacora:hover:not(:disabled) {
     transform: translateY(-1px);
 }
 .btn:active:not(:disabled),
@@ -1049,8 +952,7 @@ a {
 }
 .btn-win:hover,
 .btn-orange-bitacora:hover,
-.btn-finish-bitacora:hover,
-.new-btn-bitacora:hover {
+.btn-finish-bitacora:hover {
     color: #fff !important;
     border-color: var(--win-brand-hover) !important;
     box-shadow: 0 10px 22px rgba(244, 91, 24, .28) !important;
@@ -1139,55 +1041,8 @@ textarea.form-control,
     border-color: var(--win-danger) !important;
 }
 /* Filtros y barras de herramientas */
-.supervision-control-panel-inline,
 .obs-history-filter {
     padding: clamp(14px, 2vw, 20px) !important;
-}
-.supervision-control-panel-inline {
-    display: grid !important;
-    grid-template-columns: minmax(280px, 1fr) auto;
-    gap: 14px 18px !important;
-    align-items: center !important;
-}
-.action-toolbar-bitacora {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 0 !important;
-}
-.filter-date-panel-compact {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-    padding: 7px 9px !important;
-    background: var(--win-surface-alt) !important;
-    border: 1px solid var(--win-border) !important;
-    border-radius: 10px !important;
-}
-.filter-date-group {
-    min-width: 0;
-}
-.filter-date-group label {
-    color: var(--win-muted) !important;
-    font-size: .72rem !important;
-    font-weight: 700;
-}
-.filter-date-group input {
-    min-height: 36px !important;
-}
-.filter-tabs-bitacora {
-    display: inline-flex !important;
-    gap: 3px !important;
-    padding: 4px !important;
-    overflow-x: auto;
-    background: #eef2f6 !important;
-    border: 1px solid var(--win-border) !important;
-    border-radius: 10px !important;
-    scrollbar-width: none;
-}
-.filter-tabs-bitacora::-webkit-scrollbar {
-    display: none;
 }
 .filter-tab-btn {
     min-height: 34px;
@@ -1433,17 +1288,6 @@ body:not(.modal-open) #main-content-area > * {
         width: calc(100% - 224px);
     }
 }
-@media (max-width: 1199.98px) {
-    .supervision-control-panel-inline {
-        grid-template-columns: 1fr;
-    }
-    .filter-date-panel-compact {
-        justify-content: flex-start;
-    }
-    .action-toolbar-bitacora {
-        flex-wrap: wrap;
-    }
-}
 @media (max-width: 991.98px) {
     body {
         font-size: 14px !important;
@@ -1510,28 +1354,6 @@ body:not(.modal-open) #main-content-area > * {
         width: 100%;
         text-align: left !important;
     }
-    .supervision-control-panel-inline {
-        padding: 12px !important;
-        gap: 10px !important;
-    }
-    .action-toolbar-bitacora,
-    .action-buttons-group {
-        display: grid !important;
-        grid-template-columns: 1fr;
-        width: 100%;
-    }
-    .action-toolbar-bitacora > *,
-    .action-buttons-group > * {
-        width: 100%;
-    }
-    .filter-date-panel-compact {
-        display: grid;
-        grid-template-columns: 1fr 14px 1fr;
-        width: 100%;
-    }
-    .filter-tabs-bitacora {
-        width: 100%;
-    }
     .filter-tab-btn {
         flex: 1 0 auto;
     }
@@ -1582,25 +1404,6 @@ body:not(.modal-open) #main-content-area > * {
     .field-bitacora select {
         min-height: 44px;
         font-size: 16px !important;
-    }
-    .filter-date-panel-compact {
-        grid-template-columns: 1fr;
-    }
-    .filter-date-panel-compact > span {
-        display: none;
-    }
-    .filter-date-group {
-        width: 100%;
-    }
-    .filter-date-group input {
-        width: 100%;
-        min-height: 42px !important;
-    }
-    .filter-tabs-bitacora {
-        display: grid !important;
-        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-        gap: 4px !important;
-        overflow: visible !important;
     }
     .filter-tab-btn {
         width: 100% !important;
@@ -1929,14 +1732,6 @@ a:hover {
     font-size: 10.5px;
     font-weight: 700;
 }
-.sgs-menu-label {
-    padding: 16px 22px 6px;
-    font-size: 10.5px;
-    font-weight: 700;
-    letter-spacing: 1.4px;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, .72);
-}
 #sidebar.sgs-sidebar ul li {
     border-bottom: 0 !important;
 }
@@ -2084,7 +1879,6 @@ a:hover {
 .card,
 .card-win,
 .panel-bitacora,
-.supervision-control-panel-inline,
 .obs-history-filter {
     background: var(--sgs-surface) !important;
     border: 1px solid var(--sgs-border) !important;
@@ -2217,20 +2011,9 @@ a:hover {
     background: var(--sgs-orange-soft) !important;
     color: var(--sgs-orange-dark) !important;
 }
-.sgs-role-badge {
-    padding: .5em 1em !important;
-    border-radius: 30px !important;
-    background: var(--sgs-surface) !important;
-    color: var(--sgs-orange-dark) !important;
-    border: 1px solid var(--sgs-orange-border) !important;
-    box-shadow: var(--sgs-shadow-field);
-}
 /* ============================== 7. BOTONES ============================== */
 .btn,
 .btn-bitacora,
-.new-btn-bitacora,
-.btn-action-excel,
-.btn-action-upload,
 .back-btn-bitacora {
     border-radius: var(--sgs-radius-sm) !important;
     font-family: var(--sgs-font) !important;
@@ -2239,7 +2022,6 @@ a:hover {
 /* Principal: naranja WIN */
 .btn-win,
 .btn-orange-bitacora,
-.new-btn-bitacora,
 .btn-warning {
     color: #fff !important;
     background: var(--sgs-orange) !important;
@@ -2247,7 +2029,6 @@ a:hover {
 }
 .btn-win:hover,
 .btn-orange-bitacora:hover,
-.new-btn-bitacora:hover,
 .btn-warning:hover {
     background: var(--sgs-orange-dark) !important;
     border-color: var(--sgs-orange-dark) !important;
@@ -2290,9 +2071,7 @@ a:hover {
 .btn-outline-info,
 .btn-outline-warning,
 .btn-bitacora,
-.back-btn-bitacora,
-.btn-action-excel,
-.btn-action-upload {
+.back-btn-bitacora {
     color: var(--sgs-ink-2) !important;
     background: var(--sgs-surface) !important;
     border: 1px solid var(--sgs-border) !important;
@@ -2303,9 +2082,7 @@ a:hover {
 .btn-outline-info:hover,
 .btn-outline-warning:hover,
 .btn-bitacora:hover,
-.back-btn-bitacora:hover,
-.btn-action-excel:hover,
-.btn-action-upload:hover {
+.back-btn-bitacora:hover {
     color: var(--sgs-orange-dark) !important;
     background: var(--sgs-orange-subtle) !important;
     border-color: var(--sgs-orange-border) !important;
@@ -2525,7 +2302,6 @@ body:not(.modal-open) #main-content-area > [id*="toast"] {
     font-weight: 700 !important;
     box-shadow: var(--sgs-shadow) !important;
 }
-/* ============================== 12. PANEL "VISTA PROVISIONAL" (administrador) ============================== */
 /* ============================== 13. RESPONSIVO ============================== */
 @media (max-width: 991.98px) {
     .sgs-topbar {
@@ -2539,79 +2315,6 @@ body:not(.modal-open) #main-content-area > [id*="toast"] {
     }
 }
 /* ============================== 14. PANEL DE CONTROL DE SUPERVISIONES ============================== */
-/* Cuadrícula ordenada: acciones | columnas · filtros | fechas · pestañas de estado */
-#main-content-area .supervision-control-panel-inline {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "actions columns" "scope dates" "tabs tabs";
-    align-items: center;
-    gap: 12px 16px !important;
-    padding: 16px 18px !important;
-    border-radius: var(--sgs-radius) !important;
-}
-#main-content-area .supervision-control-panel-inline > .action-buttons-group {
-    grid-area: actions;
-}
-#main-content-area .supervision-control-panel-inline > .dropdown {
-    grid-area: columns;
-    justify-self: end;
-}
-#main-content-area .supervision-control-panel-inline > .admin-scope-filters {
-    grid-area: scope;
-}
-#main-content-area .supervision-control-panel-inline > .filter-date-panel-compact {
-    grid-area: dates;
-    justify-self: end;
-}
-#main-content-area .supervision-control-panel-inline > .filter-tabs-bitacora {
-    grid-area: tabs;
-    padding-top: 12px;
-    border-top: 1px solid var(--sgs-border);
-}
-/* Misma altura, misma tipografía y un solo color de íconos en todos los controles */
-#main-content-area .supervision-control-panel-inline .new-btn-bitacora,
-#main-content-area .supervision-control-panel-inline .btn-action-excel,
-#main-content-area .supervision-control-panel-inline .btn-action-upload,
-#main-content-area .supervision-control-panel-inline .btn-action-columns {
-    height: 38px !important;
-    min-height: 38px !important;
-    padding: 0 14px !important;
-    display: inline-flex !important;
-    align-items: center;
-    gap: 8px;
-    white-space: nowrap;
-    font-size: 13px !important;
-    border-radius: var(--sgs-radius-sm) !important;
-}
-#main-content-area .supervision-control-panel-inline .btn-action-upload {
-    color: var(--sgs-ink-2) !important;
-    background: var(--sgs-surface) !important;
-    border: 1px solid var(--sgs-border) !important;
-}
-#main-content-area .supervision-control-panel-inline .admin-scope-filter select,
-#main-content-area .supervision-control-panel-inline input[type="date"] {
-    height: 38px !important;
-    border-radius: var(--sgs-radius-sm) !important;
-    border: 1px solid var(--sgs-border-strong) !important;
-    background-color: var(--sgs-surface);
-    font-size: 13px;
-    padding: 0 10px;
-    color: var(--sgs-ink);
-}
-#main-content-area .supervision-control-panel-inline .filter-date-panel-compact {
-    border: 0 !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    background: transparent !important;
-}
-#main-content-area .supervision-control-panel-inline i:not(.bi-plus-circle-fill) {
-    color: var(--sgs-orange) !important;
-}
-#main-content-area .supervision-control-panel-inline label {
-    font-size: 12px !important;
-    color: var(--sgs-muted) !important;
-    font-weight: 700 !important;
-}
 /* Acciones por fila: botones de ícono del mismo tamaño, uno al lado del otro */
 .sgs-row-actions {
     display: inline-flex;
@@ -2647,29 +2350,6 @@ body:not(.modal-open) #main-content-area > [id*="toast"] {
     border-color: var(--sgs-danger-border);
     background: var(--sgs-danger-soft);
     color: var(--sgs-danger);
-}
-@media (max-width: 991.98px) {
-    #main-content-area .supervision-control-panel-inline {
-        grid-template-columns: 1fr;
-        grid-template-areas: "actions" "scope" "dates" "tabs" "columns";
-    }
-    #main-content-area .supervision-control-panel-inline > .dropdown,
-    #main-content-area .supervision-control-panel-inline > .filter-date-panel-compact {
-        justify-self: stretch;
-    }
-}
-#main-content-area .supervision-control-panel-inline .admin-scope-filters {
-    flex-wrap: nowrap !important;
-    gap: 14px !important;
-}
-#main-content-area .supervision-control-panel-inline .admin-scope-filter select {
-    min-width: 150px !important;
-    max-width: 200px !important;
-}
-@media (max-width: 991.98px) {
-    #main-content-area .supervision-control-panel-inline .admin-scope-filters {
-        flex-wrap: wrap !important;
-    }
 }
 /* Indicadores: misma altura y misma escala de cifras en todas las pantallas */
 .sgs-kpi,
@@ -2748,9 +2428,6 @@ body:not(.modal-open) #main-content-area > [id*="toast"] {
 body[data-role="partner"] #filterTabs {
     display: none !important;
 }
-body[data-role="partner"] .supervision-control-panel-inline > .action-buttons-group:empty {
-    display: none;
-}
 /* Celular: correcciones heredadas del sistema de origen
    - #content reservaba 54px para la antigua barra fija oscura (ahora la barra es sticky y propia)
    - el botón de menú heredaba color blanco y quedaba invisible sobre la barra clara */
@@ -2775,52 +2452,6 @@ body[data-role="partner"] .supervision-control-panel-inline > .action-buttons-gr
 #sidebarToggleMobile.sgs-icon-btn i {
     font-size: 22px !important;
 }
-#main-content-area .filter-tabs-bitacora {
-    background: var(--sgs-surface-alt) !important;
-    border: 1px solid var(--sgs-border) !important;
-    border-radius: 12px !important;
-}
-@media (max-width: 991.98px) {
-    #main-content-area .supervision-control-panel-inline .admin-scope-filter {
-        flex-direction: column;
-        align-items: stretch;
-        width: 100%;
-    }
-    #main-content-area .supervision-control-panel-inline .admin-scope-filter select {
-        max-width: none !important;
-        width: 100%;
-    }
-    #main-content-area .supervision-control-panel-inline .filter-date-panel-compact {
-        display: grid !important;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-    }
-    #main-content-area .supervision-control-panel-inline .filter-date-panel-compact > span {
-        display: none !important;
-    }
-    #main-content-area .supervision-control-panel-inline .filter-date-group {
-        display: flex;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 4px;
-    }
-    #main-content-area .supervision-control-panel-inline .filter-date-group input {
-        width: 100%;
-    }
-}
-/* Pantallas medianas (laptops o ventana reducida): filtros y fechas en filas propias para que no se monten */
-@media (min-width: 992px) and (max-width: 1399.98px) {
-    #main-content-area .supervision-control-panel-inline {
-        grid-template-areas: "actions columns" "scope scope" "dates dates" "tabs tabs";
-    }
-    #main-content-area .supervision-control-panel-inline .admin-scope-filters {
-        flex-wrap: wrap !important;
-    }
-    #main-content-area .supervision-control-panel-inline > .filter-date-panel-compact {
-        justify-self: start;
-    }
-}
-/* El panel del administrador no debe tapar los modales */
 /* ============================== 16. PANTALLAS MUY ANGOSTAS ============================== */
 /* win-executive.css fijaba html{min-width:320px}: en ventanas más angostas la página no se encogía y se cortaba. */
 html {
@@ -2927,12 +2558,6 @@ html {
 .sgs-menu-group + .sgs-menu-group {
     margin-top: 4px;
     border-top: 1px solid rgba(255, 255, 255, .14);
-}
-.sgs-menu-group .sgs-menu-label {
-    padding-top: 14px;
-}
-.sgs-menu-group:first-child .sgs-menu-label {
-    padding-top: 10px;
 }
 .sgs-sidebar-account {
     padding: 6px 0;
@@ -3088,7 +2713,6 @@ body {
 /* Botón principal: sombra más sutil */
 .btn-win,
 .btn-orange-bitacora,
-.new-btn-bitacora,
 .btn-warning {
     box-shadow: 0 2px 6px rgba(255, 90, 10, .22) !important;
 }
@@ -3416,7 +3040,11 @@ input[type="file"]:hover::file-selector-button {
    Reemplaza la barra ancha de Windows y las heredadas (naranja gruesa en tablas/matriz/línea de tiempo, gris azulado). */
 :root { --sgs-scroll-thumb: rgba(48, 29, 25, .22); --sgs-scroll-thumb-hover: rgba(48, 29, 25, .42); }
 html { scrollbar-width: thin; scrollbar-color: var(--sgs-scroll-thumb) transparent; }
-*, .table-responsive, .table-panel-bitacora, .matriz-scroll-box, .timeline-console-box, .modal-body {
+*,
+.table-responsive,
+.table-panel-bitacora,
+.matriz-scroll-box,
+.modal-body {
     scrollbar-width: thin; scrollbar-color: var(--sgs-scroll-thumb) transparent;
 }
 /* Safari y navegadores sin soporte de scrollbar-color */
@@ -3442,9 +3070,6 @@ html { scrollbar-width: thin; scrollbar-color: var(--sgs-scroll-thumb) transpare
 .timeline-block-item.sgs-tl-sup.is-curso .bi-hourglass-split { animation: sgs-tl-pulso 1.6s ease-in-out infinite; }
 .timeline-block-item.sgs-tl-sup strong { font-size: .82rem; line-height: 1.2; }
 .timeline-block-item .sgs-tl-time { display: block; font-size: .74rem; font-weight: 600; opacity: .92; white-space: nowrap; }
-.sgs-legend .badge.sgs-tl-legend-curso, #main-content-area .sgs-legend .badge.sgs-tl-legend-curso {
-    background: var(--sgs-success) !important; color: #fff !important; border: 1px solid var(--sgs-success) !important;
-}
 @keyframes sgs-tl-pulso { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .timeline-block-item.sgs-tl-sup.is-curso .bi-hourglass-split { animation: none; } }
 
@@ -3468,8 +3093,6 @@ html.sgs-gps-bloqueado, html.sgs-gps-bloqueado body { overflow: hidden; }
 .sgs-gps-pasos { text-align: left; margin: 0 0 18px; padding-left: 1.2rem; color: var(--sgs-ink-2); }
 .sgs-gps-pasos li { margin-bottom: 6px; }
 .sgs-gps-estado { margin-top: 10px; min-height: 1.2em; font-size: .85rem; color: var(--sgs-muted); }
-
-.sgs-legend .badge.sgs-tl-legend-fin, #main-content-area .sgs-legend .badge.sgs-tl-legend-fin { background: var(--sgs-info) !important; color: #fff !important; }
 
 /* ============================== 25. META DE PRODUCTIVIDAD (barra de avance) ============================== */
 .sgs-meta-avance { display: flex; flex-direction: column; gap: 4px; min-width: 170px; }
@@ -3566,13 +3189,6 @@ html.sgs-gps-bloqueado, html.sgs-gps-bloqueado body { overflow: hidden; }
     border: 1px dashed var(--sgs-info) !important;
 }
 .timeline-block-item.sgs-tl-remoto strong { font-size: .82rem; line-height: 1.2; }
-.sgs-legend .badge.sgs-tl-legend-remoto, #main-content-area .sgs-legend .badge.sgs-tl-legend-remoto {
-    background: var(--sgs-info-soft) !important; color: var(--sgs-ink) !important; border: 1px dashed var(--sgs-info) !important;
-}
-/* Debajo del nombre del supervisor: primera actividad tras iniciar el turno */
-.sgs-tl-primera { display: block; margin-top: 2px; font-size: .72rem; color: var(--sgs-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sgs-tl-primera.is-pendiente { color: var(--sgs-warning-dark); }
-
 /* ============================== 29. DETALLE DE LA OBSERVACIÓN (Registro de observaciones) ============================== */
 /* Estado y plazo arriba · Datos de la orden en rejilla · Hallazgo con fotos · Seguimiento como pasos. */
 .sgs-obs-detalle { display: flex; flex-direction: column; gap: 18px; }
@@ -3732,13 +3348,11 @@ div.sgs-gantt-name:hover { background: var(--sgs-surface); }
     position: fixed; right: 20px; bottom: 20px; z-index: 1030; margin: 0; padding: 10px 12px; max-width: calc(100vw - 40px);
     flex-wrap: wrap; background: var(--sgs-surface); border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius); box-shadow: var(--sgs-shadow);
 }
-button#startBtn.floating-start-action { position: fixed; right: 20px; bottom: 20px; z-index: 1030; margin: 0; }
 /* Espacio al final para que los botones flotantes no tapen los últimos campos */
 #form-edit-detail, #partner-supervision-form, #form-inicio-supervision { padding-bottom: 88px; }
 @media (max-width: 767.98px) {
     #form-edit-detail .form-actions-bitacora,
     #partner-supervision-form .form-actions-bitacora { left: 0; right: 0; bottom: 0; max-width: none; border-radius: var(--sgs-radius) var(--sgs-radius) 0 0; }
-    button#startBtn.floating-start-action { left: 12px; right: 12px; bottom: 12px; width: auto; }
 }
 
 /* ============================================================
