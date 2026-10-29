@@ -1,7 +1,15 @@
 <?php
 // 03_FRONTEND/src/layouts/topbar.php - Encabezado superior: título de la sección y notificaciones
 $user = Auth::getLoggedInUser();
+$verComo = Auth::verComoActivo(); // 2026-10-28: el administrador general ve el sistema como otro usuario (solo mirar)
 ?>
+<?php if ($verComo): ?>
+<div class="sgs-ver-como" role="status">
+    <i class="bi bi-eye" aria-hidden="true"></i>
+    <span>Estás viendo como <strong><?= htmlspecialchars((string)$verComo['objetivo']) ?></strong> (<?= htmlspecialchars(Auth::etiquetaRol((string)($user['rol'] ?? ''))) ?>) · solo mirar, no se guarda nada.</span>
+    <button type="button" class="btn btn-win btn-sm" data-ver-como-salir><i class="bi bi-box-arrow-left me-1"></i>Volver a mi cuenta</button>
+</div>
+<?php endif; ?>
 <header class="sgs-topbar sticky-top" aria-label="Barra superior">
     <button type="button" id="sidebarToggleMobile" class="sgs-icon-btn d-lg-none" title="Mostrar u ocultar menú" aria-label="Mostrar u ocultar menú lateral" aria-controls="sidebar" aria-expanded="true">
         <i class="bi bi-list"></i>

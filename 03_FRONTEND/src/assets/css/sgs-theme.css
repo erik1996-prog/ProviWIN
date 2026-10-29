@@ -3987,3 +3987,8 @@ button.sgs-cal-dia:hover, button.sgs-cal-dia:focus-visible { outline: 0; box-sha
 .sgs-asis-tabla th.is-domingo { color: var(--sgs-asis-d); }
 .sgs-asis-leyenda { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: .78rem; color: var(--sgs-muted); }
 .sgs-asis-leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* 63. Ver como (2026-10-28): franja fija mientras el administrador general ve el sistema como otro usuario (solo mirar). */
+.sgs-ver-como { position: sticky; top: 0; z-index: 1031; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 14px;
+    padding: 8px 16px; background: var(--sgs-warning-soft); border-bottom: 1px solid var(--sgs-warning); color: var(--sgs-ink); font-size: .88rem; font-weight: 600; }
+.sgs-ver-como > i { color: var(--sgs-warning-dark); font-size: 1.1rem; }

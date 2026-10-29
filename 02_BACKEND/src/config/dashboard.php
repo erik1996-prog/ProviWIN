@@ -7,6 +7,7 @@
 /**
  * Filtros comunes leídos de $_GET (desde, hasta, partner_id, zona). $col: expresiones SQL de 'fecha', 'partner' y 'zona'.
  * El supervisor directo solo ve su zona (y lo que aún no tiene zona). Devuelve [where[], params[]].
+ * $col['area'] (2026-10-28): alias de la tabla de supervisiones; quien no es administrador ve solo las de su área de trabajo.
  */
 function sgsFiltrosDashboard(array $col, array $usuario, bool $esAdmin): array {
     $where = ['1=1']; $params = [];
@@ -22,6 +23,7 @@ function sgsFiltrosDashboard(array $col, array $usuario, bool $esAdmin): array {
         $where[] = '(' . sgsZoneSql($col['zona'], (int)$usuario['id'], $zp, ':uz') . " OR {$col['zona']} IS NULL OR {$col['zona']} = '')";
         $params += $zp;
     }
+    if (!$esAdmin && isset($col['area'])) $where[] = sgsAreaSql($col['area'], (int)$usuario['id']);
     return [$where, $params];
 }
 

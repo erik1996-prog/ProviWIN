@@ -75,12 +75,14 @@ function guardarPersonalSupervision(PDO $pdo, int $supervisionId, ?int $partnerI
     }
     // Zona de la cuadrilla (2026-10-24): el T2 rota, queda en el departamento y provincia de su última supervisión cerrada;
     // el T1 la toma solo si no tenía (su zona la administra Cuadrillas).
-    if ($actualizarCuadrilla && ($ids[0] || $ids[1])) {
+    // 2026-10-29: un técnico sin zona toma la de la supervisión desde que se guarda (aún en proceso), no solo al cerrarla.
+    if ($ids[0] || $ids[1]) {
         $zona = $pdo->prepare('SELECT departamento, provincia FROM supervisiones WHERE id = :id');
         $zona->execute([':id' => $supervisionId]);
         $zona = $zona->fetch(PDO::FETCH_ASSOC) ?: [];
         $dep = trim((string)($zona['departamento'] ?? '')); $prov = trim((string)($zona['provincia'] ?? '')) ?: null;
-        if ($dep !== '' && $ids[1]) $pdo->prepare('UPDATE tecnicos SET departamento=:dep, provincia=:prov WHERE id=:id')->execute([':dep'=>$dep, ':prov'=>$prov, ':id'=>$ids[1]]);
+        $sinZona = $actualizarCuadrilla ? '' : " AND COALESCE(departamento,'')=''";
+        if ($dep !== '' && $ids[1]) $pdo->prepare("UPDATE tecnicos SET departamento=:dep, provincia=:prov WHERE id=:id{$sinZona}")->execute([':dep'=>$dep, ':prov'=>$prov, ':id'=>$ids[1]]);
         if ($dep !== '' && $ids[0]) $pdo->prepare("UPDATE tecnicos SET departamento=:dep, provincia=:prov WHERE id=:id AND COALESCE(departamento,'')=''")->execute([':dep'=>$dep, ':prov'=>$prov, ':id'=>$ids[0]]);
     }
     $pdo->prepare('UPDATE supervisiones SET tecnico1_id=:t1,tecnico2_id=:t2,vehiculo_id=:vehiculo WHERE id=:id')

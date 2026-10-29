@@ -241,5 +241,7 @@ $miId = (int)Auth::getLoggedInUser()['id'];
 <script>window.SGS_USUARIOS = <?= json_encode([
     'miId' => $miId, 'esAdmin' => $esAdminUsuarios, 'gestiona' => $gestionaPersonal, 'esTotal' => $esAdminTotal,
     'etiquetasRol' => Auth::ETIQUETAS_ROL, 'puedeActivar' => Auth::esCuentaPrincipal($miId),
+    // "Ver como" (2026-10-28): solo el administrador general (cuenta principal), y no mientras ya ve como otro.
+    'verComo' => Auth::hasRole([Auth::ROLE_ADMINISTRADOR]) && Auth::esCuentaPrincipal($miId) && !Auth::verComoActivo(),
 ], JSON_UNESCAPED_UNICODE) ?>;</script>
 <script src="03_FRONTEND/src/assets/js/usuarios.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>

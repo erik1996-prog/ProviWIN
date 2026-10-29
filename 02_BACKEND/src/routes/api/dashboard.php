@@ -101,10 +101,13 @@ if ($action === 'matriz_mensual') {
     $depFiltro = sgsDashboardDepartamento();
     $supervisores = sgsSupervisoresVisibles($user, sgsSupervisoresDelDepartamento($stmtSups->fetchAll(), $depFiltro));
 
+    // Líder con zonas o área propias (2026-10-28): solo cuenta las supervisiones de su entorno.
+    $alcParams = [];
+    $alcance = sgsAlcanceSupervisionSql($user, 'supervisiones', $alcParams);
     $stmtCounts = $pdo->prepare("SELECT supervisor_id, DATE(fecha_registro) AS dia, COUNT(*) AS total FROM supervisiones
-        WHERE estado_supervision = 'Finalizada' AND fecha_registro >= :inicio AND fecha_registro < :fin" . ($depFiltro !== '' ? ' AND ' . sgsZonaSql('supervisiones') . ' = :dep' : '') . "
+        WHERE estado_supervision = 'Finalizada' AND fecha_registro >= :inicio AND fecha_registro < :fin AND {$alcance}" . ($depFiltro !== '' ? ' AND ' . sgsZonaSql('supervisiones') . ' = :dep' : '') . "
         GROUP BY supervisor_id, DATE(fecha_registro)");
-    $stmtCounts->execute([':inicio' => $ini->format('Y-m-d'), ':fin' => $fin->modify('+1 day')->format('Y-m-d')] + ($depFiltro !== '' ? [':dep' => $depFiltro] : []));
+    $stmtCounts->execute([':inicio' => $ini->format('Y-m-d'), ':fin' => $fin->modify('+1 day')->format('Y-m-d')] + $alcParams + ($depFiltro !== '' ? [':dep' => $depFiltro] : []));
     $matrizData = [];
     foreach ($stmtCounts->fetchAll() as $row) $matrizData[$row['supervisor_id']][$row['dia']] = (int)$row['total'];
 
@@ -144,9 +147,11 @@ if ($action === 'productividad_mensual') {
     $depFiltro = sgsDashboardDepartamento();
     $supervisores = sgsSupervisoresVisibles($user, sgsSupervisoresDelDepartamento($stmtLista->fetchAll(), $depFiltro));
     $rango = [':ini' => $inicio->format('Y-m-d'), ':fin' => $finMes->modify('+1 day')->format('Y-m-d')];
+    $alcParams = [];
+    $alcance = sgsAlcanceSupervisionSql($user, 'supervisiones', $alcParams); // líder: solo su entorno (2026-10-28)
     $stmtSup = $pdo->prepare("SELECT supervisor_id, COUNT(*) total FROM supervisiones
-        WHERE estado_supervision = 'Finalizada' AND fecha_registro >= :ini AND fecha_registro < :fin" . ($depFiltro !== '' ? ' AND ' . sgsZonaSql('supervisiones') . ' = :dep' : '') . " GROUP BY supervisor_id");
-    $stmtSup->execute($rango + ($depFiltro !== '' ? [':dep' => $depFiltro] : []));
+        WHERE estado_supervision = 'Finalizada' AND fecha_registro >= :ini AND fecha_registro < :fin AND {$alcance}" . ($depFiltro !== '' ? ' AND ' . sgsZonaSql('supervisiones') . ' = :dep' : '') . " GROUP BY supervisor_id");
+    $stmtSup->execute($rango + $alcParams + ($depFiltro !== '' ? [':dep' => $depFiltro] : []));
     $finalizadas = $stmtSup->fetchAll(PDO::FETCH_KEY_PAIR);
     $stmtDias = $pdo->prepare("SELECT supervisor_id, COUNT(DISTINCT fecha) dias, COUNT(DISTINCT CASE WHEN DAYOFWEEK(fecha) = 1 THEN fecha END) domingos
         FROM asistencia_supervisores WHERE fecha >= :ini AND fecha < :fin AND inicio_turno IS NOT NULL GROUP BY supervisor_id");

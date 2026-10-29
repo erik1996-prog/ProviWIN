@@ -4,6 +4,59 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Nuevo técnico y zona del T2 (2026-10-29)
+- **Añadido**: botón **"Nuevo técnico"** en Técnicos y cuadrillas para registrar un técnico líder (T1) o de apoyo (T2) suelto, sin el Excel. Pide tipo, partner, nombres, DNI, celular (opcional) y provincia; el departamento se busca solo.
+  - Quien tiene zona propia solo registra en su zona. Sin provincia (sin zona), solo el administrador general.
+- **Cambiado**: los tres lugares que registran técnicos (el T2 desde el formulario, el T2 nuevo del editor de cuadrillas y "Nuevo técnico") usan las mismas reglas (`sgsRegistrarTecnico`):
+  - DNI de 8 dígitos y único; no se puede registrar dos veces a la misma persona aunque cambie su nomenclatura.
+  - El celular, si se pone, de 9 dígitos.
+  - El partner debe estar activo.
+- **Cambiado**: un técnico sin zona toma la zona de la supervisión donde se usa **desde que se guarda**, no solo al cerrarla. Al cerrar, el T2 pasa a la zona de esa supervisión, porque rota.
+- **Cambiado**: en el editor de cuadrillas, la lista de T2 ya no muestra a los que no tienen zona (salvo al administrador general), y solo el administrador general puede dejar una cuadrilla sin provincia.
+- Prueba nueva: `nuevo_tecnico_test` (10 revisiones).
+
+### T2 sin zona propia (2026-10-29)
+- **Corregido**: al elegir el técnico líder, su técnico de apoyo (T2) salía con DNI pero sin nombre. El T2 no tenía zona propia y, con la regla de "técnicos sin zona solo para el administrador general", quedaba fuera de la lista. Ahora el T2 sin zona propia toma la zona de su líder, como ya hacía Técnicos y cuadrillas, en el servidor y en el formulario. Se agregó el caso a `tecnicos_sin_zona_test`.
+
+### Técnicos sin zona: solo el administrador general (2026-10-28)
+- **Cambiado**: los técnicos sin zona solo los ve el administrador general (cuenta principal). Antes salían a todos y en todas las zonas.
+  - Nadie más los recibe del servidor: ni en las listas del formulario de supervisión, ni en Técnicos y cuadrillas (tampoco el filtro "Sin zona"), ni en Exámenes.
+  - Regla común: `sgsVeTecnicosSinZona`.
+- Si una supervisión ya tenía guardado un técnico sin zona, se conserva al abrirla y guardarla, aunque quien la abre no lo vea en la lista.
+- Prueba nueva: `tecnicos_sin_zona_test`. Se actualizaron `cuadrillas_zona_test` y `cuadrillas_carga_test` a la regla nueva.
+
+### Supervisión: partners y cuadrillas solo de la zona (2026-10-28)
+- **Corregido**: en una supervisión de Lima salían cuadrillas y partners de provincia.
+  - **La zona del técnico** se calcula con su departamento y su provincia. Uno de Huaura es NORTE CHICO, no LIMA; antes se mezclaba con Lima.
+  - **La lista de partners** muestra solo los que trabajan en esa zona, es decir, los que tienen técnicos registrados ahí. Uno que solo está en provincia no sale en Lima; uno de Lima y provincia sale en ambas.
+  - **Los técnicos sin zona** solo salen si su partner trabaja en esa zona. Antes salían en todas.
+  - Un partner sin ningún técnico con zona sigue saliendo, porque no se sabe dónde trabaja.
+
+### Observaciones: solo de su zona y su área (2026-10-28)
+- **Corregido**: **Control y recurrencia** no aplicaba ningún filtro. Cualquier jefe o líder veía las observaciones de todo el país y de las dos áreas. Ahora cada líder ve solo las de su zona y su área, filtradas en la base, y no trae todas las observaciones en cada visita. La lista de zonas del filtro también se limita a las suyas.
+- **Corregido**: en **Observaciones**, las listas de los filtros (cuadrillas, partners y zonas) mostraban las de todo el país al líder. Ahora siguen su zona y su área, y en el partner también su área.
+- La prueba `entorno_zona_area_test` revisa también Control y recurrencia (21 revisiones).
+
+### Ver como otro usuario (2026-10-28)
+- **Añadido**: en Usuarios y roles, un **ojito** en cada usuario activo para ver el sistema como él: su menú, sus pantallas, su zona y su área. Arriba aparece una franja: "Estás viendo como … · solo mirar" con el botón **Volver a mi cuenta**.
+- Solo lo puede usar el **administrador general** (la cuenta principal). Nadie puede ver como una cuenta protegida.
+- **Solo mirar**: mientras se ve como otro, el servidor rechaza todo lo que guarda (iniciar turno, finalizar, validar, editar, marcar avisos como leídos…); solo se puede salir.
+- Queda en la auditoría (`audit_ver_como`: quién, a quién, inicio y fin); al usuario no le llega aviso.
+- El inicio de sesión y "Ver como" cargan la sesión con la misma función (`Auth::cargarSesionDe`). Prueba: `05_TEST/api/ver_como_test.php`.
+
+### Cada usuario ve solo su zona y su área; cuadrillas por zona; todo obligatorio salvo el T2 (2026-10-28)
+- **Corregido**: un usuario creado para una zona y un área de trabajo veía más de su entorno en varias pantallas:
+  - Pendientes y rescates mostraba también las de la otra área. Ahora el filtro común de los dashboards aplica el área.
+  - El líder veía todo el país y las dos áreas en: los indicadores, la matriz mensual y la productividad del Dashboard de supervisiones; Observaciones; y el Dashboard de partners. Ahora todas usan su alcance (zona y área).
+  - El supervisor del partner veía en Observaciones también la otra área.
+  - Prueba nueva: `entorno_zona_area_test` (18 revisiones).
+- **Corregido**: en una supervisión en Lima, sin provincia elegida, salían técnicos (T1) de todas las provincias. Ahora salen solo los de las zonas de ese departamento (LIMA y NORTE CHICO). El T2 también se filtra por la zona de la supervisión. Los técnicos sin zona siguen saliendo, marcados.
+- **Corregido**: todo lo que el formulario muestra es obligatorio para finalizar, salvo el técnico de apoyo (T2).
+  - En el detalle no se exigía el técnico líder (su lista queda oculta detrás del buscador).
+  - El brevete nunca se pedía.
+  - El Checklist siempre lleva cuadrilla, sea cual sea la modalidad.
+  - El servidor exige técnico líder y vehículo siempre que hay cuadrilla (función `sgsSinCuadrilla`).
+
 ### Matriz de asistencia (2026-10-28)
 - **Añadido**: pantalla **Matriz de asistencia** (Indicadores). Una fila por supervisor directo y una columna por día del mes, con el código y los colores de la tabla de asistencia de WIN, y los totales por código. Filtros de mes, zona y supervisor, y descarga en Excel.
 - Cómo se llena sola, en este orden:

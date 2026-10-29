@@ -232,6 +232,18 @@ function sgsAreaPermite(int $userId, ?string $clasificacion): bool
     return !in_array((string)$clasificacion, sgsClasificacionesFueraDeArea(sgsUserArea($userId)), true);
 }
 
+/** Técnicos sin zona (2026-10-28, regla del usuario): solo los ve el administrador general (cuenta principal). */
+function sgsVeTecnicosSinZona(array $user): bool
+{
+    return ($user['rol'] ?? '') === Auth::ROLE_ADMINISTRADOR && Auth::esCuentaPrincipal((int)($user['id'] ?? 0));
+}
+
+/** Condición SQL "el técnico tiene zona" sobre la expresión de su departamento. */
+function sgsTecnicoConZonaSql(string $departamento): string
+{
+    return "({$departamento} IS NOT NULL AND {$departamento} <> '')";
+}
+
 /**
  * Líder con alcance propio (2026-10-27): un Coordinador (líder técnico) con zonas marcadas o con área Instalaciones o
  * VT ve solo eso (supervisiones, pendientes, supervisores, línea de tiempo, dashboards, técnicos y usuarios). Sin

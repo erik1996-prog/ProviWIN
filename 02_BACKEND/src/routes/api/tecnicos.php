@@ -7,18 +7,23 @@ require_once __DIR__ . '/../../config/auth.php';
 require_once __DIR__ . '/../../config/database.php';
 
 Auth::requireLogin();
+$usuario = Auth::getLoggedInUser();
 $pdo = Database::getConnection();
 $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
 Auth::requireCsrf();
 
 try {
     if ($action === 'list' || $action === 'search') {
+        // Técnicos sin zona (2026-10-28): solo los recibe el administrador general. El T2 sin zona propia toma la de su líder
+        // (como en Técnicos y cuadrillas); antes quedaba fuera y el T2 de la cuadrilla salía con DNI pero sin nombre.
+        $soloConZona = sgsVeTecnicosSinZona($usuario) ? '' : ' AND (' . sgsTecnicoConZonaSql('t.departamento')
+            . ' OR EXISTS (SELECT 1 FROM tecnicos lz WHERE lz.apoyo_id = t.id AND ' . sgsTecnicoConZonaSql('lz.departamento') . '))';
         $q = trim($_GET['q'] ?? '');
         if ($q !== '') {
-            $stmt = $pdo->prepare("SELECT t.id, t.nombre_tecnico, COALESCE(NULLIF(TRIM(t.dni), ''), '0') AS dni, t.tipo_tecnico, t.celular, t.observacion, t.estado_operativo, t.partner_id, t.provincia, t.departamento, t.vehiculo_id, v.placa AS unidad_placa, v.tipo AS unidad_tipo, v.estado_conservacion AS unidad_estado, t.apoyo_id, ta.nombre_tecnico AS apoyo_nombre, pp.nombre_partner FROM tecnicos t LEFT JOIN vehiculos v ON v.id=t.vehiculo_id LEFT JOIN tecnicos ta ON ta.id=t.apoyo_id LEFT JOIN partners pp ON pp.id=t.partner_id WHERE t.nombre_tecnico LIKE :q ORDER BY t.nombre_tecnico ASC LIMIT 50");
+            $stmt = $pdo->prepare("SELECT t.id, t.nombre_tecnico, COALESCE(NULLIF(TRIM(t.dni), ''), '0') AS dni, t.tipo_tecnico, t.celular, t.observacion, t.estado_operativo, t.partner_id, t.provincia, t.departamento, t.vehiculo_id, v.placa AS unidad_placa, v.tipo AS unidad_tipo, v.estado_conservacion AS unidad_estado, t.apoyo_id, ta.nombre_tecnico AS apoyo_nombre, pp.nombre_partner FROM tecnicos t LEFT JOIN vehiculos v ON v.id=t.vehiculo_id LEFT JOIN tecnicos ta ON ta.id=t.apoyo_id LEFT JOIN partners pp ON pp.id=t.partner_id WHERE t.nombre_tecnico LIKE :q{$soloConZona} ORDER BY t.nombre_tecnico ASC LIMIT 50");
             $stmt->execute([':q' => "%{$q}%"]);
         } else {
-            $stmt = $pdo->query("SELECT t.id, t.nombre_tecnico, COALESCE(NULLIF(TRIM(t.dni), ''), '0') AS dni, t.tipo_tecnico, t.celular, t.observacion, t.estado_operativo, t.partner_id, t.provincia, t.departamento, t.vehiculo_id, v.placa AS unidad_placa, v.tipo AS unidad_tipo, v.estado_conservacion AS unidad_estado, t.apoyo_id, ta.nombre_tecnico AS apoyo_nombre, pp.nombre_partner FROM tecnicos t LEFT JOIN vehiculos v ON v.id=t.vehiculo_id LEFT JOIN tecnicos ta ON ta.id=t.apoyo_id LEFT JOIN partners pp ON pp.id=t.partner_id ORDER BY t.nombre_tecnico ASC");
+            $stmt = $pdo->query("SELECT t.id, t.nombre_tecnico, COALESCE(NULLIF(TRIM(t.dni), ''), '0') AS dni, t.tipo_tecnico, t.celular, t.observacion, t.estado_operativo, t.partner_id, t.provincia, t.departamento, t.vehiculo_id, v.placa AS unidad_placa, v.tipo AS unidad_tipo, v.estado_conservacion AS unidad_estado, t.apoyo_id, ta.nombre_tecnico AS apoyo_nombre, pp.nombre_partner FROM tecnicos t LEFT JOIN vehiculos v ON v.id=t.vehiculo_id LEFT JOIN tecnicos ta ON ta.id=t.apoyo_id LEFT JOIN partners pp ON pp.id=t.partner_id WHERE 1=1{$soloConZona} ORDER BY t.nombre_tecnico ASC");
         }
         $tecnicos = $stmt->fetchAll();
         echo json_encode(['status' => 'success', 'data' => $tecnicos]);
@@ -28,17 +33,17 @@ try {
     // Cuadrillas (2026-10-15): cada técnico líder con su técnico de apoyo habitual y su vehículo, armadas solas al
     // registrar supervisiones. Solo consulta, para personal administrativo y supervisores directos.
     if ($action === 'cuadrillas') {
-        $usuario = Auth::getLoggedInUser();
         $puede = Auth::puede(Auth::PERM_CUADRILLAS_VIEW, $usuario);
         if (!$puede) { http_response_code(403); echo json_encode(['status' => 'error', 'message' => 'Sin acceso a las cuadrillas.']); exit; }
         $where = ['COALESCE(t.tipo_tecnico, 1) = 1'];
         $params = [];
         $partnerId = (int)($_GET['partner_id'] ?? 0);
+        if (!sgsVeTecnicosSinZona($usuario)) $where[] = sgsTecnicoConZonaSql('t.departamento'); // sin zona: solo el administrador general
         if ($partnerId > 0) { $where[] = 't.partner_id = :partner'; $params[':partner'] = $partnerId; }
         // Zona del usuario (2026-10-15): igual que la pantalla Cuadrillas.
         if ((!Auth::isAdministrative() || sgsAlcanceLimitado($usuario)) && sgsUserZones((int)$usuario['id']) !== null) {
             $zp = [];
-            $where[] = '(' . sgsZoneSql('t.departamento', (int)$usuario['id'], $zp, ':uz') . " OR t.departamento IS NULL OR t.departamento = '')";
+            $where[] = sgsZoneSql('t.departamento', (int)$usuario['id'], $zp, ':uz');
             $params += $zp;
         }
         $q = mb_substr(trim((string)($_GET['q'] ?? '')), 0, 60);
@@ -116,13 +121,7 @@ try {
             throw new Exception('No tiene permiso para registrar técnicos.');
         }
         $partnerId = intval($_POST['partner_id'] ?? 0);
-        $nombre = mb_strtoupper(preg_replace('/\s+/u', ' ', trim((string)($_POST['nombre_tecnico'] ?? ''))), 'UTF-8');
-        $dni = trim((string)($_POST['dni'] ?? ''));
         if ($partnerId <= 0) throw new Exception('Seleccione primero el partner de la supervisión.');
-        if (mb_strlen($nombre) < 5 || mb_strlen($nombre) > 120 || !preg_match('/^[\p{L} .\'-]+$/u', $nombre)) {
-            throw new Exception('Escriba los nombres y apellidos del técnico (solo letras, de 5 a 120 caracteres).');
-        }
-        if (!preg_match('/^\d{8}$/', $dni)) throw new Exception('El DNI debe tener 8 dígitos.');
         // Zona (2026-10-24): la de la supervisión donde se registra; antes quedaba "Sin zona"
         $departamento = sgsDepartmentAlias((string)($_POST['departamento'] ?? ''));
         if (!in_array($departamento, sgsOperationalDepartments(), true)) $departamento = null;
@@ -135,25 +134,12 @@ try {
             $departamento = sgsZonaDeUbicacion($departamento, $provincia); // su zona: LIMA / HUAURA → NORTE CHICO (2026-10-27)
         }
 
-        $stmtPartner = $pdo->prepare('SELECT nombre_partner FROM partners WHERE id = :id AND estado = 1');
-        $stmtPartner->execute([':id' => $partnerId]);
-        $partnerNombre = $stmtPartner->fetchColumn();
-        if (!$partnerNombre) throw new Exception('El partner seleccionado no está activo.');
-
-        $stmtDni = $pdo->prepare('SELECT t.nombre_tecnico, t.tipo_tecnico, t.partner_id, p.nombre_partner FROM tecnicos t LEFT JOIN partners p ON p.id = t.partner_id WHERE t.dni = :dni LIMIT 1');
-        $stmtDni->execute([':dni' => $dni]);
-        if ($otro = $stmtDni->fetch()) {
-            $rol = (int)$otro['tipo_tecnico'] === 2 ? 'técnico de apoyo' : 'técnico líder';
-            throw new Exception("El DNI ya está registrado como {$rol}: {$otro['nombre_tecnico']}" . ($otro['nombre_partner'] ? " ({$otro['nombre_partner']})" : '') . '.'
-                . ((int)$otro['tipo_tecnico'] === 2 ? ' Búsquelo en la lista: se puede elegir aunque esté en otra cuadrilla.' : ''));
-        }
-        $stmtNombre = $pdo->prepare('SELECT id FROM tecnicos WHERE nombre_tecnico = :nom LIMIT 1');
-        $stmtNombre->execute([':nom' => $nombre]);
-        if ($stmtNombre->fetch()) throw new Exception('Ya existe un técnico con ese nombre. Búsquelo en la lista.');
-
-        $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, dni, tipo_tecnico, estado_operativo, partner_id, departamento, provincia, fecha_registro) VALUES (:nom, :dni, 2, 'Habilitado', :partner, :dep, :prov, NOW())")
-            ->execute([':nom' => $nombre, ':dni' => $dni, ':partner' => $partnerId, ':dep' => $departamento, ':prov' => $provincia]);
-        $id = (int)$pdo->lastInsertId();
+        require_once __DIR__ . '/../../config/tecnicos_lideres.php';
+        $id = sgsRegistrarTecnico($pdo, 2, (string)($_POST['nombre_tecnico'] ?? ''), (string)($_POST['dni'] ?? ''), $partnerId, $departamento, $provincia);
+        $st = $pdo->prepare('SELECT nombre_tecnico, dni FROM tecnicos WHERE id = :id');
+        $st->execute([':id' => $id]);
+        ['nombre_tecnico' => $nombre, 'dni' => $dni] = $st->fetch(PDO::FETCH_ASSOC);
+        $partnerNombre = $pdo->query('SELECT nombre_partner FROM partners WHERE id = ' . $partnerId)->fetchColumn();
         win_log_error('audit_technician_created', 'Técnico de apoyo (T2) registrado desde la supervisión', ['target_id' => $id, 'partner_id' => $partnerId]);
         echo json_encode([
             'status' => 'success',
@@ -161,6 +147,29 @@ try {
             'data' => ['id' => $id, 'nombre_tecnico' => $nombre, 'dni' => $dni, 'tipo_tecnico' => 2, 'celular' => null, 'observacion' => null,
                 'estado_operativo' => 'Habilitado', 'partner_id' => $partnerId, 'departamento' => $departamento, 'provincia' => $provincia, 'vehiculo_id' => null, 'unidad_placa' => null, 'unidad_tipo' => null, 'unidad_estado' => null, 'apoyo_id' => null, 'apoyo_nombre' => null],
         ]);
+        exit;
+    }
+
+    // Nuevo técnico (2026-10-29): desde Técnicos y cuadrillas se registra un técnico líder (T1) o de apoyo (T2) suelto, sin
+    // el Excel. Quien puede editar cuadrillas; con zona propia, solo en una provincia de su zona. Sin provincia (sin zona)
+    // solo el administrador general, que es el único que ve a los técnicos sin zona.
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'crear_tecnico') {
+        if (!Auth::puede(Auth::PERM_CUADRILLAS_EDIT, $usuario)) { http_response_code(403); throw new Exception('No tiene permiso para registrar técnicos.'); }
+        require_once __DIR__ . '/../../config/tecnicos_lideres.php';
+        $tipo = (int)($_POST['tipo_tecnico'] ?? 0);
+        if (!in_array($tipo, [1, 2], true)) throw new Exception('Elija si es técnico líder (T1) o de apoyo (T2).');
+        $provinciaTexto = mb_substr(trim((string)($_POST['provincia'] ?? '')), 0, 100);
+        $zona = $provinciaTexto !== '' ? sgsZonaDesdeProvincia($provinciaTexto, $pdo) : ['provincia' => null, 'departamento' => null];
+        if (!$zona) throw new Exception("No se reconoce la provincia \"{$provinciaTexto}\". Escríbala como en el mapa del Perú (p. ej. TRUJILLO, SANTA, CHICLAYO).");
+        if (!$zona['departamento'] && !sgsVeTecnicosSinZona($usuario)) throw new Exception('Escriba la provincia donde trabaja el técnico.');
+        $zonasEditor = Auth::isAdministrative() && !sgsAlcanceLimitado($usuario) ? null : sgsUserZones((int)$usuario['id']);
+        if ($zonasEditor !== null && !in_array(mb_strtoupper((string)$zona['departamento'], 'UTF-8'), $zonasEditor, true)) {
+            throw new Exception('La provincia elegida es de otra zona: solo puede registrar técnicos de su zona (' . implode(', ', $zonasEditor) . ').');
+        }
+        $id = sgsRegistrarTecnico($pdo, $tipo, (string)($_POST['nombre_tecnico'] ?? ''), (string)($_POST['dni'] ?? ''), (int)($_POST['partner_id'] ?? 0),
+            $zona['departamento'], $zona['provincia'], (string)($_POST['celular'] ?? ''));
+        win_log_error('audit_technician_created', ($tipo === 1 ? 'Técnico líder (T1)' : 'Técnico de apoyo (T2)') . ' registrado desde Técnicos y cuadrillas', ['target_id' => $id, 'partner_id' => (int)$_POST['partner_id']]);
+        echo json_encode(['status' => 'success', 'message' => ($tipo === 1 ? 'Técnico líder' : 'Técnico de apoyo') . ' registrado.', 'id' => $id], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -183,6 +192,7 @@ try {
         $provinciaTexto = mb_substr(trim((string)($_POST['provincia'] ?? '')), 0, 100);
         $zona = $provinciaTexto !== '' ? sgsZonaDesdeProvincia($provinciaTexto, $pdo) : ['provincia' => null, 'departamento' => null];
         if (!$zona) throw new Exception("No se reconoce la provincia \"{$provinciaTexto}\". Escríbala como en el mapa del Perú (p. ej. TRUJILLO, SANTA, CHICLAYO).");
+        if (!$zona['departamento'] && !sgsVeTecnicosSinZona($editor)) throw new Exception('Escriba la provincia de la cuadrilla: solo el administrador general deja técnicos sin zona.');
         // Datos del T1 y del T2 (2026-10-15): DNI (8 dígitos) y celular (9 dígitos), opcionales; solo se tocan si llegan.
         $dniValido = static function (string $dni, string $quien): ?string {
             $dni = trim($dni);
@@ -210,12 +220,6 @@ try {
         $t2Dni = $tocaT2 ? $dniValido((string)$_POST['t2_dni'], 'técnico de apoyo') : null;
         $t2Cel = $tocaT2 ? $celularValido((string)($_POST['t2_celular'] ?? ''), 'técnico de apoyo') : null;
         $t2Nombre = mb_strtoupper(preg_replace('/\s+/u', ' ', trim((string)($_POST['t2_nombre'] ?? ''))), 'UTF-8');
-        if ($apoyoNuevo) {
-            if (mb_strlen($t2Nombre) < 5 || mb_strlen($t2Nombre) > 120 || !preg_match('/^[\p{L} .\'-]+$/u', $t2Nombre)) {
-                throw new Exception('Escriba los nombres y apellidos del nuevo técnico de apoyo (solo letras, de 5 a 120 caracteres).');
-            }
-            if ($t2Dni === null) throw new Exception('Registre el DNI del nuevo técnico de apoyo (8 dígitos).');
-        }
 
         $pdo->beginTransaction();
         try {
@@ -238,14 +242,8 @@ try {
             }
             if ($apoyoNuevo) {
                 // T2 nuevo: queda en el partner y la zona del líder.
-                $dniLibre($t2Dni, 0);
-                $st = $pdo->prepare('SELECT id FROM tecnicos WHERE nombre_tecnico = :n LIMIT 1');
-                $st->execute([':n' => $t2Nombre]);
-                if ($st->fetchColumn()) throw new Exception('Ya existe un técnico con ese nombre: elíjalo en la lista de técnicos de apoyo.');
-                $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, dni, celular, tipo_tecnico, estado_operativo, partner_id, provincia, departamento, fecha_registro)
-                        VALUES (:n, :dni, :cel, 2, 'Habilitado', :p, :prov, :dep, NOW())")
-                    ->execute([':n' => $t2Nombre, ':dni' => $t2Dni, ':cel' => $t2Cel, ':p' => $lider['partner_id'], ':prov' => $zona['provincia'], ':dep' => $zona['departamento']]);
-                $apoyoId = (int)$pdo->lastInsertId();
+                require_once __DIR__ . '/../../config/tecnicos_lideres.php';
+                $apoyoId = sgsRegistrarTecnico($pdo, 2, $t2Nombre, (string)$t2Dni, (int)$lider['partner_id'], $zona['departamento'], $zona['provincia'], $t2Cel);
                 win_log_error('audit_technician_created', 'Técnico de apoyo (T2) registrado desde Cuadrillas', ['target_id' => $apoyoId, 'partner_id' => $lider['partner_id']]);
             } elseif ($tocaT2) {
                 $dniLibre($t2Dni, $apoyoId);

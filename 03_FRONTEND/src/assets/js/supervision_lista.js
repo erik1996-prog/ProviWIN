@@ -635,28 +635,52 @@
 
   // Zona (2026-10-15): el T1 se elige solo entre los técnicos líderes de la zona de la supervisión (su zona se
   // carga con la PROVINCIA en el Excel de Cuadrillas). Los que aún no tienen zona salen en todas, al final y marcados.
-  // 2026-10-27: zona = departamento, salvo provincias con zona propia (LIMA / HUAURA → NORTE CHICO); sin provincia
-  // elegida en un departamento así, aún no se filtra.
+  // 2026-10-27: zona = departamento, salvo provincias con zona propia (LIMA / HUAURA → NORTE CHICO).
+  // 2026-10-28: sin provincia elegida en un departamento así, salen los de sus zonas (LIMA y NORTE CHICO), nunca los de
+  // otras regiones (antes no se filtraba y en Lima salían cuadrillas de provincia).
   const normalizarZona = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim();
   const zonasPorProvincia = Object.fromEntries(Object.entries(SGS_SUPERVISION.zonasPorProvincia || {})
     .map(([d, provs]) => [normalizarZona(d), Object.fromEntries(Object.entries(provs).map(([p, z]) => [normalizarZona(p), normalizarZona(z)]))]));
-  const zonaDe = (departamento, provincia) => {
+  // Zonas posibles de la ubicación elegida ([] = sin departamento: aún no se filtra).
+  const zonasDe = (departamento, provincia) => {
     const d = normalizarZona(departamento), especiales = zonasPorProvincia[d];
-    if (!especiales) return d;
-    return provincia ? (especiales[normalizarZona(provincia)] || d) : '';
+    if (!d) return [];
+    if (!especiales) return [d];
+    return provincia ? [especiales[normalizarZona(provincia)] || d] : [d, ...new Set(Object.values(especiales))];
   };
+  // Zona de un técnico (2026-10-28): con su departamento Y su provincia (uno de HUAURA es NORTE CHICO, no LIMA). '' = sin zona.
+  const zonaPropia = t => t?.departamento ? (zonasDe(t.departamento, t.provincia || '')[0] || '') : '';
+  // El T2 sin zona propia toma la de su líder (2026-10-29), como en Técnicos y cuadrillas.
+  const zonaTecnico = t => zonaPropia(t) || (t.tipo_tecnico == 2 ? zonaPropia(listaTecnicos.find(l => String(l.apoyo_id) === String(t.id))) : '');
+  // Zonas donde trabaja cada partner: las de sus técnicos con zona (2026-10-28).
+  const zonasPartner = (partnerId) => new Set(listaTecnicos.filter(t => String(t.partner_id) === String(partnerId)).map(zonaTecnico).filter(Boolean));
+  // ¿El partner trabaja en alguna de esas zonas? Sin técnicos con zona no se sabe dónde trabaja: sale.
+  const partnerEnZona = (partnerId, zonas) => { const suyas = zonasPartner(partnerId); return !zonas.length || !suyas.size || zonas.some(z => suyas.has(z)); };
+  // Técnico de la zona: el suyo; uno sin zona, solo si su partner trabaja en esa zona (antes salían en todas).
+  const tecnicoEnZona = (t, zonas) => !zonas.length || (zonaTecnico(t) ? zonas.includes(zonaTecnico(t)) : partnerEnZona(t.partner_id, zonas));
+  // Lista de partners del formulario: solo los que trabajan en la zona de la supervisión (el elegido se conserva).
+  function filtrarPartners(select, departamento, provincia = '') {
+    if (!select) return;
+    const zonas = zonasDe(departamento, provincia);
+    [...select.options].forEach(o => { if (!o.value) return; const ve = o.selected || partnerEnZona(o.value, zonas); o.hidden = !ve; o.disabled = !ve; });
+  }
   function lideresDeZona(partnerId, departamento, actual = '', provincia = '') {
-    const dep = zonaDe(departamento, provincia);
+    const zonas = zonasDe(departamento, provincia);
     return listaTecnicos
       .filter(t => String(t.partner_id) === String(partnerId) && (t.tipo_tecnico == 1 || !t.tipo_tecnico))
-      .filter(t => !dep || !t.departamento || normalizarZona(t.departamento) === dep || (actual && t.nombre_tecnico === actual))
+      .filter(t => tecnicoEnZona(t, zonas) || (actual && t.nombre_tecnico === actual))
       .sort((a, b) => (a.departamento ? 0 : 1) - (b.departamento ? 0 : 1) || String(a.nombre_tecnico).localeCompare(String(b.nombre_tecnico), 'es'));
   }
   const textoLider = t => t.nombre_tecnico + (t.departamento ? '' : ' · sin zona');
+  // Técnico ya guardado que esta persona no recibe en la lista (2026-10-28: los sin zona solo los ve el administrador
+  // general): se conserva su opción para que al guardar no se borre.
+  const opcionGuardada = (nombre, lista) => nombre && !lista.some(t => t.nombre_tecnico === nombre)
+    ? `<option value="${escapeHtml(nombre)}" selected>${escapeHtml(nombre)}</option>` : '';
 
   // t1Guardado (2026-10-24): al reabrir una supervisión en proceso, su T1 entra en la lista aunque la zona aún no esté
   // cargada; antes la lista quedaba la del partner o zona anteriores y el T1 se perdía (quedaba solo el T2).
   function poblarSelectsTecnicos(t1Guardado = '') {
+    filtrarPartners(newPartner, document.getElementById('new_dep')?.value || '', document.getElementById('new_prov')?.value || '');
     // TÉCNICO LÍDER (T1): los del partner y de la zona (departamento) elegidos.
     if (newTec1Nom) {
       const currentVal1 = t1Guardado || newTec1Nom.value;
@@ -668,13 +692,14 @@
         const isSel = (t.nombre_tecnico === currentVal1) ? 'selected' : '';
         newTec1Nom.innerHTML += `<option value="${escapeHtml(t.nombre_tecnico)}" data-id="${t.id}" ${isSel}>${escapeHtml(textoLider(t))}</option>`;
       });
+      newTec1Nom.innerHTML += opcionGuardada(currentVal1, t1List);
     }
 
     // TÉCNICO APOYO (T2): opcional, sin ingreso libre ni creación automática.
     if (newTec2Nom) {
       const currentVal2 = newTec2Nom.value;
       newTec2Nom.innerHTML = '<option value="">Sin técnico de apoyo (T2)</option>';
-      newTec2Nom.innerHTML += opcionesApoyo(newPartner.value, currentVal2);
+      newTec2Nom.innerHTML += opcionesApoyo(newPartner.value, currentVal2, document.getElementById('new_dep')?.value || '', document.getElementById('new_prov')?.value || '');
     }
     activarBuscadorTecnico(newTec1Nom, 1);
     activarBuscadorTecnico(newTec2Nom, 2);
@@ -799,11 +824,13 @@
     return actualizar;
   }
 
-  // T2 (2026-10-15): rotan entre cuadrillas, así que se puede elegir cualquiera. Primero los del partner de la
+  // T2 (2026-10-15): rotan entre cuadrillas, así que se puede elegir cualquiera de la zona. Primero los del partner de la
   // supervisión; los demás muestran su partner actual y, al cerrar la supervisión, pasan a esta cuadrilla.
-  function opcionesApoyo(partnerId, actual) {
+  // 2026-10-28: solo los de la zona de la supervisión (y los que aún no tienen zona), como el T1.
+  function opcionesApoyo(partnerId, actual, departamento = '', provincia = '') {
     const propios = String(partnerId || '');
-    return listaTecnicos.filter(t => t.tipo_tecnico == 2)
+    const zonas = zonasDe(departamento, provincia);
+    return opcionGuardada(actual, listaTecnicos.filter(t => t.tipo_tecnico == 2)) + listaTecnicos.filter(t => t.tipo_tecnico == 2 && (tecnicoEnZona(t, zonas) || t.nombre_tecnico === actual))
       .sort((a, b) => (String(a.partner_id) === propios ? 0 : 1) - (String(b.partner_id) === propios ? 0 : 1) || String(a.nombre_tecnico).localeCompare(String(b.nombre_tecnico), 'es'))
       .map(t => {
         const otro = String(t.partner_id) !== propios ? ` · ${t.nombre_partner || 'sin partner'}` : '';
@@ -2419,7 +2446,7 @@
       return `<div class="panel-bitacora p-3 p-md-4 mb-3"><p class="section-subtitle-bitacora mt-0">${escapeHtml(title)}</p><div class="sgs-ficha-datos">${html}</div></div>`;
     };
     const esCancel = Number(rec.es_cancelacion) === 1;
-    const enFrio = ['En frío', 'Remota'].includes(rec.tipo_supervision_inicial); // sin cuadrilla en campo
+    const enFrio = rec.clasificacion !== 'Checklist' && ['En frío', 'Remota'].includes(rec.tipo_supervision_inicial); // sin cuadrilla en campo (el Checklist siempre la lleva)
     const gps = rec.latitud && rec.longitud
       ? `${escapeHtml(rec.latitud)}, ${escapeHtml(rec.longitud)} <a class="sgs-dato-enlace" href="https://maps.google.com/?q=${encodeURIComponent(rec.latitud + ',' + rec.longitud)}" target="_blank" rel="noopener"><i class="bi bi-geo-alt"></i>Ver en mapa</a>` : '';
 
@@ -2492,7 +2519,8 @@
       const sel = (t.nombre_tecnico === rec.tecnico1_nombre) ? 'selected' : '';
       tec1OptionsHtml += `<option value="${escapeHtml(t.nombre_tecnico)}" ${sel}>${escapeHtml(textoLider(t))}</option>`;
     });
-    let tec2OptionsHtml = '<option value="">Sin técnico de apoyo (T2)</option>' + opcionesApoyo(rec.partner_id, rec.tecnico2_nombre);
+    tec1OptionsHtml += opcionGuardada(rec.tecnico1_nombre, t1List);
+    let tec2OptionsHtml = '<option value="">Sin técnico de apoyo (T2)</option>' + opcionesApoyo(rec.partner_id, rec.tecnico2_nombre, rec.departamento, rec.provincia);
 
     const seccionesChecklistEdicion = SGS_SUPERVISION.seccionesChecklist;
     const opcionesChecklistSeccion = seccion => seccion==='EPP y EPE' ? ['Sí','No','Para cambio','No revisado'] : (seccion==='Indumentaria' ? ['Sí','No','Mal estado','No revisado'] : (seccion==='Materiales y ferretería' ? ['Sí','No'] : ['Bueno','Regular','Malo','No tiene']));
@@ -3034,10 +3062,11 @@
     activarBuscadorTecnico(editTec1Nom, 1);
     activarBuscadorTecnico(editTec2Nom, 2);
     prepararVencimientosChecklist('edit', rec.id);
+    filtrarPartners(document.getElementById('edit_partner'), rec.departamento, rec.provincia);
     document.getElementById('edit_partner')?.addEventListener('change', function() {
       [editTec1Nom,editTec2Nom].forEach((select,index) => {
         if (!select) return;
-        if (index === 1) { select.innerHTML = '<option value="">Sin técnico de apoyo (T2)</option>' + opcionesApoyo(this.value, ''); select.dispatchEvent(new Event('change')); return; }
+        if (index === 1) { select.innerHTML = '<option value="">Sin técnico de apoyo (T2)</option>' + opcionesApoyo(this.value, '', rec.departamento, rec.provincia); select.dispatchEvent(new Event('change')); return; }
         select.innerHTML = '<option value="">Seleccione técnico</option>';
         lideresDeZona(this.value, rec.departamento, '', rec.provincia).forEach(t => select.add(new Option(textoLider(t), t.nombre_tecnico)));
         select.dispatchEvent(new Event('change'));
@@ -3158,7 +3187,8 @@
       }
       const sinCuadrilla = ['Incidencia / Casos atípicos', 'Visita partner por capacitación'].includes(tipo);
       if (editSecCuadrilla) {
-        const mostrar = !sinCuadrilla && !['En frío', 'Remota'].includes(editTipoSupModalidad?.value); // remota: solo el partner
+        // remota: solo el partner. El Checklist siempre lleva cuadrilla (2026-10-28), como en el formulario nuevo.
+        const mostrar = tipo === 'Checklist' || (!sinCuadrilla && !['En frío', 'Remota'].includes(editTipoSupModalidad?.value));
         editSecCuadrilla.style.display = tipo === 'Incidencia / Casos atípicos' ? 'none' : '';
         const personal = document.getElementById('edit_personal_vehiculo');
         personal.style.display = mostrar ? '' : 'none';
@@ -3487,11 +3517,16 @@
     return false;
   }
 
+  // Campo que el formulario muestra (2026-10-28). Las listas con buscador (técnicos) quedan ocultas detrás de su caja de
+  // búsqueda: cuenta su recuadro. Antes el T1 nunca se exigía en el detalle porque su lista "no se veía".
+  const campoVisible = el => Boolean(el && !el.disabled && (el.offsetParent !== null
+    || (el.dataset.searchable === '1' && el.closest('.field-bitacora')?.offsetParent != null)));
+
   // Todo lo que falta para finalizar en el formulario de detalle: [{el, texto}] (2026-10-16).
   function faltantesEdicion(form) {
     const lista = [];
     const valor = id => document.getElementById(id)?.value.trim() || '';
-    const visibleHabilitado = el => el && !el.disabled && el.offsetParent !== null;
+    const visibleHabilitado = campoVisible;
     const marcarFaltante = (el, mensaje) => { lista.push({ el, texto: mensaje }); return false; };
     const remotaEdicion = esModalidadRemota('edit_tipo_sup');
     const noAplicaEnRemota = ['edit_tec1_nom','edit_tec1_dni','edit_brevete','edit_u_tipo','edit_u_placa','edit_u_estado','edit_latitud','edit_longitud'];
@@ -3577,16 +3612,17 @@
     const tipo = newTipoSupervision?.value || '';
     const tiposSinPedido = ['Incidencia / Casos atípicos','Proyecto de ordenamiento','Visita partner por capacitación','Conjunta PEXT','Checklist'];
     const tiposSinPartner = ['Incidencia / Casos atípicos'];
-    const tiposSinCuadrilla = ['Incidencia / Casos atípicos','Visita partner por capacitación'];
     const modalidad = newTipoSupModalidad?.value || '';
     if (!tiposSinPedido.includes(tipo) && vacio(newTicketCodigo)) agregar(newTicketCodigo);
     if (!tiposSinPartner.includes(tipo) && vacio(newPartner)) agregar(newPartner);
     const remota = modalidad === 'Remota';
-    if (modalidad !== 'En frío' && !remota && !tiposSinCuadrilla.includes(tipo)) {
+    // Cuadrilla (2026-10-28): si el formulario la muestra, todo es obligatorio salvo el T2. Antes se eximía por modalidad
+    // (En frío / Remota) aunque se mostrara, como en el Checklist, y no se pedía el brevete.
+    if (campoVisible(newTec1Nom)) {
       if (vacio(newTec1Nom)) agregar(newTec1Nom);
       else if (!/^\d{8}$/.test(newTec1Dni?.value.trim() || '')) agregar(newTec1Dni, 'DNI del técnico líder (8 dígitos)');
       if (newTec2Nom?.value && !/^\d{8}$/.test(newTec2Dni?.value.trim() || '')) agregar(newTec2Dni, 'DNI del técnico de apoyo (T2), 8 dígitos');
-      ['new_u_tipo','new_u_placa','new_u_estado'].map(id => document.getElementById(id)).filter(vacio).forEach(f => agregar(f));
+      ['new_brevete','new_u_tipo','new_u_placa','new_u_estado'].map(id => document.getElementById(id)).filter(f => campoVisible(f) && vacio(f)).forEach(f => agregar(f));
     }
     const lat = Number(document.getElementById('new_latitud')?.value);
     const lng = Number(document.getElementById('new_longitud')?.value);

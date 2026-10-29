@@ -225,4 +225,24 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!confirm('¿Aplicar los cambios de la vista previa? Los técnicos que no vienen en el archivo quedarán inhabilitados.')) return;
     procesar('aplicar');
   });
+  // Nuevo técnico (2026-10-29): un técnico líder (T1) o de apoyo (T2) suelto, sin el Excel (api/tecnicos.php?action=crear_tecnico).
+  const fNuevo = $('fNuevoTecnico');
+  $('btnNuevoTecnico')?.addEventListener('click', () => {
+    fNuevo.reset(); $('ntError').classList.add('d-none');
+    bootstrap.Modal.getOrCreateInstance($('mNuevoTecnico')).show();
+  });
+  fNuevo?.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const error = $('ntError');
+    const falta = [...fNuevo.querySelectorAll('[required]')].find((c) => !c.value.trim());
+    if (falta) { error.textContent = 'Complete: ' + (fNuevo.querySelector(`label[for="${falta.id}"]`)?.textContent || 'los datos') + '.'; error.classList.remove('d-none'); falta.focus(); return; }
+    const boton = $('btnGuardarNuevoTecnico'); boton.disabled = true;
+    try {
+      const r = await (await fetch('api/tecnicos.php?action=crear_tecnico', { method: 'POST', headers: { 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '' }, body: new FormData(fNuevo) })).json();
+      if (r.status !== 'success') throw new Error(r.message || 'No se pudo registrar el técnico.');
+      window.showToast(r.message, 'success');
+      window.location.reload();
+    } catch (e) { error.textContent = e.message; error.classList.remove('d-none'); }
+    finally { boton.disabled = false; }
+  });
 });

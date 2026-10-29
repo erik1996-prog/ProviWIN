@@ -131,7 +131,7 @@ try {
     [$pagina] = $http("$base/index.php?page=cuadrillas");
     preg_match('/<meta name="csrf-token" content="([^"]+)"/', $pagina, $m);
     $csrf = ['X-CSRF-Token: ' . ($m[1] ?? '')];
-    $check('la pantalla muestra la carga por Excel y la edición', str_contains($pagina, 'Cargar técnicos líderes') && str_contains($pagina, 'data-editar='));
+    $check('la pantalla muestra la carga por Excel y la edición', str_contains($pagina, 'Cargar técnicos líderes') && str_contains($pagina, 'id="cuadNombre"'));
 
     [$bin, , $tipo] = $http("$base/api/tecnicos.php?action=exportar_lideres");
     file_put_contents($xlsx, $bin);
@@ -146,13 +146,15 @@ try {
 
     $lider = $tec('P 7 PRUEBACUAD SGI LIDER HTTP PRUEBA', '99999936', 1, (int)$p1['id']);
     $guardar = fn(array $campos) => $http("$base/api/tecnicos.php?action=cuadrilla_guardar", [CURLOPT_POST => true, CURLOPT_HTTPHEADER => $csrf, CURLOPT_POSTFIELDS => $campos])[1];
-    $j = $guardar(['id' => $lider, 'apoyo_id' => 0, 'placa' => 'zz-9991', 'vehiculo_tipo' => 'Auto', 'vehiculo_estado' => 'Regular', 'estado_operativo' => 'Habilitado']);
+    $j = $guardar(['id' => $lider, 'apoyo_id' => 0, 'placa' => 'zz-9991', 'vehiculo_tipo' => 'Auto', 'vehiculo_estado' => 'Regular', 'estado_operativo' => 'Habilitado', 'provincia' => 'piura']);
     $v = $pdo->query("SELECT v.placa, v.tipo, v.estado_conservacion FROM tecnicos t JOIN vehiculos v ON v.id = t.vehiculo_id WHERE t.id = $lider")->fetch(PDO::FETCH_ASSOC);
     $check('editar cuadrilla: guarda el vehículo con su tipo y estado', ($j['status'] ?? '') === 'success' && $v && $v['placa'] === 'ZZ-9991' && $v['tipo'] === 'Auto' && $v['estado_conservacion'] === 'Regular', [$j, $v]);
-    $j = $guardar(['id' => $lider, 'apoyo_id' => 0, 'placa' => '', 'estado_operativo' => 'Inhabilitado']);
+    $j = $guardar(['id' => $lider, 'apoyo_id' => 0, 'placa' => '', 'estado_operativo' => 'Inhabilitado', 'provincia' => 'piura']);
     $check('editar cuadrilla: sin placa queda sin vehículo y cambia el estado del líder', ($j['status'] ?? '') === 'success' && $fila($lider)['vehiculo_id'] === null && $fila($lider)['estado_operativo'] === 'Inhabilitado', $fila($lider));
     $j = $guardar(['id' => $lider, 'apoyo_id' => 0, 'placa' => 'NO VALIDA !!', 'estado_operativo' => 'Habilitado']);
     $check('editar cuadrilla: rechaza una placa inválida', ($j['status'] ?? '') === 'error', $j);
+    $j = $guardar(['id' => $lider, 'apoyo_id' => 0, 'placa' => '', 'estado_operativo' => 'Habilitado']);
+    $check('editar cuadrilla: sin provincia no se deja sin zona (solo el administrador general)', ($j['status'] ?? '') === 'error' && str_contains($j['message'] ?? '', 'provincia'), $j);
     $j = $guardar(['id' => $lider, 'apoyo_id' => 0, 'placa' => '', 'estado_operativo' => 'Habilitado', 'provincia' => 'huancayo']);
     $check('editar cuadrilla: la provincia escrita a mano pone su departamento (HUANCAYO → JUNÍN)', ($j['status'] ?? '') === 'success' && $fila($lider)['departamento'] === 'JUNÍN' && $fila($lider)['provincia'] === 'HUANCAYO', [$j, $fila($lider)]);
     $j = $guardar(['id' => $lider, 'apoyo_id' => 0, 'placa' => '', 'estado_operativo' => 'Habilitado', 'provincia' => 'Narnia']);

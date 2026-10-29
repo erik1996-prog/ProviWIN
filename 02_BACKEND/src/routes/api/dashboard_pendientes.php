@@ -48,7 +48,7 @@ try {
     $vencidaPartner = "({$transferida} AND NOT {$atendidaPartner} AND s.estado_supervision = 'Pendiente' AND NOW() > s.fecha_asignacion + INTERVAL 24 HOUR)";
 
     $zonaSql = sgsZonaSql('s'); // zona de trabajo: departamento o NORTE CHICO (2026-10-27)
-    [$where, $params] = sgsFiltrosDashboard(['fecha' => 's.fecha_carga', 'partner' => 's.partner_id', 'zona' => $zonaSql], $usuario, $esAdmin);
+    [$where, $params] = sgsFiltrosDashboard(['fecha' => 's.fecha_carga', 'partner' => 's.partner_id', 'zona' => $zonaSql, 'area' => 's'], $usuario, $esAdmin);
     array_unshift($where, 's.es_cancelacion = 1', 's.origen_importacion = 1');
     if (($sup = (int)($_GET['supervisor_id'] ?? 0)) > 0) { $where[] = "({$responsableSql}) = :sup"; $params[':sup'] = $sup; }
     $consulta = sgsConsultaDashboard($pdo, "FROM supervisiones s LEFT JOIN partners p ON p.id = s.partner_id

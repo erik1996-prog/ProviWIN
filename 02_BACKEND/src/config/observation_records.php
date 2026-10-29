@@ -18,10 +18,10 @@ function observationRegisterScope(array $user): array {
     // Gestión (administrador, gerente, coordinador) ve todo; el resto, solo su alcance.
     $effectiveRole = (string)($user['rol'] ?? '');
     if (in_array($effectiveRole, [Auth::ROLE_ADMINISTRADOR, Auth::ROLE_GERENTE, Auth::ROLE_COORDINADOR], true)) {
-        // Líder con zonas propias (2026-10-27): solo las observaciones de sus zonas
-        if (sgsAlcanceLimitado($user) && sgsUserZones((int)$user['id'])) {
+        // Líder con zonas o área propias (2026-10-27; 2026-10-28 también el área): solo las observaciones de su entorno
+        if (sgsAlcanceLimitado($user)) {
             $params = [];
-            return [' AND ' . sgsZoneSql(sgsZonaSql('registros'), (int)$user['id'], $params, ':scope_zona'), $params];
+            return [' AND ' . sgsAlcanceSupervisionSql($user, 'registros', $params, ':scope_alc'), $params];
         }
         return ['', []];
     }
@@ -34,7 +34,8 @@ function observationRegisterScope(array $user): array {
         // y de SU zona (departamento base + accesos adicionales), no solo las de sus órdenes.
         $params = [':scope_partner'=>(int)$user['partner_id']];
         $zone = sgsZoneSql(sgsZonaSql('registros'), (int)$user['id'], $params, ':scope_zona'); // zona: departamento o NORTE CHICO
-        return [' AND registros.partner_id=:scope_partner AND ' . $zone, $params];
+        // 2026-10-28: y de su área de trabajo (Instalaciones o VT), si tiene una.
+        return [' AND registros.partner_id=:scope_partner AND ' . $zone . ' AND ' . sgsAreaSql('registros', (int)$user['id']), $params];
     }
     return [' AND registros.creado_por=:scope_creator', [':scope_creator'=>(int)$user['id']]];
 }
@@ -48,7 +49,7 @@ function observationRecordsBaseQuery(array $user, array $filters): array {
         o.detalle_observacion comentario,o.gravedad estado_item,o.foto_1,o.foto_comentario_1,o.foto_2,o.foto_comentario_2,o.foto_3,o.foto_comentario_3,
         o.fecha_limite_respuesta,o.estado_respuesta,o.respuesta_partner,o.fecha_respuesta_partner,o.respondido_por_partner,ur.nombre_completo respondido_por_nombre,
         o.descargo_foto_1,o.descargo_comentario_1,o.descargo_foto_2,o.descargo_comentario_2,o.descargo_foto_3,o.descargo_comentario_3,o.sustentacion_evaluacion,o.fecha_evaluacion,
-        NULL comentario_general,NULL firma_supervisor
+        NULL comentario_general,NULL firma_supervisor,s.clasificacion_supervision
       FROM observaciones_supervision o JOIN supervisiones s ON s.id=o.supervision_id
       LEFT JOIN partners p ON p.id=s.partner_id LEFT JOIN usuarios u ON u.id=s.supervisor_id LEFT JOIN usuarios ur ON ur.id=o.respondido_por_partner
       LEFT JOIN categorias_observacion c ON c.id=o.categoria_id LEFT JOIN subopciones_observacion sub ON sub.id=o.subopcion_id
@@ -64,7 +65,7 @@ function observationRecordsBaseQuery(array $user, array $filters): array {
           WHEN 4 THEN DATE_ADD(ct.fecha_registro, INTERVAL 4 DAY)
           WHEN 5 THEN DATE_ADD(ct.fecha_registro, INTERVAL 4 DAY)
           ELSE DATE_ADD(ct.fecha_registro, INTERVAL 3 DAY)
-        END),ct.estado_respuesta,ct.respuesta_general_partner,ct.fecha_respuesta_partner,ct.respondido_por_partner,ur.nombre_completo,cr.descargo_foto,cr.descargo_comentario,NULL,NULL,NULL,NULL,ct.sustentacion_evaluacion,ct.fecha_evaluacion,ct.observacion_general,ct.firma_supervisor
+        END),ct.estado_respuesta,ct.respuesta_general_partner,ct.fecha_respuesta_partner,ct.respondido_por_partner,ur.nombre_completo,cr.descargo_foto,cr.descargo_comentario,NULL,NULL,NULL,NULL,ct.sustentacion_evaluacion,ct.fecha_evaluacion,ct.observacion_general,ct.firma_supervisor,s.clasificacion_supervision
       FROM checklist_respuestas cr JOIN checklists_tecnicos ct ON ct.id=cr.checklist_id JOIN supervisiones s ON s.id=ct.supervision_id
       LEFT JOIN partners p ON p.id=s.partner_id LEFT JOIN usuarios u ON u.id=ct.supervisor_id LEFT JOIN usuarios ur ON ur.id=ct.respondido_por_partner
       WHERE (cr.observacion IS NOT NULL AND TRIM(cr.observacion)<>'') OR cr.foto_evidencia IS NOT NULL

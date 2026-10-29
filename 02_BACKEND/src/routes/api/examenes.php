@@ -104,6 +104,7 @@ try {
     if (in_array($action, ['dashboard', 'dashboard_tabla', 'dashboard_excel'], true)) {
         $dep = "COALESCE(NULLIF(t.departamento, ''), l.departamento)"; // el T2 sin zona toma la de su líder
         [$where, $params] = sgsFiltrosDashboard(['fecha' => 'c.creado_en', 'partner' => 't.partner_id', 'zona' => $dep], $usuario, $esAdmin);
+        if (!sgsVeTecnicosSinZona($usuario)) $where[] = sgsTecnicoConZonaSql($dep); // técnicos sin zona: solo el administrador general
         if (($ex = (string)($_GET['examen'] ?? '')) !== '' && sgsExamenBanco($ex)) { $where[] = 'c.examen = :examen'; $params[':examen'] = $ex; }
         $consulta = sgsConsultaDashboard($pdo, "FROM examen_convocatoria_tecnicos ct JOIN examen_convocatorias c ON c.id = ct.convocatoria_id
             JOIN tecnicos t ON t.id = ct.tecnico_id LEFT JOIN tecnicos l ON l.apoyo_id = t.id AND COALESCE(l.tipo_tecnico, 1) = 1

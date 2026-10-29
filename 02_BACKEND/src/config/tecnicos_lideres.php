@@ -17,6 +17,45 @@ function sgsNombreLider(string $nombre): string {
 }
 
 /**
+ * Registra un técnico nuevo (2026-10-29): líder (T1, $tipo 1) o de apoyo (T2, $tipo 2). La usan el formulario de supervisión
+ * (T2 nuevo), el editor de cuadrillas (T2 nuevo) y "Nuevo técnico" de Técnicos y cuadrillas, con las mismas reglas: nombre,
+ * DNI de 8 dígitos y único, celular de 9 dígitos (opcional), partner activo y que la persona no esté ya registrada.
+ * Devuelve su id; si algo no cumple, lanza Exception con el motivo.
+ */
+function sgsRegistrarTecnico(PDO $pdo, int $tipo, string $nombre, string $dni, int $partnerId, ?string $departamento, ?string $provincia, ?string $celular = null): int {
+    $nombre = sgsNombreLider($nombre);
+    $quien = $tipo === 1 ? 'técnico líder' : 'técnico de apoyo';
+    // El líder lleva su nomenclatura (p. ej. "P 1 KAJOMI SGI JUAN PEREZ"): admite números; el de apoyo, solo letras.
+    if (mb_strlen($nombre) < 5 || mb_strlen($nombre) > 120 || !preg_match($tipo === 1 ? '/^[\p{L}\d .\'-]+$/u' : '/^[\p{L} .\'-]+$/u', $nombre)) {
+        throw new Exception("Escriba los nombres y apellidos del {$quien} (de 5 a 120 caracteres" . ($tipo === 1 ? ').' : ', solo letras).'));
+    }
+    $dni = trim($dni);
+    if (!preg_match('/^\d{8}$/', $dni)) throw new Exception("El DNI del {$quien} debe tener 8 dígitos.");
+    $celular = preg_replace('/\D/', '', (string)$celular);
+    if ($celular !== '' && !preg_match('/^9\d{8}$/', $celular)) throw new Exception("El celular del {$quien} debe tener 9 dígitos y empezar con 9.");
+    $st = $pdo->prepare("SELECT nombre_partner FROM partners WHERE id = :id AND estado = 1 AND UPPER(TRIM(nombre_partner)) NOT IN ('WIN', 'WIN DIRECTO')");
+    $st->execute([':id' => $partnerId]);
+    if (!$st->fetchColumn()) throw new Exception('Elija un partner activo.');
+    $st = $pdo->prepare('SELECT t.nombre_tecnico, t.tipo_tecnico, p.nombre_partner FROM tecnicos t LEFT JOIN partners p ON p.id = t.partner_id WHERE t.dni = :dni LIMIT 1');
+    $st->execute([':dni' => $dni]);
+    if ($otro = $st->fetch(PDO::FETCH_ASSOC)) {
+        $rol = (int)$otro['tipo_tecnico'] === 2 ? 'técnico de apoyo' : 'técnico líder';
+        throw new Exception("El DNI ya está registrado como {$rol}: {$otro['nombre_tecnico']}" . ($otro['nombre_partner'] ? " ({$otro['nombre_partner']})" : '') . '.');
+    }
+    $st = $pdo->prepare('SELECT nombre_tecnico FROM tecnicos WHERE nombre_tecnico = :n LIMIT 1');
+    $st->execute([':n' => $nombre]);
+    if ($st->fetchColumn()) throw new Exception('Ya existe un técnico con ese nombre. Búsquelo en la lista.');
+    if ($tipo === 1) { // la misma persona con otra nomenclatura ("P 4 DOMINION SGI JUAN PEREZ" = "P 12 OLMA SGA JUAN PEREZ")
+        foreach ($pdo->query('SELECT nombre_tecnico FROM tecnicos WHERE COALESCE(tipo_tecnico, 1) = 1')->fetchAll(PDO::FETCH_COLUMN) as $existente) {
+            if (sgsPersonaLider($existente) === sgsPersonaLider($nombre)) throw new Exception("Esa persona ya está registrada como técnico líder: {$existente}. Corríjala con el lápiz de su fila.");
+        }
+    }
+    $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, dni, celular, tipo_tecnico, estado_operativo, partner_id, departamento, provincia, fecha_registro)
+            VALUES (:n, :dni, :cel, :tipo, 'Habilitado', :p, :dep, :prov, NOW())")
+        ->execute([':n' => $nombre, ':dni' => $dni, ':cel' => $celular ?: null, ':tipo' => $tipo === 1 ? 1 : 2, ':p' => $partnerId, ':dep' => $departamento ?: null, ':prov' => $provincia ?: null]);
+    return (int)$pdo->lastInsertId();
+}
+/**
  * La persona detrás de la nomenclatura, para reconocerla aunque cambie el inicio:
  * "P 4 DOMINION SGI JUAN PEREZ" y "P 12 OLMA SGA JUAN PEREZ" → "JUAN PEREZ".
  */

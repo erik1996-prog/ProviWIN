@@ -120,6 +120,10 @@ $colores = [
           <?php foreach (['A', 'V', 'LSG', 'LG', 'DM', 'SUB', 'LPF', 'LP', 'D', 'FT', 'C'] as $codigoAsis): ?><span class="sgs-asis sgs-asis--<?= $codigoAsis ?>"><?= $codigoAsis ?></span><?php endforeach; ?>
         </div>
         <div class="small text-muted mt-2">Solo en la Matriz de asistencia (sección 62): colores de la tabla de asistencia de WIN.</div>
+        <hr>
+        <h5 class="mb-3"><i class="bi bi-eye me-2 text-primary"></i>Franja de "Ver como"</h5>
+        <div class="sgs-ver-como"><i class="bi bi-eye" aria-hidden="true"></i><span>Estás viendo como <strong>Nombre del usuario</strong> (Supervisor) · solo mirar, no se guarda nada.</span><button type="button" class="btn btn-win btn-sm" disabled>Volver a mi cuenta</button></div>
+        <div class="small text-muted mt-2">Sección 63: arriba de todo mientras el administrador general ve el sistema como otro usuario.</div>
       </div>
     </div>
 

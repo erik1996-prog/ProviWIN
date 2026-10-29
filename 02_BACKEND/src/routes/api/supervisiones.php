@@ -106,6 +106,16 @@ function canAccessSupervision(array $user, array $supervision, bool $allowPendin
 }
 
 /**
+ * Supervisión sin cuadrilla en campo: modalidad En frío o Remota, o un tipo sin cuadrilla (incidencia, visita al partner).
+ * El Checklist siempre la lleva (2026-10-28): el formulario muestra técnico y vehículo en cualquier modalidad y son
+ * obligatorios; antes se descartaban en En frío / Remota y se podía cerrar sin técnico.
+ */
+function sgsSinCuadrilla(?string $modalidad, ?string $tipo): bool {
+    if ($tipo === 'Checklist') return false;
+    return in_array($modalidad, ['En frío', 'Remota'], true) || in_array($tipo, ['Incidencia / Casos atípicos', 'Visita partner por capacitación'], true);
+}
+
+/**
  * Lado del partner (supervisor de partner y jefe de operaciones, 2026-10-27): revisa la orden sin saber qué partner la
  * canceló ni qué cuadrilla la atendió (técnicos y placa). Esos datos no se le envían (lista y detalle).
  */
@@ -514,7 +524,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
     $tipoSolicitado = $input['tipo_supervision'] ?? $input['clasificacion_supervision'] ?? 'Instalación';
     $tiposSinPedido = ['Incidencia / Casos atípicos', 'Proyecto de ordenamiento', 'Visita partner por capacitación', 'Conjunta PEXT', 'Checklist'];
     $tiposSinPartner = ['Incidencia / Casos atípicos'];
-    $tiposSinCuadrilla = ['Incidencia / Casos atípicos', 'Visita partner por capacitación'];
     $tiposConSubtipo = ['Postventa', 'Avería', 'Reiterada', 'Garantía'];
     $isImportedCancellationEdit = $requestedEditId > 0
         && !empty($targetRecord['es_cancelacion'])
@@ -620,7 +629,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
         $stmtP = $pdo->query("SELECT id FROM partners WHERE estado = 1 ORDER BY id ASC LIMIT 1");
         $partnerId = intval($stmtP->fetchColumn() ?: 1);
     }
-    $sinCuadrilla = in_array($tipoSupervisionInicial, ['En frío', 'Remota'], true) || in_array($tipoSolicitado, $tiposSinCuadrilla, true);
+    $sinCuadrilla = sgsSinCuadrilla($tipoSupervisionInicial, $tipoSolicitado);
     $tecnico1Nombre = !$sinCuadrilla && !empty($input['tecnico1_nombre']) ? $input['tecnico1_nombre'] : null;
     $tecnico1Dni = !$sinCuadrilla && !empty($input['tecnico1_dni']) ? $input['tecnico1_dni'] : null;
     $tecnico2Nombre = !$sinCuadrilla ? ($input['tecnico2_nombre'] ?? null) : null;
@@ -748,17 +757,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
                 exit;
             }
         }
-        $requiereCuadrillaCierre = !$sinCuadrilla && $tipoSupervisionInicial !== 'En frío';
-        // En la remota el vehículo no siempre se ve por la cámara: solo se exige el técnico líder.
+        // Con cuadrilla (2026-10-28): técnico líder y vehículo siempre obligatorios; solo el T2 es opcional.
         $esRemota = $tipoSupervisionInicial === 'Remota';
-        if ($requiereCuadrillaCierre && (
+        if (!$sinCuadrilla && (
             trim((string)$tecnico1Nombre) === ''
             || !preg_match('/^\d{8}$/', trim((string)$tecnico1Dni))
-            || (!$esRemota && (trim((string)$unidadTipo) === '' || trim((string)$unidadPlaca) === '' || trim((string)$unidadEstado) === ''))
+            || trim((string)$unidadTipo) === '' || trim((string)$unidadPlaca) === '' || trim((string)$unidadEstado) === ''
         )) {
-            echo json_encode(['status' => 'error', 'message' => $esRemota
-                ? 'Complete el nombre y DNI del técnico líder antes de finalizar.'
-                : 'Complete los datos del técnico líder y del vehículo antes de finalizar.']);
+            echo json_encode(['status' => 'error', 'message' => 'Complete los datos del técnico líder y del vehículo antes de finalizar (solo el técnico de apoyo es opcional).']);
             exit;
         }
         // GPS: obligatorio en campo; en la remota el supervisor no está en el lugar (si el equipo lo tomó, igual se guarda).
@@ -979,7 +985,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
             $estadoCaliente = $existingSupervision['estado_servicio_caliente'];
         }
         $esCancelacionImportada = $editId > 0 && !empty($existingSupervision['origen_importacion']) && !empty($existingSupervision['es_cancelacion']);
-        $sinCuadrilla = (in_array($tipoSupervisionInicial, ['En frío', 'Remota'], true) || in_array($clasificacion, $tiposSinCuadrilla, true)) && !$esCancelacionImportada;
+        $sinCuadrilla = sgsSinCuadrilla($tipoSupervisionInicial, $clasificacion) && !$esCancelacionImportada;
         if ($sinCuadrilla) {
             // Retain historical technician snapshots when viewing an already imported cold record.
             $conservarHistorico = $editId > 0 && ($existingSupervision['tipo_supervision_inicial'] ?? '') === 'En frío';
@@ -2078,6 +2084,8 @@ if ($action === 'indicadores_dashboard') {
         ':f_ini' => $fechaInicio,
         ':f_fin' => $fechaFin
     ];
+    // Líder con zonas o área propias (2026-10-28): solo lo de su entorno; antes contaba todo el país.
+    $where[] = sgsAlcanceSupervisionSql($user, 's', $params);
 
     if ($partnerId > 0) {
         $where[] = "s.partner_id = :partner_id";

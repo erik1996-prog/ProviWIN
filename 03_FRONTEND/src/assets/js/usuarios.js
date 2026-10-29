@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const ES_TOTAL = D.esTotal; // false = líder con su equipo: sin contraseñas ni desbloqueos
   const ETQ = D.etiquetasRol, etqRol = (r) => ETQ[r] || r; // nombre que se muestra
   const PUEDE_ACTIVAR = D.puedeActivar; // solo la cuenta principal activa (2026-10-26)
+  const VER_COMO = D.verComo; // "Ver como" (2026-10-28): solo el administrador general
   const $ = (s, el = document) => el.querySelector(s);
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const toast = (m, t = 'success') => (window.showToast ? window.showToast(m, t) : alert(m));
@@ -126,6 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <td class="text-end"><div class="sgs-row-actions">${u.protegido && !yo ? '<span class="badge bg-secondary" title="Solo su titular puede verla o modificarla"><i class="bi bi-shield-lock me-1"></i>Cuenta protegida</span></div></td></tr>' : !ES_ADMIN ? (GESTIONA && u.rol !== 'Administrador'
             ? `<button class="sgs-icon-action" title="Editar datos personales" aria-label="Editar datos personales" data-personal="${u.id}"><i class="bi bi-pencil"></i></button>`
             : `<button class="sgs-icon-action" title="Ver ficha" aria-label="Ver ficha" data-ficha="${u.id}"><i class="bi bi-eye"></i></button>`) + '</div></td></tr>' : `
+            ${VER_COMO && activo && !u.sin_acceso && !yo ? `<button class="sgs-icon-action" title="Ver como este usuario (solo mirar)" aria-label="Ver el sistema como este usuario" data-ver-como="${u.id}" data-name="${esc(u.nombre_completo)}"><i class="bi bi-eye"></i></button>` : ''}
             <button class="sgs-icon-action" title="${u.sin_acceso ? 'Completar acceso' : 'Editar'}" aria-label="${u.sin_acceso ? 'Completar acceso' : 'Editar'}" data-edit="${u.id}"><i class="bi ${u.sin_acceso ? 'bi-person-gear' : 'bi-pencil'}"></i></button>
             ${u.bloqueado && ES_TOTAL ? `<button class="sgs-icon-action" title="Desbloquear" aria-label="Desbloquear usuario" data-unlock="${u.id}" data-name="${esc(u.nombre_completo)}"><i class="bi bi-unlock"></i></button>` : ''}
             ${ES_TOTAL ? `<button class="sgs-icon-action" title="Restablecer contraseña" aria-label="Restablecer contraseña" data-pw="${u.id}" data-name="${esc(u.nombre_completo)}"><i class="bi bi-key"></i></button>` : ''}
@@ -227,7 +229,14 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#usrBody').addEventListener('click', async (ev) => {
     const b = ev.target.closest('button'); if (!b) return;
     try {
-      if (b.dataset.edit) { abrirUsuario((await api('detalle', { params: { id: b.dataset.edit } })).data); }
+      if (b.dataset.verComo) {
+        const cuerpo = new FormData(); cuerpo.append('id', b.dataset.verComo);
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const r = await (await fetch('api/ver_como.php?action=iniciar', { method: 'POST', headers: { 'X-CSRF-Token': csrf }, body: cuerpo })).json();
+        if (r.status !== 'success') throw new Error(r.message || 'No se pudo ver como este usuario.');
+        window.location.href = r.redirect;
+      }
+      else if (b.dataset.edit) { abrirUsuario((await api('detalle', { params: { id: b.dataset.edit } })).data); }
       else if (b.dataset.personal || b.dataset.ficha) { abrirPersonal((await api('ficha', { params: { id: b.dataset.personal || b.dataset.ficha } })).data, !!b.dataset.ficha); }
       else if (b.dataset.pw) {
         if (!confirm(`¿Generar una contraseña temporal para ${b.dataset.name}? La actual dejará de funcionar.`)) return;

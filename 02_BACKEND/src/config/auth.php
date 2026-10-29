@@ -403,8 +403,30 @@ class Auth {
 
         // Crear Sesión segura únicamente después de completar la autenticación.
         session_regenerate_id(true);
-        $_SESSION['user_id'] = $user['id'];
         $_SESSION['sgs_ultimo_uso'] = time();
+        self::cargarSesionDe($user);
+        // Reiniciar el control visual de flyers en cada autenticación. De esta
+        // manera el flyer vigente aparece una vez por ingreso al sistema.
+        $_SESSION['flyers_mostrados_ingreso'] = [];
+        // Contraseña puesta por el administrador: hasta cambiarla solo puede ver la pantalla de cambio (requireLogin).
+        if (!empty($user['debe_cambiar_password'])) $_SESSION['debe_cambiar_password'] = true;
+        else unset($_SESSION['debe_cambiar_password']);
+
+        return [
+            'status' => 'success',
+            'debe_cambiar_password' => !empty($user['debe_cambiar_password']),
+            'message' => 'Inicio de sesión exitoso.',
+            'user' => self::getLoggedInUser()
+        ];
+    }
+
+    /** Datos del usuario en la sesión (los usan el inicio de sesión y "Ver como"). Fila de usuarios con nombre_partner. */
+    private const CLAVES_SESION = ['user_id', 'user_dni', 'user_nombres', 'user_apellidos', 'user_usuario', 'user_nombre', 'user_email', 'user_rol',
+        'user_partner_id', 'user_partner_nombre', 'user_area_trabajo', 'user_zona', 'user_departamento', 'user_procesos_copiados',
+        'user_observacion', 'user_avatar', 'debe_cambiar_password', 'sgs_revalidated_at'];
+
+    private static function cargarSesionDe(array $user): void {
+        $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_dni'] = $user['dni'];
         $_SESSION['user_nombres'] = $user['nombres'] ?? '';
         $_SESSION['user_apellidos'] = $user['apellidos'] ?? '';
@@ -420,19 +442,43 @@ class Auth {
         $_SESSION['user_procesos_copiados'] = $user['procesos_copiados'] ?? '';
         $_SESSION['user_observacion'] = $user['observacion'] ?? '';
         $_SESSION['user_avatar'] = !empty($user['avatar']) ? $user['avatar'] : 'assets/img/default-avatar.png';
-        // Reiniciar el control visual de flyers en cada autenticación. De esta
-        // manera el flyer vigente aparece una vez por ingreso al sistema.
-        $_SESSION['flyers_mostrados_ingreso'] = [];
-        // Contraseña puesta por el administrador: hasta cambiarla solo puede ver la pantalla de cambio (requireLogin).
-        if (!empty($user['debe_cambiar_password'])) $_SESSION['debe_cambiar_password'] = true;
-        else unset($_SESSION['debe_cambiar_password']);
+    }
 
-        return [
-            'status' => 'success',
-            'debe_cambiar_password' => !empty($user['debe_cambiar_password']),
-            'message' => 'Inicio de sesión exitoso.',
-            'user' => self::getLoggedInUser()
-        ];
+    // ---------- "Ver como" (2026-10-28) ----------
+    // Solo la cuenta principal (administrador) puede ver el sistema como otro usuario activo, para revisar lo que ve. Es solo
+    // mirar: requireLogin rechaza todo lo que guarda (POST) salvo salir. Sus datos se guardan en la sesión y se recuperan al
+    // salir. Queda en la auditoría (audit_ver_como); al usuario no le llega aviso. Nadie puede ver como una cuenta protegida.
+
+    /** Datos de "Ver como" en curso: ['admin' => sesión original, 'admin_id', 'objetivo_id', 'objetivo'] o null. */
+    public static function verComoActivo(): ?array {
+        return $_SESSION['ver_como'] ?? null;
+    }
+
+    public static function verComo(int $id): void {
+        $actual = self::verComoActivo();
+        $actorId = (int)($actual['admin_id'] ?? $_SESSION['user_id'] ?? 0);
+        $actorRol = (string)($actual['admin']['user_rol'] ?? $_SESSION['user_rol'] ?? '');
+        if ($actorRol !== self::ROLE_ADMINISTRADOR || !self::esCuentaPrincipal($actorId)) throw new RuntimeException('Solo el administrador general puede ver como otro usuario.');
+        if ($id === $actorId || self::esProtegido($id)) throw new RuntimeException('Esa cuenta no se puede ver como otro usuario.');
+        $st = Database::getConnection()->prepare("SELECT u.*, p.nombre_partner FROM usuarios u LEFT JOIN partners p ON p.id = u.partner_id
+            WHERE u.id = :id AND u.activo = 1 AND COALESCE(u.usuario, '') <> '' LIMIT 1");
+        $st->execute([':id' => $id]);
+        $user = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$user) throw new RuntimeException('El usuario no está activo o no tiene acceso al sistema.');
+        if (!$actual) $actual = ['admin' => array_intersect_key($_SESSION, array_flip(self::CLAVES_SESION)), 'admin_id' => $actorId];
+        foreach (self::CLAVES_SESION as $clave) unset($_SESSION[$clave]);
+        self::cargarSesionDe($user);
+        $_SESSION['ver_como'] = ['objetivo_id' => (int)$user['id'], 'objetivo' => $_SESSION['user_nombre']] + $actual;
+        win_log_error('audit_ver_como', 'Inicio de "Ver como"', ['actor_id' => $actorId, 'target_id' => (int)$user['id']]);
+    }
+
+    public static function salirDeVerComo(): void {
+        $actual = self::verComoActivo();
+        if (!$actual) return;
+        foreach (self::CLAVES_SESION as $clave) unset($_SESSION[$clave]);
+        $_SESSION = array_merge($_SESSION, $actual['admin']);
+        unset($_SESSION['ver_como']);
+        win_log_error('audit_ver_como', 'Fin de "Ver como"', ['actor_id' => (int)$actual['admin_id'], 'target_id' => (int)($actual['objetivo_id'] ?? 0)]);
     }
 
     public static function logout(): void {
@@ -509,6 +555,15 @@ class Auth {
                 exit;
             }
             header('Location: index.php?page=login');
+            exit;
+        }
+        // "Ver como" (2026-10-28): solo mirar. Se rechaza todo lo que guarda; solo se puede salir o cerrar sesión.
+        if (self::verComoActivo() && !in_array(strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET'), ['GET', 'HEAD'], true)
+            && !preg_match('#/api/(auth|ver_como)\.php$#', $_SERVER['SCRIPT_NAME'] ?? '')) {
+            if (ob_get_level() > 0) ob_clean();
+            http_response_code(403);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['status' => 'error', 'message' => 'Estás viendo como otro usuario: solo puedes mirar. Sal de "Ver como" para hacer cambios.'], JSON_UNESCAPED_UNICODE);
             exit;
         }
         // Cambio de contraseña obligatorio (2026-10-15): las APIs solo atienden el cambio propio; las pantallas

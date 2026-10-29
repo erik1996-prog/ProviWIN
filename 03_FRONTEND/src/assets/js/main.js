@@ -49,6 +49,14 @@ document.addEventListener('DOMContentLoaded', () => {
         syncMobileFloatingControls();
     }
 
+    // "Ver como" (2026-10-28): volver a la cuenta del administrador desde la franja superior.
+    document.querySelector('[data-ver-como-salir]')?.addEventListener('click', async (ev) => {
+        ev.currentTarget.disabled = true;
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const r = await fetch('api/ver_como.php?action=salir', { method: 'POST', headers: { 'X-CSRF-Token': csrf } }).then(x => x.json()).catch(() => ({}));
+        window.location.href = r.redirect || 'index.php';
+    });
+
     if (sidebarToggleMobile) sidebarToggleMobile.addEventListener('click', toggleSidebar);
     if (sidebarCloseMobile) sidebarCloseMobile.addEventListener('click', closeMobileSidebar);
 

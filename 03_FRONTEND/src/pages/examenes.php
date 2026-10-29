@@ -44,7 +44,7 @@ $examenes = sgsExamenesDisponibles();
       <div class="sgs-filtro"><label class="form-label" for="exdZona">Zona</label>
         <select class="form-select" id="exdZona" name="zona"><option value="">Todas las zonas</option>
           <?php foreach ($zonas as $z): ?><option value="<?= $e($z) ?>"><?= $e($z) ?></option><?php endforeach; ?>
-          <option value="sin_zona">Sin zona</option>
+          <?php if (sgsVeTecnicosSinZona($user)): ?><option value="sin_zona">Sin zona</option><?php endif; ?>
         </select></div>
       <button type="reset" class="btn btn-outline-secondary sgs-filtro-limpiar"><i class="bi bi-x-lg me-1"></i>Limpiar</button>
     </div>

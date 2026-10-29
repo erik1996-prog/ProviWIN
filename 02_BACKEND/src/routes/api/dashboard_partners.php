@@ -29,11 +29,12 @@ $inicio = $fecha((string)($_GET['desde'] ?? ''), date('Y-m-01'));
 $fin = $fecha((string)($_GET['hasta'] ?? ''), date('Y-m-d'));
 if ($inicio > $fin) [$inicio, $fin] = [$fin, $inicio];
 $zona = mb_strtoupper(trim((string)($_GET['zona'] ?? '')), 'UTF-8');
-$filtros = [$inicio, $fin, (int)($_GET['partner_id'] ?? 0), in_array($zona, sgsOperationalDepartments(), true) ? $zona : ''];
+// El último es quien consulta (2026-10-28): un líder con zonas o área propias ve solo lo de su entorno.
+$filtros = [$inicio, $fin, (int)($_GET['partner_id'] ?? 0), in_array($zona, sgsOperationalDepartments(), true) ? $zona : '', Auth::getLoggedInUser()];
 
 /** Cumplimiento: órdenes transferidas a supervisores de partners y si las atendieron dentro de las 24 h. */
 function sgsCumplimientoPartners(PDO $pdo, array $f): array {
-    [$inicio, $fin, $partnerId, $depFiltro] = $f;
+    [$inicio, $fin, $partnerId, $depFiltro, $usuario] = $f;
     // Misma definición que el listado (es_asignacion_partner): asignada y el supervisor pertenece al partner de la orden.
     $where = "s.fecha_asignacion IS NOT NULL
         AND EXISTS (SELECT 1 FROM usuarios su WHERE su.id = s.supervisor_id AND su.partner_id = s.partner_id)
@@ -42,6 +43,7 @@ function sgsCumplimientoPartners(PDO $pdo, array $f): array {
     $params = [':inicio' => $inicio, ':fin' => $fin];
     if ($partnerId > 0) { $where .= ' AND p.id = :partner'; $params[':partner'] = $partnerId; }
     if ($depFiltro !== '') { $where .= ' AND ' . sgsZonaSql('s') . ' = :dep'; $params[':dep'] = $depFiltro; }
+    $where .= ' AND ' . sgsAlcanceSupervisionSql($usuario, 's', $params);
 
     $limite = 'DATE_ADD(s.fecha_asignacion, INTERVAL 24 HOUR)';
     $metricas = "COUNT(*) AS asignadas,
@@ -108,15 +110,15 @@ function sgsCumplimientoPartners(PDO $pdo, array $f): array {
  * de checklist con comentario o foto es una observación, con el estado del descargo de su partner.
  */
 function sgsObservacionesPartners(PDO $pdo, array $f): array {
-    [$inicio, $fin, $partnerId, $depFiltro] = $f;
+    [$inicio, $fin, $partnerId, $depFiltro, $usuario] = $f;
     $params = [];
     // Prepares nativos: cada parte del UNION lleva sus propios marcadores.
-    $filtro = static function (string $fecha, string $n) use (&$params, $inicio, $fin, $partnerId, $depFiltro): string {
+    $filtro = static function (string $fecha, string $n) use (&$params, $inicio, $fin, $partnerId, $depFiltro, $usuario): string {
         $sql = "{$fecha} >= :ini{$n} AND {$fecha} < DATE_ADD(:fin{$n}, INTERVAL 1 DAY) AND UPPER(TRIM(p.nombre_partner)) NOT IN ('WIN','WIN DIRECTO')";
         $params[":ini{$n}"] = $inicio; $params[":fin{$n}"] = $fin;
         if ($partnerId > 0) { $sql .= " AND p.id = :partner{$n}"; $params[":partner{$n}"] = $partnerId; }
         if ($depFiltro !== '') { $sql .= ' AND ' . sgsZonaSql('s') . " = :dep{$n}"; $params[":dep{$n}"] = $depFiltro; }
-        return $sql;
+        return $sql . ' AND ' . sgsAlcanceSupervisionSql($usuario, 's', $params, ":alc{$n}");
     };
     $base = "SELECT p.id partner_id, p.nombre_partner, 'Campo' tipo, o.gravedad,
             COALESCE(sub.descripcion_subopcion, c.nombre_categoria, 'Observación') motivo,

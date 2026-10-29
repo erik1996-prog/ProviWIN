@@ -45,18 +45,25 @@ if($isPartner){
 }
 extract($filters, EXTR_PREFIX_ALL, 'f');
 $partnerFiltro=$f_partner_id; $cuadrillaFiltro=$f_cuadrilla; $departamentoFiltro=$f_departamento; $codigoFiltro=$f_codigo; $fechaDesde=$f_fecha_desde; $fechaHasta=$f_fecha_hasta; $estadoFiltro=$f_estado; $tipoFiltro=$f_tipo_registro;
-// Partner: listas de filtros con la misma regla que el listado (su partner y su zona de trabajo).
+// Listas de filtros con la misma regla que el listado: el partner, su partner, su zona y su área; el líder con zonas o área
+// propias, solo su entorno (2026-10-28: antes el líder veía en las listas las cuadrillas y zonas de todo el país).
+// Los valores van ya escapados dentro del SQL (estas listas se consultan sin parámetros).
+$enLinea = static function (string $sql, array $params) use ($pdo): string {
+    uksort($params, static fn($a, $b) => strlen($b) <=> strlen($a));
+    foreach ($params as $k => $v) $sql = str_replace($k, $pdo->quote($v), $sql);
+    return $sql;
+};
 $partnerUserScope = '';
 if ($isPartner) {
     $zoneParams = [];
-    $zoneCond = sgsZoneSql(sgsZonaSql('s'), (int)$user['id'], $zoneParams, ':zf'); // zona: departamento o NORTE CHICO
-    uksort($zoneParams, static fn($a, $b) => strlen($b) <=> strlen($a));
-    foreach ($zoneParams as $k => $v) $zoneCond = str_replace($k, $pdo->quote($v), $zoneCond);
-    $partnerUserScope = ' AND ' . $zoneCond;
+    $partnerUserScope = ' AND ' . $enLinea(sgsZoneSql(sgsZonaSql('s'), (int)$user['id'], $zoneParams, ':zf'), $zoneParams) // zona: departamento o NORTE CHICO
+        . ' AND ' . sgsAreaSql('s', (int)$user['id']);
 }
+$alcParams = [];
+$alcanceLider = $isAdmin && sgsAlcanceLimitado($user) ? ' AND ' . $enLinea(sgsAlcanceSupervisionSql($user, 's', $alcParams, ':af'), $alcParams) : '';
 $scopeSql = $isPartner
     ? ' AND s.partner_id = ' . $effectivePartnerId . $partnerUserScope
-    : ($isAdmin ? '' : ' AND (s.supervisor_id = ' . (int)$user['id'] . ' OR s.asignado_por = ' . (int)$user['id'] . ')');
+    : ($isAdmin ? $alcanceLider : ' AND (s.supervisor_id = ' . (int)$user['id'] . ' OR s.asignado_por = ' . (int)$user['id'] . ')');
 $partners = $pdo->query("SELECT DISTINCT p.id,p.nombre_partner FROM supervisiones s JOIN partners p ON p.id=s.partner_id WHERE 1=1 {$scopeSql} ORDER BY p.nombre_partner")->fetchAll();
 $cuadrillas = $pdo->query("SELECT DISTINCT s.tecnico1_nombre FROM supervisiones s WHERE s.tecnico1_nombre IS NOT NULL AND TRIM(s.tecnico1_nombre)<>'' {$scopeSql} ORDER BY s.tecnico1_nombre")->fetchAll(PDO::FETCH_COLUMN);
 $departamentos = $pdo->query("SELECT DISTINCT s.departamento FROM supervisiones s WHERE s.departamento IS NOT NULL AND TRIM(s.departamento)<>'' {$scopeSql} ORDER BY s.departamento")->fetchAll(PDO::FETCH_COLUMN);

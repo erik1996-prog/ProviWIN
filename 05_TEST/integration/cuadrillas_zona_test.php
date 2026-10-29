@@ -1,6 +1,7 @@
 <?php
 // 05_TEST/integration/cuadrillas_zona_test.php - (2026-10-15) Cuadrillas según la zona del usuario: el supervisor ve solo
-// los técnicos líderes de sus departamentos (y los que aún no tienen zona); el administrador ve todos. Por HTTP.
+// los técnicos líderes de sus departamentos; el administrador ve todos los que tienen zona. Los que aún no tienen zona solo
+// los ve el administrador general (2026-10-28; prueba aparte: tecnicos_sin_zona_test). Por HTTP.
 // Crea usuarios (DNI 99999924-25) y técnicos (DNI 99999941-43, "PRUEBAZONA") y los BORRA al final.
 // Uso (solo CLI): php 05_TEST/integration/cuadrillas_zona_test.php [url_base=http://localhost/ProviWIN]
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
@@ -56,15 +57,15 @@ try {
     [$pagina] = $http('zona.sup', "$base/index.php?page=cuadrillas&q=PRUEBAZONA");
     $check('supervisor de PIURA: ve al técnico de PIURA', str_contains($pagina, 'P 1 PRUEBAZONA SGI DE PIURA'));
     $check('supervisor de PIURA: no ve al de LA LIBERTAD', !str_contains($pagina, 'P 2 PRUEBAZONA SGI DE TRUJILLO'));
-    $check('supervisor de PIURA: ve al que aún no tiene zona', str_contains($pagina, 'P 3 PRUEBAZONA SGI SIN ZONA'));
+    $check('supervisor de PIURA: no ve al que aún no tiene zona (solo el administrador general)', !str_contains($pagina, 'P 3 PRUEBAZONA SGI SIN ZONA'));
     $check('supervisor: la pantalla indica su zona', str_contains($pagina, 'Se muestran las cuadrillas de su zona') && str_contains($pagina, 'PIURA'));
     [, $j] = $http('zona.sup', "$base/api/tecnicos.php?action=cuadrillas&q=PRUEBAZONA");
     $n = $nombres($j);
-    $check('API para el supervisor: misma regla', in_array('P 1 PRUEBAZONA SGI DE PIURA', $n, true) && !in_array('P 2 PRUEBAZONA SGI DE TRUJILLO', $n, true) && in_array('P 3 PRUEBAZONA SGI SIN ZONA', $n, true), $n);
+    $check('API para el supervisor: misma regla', in_array('P 1 PRUEBAZONA SGI DE PIURA', $n, true) && !in_array('P 2 PRUEBAZONA SGI DE TRUJILLO', $n, true) && !in_array('P 3 PRUEBAZONA SGI SIN ZONA', $n, true), $n);
     [$pagina] = $http('zona.admin', "$base/index.php?page=cuadrillas&q=PRUEBAZONA");
     $check('administrador: ve las cuadrillas de todas las zonas', str_contains($pagina, 'P 1 PRUEBAZONA SGI DE PIURA') && str_contains($pagina, 'P 2 PRUEBAZONA SGI DE TRUJILLO'));
     [, $j] = $http('zona.admin', "$base/api/tecnicos.php?action=cuadrillas&q=PRUEBAZONA");
-    $check('API para el administrador: todas las zonas', count(array_intersect($nombres($j), ['P 1 PRUEBAZONA SGI DE PIURA', 'P 2 PRUEBAZONA SGI DE TRUJILLO', 'P 3 PRUEBAZONA SGI SIN ZONA'])) === 3, $nombres($j));
+    $check('API para el administrador: todas las zonas (sin los que no tienen zona: no es el administrador general)', count(array_intersect($nombres($j), ['P 1 PRUEBAZONA SGI DE PIURA', 'P 2 PRUEBAZONA SGI DE TRUJILLO'])) === 2 && !in_array('P 3 PRUEBAZONA SGI SIN ZONA', $nombres($j), true), $nombres($j));
 } finally {
     $cleanup();
 }

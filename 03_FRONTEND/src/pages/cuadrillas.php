@@ -41,12 +41,15 @@ $params = [];
 if ($operativoFiltro === '') $where[] = "t.estado_operativo = 'Habilitado'";
 elseif ($operativoFiltro !== 'todos') { $where[] = 't.estado_operativo = :operativo'; $params[':operativo'] = $operativoFiltro; }
 if ($partnerFiltro > 0) { $where[] = 't.partner_id = :partner'; $params[':partner'] = $partnerFiltro; }
-// Zona del usuario (2026-10-15): el supervisor ve solo las cuadrillas de sus departamentos (más las que aún no tienen
-// zona, como en el formulario). El personal administrativo y la sede "Provincias" ven todas.
+// Zona del usuario (2026-10-15): el supervisor ve solo las cuadrillas de sus departamentos. El personal administrativo y la
+// sede "Provincias" ven todas. Las que aún no tienen zona solo las ve el administrador general (2026-10-28).
+$veSinZona = sgsVeTecnicosSinZona($user);
+if (!$veSinZona && $zonaFiltro === 'sin_zona') $zonaFiltro = '';
+if (!$veSinZona) $where[] = sgsTecnicoConZonaSql('t.departamento');
 $zonasUsuario = $esAdmin ? null : sgsUserZones((int)$user['id']);
 if ($zonasUsuario !== null) {
     $zp = [];
-    $where[] = '(' . sgsZoneSql('t.departamento', (int)$user['id'], $zp, ':uz') . " OR t.departamento IS NULL OR t.departamento = '')";
+    $where[] = sgsZoneSql('t.departamento', (int)$user['id'], $zp, ':uz');
     $params += $zp;
     $zonasRegistradas = array_values(array_filter($zonasRegistradas, static fn($z) => in_array(mb_strtoupper(trim($z), 'UTF-8'), $zonasUsuario, true)));
 }
@@ -97,7 +100,8 @@ $cuentaDocs = [];
 foreach (['', 'alerta', 'malo', 'regular', 'sin_registrar'] as $filtro) $cuentaDocs[$filtro] = count(array_filter($filas, static fn($f) => $cumpleDocs($f, $filtro)));
 if ($docsFiltro !== '') $filas = array_values(array_filter($filas, static fn($f) => $cumpleDocs($f, $docsFiltro)));
 $apoyos = $puedeEditar ? $pdo->query("SELECT t.id, t.nombre_tecnico, t.dni, t.celular, p.nombre_partner FROM tecnicos t LEFT JOIN partners p ON p.id = t.partner_id
-    WHERE t.tipo_tecnico = 2 AND t.estado_operativo <> 'Blacklist' ORDER BY t.nombre_tecnico")->fetchAll() : [];
+    WHERE t.tipo_tecnico = 2 AND t.estado_operativo <> 'Blacklist'" . ($veSinZona ? '' : ' AND (' . sgsTecnicoConZonaSql('t.departamento')
+        . ' OR EXISTS (SELECT 1 FROM tecnicos lz WHERE lz.apoyo_id = t.id AND ' . sgsTecnicoConZonaSql('lz.departamento') . '))') . " ORDER BY t.nombre_tecnico")->fetchAll() : [];
 $e = static fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
 // Técnicos de apoyo (T2) con el líder al que apoyan; la zona es la suya o, si no tiene, la de su líder.
 $depT2 = "COALESCE(NULLIF(a.departamento, ''), l.departamento)";
@@ -108,9 +112,10 @@ elseif ($operativoFiltro !== 'todos') { $whereT2[] = 'a.estado_operativo = :oper
 if ($partnerFiltro > 0) { $whereT2[] = 'a.partner_id = :partner'; $paramsT2[':partner'] = $partnerFiltro; }
 if ($zonasUsuario !== null) {
     $zp = [];
-    $whereT2[] = '(' . sgsZoneSql($depT2, (int)$user['id'], $zp, ':uz') . " OR {$depT2} IS NULL OR {$depT2} = '')";
+    $whereT2[] = sgsZoneSql($depT2, (int)$user['id'], $zp, ':uz');
     $paramsT2 += $zp;
 }
+if (!$veSinZona) $whereT2[] = sgsTecnicoConZonaSql($depT2);
 if ($zonaFiltro === 'sin_zona') $whereT2[] = "({$depT2} IS NULL OR {$depT2} = '')";
 elseif ($zonaFiltro !== '') { $whereT2[] = "{$depT2} = :zona"; $paramsT2[':zona'] = $zonaFiltro; }
 if ($busqueda !== '') {
@@ -197,6 +202,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
     <button type="button" class="btn <?= $puedeImportar ? 'btn-outline-secondary' : 'btn-win' ?>" id="btnLinkExamen" data-filtro="<?= $e($descripcionFiltro) ?>" data-lideres="<?= $e(implode(',', array_column($filas, 'id'))) ?>" <?= $filas && $vista !== 'apoyo' ? '' : 'disabled' ?>
       title="<?= $vista === 'apoyo' ? 'El link se arma por cuadrillas: use la vista Cuadrillas o Técnicos líderes' : 'Un link para los técnicos (T1 y T2) de las cuadrillas que se ven con estos filtros' ?>"><i class="bi bi-link-45deg me-1"></i>Link de examen (<?= count($filas) ?> <?= count($filas) === 1 ? 'cuadrilla' : 'cuadrillas' ?>)</button>
     <?php endif; ?>
+    <?php if ($puedeEditar): ?><button type="button" class="btn btn-outline-secondary" id="btnNuevoTecnico"><i class="bi bi-person-plus me-1"></i>Nuevo técnico</button><?php endif; ?>
     <?php if ($puedeImportar): ?>
     <a class="btn btn-outline-secondary" href="api/tecnicos.php?action=exportar_lideres"><i class="bi bi-file-earmark-arrow-down me-1"></i>Descargar lista (Excel)</a>
     <button type="button" class="btn btn-win" id="btnCargarLideres"><i class="bi bi-file-earmark-arrow-up me-1"></i>Cargar técnicos líderes</button>
@@ -253,7 +259,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
           <?php foreach ($zonasRegistradas as $z): ?>
           <option value="<?= $e($z) ?>" <?= $zonaFiltro === $z ? 'selected' : '' ?>><?= $e($z) ?></option>
           <?php endforeach; ?>
-          <option value="sin_zona" <?= $zonaFiltro === 'sin_zona' ? 'selected' : '' ?>>Sin zona</option>
+          <?php if ($veSinZona): ?><option value="sin_zona" <?= $zonaFiltro === 'sin_zona' ? 'selected' : '' ?>>Sin zona</option><?php endif; ?>
         </select></div>
       <div class="sgs-filtro"><label class="form-label" for="cuadEstado">Cuadrilla</label>
         <select class="form-select" id="cuadEstado" name="estado">
@@ -423,7 +429,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
         <div class="mb-3"><label class="form-label" for="cuadProvincia">Provincia (zona)</label>
           <input class="form-control text-uppercase" id="cuadProvincia" name="provincia" maxlength="100" list="listaProvincias" placeholder="Ej.: TRUJILLO" autocomplete="off">
           <datalist id="listaProvincias"><?php foreach ($provinciasEditor as $dep => $provs) foreach ($provs as $pv): ?><option value="<?= $e($pv) ?>"><?= $e($dep) ?></option><?php endforeach; ?></datalist>
-          <small class="text-muted">El departamento se busca solo.<?= $esAdmin ? ' Vacía = sin zona (aparece en todas).' : ' Solo provincias de su zona.' ?></small></div>
+          <small class="text-muted">El departamento se busca solo.<?= $veSinZona ? ' Vacía = sin zona (solo usted la verá).' : ($esAdmin ? '' : ' Solo provincias de su zona.') ?></small></div>
         <div><label class="form-label" for="cuadOperativoEdit">Estado del técnico líder</label>
           <select class="form-select" id="cuadOperativoEdit" name="estado_operativo"><option>Habilitado</option><option>Inhabilitado</option><option value="Blacklist">Lista negra</option></select></div>
         <div class="alert alert-danger d-none mt-3 mb-0" id="cuadError" role="alert"></div>
@@ -433,6 +439,32 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
   </div></div>
 </div>
 
+<!-- ===== Nuevo técnico (2026-10-29): un técnico líder (T1) o de apoyo (T2) suelto, sin el Excel ===== -->
+<div class="modal fade" id="mNuevoTecnico" tabindex="-1" aria-labelledby="mNuevoTecnicoTitulo" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form id="fNuevoTecnico" novalidate>
+      <div class="modal-header"><h5 class="modal-title" id="mNuevoTecnicoTitulo"><i class="bi bi-person-plus me-2"></i>Nuevo técnico</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-sm-6"><label class="form-label" for="ntTipo">Tipo de técnico</label>
+            <select class="form-select" id="ntTipo" name="tipo_tecnico" required><option value="">Seleccione</option><option value="1">Técnico líder (T1)</option><option value="2">Técnico de apoyo (T2)</option></select></div>
+          <div class="col-sm-6"><label class="form-label" for="ntPartner">Partner</label>
+            <select class="form-select" id="ntPartner" name="partner_id" required><option value="">Seleccione</option>
+              <?php foreach ($partners as $p): ?><option value="<?= (int)$p['id'] ?>"><?= $e($p['nombre_partner']) ?></option><?php endforeach; ?></select></div>
+          <div class="col-12"><label class="form-label" for="ntNombre">Nombres y apellidos</label>
+            <input class="form-control text-uppercase" id="ntNombre" name="nombre_tecnico" maxlength="120" required placeholder="Ej.: P 1 KAJOMI SGI JUAN PEREZ (líder) o JUAN PEREZ (apoyo)"></div>
+          <div class="col-sm-6"><label class="form-label" for="ntDni">DNI</label><input class="form-control" id="ntDni" name="dni" inputmode="numeric" maxlength="8" required placeholder="8 dígitos"></div>
+          <div class="col-sm-6"><label class="form-label" for="ntCelular">Celular (opcional)</label><input class="form-control" id="ntCelular" name="celular" inputmode="tel" maxlength="9" placeholder="9XXXXXXXX"></div>
+          <div class="col-12"><label class="form-label" for="ntProvincia">Provincia (zona)</label>
+            <input class="form-control text-uppercase" id="ntProvincia" name="provincia" maxlength="100" list="listaProvincias" autocomplete="off" placeholder="Ej.: SANTA"<?= $veSinZona ? '' : ' required' ?>>
+            <small class="text-muted">El departamento se busca solo.<?= $veSinZona ? ' Vacía = sin zona (solo usted lo verá).' : ' Solo provincias de su zona.' ?></small></div>
+        </div>
+        <div class="alert alert-danger d-none mt-3 mb-0" id="ntError" role="alert"></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-win" id="btnGuardarNuevoTecnico"><i class="bi bi-check2 me-1"></i>Registrar técnico</button></div>
+    </form>
+  </div></div>
+</div>
 <?php endif; ?>
 <?php if ($puedeImportar): ?>
 <!-- ===== Cargar técnicos líderes ===== -->

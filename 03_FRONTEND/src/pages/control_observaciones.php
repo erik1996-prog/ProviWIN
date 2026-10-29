@@ -12,20 +12,28 @@ $fechaDesde = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['fecha_desde'] ?? '') ? 
 $fechaHasta = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['fecha_hasta'] ?? '') ? $_GET['fecha_hasta'] : '';
 $partnersObs = $pdo->query("SELECT id,nombre_partner FROM partners WHERE estado=1 AND UPPER(nombre_partner) NOT LIKE 'WIN%' ORDER BY nombre_partner")->fetchAll();
 $zonasObs = $pdo->query("SELECT DISTINCT departamento FROM supervisiones WHERE departamento<>'' ORDER BY departamento")->fetchAll(PDO::FETCH_COLUMN);
+// Líder con zonas o área propias (2026-10-28): solo las observaciones de su entorno (zona y área), filtradas en la base.
+$misZonas = sgsAlcanceLimitado($user) ? sgsUserZones((int)$user['id']) : null;
+if ($misZonas) $zonasObs = array_values(array_filter($zonasObs, static fn($z) => in_array(mb_strtoupper(trim($z), 'UTF-8'), $misZonas, true)));
+$alcParams = [];
+$alcance1 = sgsAlcanceSupervisionSql($user, 's', $alcParams, ':alc1');
+$alcance2 = sgsAlcanceSupervisionSql($user, 's', $alcParams, ':alc2');
 $sqlEventos = "
     SELECT s.tecnico1_nombre tecnico, s.tecnico1_dni dni, 'T1' tipo, p.id partner_id, p.nombre_partner,
            s.departamento zona, o.fecha_registro fecha_observacion,
            COALESCE(sub.descripcion_subopcion,c.nombre_categoria,'Observación general') observacion
     FROM observaciones_supervision o JOIN supervisiones s ON s.id=o.supervision_id
     LEFT JOIN partners p ON p.id=s.partner_id LEFT JOIN categorias_observacion c ON c.id=o.categoria_id
-    LEFT JOIN subopciones_observacion sub ON sub.id=o.subopcion_id WHERE s.tecnico1_nombre IS NOT NULL
+    LEFT JOIN subopciones_observacion sub ON sub.id=o.subopcion_id WHERE s.tecnico1_nombre IS NOT NULL AND {$alcance1}
     UNION ALL
     SELECT s.tecnico2_nombre, s.tecnico2_dni, 'T2', p.id, p.nombre_partner, s.departamento, o.fecha_registro,
            COALESCE(sub.descripcion_subopcion,c.nombre_categoria,'Observación general')
     FROM observaciones_supervision o JOIN supervisiones s ON s.id=o.supervision_id
     LEFT JOIN partners p ON p.id=s.partner_id LEFT JOIN categorias_observacion c ON c.id=o.categoria_id
-    LEFT JOIN subopciones_observacion sub ON sub.id=o.subopcion_id WHERE s.tecnico2_nombre IS NOT NULL AND s.tecnico2_nombre<>''";
-$eventos = $pdo->query($sqlEventos)->fetchAll();
+    LEFT JOIN subopciones_observacion sub ON sub.id=o.subopcion_id WHERE s.tecnico2_nombre IS NOT NULL AND s.tecnico2_nombre<>'' AND {$alcance2}";
+$stEventos = $pdo->prepare($sqlEventos);
+$stEventos->execute($alcParams);
+$eventos = $stEventos->fetchAll();
 $ranking = [];
 $motivosGlobales = [];
 $totalObservacionesFiltradas = 0;
