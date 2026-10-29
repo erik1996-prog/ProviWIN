@@ -5,7 +5,7 @@
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 $role = $argv[1] ?? 'Administrador';
 $root = dirname(__DIR__, 2);
-$pages = ['usuarios', 'asistencia', 'supervision_lista', 'registro_observaciones', 'admin_dashboard', 'timeline_supervisores', 'control_observaciones', 'cuadrillas', 'examenes', 'dashboard_pendientes', 'dashboard_partners', 'dashboard_lluvias', 'matriz_asistencia', 'partners', 'mi_informacion'];
+$pages = ['usuarios', 'asistencia', 'supervision_lista', 'registro_observaciones', 'admin_dashboard', 'timeline_supervisores', 'control_observaciones', 'cuadrillas', 'examenes', 'dashboard_pendientes', 'dashboard_partners', 'dashboard_lluvias', 'matriz_asistencia', 'vacaciones', 'partners', 'mi_informacion'];
 $tmp = sys_get_temp_dir() . '/sgs-inline-js';
 @mkdir($tmp, 0700, true);
 $fail = 0;

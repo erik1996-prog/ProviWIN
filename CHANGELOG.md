@@ -4,6 +4,20 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Sección Asistencia y orden del menú (2026-10-29)
+- **Añadido**: sección **Asistencia** en el menú, con **Vacaciones y licencias** (pantalla nueva) y **Matriz de asistencia**, que sale de Indicadores.
+  - En Vacaciones y licencias, el supervisor registra las suyas y los jefes las aprueban o rechazan. Antes estaba repartido entre Mi turno y el Monitor de turnos.
+- **Cambiado**: orden del menú: Inicio (Mi turno) → Supervisiones → Seguimiento → Observaciones → Asistencia → Personal → **Indicadores al final**.
+
+### Vacaciones sin dejar zonas vacías (2026-10-29)
+- **Añadido**: al pedir **vacaciones**, el sistema revisa a los demás supervisores. Las pendientes y aprobadas ya ocupan sus días, así que el primero que pide se queda con ellos.
+  - Dos supervisores de la **misma zona** no pueden coincidir.
+  - En un mismo día, a lo más **una zona** puede quedarse sin supervisor. Dos zonas con un solo supervisor cada una (por ejemplo Arequipa y Cusco) no salen a la vez. Uno de una zona con dos supervisores (por ejemplo Lima) sí puede salir junto con otra zona, porque la suya sigue cubierta.
+  - Si choca, no se registra, y se le dice con quién y en qué día.
+  - El descanso médico, la paternidad y el fallecimiento no se bloquean, porque no se planifican.
+- **Cambiado**: el supervisor solo registra vacaciones, descanso médico, licencia por paternidad y licencia por fallecimiento. La licencia con goce, la sin goce y el subsidio salen del formulario, pero siguen en la Matriz de asistencia para que el administrador los marque.
+- Prueba nueva: `vacaciones_zonas_test` (9 revisiones).
+
 ### Nuevo técnico y zona del T2 (2026-10-29)
 - **Añadido**: botón **"Nuevo técnico"** en Técnicos y cuadrillas para registrar un técnico líder (T1) o de apoyo (T2) suelto, sin el Excel. Pide tipo, partner, nombres, DNI, celular (opcional) y provincia; el departamento se busca solo.
   - Quien tiene zona propia solo registra en su zona. Sin provincia (sin zona), solo el administrador general.

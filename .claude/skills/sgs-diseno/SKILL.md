@@ -64,9 +64,11 @@ Para comprobar en todas las pantallas: medir con JavaScript (`getComputedStyle`)
 ### Menú lateral (`03_FRONTEND/src/layouts/sidebar.php`, secciones 3, 42, 42b, 42c)
 - **Ancho 228 px**, naranja con logo WIN blanco **centrado** y subtítulo en una línea.
 - **Secciones por tarea, en acordeón** (al abrir una se cierra la otra; la de la pantalla actual empieza abierta):
-  Inicio (Mi turno) · Indicadores (Dashboard de supervisiones, Dashboard de partners, Pendientes y rescates, Clima, Exámenes) · Supervisiones ·
-  Seguimiento (Línea de tiempo, Monitor de turnos) · Observaciones (Registro, Control y recurrencia) ·
-  Personal (Usuarios y roles, Técnicos y cuadrillas, Partners). (2026-10-20: todo dashboard nuevo va en Indicadores.)
+  Inicio (Mi turno) · Supervisiones · Seguimiento (Línea de tiempo, Monitor de turnos) · Observaciones (Registro, Control y
+  recurrencia) · Asistencia (Vacaciones y licencias, Matriz de asistencia) · Personal (Usuarios y roles, Técnicos y cuadrillas,
+  Partners) · Indicadores (Dashboard de supervisiones, Dashboard de partners, Pendientes y rescates, Clima, Exámenes).
+  (2026-10-20: todo dashboard nuevo va en Indicadores. 2026-10-29, regla del usuario: primero el turno y las supervisiones,
+  los indicadores al final; lo de asistencia del personal va en Asistencia.)
 - **Dashboards**: usar las piezas comunes — `config/dashboard.php` (filtros, consultas agregadas, tabla por páginas, Excel) y
   `assets/js/sgs-dashboard.js` + clases `.dsh-*` (sección 56): gráficos de una sola serie sin librerías, con su texto.
 - `$menuGroups = [[sección, ícono, [[visible, href, páginas, ícono, nombre, nombre suelto opcional], …]], …]`.

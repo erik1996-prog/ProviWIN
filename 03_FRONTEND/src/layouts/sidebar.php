@@ -99,14 +99,6 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
         ['Inicio', 'bi-house', [
             [$isDirectMenu, 'index.php?page=asistencia', ['asistencia'], 'bi-play-circle', 'Mi turno'],
         ]],
-        ['Indicadores', 'bi-graph-up', [
-            [$showAdministrativeMenu && $canViewDashboard, 'index.php?page=admin_dashboard', ['admin_dashboard'], 'bi-speedometer2', 'Dashboard de supervisiones'],
-            [$ve(Auth::PERM_PARTNERS_DASHBOARD), 'index.php?page=dashboard_partners', ['dashboard_partners'], 'bi-buildings', 'Dashboard de partners'],
-            [$ve(Auth::PERM_PENDIENTES_VIEW), 'index.php?page=dashboard_pendientes', ['dashboard_pendientes'], 'bi-arrow-repeat', 'Pendientes y rescates'],
-            [$ve(Auth::PERM_ASISTENCIA_MATRIZ_VIEW), 'index.php?page=matriz_asistencia', ['matriz_asistencia'], 'bi-calendar3', 'Matriz de asistencia'],
-            [$ve(Auth::PERM_CLIMA_VIEW), 'index.php?page=dashboard_lluvias', ['dashboard_lluvias'], 'bi-cloud-sun', 'Clima'],
-            [$ve(Auth::PERM_EXAMENES_VIEW), 'index.php?page=examenes', ['examenes'], 'bi-clipboard-check', 'Exámenes'],
-        ]],
         ['Supervisiones', 'bi-journal-check', [
             [$canViewSupervisions, 'index.php?page=supervision_lista', ['supervision_lista', 'supervision_registro'], $isPartnerMenu ? 'bi-calendar-check' : 'bi-journal-check', $isPartnerMenu ? ($rol === Auth::ROLE_JEFE_OPERACIONES ? 'Órdenes del partner' : 'Mi agenda') : 'Supervisiones'],
         ]],
@@ -118,10 +110,23 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
             [$canViewObservations, 'index.php?page=registro_observaciones', ['registro_observaciones', 'observaciones_partner'], 'bi-clipboard2-pulse', 'Registro', 'Observaciones'],
             [$showAdministrativeMenu && $canReviewObservations, 'index.php?page=control_observaciones', ['control_observaciones'], 'bi-exclamation-diamond', 'Control y recurrencia'],
         ]],
+        // 2026-10-29: "Asistencia" junta las vacaciones y licencias (antes en Mi turno y en el Monitor de turnos) y la matriz.
+        ['Asistencia', 'bi-calendar-check', [
+            [$isDirectMenu || $showAdministrativeMenu, 'index.php?page=vacaciones', ['vacaciones'], 'bi-calendar2-x', 'Vacaciones y licencias'],
+            [$ve(Auth::PERM_ASISTENCIA_MATRIZ_VIEW), 'index.php?page=matriz_asistencia', ['matriz_asistencia'], 'bi-calendar3', 'Matriz de asistencia'],
+        ]],
         ['Personal', 'bi-people', [
             [$canSeeStaff, 'index.php?page=usuarios', ['usuarios'], 'bi-person-badge', $canManageUsers ? 'Usuarios y roles' : 'Personal'],
             [$ve(Auth::PERM_CUADRILLAS_VIEW), 'index.php?page=cuadrillas', ['cuadrillas'], 'bi-people-fill', 'Técnicos y cuadrillas'],
             [$ve(Auth::PERM_PARTNERS_VIEW), 'index.php?page=partners', ['partners'], 'bi-buildings', 'Partners'],
+        ]],
+        // 2026-10-29: los indicadores van al final (primero el turno y las supervisiones).
+        ['Indicadores', 'bi-graph-up', [
+            [$showAdministrativeMenu && $canViewDashboard, 'index.php?page=admin_dashboard', ['admin_dashboard'], 'bi-speedometer2', 'Dashboard de supervisiones'],
+            [$ve(Auth::PERM_PARTNERS_DASHBOARD), 'index.php?page=dashboard_partners', ['dashboard_partners'], 'bi-buildings', 'Dashboard de partners'],
+            [$ve(Auth::PERM_PENDIENTES_VIEW), 'index.php?page=dashboard_pendientes', ['dashboard_pendientes'], 'bi-arrow-repeat', 'Pendientes y rescates'],
+            [$ve(Auth::PERM_CLIMA_VIEW), 'index.php?page=dashboard_lluvias', ['dashboard_lluvias'], 'bi-cloud-sun', 'Clima'],
+            [$ve(Auth::PERM_EXAMENES_VIEW), 'index.php?page=examenes', ['examenes'], 'bi-clipboard-check', 'Exámenes'],
         ]],
     ];
     ?>

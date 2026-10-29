@@ -1,6 +1,7 @@
 // 03_FRONTEND/src/assets/js/ausencias.js - Vacaciones, descansos médicos y licencias (2026-10-26). API: api/ausencias.php.
-// Mi turno (supervisor directo, #ausMias): registra sus ausencias y ve en qué estado están; las pendientes las puede anular.
-// Monitor de turnos (administración, gerencia y coordinación, #ausJefes): aprueba o rechaza; anula una aprobada.
+// Pantalla Vacaciones y licencias (pages/vacaciones.php, sección Asistencia, 2026-10-29; antes en Mi turno y el Monitor):
+// supervisor directo (#ausMias): registra sus ausencias y ve en qué estado están; las pendientes las puede anular.
+// administración, gerencia y coordinación (#ausJefes): aprueban o rechazan; anulan una aprobada.
 // Solo consulta al abrir la pantalla y después de cada acción (sin sondeos).
 (() => {
     const $ = (id) => document.getElementById(id);

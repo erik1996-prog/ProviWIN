@@ -81,6 +81,8 @@ if ($action === 'registrar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         WHERE supervisor_id = :u AND estado IN ('Pendiente', 'Aprobada') AND fecha_inicio <= :fin AND fecha_fin >= :ini LIMIT 1");
     $cruce->execute([':u' => $uid, ':fin' => $fin, ':ini' => $ini]);
     if ($otra = $cruce->fetch(PDO::FETCH_ASSOC)) $responder(['status' => 'error', 'message' => 'Esas fechas se cruzan con otra solicitud suya: ' . sgsTextoAusencia($otra) . '.'], 409);
+    // Vacaciones (2026-10-29): no pueden dejar dos zonas sin supervisor ni coincidir con otro de su misma zona.
+    if ($tipo === 'Vacaciones' && ($choque = sgsChoqueVacaciones($pdo, $uid, $ini, $fin))) $responder(['status' => 'error', 'message' => $choque], 409);
     $archivo = $_FILES['sustento'] ?? null;
     $hayArchivo = $archivo && ($archivo['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
     if ($tipo === 'Descanso médico' && !$hayArchivo) $responder(['status' => 'error', 'message' => 'Adjunte el certificado médico (foto o PDF).'], 422);
