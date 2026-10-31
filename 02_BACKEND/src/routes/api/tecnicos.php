@@ -46,6 +46,7 @@ try {
             $where[] = sgsZoneSql('t.departamento', (int)$usuario['id'], $zp, ':uz');
             $params += $zp;
         }
+        if (!Auth::isAdministrative() || sgsAlcanceLimitado($usuario)) $where[] = sgsCuadrillaAreaSql('t.departamento', 't.nombre_tecnico', (int)$usuario['id']); // SGI / SGA (2026-10-31)
         $q = mb_substr(trim((string)($_GET['q'] ?? '')), 0, 60);
         if ($q !== '') {
             $where[] = '(t.nombre_tecnico LIKE :q1 OR ta.nombre_tecnico LIKE :q2 OR v.placa LIKE :q3 OR t.dni LIKE :q4)';

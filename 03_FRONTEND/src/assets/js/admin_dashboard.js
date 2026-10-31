@@ -33,11 +33,11 @@
                 const pct = s.avance_pct ?? 0;
                 return `<tr>
                     <td><strong>${esc(s.nombre)}</strong></td>
-                    <td class="text-center">${dias}</td>
-                    <td class="text-center">${s.finalizadas}</td>
-                    <td class="text-center"><strong>${num(s.promedio_dia_trabajado)}</strong> <small class="text-muted">/ ${num(d.meta_diaria, 1)}</small></td>
-                    <td><div class="sgs-meta-avance"><progress class="sgs-meta-bar is-${esc(s.estado)}" max="100" value="${Math.min(100, pct)}" aria-label="Avance ${pct} %"></progress><small>${s.finalizadas} de ${num(s.meta_a_la_fecha, 1)} · ${s.avance_pct === null ? '—' : pct + ' %'}</small></div></td>
-                    <td><span class="badge ${cls}">${txt}</span></td>
+                    <td data-label="Días trabajados" class="text-center"><span>${dias}</span></td>
+                    <td data-label="Finalizadas" class="text-center"><span>${s.finalizadas}</span></td>
+                    <td data-label="Promedio por día" class="text-center"><span><strong>${num(s.promedio_dia_trabajado)}</strong> <small class="text-muted">/ ${num(d.meta_diaria, 1)}</small></span></td>
+                    <td data-label="Avance"><div class="sgs-meta-avance"><progress class="sgs-meta-bar is-${esc(s.estado)}" max="100" value="${Math.min(100, pct)}" aria-label="Avance ${pct} %"></progress><small>${s.finalizadas} de ${num(s.meta_a_la_fecha, 1)} · ${s.avance_pct === null ? '—' : pct + ' %'}</small></div></td>
+                    <td data-label="Estado"><span class="badge ${cls}">${txt}</span></td>
                 </tr>`;
             }).join('');
         } catch (e) {

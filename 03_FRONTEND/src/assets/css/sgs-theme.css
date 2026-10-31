@@ -2473,16 +2473,11 @@ html {
         flex: 1 1 auto;
         justify-content: center;
     }
-    /* Pestañas de tipo de observación: una fila deslizable en lugar de tres bloques apilados */
+    /* Pestañas de tipo de observación: en fila y, si no entran, bajan a otra fila (2026-10-29: antes quedaban cortadas) */
     #main-content-area .obs-kind-tabs {
         flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        overflow-x: auto;
-        scrollbar-width: none;
+        flex-wrap: wrap !important;
         gap: 6px;
-    }
-    #main-content-area .obs-kind-tabs::-webkit-scrollbar {
-        display: none;
     }
     #main-content-area .obs-kind-tabs > .btn {
         flex: 0 0 auto !important;
@@ -2498,17 +2493,12 @@ html {
     }
 }
 @media (max-width: 767.98px) {
-    /* La página definía las pestañas como cuadrícula de una columna (apiladas); se pasan a fila deslizable */
+    /* La página definía las pestañas como cuadrícula de una columna (apiladas); se pasan a fila que baja si no entra */
     #main-content-area #observationFilters .obs-kind-tabs {
         display: flex !important;
         grid-template-columns: none !important;
-        flex-wrap: nowrap !important;
-        overflow-x: auto;
+        flex-wrap: wrap !important;
         gap: 6px;
-        scrollbar-width: none;
-    }
-    #main-content-area #observationFilters .obs-kind-tabs::-webkit-scrollbar {
-        display: none;
     }
     #main-content-area #observationFilters .obs-kind-tabs > .btn {
         flex: 0 0 auto !important;

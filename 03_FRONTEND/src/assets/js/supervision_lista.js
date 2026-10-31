@@ -658,17 +658,26 @@
   const partnerEnZona = (partnerId, zonas) => { const suyas = zonasPartner(partnerId); return !zonas.length || !suyas.size || zonas.some(z => suyas.has(z)); };
   // Técnico de la zona: el suyo; uno sin zona, solo si su partner trabaja en esa zona (antes salían en todas).
   const tecnicoEnZona = (t, zonas) => !zonas.length || (zonaTecnico(t) ? zonas.includes(zonaTecnico(t)) : partnerEnZona(t.partner_id, zonas));
+  // Cuadrillas por área (2026-10-31): en LIMA, CALLAO y NORTE CHICO cada cuadrilla es SGI (instalaciones) o SGA (visitas
+  // técnicas) según la nomenclatura de su líder; en provincia atiende todo. El T2 sigue a su líder. Igual que sgsAreaCuadrilla.
+  const porArea = SGS_SUPERVISION.cuadrillaPorArea || { zonas: [], noAtiende: {} };
+  const areaCuadrilla = lider => {
+    if (!lider || !porArea.zonas.includes(zonaPropia(lider))) return '';
+    const areas = [...new Set(String(lider.nombre_tecnico || '').toUpperCase().match(/(?<![A-Z0-9])SG[IA](?![A-Z0-9])/g) || [])];
+    return areas.length === 1 ? areas[0] : '';
+  };
+  const atiende = (lider, clasificacion) => !clasificacion || !(porArea.noAtiende[areaCuadrilla(lider)] || []).includes(clasificacion);
   // Lista de partners del formulario: solo los que trabajan en la zona de la supervisión (el elegido se conserva).
   function filtrarPartners(select, departamento, provincia = '') {
     if (!select) return;
     const zonas = zonasDe(departamento, provincia);
     [...select.options].forEach(o => { if (!o.value) return; const ve = o.selected || partnerEnZona(o.value, zonas); o.hidden = !ve; o.disabled = !ve; });
   }
-  function lideresDeZona(partnerId, departamento, actual = '', provincia = '') {
+  function lideresDeZona(partnerId, departamento, actual = '', provincia = '', clasificacion = '') {
     const zonas = zonasDe(departamento, provincia);
     return listaTecnicos
       .filter(t => String(t.partner_id) === String(partnerId) && (t.tipo_tecnico == 1 || !t.tipo_tecnico))
-      .filter(t => tecnicoEnZona(t, zonas) || (actual && t.nombre_tecnico === actual))
+      .filter(t => (tecnicoEnZona(t, zonas) && atiende(t, clasificacion)) || (actual && t.nombre_tecnico === actual))
       .sort((a, b) => (a.departamento ? 0 : 1) - (b.departamento ? 0 : 1) || String(a.nombre_tecnico).localeCompare(String(b.nombre_tecnico), 'es'));
   }
   const textoLider = t => t.nombre_tecnico + (t.departamento ? '' : ' · sin zona');
@@ -685,7 +694,7 @@
     if (newTec1Nom) {
       const currentVal1 = t1Guardado || newTec1Nom.value;
       const dep = document.getElementById('new_dep')?.value || '';
-      const t1List = lideresDeZona(newPartner.value, dep, currentVal1, document.getElementById('new_prov')?.value || '');
+      const t1List = lideresDeZona(newPartner.value, dep, currentVal1, document.getElementById('new_prov')?.value || '', newTipoSupervision?.value || '');
       const vacio = newPartner.value && dep && !t1List.length ? `No hay técnicos líderes de este partner en ${dep}` : 'Seleccione / busque técnico líder (T1)';
       newTec1Nom.innerHTML = `<option value="">${escapeHtml(vacio)}</option>`;
       t1List.forEach(t => {
@@ -699,7 +708,7 @@
     if (newTec2Nom) {
       const currentVal2 = newTec2Nom.value;
       newTec2Nom.innerHTML = '<option value="">Sin técnico de apoyo (T2)</option>';
-      newTec2Nom.innerHTML += opcionesApoyo(newPartner.value, currentVal2, document.getElementById('new_dep')?.value || '', document.getElementById('new_prov')?.value || '');
+      newTec2Nom.innerHTML += opcionesApoyo(newPartner.value, currentVal2, document.getElementById('new_dep')?.value || '', document.getElementById('new_prov')?.value || '', newTipoSupervision?.value || '');
     }
     activarBuscadorTecnico(newTec1Nom, 1);
     activarBuscadorTecnico(newTec2Nom, 2);
@@ -827,10 +836,11 @@
   // T2 (2026-10-15): rotan entre cuadrillas, así que se puede elegir cualquiera de la zona. Primero los del partner de la
   // supervisión; los demás muestran su partner actual y, al cerrar la supervisión, pasan a esta cuadrilla.
   // 2026-10-28: solo los de la zona de la supervisión (y los que aún no tienen zona), como el T1.
-  function opcionesApoyo(partnerId, actual, departamento = '', provincia = '') {
+  function opcionesApoyo(partnerId, actual, departamento = '', provincia = '', clasificacion = '') {
     const propios = String(partnerId || '');
     const zonas = zonasDe(departamento, provincia);
-    return opcionGuardada(actual, listaTecnicos.filter(t => t.tipo_tecnico == 2)) + listaTecnicos.filter(t => t.tipo_tecnico == 2 && (tecnicoEnZona(t, zonas) || t.nombre_tecnico === actual))
+    const delArea = t => atiende(listaTecnicos.find(l => String(l.apoyo_id) === String(t.id)), clasificacion); // el T2 sigue a su líder
+    return opcionGuardada(actual, listaTecnicos.filter(t => t.tipo_tecnico == 2)) + listaTecnicos.filter(t => t.tipo_tecnico == 2 && ((tecnicoEnZona(t, zonas) && delArea(t)) || t.nombre_tecnico === actual))
       .sort((a, b) => (String(a.partner_id) === propios ? 0 : 1) - (String(b.partner_id) === propios ? 0 : 1) || String(a.nombre_tecnico).localeCompare(String(b.nombre_tecnico), 'es'))
       .map(t => {
         const otro = String(t.partner_id) !== propios ? ` · ${t.nombre_partner || 'sin partner'}` : '';
@@ -879,12 +889,13 @@
   // Al cambiar el departamento, la lista de T1 se limita a esa zona.
   // Vencimientos del checklist del formulario nuevo (el id existe cuando la supervisión ya se inició).
   const refrescarVencimientosNuevo = prepararVencimientosChecklist('new', () => newSupervisionId?.value) || (() => {});
-  document.getElementById('new_dep')?.addEventListener('change', () => {
+  // 2026-10-31: también al cambiar el tipo de supervisión (en Lima, Callao y Norte Chico define si salen cuadrillas SGI o SGA).
+  ['new_dep', 'new_tipo_supervision'].forEach(id => document.getElementById(id)?.addEventListener('change', () => {
     if (!listaTecnicos.length) return;
     const antes = newTec1Nom?.value || '';
     poblarSelectsTecnicos();
     if (newTec1Nom && newTec1Nom.value !== antes) newTec1Nom.dispatchEvent(new Event('change'));
-  });
+  }));
 
   // Manejador de selección y autocompletado de DNI para Técnico Líder (T1)
   if (newTec1Nom) {
@@ -1731,6 +1742,10 @@
       if (['Culminada','Finalizado'].includes(labelEstado)) labelEstado = 'Finalizada';
       if (rec.estado === 'rescate') labelEstado = 'En rescate';
       else if (['Rescatado', 'No rescatado'].includes(rec.rescate_estado)) labelEstado = `Finalizada · ${rec.rescate_estado}`;
+      // Etiquetas del estado (2026-10-29): las mismas en la tabla y en la tarjeta del celular (antes el celular no las tenía).
+      const prioridadHtml = vePrioridad && rec.prioridad_alta === 1 && rec.estado === 'pendiente' ? '<span class="badge bg-danger"><i class="bi bi-flag-fill me-1"></i>Prioridad alta</span>' : '';
+      const partnerHtml = rec.es_asignacion_partner ? `<small class="${rec.estado_atencion_partner==='Atendida'?'text-success':(Number(rec.plazo_partner_vencido)?'text-danger':'text-warning')}">${rec.estado_atencion_partner==='Atendida'?`Partner atendió · cancelación ${rec.partner_cancelacion_incorrecta===1?'incorrecta':'correcta'}`:(Number(rec.plazo_partner_vencido)?'Partner no atendió · plazo vencido':'Partner pendiente · 24 h')}</small>` : '';
+      const porValidarHtml = rec.es_asignacion_partner && rec.estado_atencion_partner==='Atendida' && rec.estado==='pendiente' && !rec.rescate_estado ? '<small class="text-primary fw-bold"><i class="bi bi-check2-square me-1"></i>Por validar</small>' : '';
 
       // Se crea únicamente la variante visible para no duplicar el DOM.
       if (!renderMobileLayout) {
@@ -1758,7 +1773,7 @@
             rowHtml += `<td>${escapeHtml(rec.departamento)}</td>`;
             break;
           case 'estado':
-            rowHtml += `<td>${vePrioridad && rec.prioridad_alta === 1 && rec.estado === 'pendiente' ? '<span class="badge bg-danger"><i class="bi bi-flag-fill me-1"></i>Prioridad alta</span><br>' : ''}<span class="badge-exec ${rec.estado}">${labelEstado}</span>${rec.es_asignacion_partner?`<br><small class="${rec.estado_atencion_partner==='Atendida'?'text-success':(Number(rec.plazo_partner_vencido)?'text-danger':'text-warning')}">${rec.estado_atencion_partner==='Atendida'?`Partner atendió · cancelación ${rec.partner_cancelacion_incorrecta===1?'incorrecta':'correcta'}`:(Number(rec.plazo_partner_vencido)?'Partner no atendió · plazo vencido':'Partner pendiente · 24 h')}</small>`:''}${rec.es_asignacion_partner && rec.estado_atencion_partner==='Atendida' && rec.estado==='pendiente' && !rec.rescate_estado ? '<br><small class="text-primary fw-bold"><i class="bi bi-check2-square me-1"></i>Por validar</small>' : ''}</td>`;
+            rowHtml += `<td>${prioridadHtml ? prioridadHtml + '<br>' : ''}<span class="badge-exec ${rec.estado}">${labelEstado}</span>${partnerHtml ? '<br>' + partnerHtml : ''}${porValidarHtml ? '<br>' + porValidarHtml : ''}</td>`;
             break;
           case 'partner_nombre':
             rowHtml += `<td>${escapeHtml(rec.partner_nombre || 'WIN Directo')}</td>`;
@@ -1791,6 +1806,7 @@
           <div class="mobile-card-header">
             <div class="mobile-card-title-group">
               <span class="mobile-card-folio">${escapeHtml(codigoDisplay)}</span>
+              ${prioridadHtml}
               <span class="badge-exec ${rec.estado}">${labelEstado}</span>
             </div>
             <i class="bi bi-chevron-right mobile-card-arrow"></i>
@@ -1816,6 +1832,20 @@
                 <span class="mobile-card-val">${escapeHtml(rec.departamento)}</span>
               </div>
             </div>
+            ${(() => {
+              // Columnas opcionales (2026-10-29): las que el usuario activa en "Columnas" también salen en la tarjeta del celular.
+              const extras = [
+                ['partner_nombre', 'bi-buildings', 'Partner', rec.partner_nombre || 'WIN Directo'],
+                ['tecnico1_nombre', 'bi-person-badge', 'Técnico líder', rec.tecnico1_nombre || 'Sin registrar'],
+                ['unidad_placa', 'bi-truck', 'Placa', rec.unidad_placa || '—'],
+              ].filter(([id]) => activeCols.includes(id));
+              return extras.length ? `<div class="mobile-card-row">${extras.map(([, icono, etiqueta, valor]) => `
+              <div class="mobile-card-cell">
+                <span class="mobile-card-label"><i class="bi ${icono}"></i> ${etiqueta}</span>
+                <span class="mobile-card-val">${escapeHtml(valor)}</span>
+              </div>`).join('')}</div>` : '';
+            })()}
+            ${partnerHtml || porValidarHtml ? `<div class="mobile-card-subinfo">${[partnerHtml, porValidarHtml].filter(Boolean).join(' · ')}</div>` : ''}
             ${rec.sub_tipo_atencion ? `
             <div class="mobile-card-subinfo">
               <i class="bi bi-info-circle me-1"></i> ${escapeHtml(rec.sub_tipo_atencion)}
@@ -2514,13 +2544,13 @@
     });
 
     let tec1OptionsHtml = '<option value="">Seleccione / busque técnico líder</option>';
-    const t1List = lideresDeZona(rec.partner_id, rec.departamento, rec.tecnico1_nombre, rec.provincia); // el ya elegido se conserva aunque sea de otra zona
+    const t1List = lideresDeZona(rec.partner_id, rec.departamento, rec.tecnico1_nombre, rec.provincia, rec.clasificacion); // el ya elegido se conserva aunque sea de otra zona o área
     t1List.forEach(t => {
       const sel = (t.nombre_tecnico === rec.tecnico1_nombre) ? 'selected' : '';
       tec1OptionsHtml += `<option value="${escapeHtml(t.nombre_tecnico)}" ${sel}>${escapeHtml(textoLider(t))}</option>`;
     });
     tec1OptionsHtml += opcionGuardada(rec.tecnico1_nombre, t1List);
-    let tec2OptionsHtml = '<option value="">Sin técnico de apoyo (T2)</option>' + opcionesApoyo(rec.partner_id, rec.tecnico2_nombre, rec.departamento, rec.provincia);
+    let tec2OptionsHtml = '<option value="">Sin técnico de apoyo (T2)</option>' + opcionesApoyo(rec.partner_id, rec.tecnico2_nombre, rec.departamento, rec.provincia, rec.clasificacion);
 
     const seccionesChecklistEdicion = SGS_SUPERVISION.seccionesChecklist;
     const opcionesChecklistSeccion = seccion => seccion==='EPP y EPE' ? ['Sí','No','Para cambio','No revisado'] : (seccion==='Indumentaria' ? ['Sí','No','Mal estado','No revisado'] : (seccion==='Materiales y ferretería' ? ['Sí','No'] : ['Bueno','Regular','Malo','No tiene']));
@@ -3066,9 +3096,9 @@
     document.getElementById('edit_partner')?.addEventListener('change', function() {
       [editTec1Nom,editTec2Nom].forEach((select,index) => {
         if (!select) return;
-        if (index === 1) { select.innerHTML = '<option value="">Sin técnico de apoyo (T2)</option>' + opcionesApoyo(this.value, '', rec.departamento, rec.provincia); select.dispatchEvent(new Event('change')); return; }
+        if (index === 1) { select.innerHTML = '<option value="">Sin técnico de apoyo (T2)</option>' + opcionesApoyo(this.value, '', rec.departamento, rec.provincia, rec.clasificacion); select.dispatchEvent(new Event('change')); return; }
         select.innerHTML = '<option value="">Seleccione técnico</option>';
-        lideresDeZona(this.value, rec.departamento, '', rec.provincia).forEach(t => select.add(new Option(textoLider(t), t.nombre_tecnico)));
+        lideresDeZona(this.value, rec.departamento, '', rec.provincia, rec.clasificacion).forEach(t => select.add(new Option(textoLider(t), t.nombre_tecnico)));
         select.dispatchEvent(new Event('change'));
       });
     });

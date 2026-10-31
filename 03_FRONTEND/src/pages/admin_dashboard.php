@@ -129,7 +129,7 @@ if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
             <div class="col-6 col-xl-3"><div class="sgs-kpi p-3 h-100"><span class="sgs-kpi-icon" aria-hidden="true"><i class="bi bi-calendar-week"></i></span><small class="sgs-kpi-label">Días hábiles transcurridos</small><h3 class="mb-0 sgs-kpi-value" id="prod-k-habiles">—</h3></div></div>
         </div>
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0 sgs-tabla-tarjetas">
                 <thead><tr><th>Supervisor</th><th class="text-center">Días trabajados</th><th class="text-center">Finalizadas</th><th class="text-center">Promedio por día</th><th>Avance del mes</th><th>Estado</th></tr></thead>
                 <tbody id="prod-tabla"><tr><td colspan="6" class="text-center text-muted py-4">Cargando…</td></tr></tbody>
             </table>

@@ -74,6 +74,9 @@ try {
     $m10 = sgsMatrizAsistencia($pdo, $viewer, '2026-10', 'AREQUIPA');
     $check('el cesado ya no sale en los meses siguientes', !in_array($ids['dos'], array_column($m10['filas'], 'id'), true) && in_array($ids['uno'], array_column($m10['filas'], 'id'), true));
     $check('el filtro de zona saca a quien no trabaja esa zona', !in_array($ids['uno'], array_column(sgsMatrizAsistencia($pdo, $viewer, '2026-09', 'PIURA')['filas'], 'id'), true));
+    // 2026-10-31: un supervisor (aunque le den permiso de ver la matriz) solo ve su propia fila.
+    $comoSupervisor = ['id' => $ids['uno'], 'rol' => Auth::ROLE_SUPERVISOR];
+    $check('un supervisor solo ve su propia fila', array_column(sgsMatrizAsistencia($pdo, $comoSupervisor, '2026-09')['filas'], 'id') === [$ids['uno']], array_column(sgsMatrizAsistencia($pdo, $comoSupervisor, '2026-09')['filas'], 'id'));
 
     // Por la API: permisos, corrección y Excel
     $sesion = function (string $usuario) use ($base, $clave, &$frascos): callable {

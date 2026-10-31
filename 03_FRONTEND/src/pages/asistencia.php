@@ -212,7 +212,7 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
                 <!-- Tabla de Monitor de Asistencia -->
                 <div class="card card-win p-0 shadow-sm border-0 overflow-hidden">
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0" id="table-admin-asistencia">
+                        <table class="table table-hover align-middle mb-0 sgs-tabla-tarjetas" id="table-admin-asistencia">
                             <thead>
                                 <tr>
                                     <th class="ps-3 sgs-col-persona">Supervisor</th>

@@ -16,7 +16,7 @@ function guardarPersonalSupervision(PDO $pdo, int $supervisionId, ?int $partnerI
         // T1 = técnico líder, del partner de la supervisión. T2 = técnico de apoyo (grupo distinto, sin nomenclatura):
         // rota entre cuadrillas y puede venir de otro partner.
         if ($tipo === 1) {
-            $stmt = $pdo->prepare('SELECT id,dni,usuario_id,partner_id FROM tecnicos WHERE nombre_tecnico=:nombre AND COALESCE(tipo_tecnico,1)=1 AND partner_id=:partner FOR UPDATE');
+            $stmt = $pdo->prepare('SELECT id,dni,usuario_id,partner_id,departamento FROM tecnicos WHERE nombre_tecnico=:nombre AND COALESCE(tipo_tecnico,1)=1 AND partner_id=:partner FOR UPDATE');
             $stmt->execute([':nombre'=>$nombre, ':partner'=>$partnerId]);
         } else {
             $stmt = $pdo->prepare('SELECT id,dni,usuario_id,partner_id FROM tecnicos WHERE nombre_tecnico=:nombre AND tipo_tecnico=2 FOR UPDATE');
@@ -34,6 +34,17 @@ function guardarPersonalSupervision(PDO $pdo, int $supervisionId, ?int $partnerI
             throw new RuntimeException($tipo === 1 ? 'El técnico 1 no pertenece al partner seleccionado. Selecciónelo nuevamente.' : 'El técnico de apoyo (T2) no está registrado. Selecciónelo nuevamente.');
         }
         if ($tipo === 2 && $ids[0] === (int)$maestro['id']) throw new RuntimeException('El técnico de apoyo (T2) no puede ser el mismo técnico líder (T1).');
+        // Cuadrillas por área (2026-10-31): en Lima, Callao y Norte Chico una cuadrilla SGI no atiende visitas técnicas ni una SGA
+        // instalaciones. Solo al elegir otro T1: la que ya estaba guardada se respeta.
+        if ($tipo === 1) {
+            $sup = $pdo->prepare('SELECT clasificacion_supervision, tecnico1_id FROM supervisiones WHERE id = :id');
+            $sup->execute([':id' => $supervisionId]);
+            $sup = $sup->fetch(PDO::FETCH_ASSOC) ?: [];
+            if ((int)($sup['tecnico1_id'] ?? 0) !== (int)$maestro['id'] && !sgsCuadrillaAtiende($maestro['departamento'], $nombre, $sup['clasificacion_supervision'] ?? '')) {
+                $area = sgsAreaCuadrilla($maestro['departamento'], $nombre);
+                throw new RuntimeException("Esa cuadrilla es de {$area} (" . mb_strtolower(SGS_AREA_CUADRILLA[$area], 'UTF-8') . '): no atiende ' . mb_strtolower((string)$sup['clasificacion_supervision'], 'UTF-8') . '. Elija una cuadrilla de la otra área.');
+            }
+        }
         $ids[$index] = (int)$maestro['id'];
         if ($maestro['dni'] !== $dni) {
             // Una cuenta futura conserva su identidad; una corrección vinculada requiere administración.

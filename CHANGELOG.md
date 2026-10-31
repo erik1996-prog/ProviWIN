@@ -4,6 +4,28 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Cuadrillas SGI / SGA en Lima, Callao y Norte Chico (2026-10-31)
+- **Añadido**: en **LIMA, CALLAO y NORTE CHICO** cada cuadrilla es de **SGI** (instalaciones) o de **SGA** (visitas técnicas). El área se lee de la nomenclatura de su técnico líder ("P 1 KAJOMI **SGI** JUAN PEREZ"); el T2 sigue a su líder. **En provincia no hay división**: la cuadrilla atiende todo, aunque su nomenclatura diga SGI o SGA.
+  - En el formulario de supervisión, una **Instalación** solo ofrece cuadrillas SGI y una **Avería, Postventa o Reiterada** solo SGA. La **Garantía** la atienden las dos. Los demás tipos (incidencias, proyectos, capacitación) aceptan cualquiera. La lista cambia sola al cambiar el tipo de supervisión.
+  - Al guardar, el sistema rechaza una cuadrilla de la otra área y dice por qué. La que ya estaba guardada se respeta.
+  - En **Técnicos y cuadrillas**, el partner sale con su área ("VISUAL · SGI"). Quien tiene área de trabajo (Instalaciones o VT) ve solo las cuadrillas de su área en esas zonas.
+- Sin cambios en la base ni en el Excel de carga: basta con que la nomenclatura del líder lleve SGI o SGA.
+- Prueba nueva: `cuadrillas_area_test` (13 revisiones).
+
+### Cada supervisor ve solo lo suyo (2026-10-31)
+- **Cambiado**: un supervisor solo se ve a sí mismo en la Matriz de asistencia, el Monitor de turnos, la Línea de tiempo y los dashboards, aunque le hayan dado permiso para ver esas pantallas. Antes veía a todos los supervisores.
+  - La regla está en un solo lugar (`sgsSupervisoresVisibles`), así que vale para todas esas pantallas.
+- Sin cambios para los demás roles: Gestión ve a los de sus zonas y su área; el Administrador y Consulta ven a todos.
+- Prueba: `matriz_asistencia_test` (22 revisiones).
+
+### Revisión en celular (2026-10-29)
+- **Corregido**: en Supervisiones, la tarjeta del celular no mostraba **"Prioridad alta"**, el estado del partner ni "Por validar". Ahora usa las mismas etiquetas que la tabla de la computadora (se arman una sola vez).
+- **Cambiado**: en celular, el **Monitor de turnos** y la **Meta de productividad** del Dashboard se ven como tarjetas, como los demás listados. Antes eran tablas anchas que había que deslizar de lado.
+- **Corregido**: en Supervisiones, las columnas opcionales que se activan con el botón "Columnas" (Partner, Técnico líder, Placa) ahora también salen en la tarjeta del celular. Antes solo cambiaban la tabla de la computadora.
+- **Corregido**: en Observaciones, las pestañas (Todas, Checklist, Observaciones en campo) quedaban cortadas en celular. Ahora bajan a otra fila.
+- Revisado a 375 px, sin desplazamiento lateral, con los tres perfiles (administrador, supervisor directo y partner): Supervisiones, Mi turno, Vacaciones y licencias, Técnicos y cuadrillas, Usuarios, Matriz de asistencia, dashboards, Línea de tiempo, Observaciones y Mi información.
+  - Las matrices y la línea de tiempo se deslizan dentro de su recuadro, a propósito.
+
 ### Sección Asistencia y orden del menú (2026-10-29)
 - **Añadido**: sección **Asistencia** en el menú, con **Vacaciones y licencias** (pantalla nueva) y **Matriz de asistencia**, que sale de Indicadores.
   - En Vacaciones y licencias, el supervisor registra las suyas y los jefes las aprueban o rechazan. Antes estaba repartido entre Mi turno y el Monitor de turnos.

@@ -631,13 +631,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                         </div>
                     </td>
-                    <td><span class="badge bg-light text-dark border">${escapeHtml(sup.partner)}</span></td>
-                    <td><span class="badge ${badgeClass} px-2 py-1.5 fw-bold"${item.ausencia ? ` title="${escapeHtml(item.ausencia)}"` : ''}>${escapeHtml(estado)}</span>${item.ausencia ? `<small class="d-block text-muted fw-normal">${escapeHtml(item.ausencia)}</small>` : ''}</td>
-                    <td class="fw-semibold">${iniStr}${primeraAccion}</td>
-                    <td class="fw-semibold">${finStr}</td>
-                    <td><span class="fw-bold text-dark">${hTrab}</span></td>
-                    <td><span class="text-muted">${minAlm}</span></td>
-                    <td><span class="fw-bold text-warning-emphasis">${hExt}</span></td>
+                    <td data-label="Partner / área"><span class="badge bg-light text-dark border">${escapeHtml(sup.partner)}</span></td>
+                    <td data-label="Estado"><span><span class="badge ${badgeClass} px-2 py-1.5 fw-bold"${item.ausencia ? ` title="${escapeHtml(item.ausencia)}"` : ''}>${escapeHtml(estado)}</span>${item.ausencia ? `<small class="d-block text-muted fw-normal">${escapeHtml(item.ausencia)}</small>` : ''}</span></td>
+                    <td data-label="Inicio" class="fw-semibold"><span>${iniStr}${primeraAccion}</span></td>
+                    <td data-label="Fin" class="fw-semibold"><span>${finStr}</span></td>
+                    <td data-label="Horas trabajadas"><span class="fw-bold text-dark">${hTrab}</span></td>
+                    <td data-label="Almuerzo"><span class="text-muted">${minAlm}</span></td>
+                    <td data-label="Horas extra"><span class="fw-bold text-warning-emphasis">${hExt}</span></td>
                     <td class="text-end pe-3">
                         ${tbodyAdminAsistencia.dataset.puedeReabrir === '1' && asist && asist.fin_turno && asist.fecha === new Date().toLocaleDateString('en-CA')
                             ? `<button type="button" class="btn btn-outline-secondary btn-sm btn-reabrir-sup me-1" data-sup-id="${sup.id}" data-nombre="${escapeHtml(sup.nombre)}" title="Reabrir el turno de hoy"><i class="bi bi-arrow-counterclockwise"></i> Reabrir</button>` : ''}

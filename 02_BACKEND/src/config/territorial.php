@@ -232,6 +232,50 @@ function sgsAreaPermite(int $userId, ?string $clasificacion): bool
     return !in_array((string)$clasificacion, sgsClasificacionesFueraDeArea(sgsUserArea($userId)), true);
 }
 
+/**
+ * Cuadrillas por área (2026-10-31, regla del usuario): en LIMA, CALLAO y NORTE CHICO cada cuadrilla es de SGI (instalaciones)
+ * o de SGA (visitas técnicas), según la nomenclatura de su técnico líder ("P 1 KAJOMI SGI JUAN PEREZ"). En provincia la
+ * nomenclatura también lleva SGI/SGA, pero la cuadrilla atiende todo. El T2 sigue a su líder. Igual en supervision_lista.js.
+ */
+const SGS_ZONAS_CUADRILLA_POR_AREA = ['LIMA', 'CALLAO', 'NORTE CHICO'];
+const SGS_AREA_CUADRILLA = ['SGI' => 'Instalaciones', 'SGA' => 'VT (visitas técnicas)'];
+/** Tipos que atienden las cuadrillas de las dos áreas (2026-10-31: la garantía también la ve una cuadrilla de instalaciones). */
+const SGS_CUADRILLA_AMBAS_AREAS = ['Garantía'];
+
+/** 'SGI' o 'SGA' si la cuadrilla es de una zona dividida y su nomenclatura dice una sola; null = atiende todo. */
+function sgsAreaCuadrilla(?string $zona, ?string $nombreLider): ?string
+{
+    if (!in_array(mb_strtoupper(trim((string)$zona), 'UTF-8'), SGS_ZONAS_CUADRILLA_POR_AREA, true)) return null;
+    preg_match_all('/(?<![A-Z0-9])SG[IA](?![A-Z0-9])/', mb_strtoupper((string)$nombreLider, 'UTF-8'), $m);
+    $areas = array_unique($m[0]);
+    return count($areas) === 1 ? $areas[0] : null;
+}
+
+/** Tipos de supervisión que NO atiende una cuadrilla SGI (averías, postventa, reiteradas) o SGA (instalaciones). */
+function sgsCuadrillaNoAtiende(string $area): array
+{
+    return array_values(array_diff(sgsClasificacionesFueraDeArea(SGS_AREA_CUADRILLA[$area]), SGS_CUADRILLA_AMBAS_AREAS));
+}
+
+/** ¿La cuadrilla atiende esa clasificación? */
+function sgsCuadrillaAtiende(?string $zona, ?string $nombreLider, ?string $clasificacion): bool
+{
+    $area = sgsAreaCuadrilla($zona, $nombreLider);
+    return $area === null || !in_array((string)$clasificacion, sgsCuadrillaNoAtiende($area), true);
+}
+
+/** Condición SQL "cuadrilla del área del usuario" (zona y nombre del técnico líder). Sin área de trabajo: todas. */
+function sgsCuadrillaAreaSql(string $zonaSql, string $nombreLiderSql, int $userId): string
+{
+    $area = array_search(sgsUserArea($userId), SGS_AREA_CUADRILLA, true);
+    if ($area === false) return '1=1';
+    $otra = $area === 'SGI' ? 'SGA' : 'SGI';
+    $zonas = "'" . implode("','", SGS_ZONAS_CUADRILLA_POR_AREA) . "'";
+    $nombre = "UPPER(COALESCE({$nombreLiderSql}, ''))";
+    return "NOT (UPPER(COALESCE({$zonaSql}, '')) IN ({$zonas}) AND {$nombre} REGEXP '(^|[^A-Z0-9]){$otra}([^A-Z0-9]|$)'"
+        . " AND {$nombre} NOT REGEXP '(^|[^A-Z0-9]){$area}([^A-Z0-9]|$)')";
+}
+
 /** Técnicos sin zona (2026-10-28, regla del usuario): solo los ve el administrador general (cuenta principal). */
 function sgsVeTecnicosSinZona(array $user): bool
 {
@@ -279,11 +323,13 @@ function sgsAlcancePermiteSupervision(array $user, array $sup): bool
 /**
  * Supervisores que ve el líder (filas con 'id'): los de un rol por debajo del suyo que trabajan alguna de sus zonas (no los
  * de "todas las zonas") y no son de la otra área. Él mismo siempre. Sin alcance propio, todos.
+ * Un supervisor (2026-10-31) solo se ve a sí mismo, aunque tenga permiso de ver la matriz, el monitor o los dashboards.
  */
 function sgsSupervisoresVisibles(array $viewer, array $supervisores): array
 {
-    if (!sgsAlcanceLimitado($viewer)) return $supervisores;
     $yo = (int)$viewer['id'];
+    if (($viewer['rol'] ?? '') === Auth::ROLE_SUPERVISOR) return array_values(array_filter($supervisores, static fn($s) => (int)$s['id'] === $yo));
+    if (!sgsAlcanceLimitado($viewer)) return $supervisores;
     sgsPrecargarUsuarios(array_merge([$yo], array_column($supervisores, 'id')));
     $zonas = sgsUserZones($yo);
     $miArea = sgsUserArea($yo);
@@ -300,6 +346,7 @@ function sgsSupervisoresVisibles(array $viewer, array $supervisores): array
 /** " AND u.id IN (…)" con los supervisores que ve el líder ('' si ve a todos), para consultas sobre usuarios u. */
 function sgsSoloSupervisoresVisiblesSql(array $viewer, PDO $pdo): string
 {
+    if (($viewer['rol'] ?? '') === Auth::ROLE_SUPERVISOR) return ' AND u.id = ' . (int)$viewer['id'];
     if (!sgsAlcanceLimitado($viewer)) return '';
     $ids = array_column(sgsSupervisoresVisibles($viewer, $pdo->query("SELECT id FROM usuarios WHERE rol = 'Supervisor' AND activo = 1")->fetchAll(PDO::FETCH_ASSOC)), 'id');
     return ' AND u.id IN (' . (implode(',', array_map('intval', $ids)) ?: '0') . ')';

@@ -776,6 +776,9 @@ window.SGS_SUPERVISION = <?= json_encode([
     'departamento' => $registeredDepartmentScope, // zona de trabajo (LIMA, NORTE CHICO, AREQUIPA…)
     'departamentoZona' => sgsDepartamentoDeZona((string)$registeredDepartmentScope), // su departamento oficial (NORTE CHICO → LIMA)
     'zonasPorProvincia' => SGS_ZONAS_POR_PROVINCIA, // provincias con zona propia (LIMA / HUAURA → NORTE CHICO)
+    // Cuadrillas por área (2026-10-31): zonas donde se dividen en SGI / SGA y lo que NO atiende cada una (territorial.php)
+    'cuadrillaPorArea' => ['zonas' => SGS_ZONAS_CUADRILLA_POR_AREA,
+        'noAtiende' => ['SGI' => sgsCuadrillaNoAtiende('SGI'), 'SGA' => sgsCuadrillaNoAtiende('SGA')]],
     'usuarioId' => (int)($effectiveViewUser['id'] ?? 0),
     'winDirecto' => !empty($effectiveViewUser['is_win_directo']),
     'supervisorPartner' => !empty($esSupervisorPartnerVista),

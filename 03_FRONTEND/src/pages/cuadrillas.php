@@ -53,6 +53,8 @@ if ($zonasUsuario !== null) {
     $params += $zp;
     $zonasRegistradas = array_values(array_filter($zonasRegistradas, static fn($z) => in_array(mb_strtoupper(trim($z), 'UTF-8'), $zonasUsuario, true)));
 }
+// Área (2026-10-31): en Lima, Callao y Norte Chico quien es de Instalaciones ve las cuadrillas SGI y quien es de VT las SGA.
+if (!$esAdmin) $where[] = sgsCuadrillaAreaSql('t.departamento', 't.nombre_tecnico', (int)$user['id']);
 if ($zonaFiltro === 'sin_zona') $where[] = "(t.departamento IS NULL OR t.departamento = '')";
 elseif ($zonaFiltro !== '') { $where[] = 't.departamento = :zona'; $params[':zona'] = $zonaFiltro; }
 if ($busqueda !== '') {
@@ -103,6 +105,9 @@ $apoyos = $puedeEditar ? $pdo->query("SELECT t.id, t.nombre_tecnico, t.dni, t.ce
     WHERE t.tipo_tecnico = 2 AND t.estado_operativo <> 'Blacklist'" . ($veSinZona ? '' : ' AND (' . sgsTecnicoConZonaSql('t.departamento')
         . ' OR EXISTS (SELECT 1 FROM tecnicos lz WHERE lz.apoyo_id = t.id AND ' . sgsTecnicoConZonaSql('lz.departamento') . '))') . " ORDER BY t.nombre_tecnico")->fetchAll() : [];
 $e = static fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+// Partner con el área de la cuadrilla en Lima, Callao y Norte Chico ("VISUAL · SGI"); en provincia, solo el partner.
+$partnerCuadrilla = static fn(?string $partner, ?string $zona, ?string $lider): string => ($partner ?: '—')
+    . (($area = sgsAreaCuadrilla($zona, $lider)) ? " · {$area}" : '');
 // Técnicos de apoyo (T2) con el líder al que apoyan; la zona es la suya o, si no tiene, la de su líder.
 $depT2 = "COALESCE(NULLIF(a.departamento, ''), l.departamento)";
 $whereT2 = ['a.tipo_tecnico = 2'];
@@ -116,6 +121,7 @@ if ($zonasUsuario !== null) {
     $paramsT2 += $zp;
 }
 if (!$veSinZona) $whereT2[] = sgsTecnicoConZonaSql($depT2);
+if (!$esAdmin) $whereT2[] = sgsCuadrillaAreaSql($depT2, 'l.nombre_tecnico', (int)$user['id']); // el T2 sigue a su líder
 if ($zonaFiltro === 'sin_zona') $whereT2[] = "({$depT2} IS NULL OR {$depT2} = '')";
 elseif ($zonaFiltro !== '') { $whereT2[] = "{$depT2} = :zona"; $paramsT2[':zona'] = $zonaFiltro; }
 if ($busqueda !== '') {
@@ -309,7 +315,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
         <tr data-lider="<?= (int)$f['id'] ?>">
           <td data-label="Técnico líder"><span class="fw-bold"><?= $e($f['nombre_tecnico']) ?></span><?= $estadoBadge($f['estado_operativo']) ?></td>
           <td data-label="DNI y celular"><div><div class="<?= preg_match('/^\d{8}$/', (string)$f['dni']) ? '' : 'text-danger fw-bold' ?>"><?= preg_match('/^\d{8}$/', (string)$f['dni']) ? $e($f['dni']) : 'Sin DNI' ?></div><small class="text-muted"><?= $e($f['celular'] ?: 'Sin celular') ?></small></div></td>
-          <td data-label="Partner y zona"><div><div><?= $e($f['nombre_partner'] ?: '—') ?></div><small class="text-muted"><i class="bi bi-geo-alt me-1"></i><?= $zonaTexto($f['provincia'], $f['departamento']) ?></small></div></td>
+          <td data-label="Partner y zona"><div><div><?= $e($partnerCuadrilla($f['nombre_partner'], $f['departamento'], $f['nombre_tecnico'])) ?></div><small class="text-muted"><i class="bi bi-geo-alt me-1"></i><?= $zonaTexto($f['provincia'], $f['departamento']) ?></small></div></td>
           <td data-label="Su cuadrilla"><div><div><?= $f['apoyo_nombre'] ? 'T2: ' . $e($f['apoyo_nombre']) : '<span class="text-muted">Sin T2</span>' ?></div><small class="text-muted"><?= $f['placa'] ? 'Vehículo ' . $e($f['placa']) : 'Sin vehículo' ?></small></div></td>
           <td data-label="Último examen"><?= $badgeExamen((int)$f['id']) ?></td>
           <td class="text-end"><div class="sgs-row-actions justify-content-end"><?= $botonEditar($f) ?></div></td>
@@ -326,7 +332,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
         <tr>
           <td data-label="Técnico de apoyo"><span class="fw-bold"><?= $e($a['nombre_tecnico']) ?></span><?= $estadoBadge($a['estado_operativo']) ?></td>
           <td data-label="DNI y celular"><div><div class="<?= preg_match('/^\d{8}$/', (string)$a['dni']) ? '' : 'text-danger fw-bold' ?>"><?= preg_match('/^\d{8}$/', (string)$a['dni']) ? $e($a['dni']) : 'Sin DNI' ?></div><small class="text-muted"><?= $e($a['celular'] ?: 'Sin celular') ?></small></div></td>
-          <td data-label="Partner y zona"><div><div><?= $e($a['nombre_partner'] ?: '—') ?></div><small class="text-muted"><i class="bi bi-geo-alt me-1"></i><?= trim((string)$a['departamento']) !== '' ? $zonaTexto($a['provincia'], $a['departamento']) : $zonaTexto($a['lider_provincia'], $a['lider_departamento']) ?></small></div></td>
+          <td data-label="Partner y zona"><div><div><?= $e($partnerCuadrilla($a['nombre_partner'], $a['lider_departamento'], $a['lider_nombre'])) ?></div><small class="text-muted"><i class="bi bi-geo-alt me-1"></i><?= trim((string)$a['departamento']) !== '' ? $zonaTexto($a['provincia'], $a['departamento']) : $zonaTexto($a['lider_provincia'], $a['lider_departamento']) ?></small></div></td>
           <td data-label="Apoya a"><?= $a['lider_id'] ? $e($a['lider_nombre']) : '<span class="text-muted">Sin cuadrilla</span>' ?></td>
           <td data-label="Último examen"><?= $badgeExamen((int)$a['id']) ?></td>
           <td class="text-end"><div class="sgs-row-actions justify-content-end"><?php if ($a['lider_id']): ?>
@@ -348,7 +354,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
           <td data-label="Técnico líder"><div><div class="fw-bold"><?= $e($f['nombre_tecnico']) ?></div>
             <small class="text-muted">DNI <?= $e($f['dni'] ?: '—') ?></small>
             <?php if (($f['estado_operativo'] ?? 'Habilitado') !== 'Habilitado'): ?> <span class="badge <?= $claseOperativo[$f['estado_operativo']] ?? 'bg-secondary' ?>"><?= $e($f['estado_operativo']) ?></span><?php endif; ?></div></td>
-          <td data-label="Partner y zona"><div><div><?= $e($f['nombre_partner'] ?: '—') ?></div>
+          <td data-label="Partner y zona"><div><div><?= $e($partnerCuadrilla($f['nombre_partner'], $f['departamento'], $f['nombre_tecnico'])) ?></div>
             <small class="<?= trim((string)$f['departamento']) === '' ? 'text-warning-emphasis' : 'text-muted' ?>"><i class="bi bi-geo-alt me-1"></i><?= trim((string)$f['departamento']) === '' ? 'Sin zona' : $e(sgsTextoZona($f['provincia'], $f['departamento'])) ?></small></div></td>
           <td data-label="Técnico de apoyo (T2)"><?= $f['apoyo_nombre'] ? $e($f['apoyo_nombre']) : '<span class="text-muted">Por definir</span>' ?></td>
           <td data-label="Vehículo"><div class="cuad-celda"><?php if ($f['placa']): ?><span class="fw-bold text-nowrap"><?= $e($f['placa']) ?><?= $f['vehiculo_tipo'] ? ' <small class="text-muted fw-normal">· ' . $e($f['vehiculo_tipo']) . '</small>' : '' ?></span>
