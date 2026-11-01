@@ -1,4 +1,4 @@
-// 03_FRONTEND/src/assets/js/usuarios.js - Usuarios y roles / Personal (pages/usuarios.php). Datos del servidor en window.SGS_USUARIOS.
+// 03_FRONTEND/src/assets/js/usuarios.js - Usuarios y perfiles / Personal (pages/usuarios.php). Datos del servidor en window.SGS_USUARIOS.
 // 2026-10-27: salió de la página a este archivo (sistema liviano: el navegador lo guarda).
 // Espera a que carguen Bootstrap y main.js (se incluyen al final de la página).
 document.addEventListener('DOMContentLoaded', () => {
@@ -9,11 +9,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const ETQ = D.etiquetasRol, etqRol = (r) => ETQ[r] || r; // nombre que se muestra
   const PUEDE_ACTIVAR = D.puedeActivar; // solo la cuenta principal activa (2026-10-26)
   const VER_COMO = D.verComo; // "Ver como" (2026-10-28): solo el administrador general
+  const EDITA_PERFILES = D.editaPerfiles; // perfiles y sus permisos (2026-10-31): solo el administrador general
   const $ = (s, el = document) => el.querySelector(s);
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const toast = (m, t = 'success') => (window.showToast ? window.showToast(m, t) : alert(m));
   let CAT = null;
   const mUsuario = new bootstrap.Modal('#mUsuario'), mPersonal = new bootstrap.Modal('#mPersonal'), mPassword = new bootstrap.Modal('#mPassword');
+  const mPerfil = EDITA_PERFILES ? new bootstrap.Modal('#mPerfil') : null;
 
   async function api(action, { method = 'GET', params = {}, body = null } = {}) {
     const url = 'api/usuarios.php?' + new URLSearchParams({ action, ...params });
@@ -23,65 +25,43 @@ document.addEventListener('DOMContentLoaded', () => {
     return data;
   }
 
-  // ---------- Pestañas ----------
-  document.querySelectorAll('.usr-tabs .btn').forEach((b) => b.addEventListener('click', () => {
-    document.querySelectorAll('.usr-tabs .btn').forEach((x) => x.classList.toggle('active', x === b));
-    const roles = b.dataset.tab === 'roles';
-    $('#tab-usuarios').classList.toggle('d-none', roles); $('#tab-roles').classList.toggle('d-none', !roles);
-    $('#btnNuevoUsuario').classList.toggle('d-none', roles);
-  }));
+  // ---------- Pestañas: Usuarios · Perfiles · Permisos ----------
+  const abrirPestana = (tab) => {
+    document.querySelectorAll('.usr-tabs .btn').forEach((x) => x.classList.toggle('active', x.dataset.tab === tab));
+    ['usuarios', 'perfiles', 'permisos'].forEach((t) => $(`#tab-${t}`)?.classList.toggle('d-none', t !== tab));
+    $('#btnNuevoUsuario')?.classList.toggle('d-none', tab !== 'usuarios');
+    $('#btnNuevoPerfil')?.classList.toggle('d-none', tab !== 'perfiles');
+  };
+  document.querySelectorAll('.usr-tabs .btn').forEach((b) => b.addEventListener('click', () => abrirPestana(b.dataset.tab)));
 
   // ---------- Catálogos ----------
-  // Permisos por pantalla (2026-10-26): una fila por pantalla, en el orden del menú; editar, eliminar y opciones
-  // dependen de "Ver" (data-requiere): sin Ver se desmarcan y se bloquean (el servidor aplica la misma regla).
-  const SECCIONES = ['Indicadores', 'Supervisiones', 'Seguimiento', 'Observaciones', 'Personal', 'Otros'];
-  const pantallas = () => {
-    const p = {};
-    CAT.permisos.forEach((x) => (p[x.grupo] = p[x.grupo] || { seccion: x.seccion, items: [] }).items.push(x));
-    return SECCIONES.map((s) => [s, Object.entries(p).filter(([, v]) => v.seccion === s)]).filter(([, l]) => l.length);
+  // Perfiles (2026-10-31): el usuario elige su perfil; su tipo base (rol) y lo que ve salen del perfil.
+  const ALCANCES = {
+    todo: ['bi-buildings', 'Todo el país', 'Todas las zonas y áreas. Ej.: gerencia, administración.'],
+    zonas: ['bi-geo-alt', 'Sus zonas y su área', 'Solo las zonas y el área de trabajo marcadas en cada usuario. Ej.: líder técnico.'],
+    propio: ['bi-person', 'Solo lo suyo', 'Su turno, sus supervisiones y su asistencia. Ej.: supervisor.'],
   };
-  const etiquetaCorta = (p) => {
-    if (p.accion === 'ver') return 'Ver';
-    const t = p.etiqueta.replace(/^(Ver|Editar|Eliminar|Global):\s*/i, '');
-    return t.charAt(0).toLocaleUpperCase('es') + t.slice(1);
-  };
-  function permisosHtml(prefix) {
-    const COLS = [['ver', 'Ver'], ['editar', 'Editar'], ['eliminar', 'Eliminar'], [null, 'Opciones']];
-    const casilla = (p) => `<div class="form-check"><input class="form-check-input" type="checkbox" name="permisos[]" value="${esc(p.clave)}" id="${prefix}_${esc(p.clave)}"${p.requiere ? ` data-requiere="${esc(p.requiere)}"` : ''}><label class="form-check-label" for="${prefix}_${esc(p.clave)}">${esc(etiquetaCorta(p))}</label></div>`;
-    const filas = pantallas().map(([sec, lista]) => `<tr class="usr-perm-seccion"><td colspan="5">${esc(sec)}</td></tr>` + lista.map(([g, v]) => `<tr><td data-label="Pantalla" class="fw-bold">${esc(g)}</td>`
-      + COLS.map(([a, t]) => { const ps = v.items.filter((p) => (p.accion || null) === a); return `<td data-label="${t}">${ps.length ? ps.map(casilla).join('') : '<span class="text-muted">—</span>'}</td>`; }).join('') + '</tr>').join('')).join('');
-    return `<div class="table-responsive"><table class="table table-sm mb-0 sgs-tabla-tarjetas usr-perm-tabla"><thead><tr><th>Pantalla</th>${COLS.map(([, t]) => `<th>${t}</th>`).join('')}</tr></thead><tbody>${filas}</tbody></table></div>`;
-  }
-  function aplicarDependencias(cont) {
-    const personal = $('#chkPersonalizar').checked;
-    cont.querySelectorAll('input[name="permisos[]"]').forEach((c) => {
-      const ver = c.dataset.requiere ? cont.querySelector(`input[value="${c.dataset.requiere}"]`) : null;
-      const puede = !c.dataset.requiere || !!ver?.checked;
-      if (!puede) c.checked = false;
-      c.disabled = !personal || !puede;
-      c.closest('.form-check')?.classList.toggle('is-bloqueado', !puede);
-    });
-  }
-  const rolPermisos = (rol) => (CAT.roles.find((r) => r.rol === rol) || { permisos: [] }).permisos;
-  const setChecks = (container, list) => container.querySelectorAll('input[name="permisos[]"]').forEach((c) => (c.checked = list.includes(c.value)));
+  const perfilDe = (id) => CAT.perfiles.find((p) => +p.id === +id);
+  const textoAlcance = (p) => (p.rol_base === 'Jefe de operaciones' ? 'Todo su partner' : ALCANCES[p.alcance][1]);
+  const iconoPerfil = (p) => (p.rol_base === 'Administrador' ? 'bi-shield-lock' : 'bi-person-vcard');
 
   async function cargarCatalogos() {
     CAT = (await api('catalogos')).data;
-    const rolOpts = CAT.roles.map((r) => `<option value="${esc(r.rol)}">${esc(etqRol(r.rol))}</option>`).join('');
-    $('#fRol').innerHTML = '<option value="">Todos los roles</option>' + rolOpts;
+    const perfilOpts = CAT.perfiles.map((p) => `<option value="${p.id}" data-rol="${esc(p.rol_base)}">${esc(p.nombre)}</option>`).join('');
+    $('#fPerfil').innerHTML = '<option value="">Todos los perfiles</option>' + perfilOpts;
     $('#wrapTodasZonas').classList.toggle('d-none', !!CAT.equipo); // el líder solo asigna sus zonas
     $('#fOrg').innerHTML = '<option value="">Todas las organizaciones</option><option value="directo">WIN Directo</option>' + CAT.partners.map((p) => `<option value="${p.id}">${esc(p.nombre_partner)}</option>`).join('');
     const f = $('#formUsuario');
-    f.rol.innerHTML = rolOpts;
+    f.perfil_id.innerHTML = perfilOpts;
     f.partner_id.innerHTML = '<option value="0">Seleccione…</option>' + CAT.partners.map((p) => `<option value="${p.id}">${esc(p.nombre_partner)}</option>`).join('');
-    llenarLista(f.area_trabajo, CAT.areas); llenarLista(f.cargo, CAT.cargos);
+    llenarLista(f.area_trabajo, CAT.areas);
+    $('#wrapSinAcceso').classList.toggle('d-none', !CAT.equipo); // solo el líder registra personas sin acceso
     $('#procesos').innerHTML = ['Todos', ...CAT.procesos].map((p, i) => `<input type="checkbox" class="btn-check" name="procesos[]" value="${esc(p)}" id="proc${i}"><label class="btn btn-outline-secondary" for="proc${i}">${esc(p)}</label>`).join('');
     $('#zonas').innerHTML = CAT.departamentos.map((d, i) => `<input type="checkbox" class="btn-check" name="zonas[]" value="${esc(d)}" id="z${i}"><label class="btn btn-outline-secondary" for="z${i}">${esc(d)}</label>`).join('');
-    $('#permisos').innerHTML = permisosHtml('u');
-    renderRoles();
+    if (!CAT.equipo) { renderPerfiles(); renderPermisos(); }
   }
 
-  // Listas fijas (área, cargo). Un valor guardado que no está en la lista (registros anteriores) se muestra igual.
+  // Listas fijas (área). Un valor guardado que no está en la lista (registros anteriores) se muestra igual.
   function llenarLista(select, opciones, valor = '') {
     if (!select) return;
     const extra = valor && !opciones.includes(valor) ? [valor] : [];
@@ -103,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const iniciales = (n) => String(n || '').trim().split(/\s+/).filter(Boolean).map((x) => x[0]).slice(0, 2).join('').toUpperCase() || 'U';
   async function cargarUsuarios() {
     // Administración: estado de acceso elegido en los contadores; el resto ve solo al personal activo.
-    const params = { q: $('#fQ').value.trim(), rol: $('#fRol')?.value || '', organizacion: $('#fOrg')?.value || '', estado: ES_ADMIN ? estadoAcceso : 'activos' };
+    const params = { q: $('#fQ').value.trim(), perfil: $('#fPerfil')?.value || '', organizacion: $('#fOrg')?.value || '', estado: ES_ADMIN ? estadoAcceso : 'activos' };
     const body = $('#usrBody');
     try {
       const data = await api('listar', { params });
@@ -119,8 +99,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const directo = !u.nombre_partner || ['WIN', 'WIN DIRECTO'].includes(String(u.nombre_partner).trim().toUpperCase());
         const activo = +u.activo === 1, yo = +u.id === MI_ID;
         return `<tr class="${activo ? '' : 'usr-row-off'}">
-          <td><div class="d-flex align-items-center gap-2"><span class="usr-avatar">${esc(iniciales(u.nombre_completo))}</span><div><div class="usr-name">${esc(u.nombre_completo)}${yo ? ' <span class="badge bg-light">Tú</span>' : ''}</div><div class="usr-sub">${esc(u.usuario || '—')} · DNI ${esc(u.dni)}</div>${u.cargo || u.area_trabajo ? `<div class="usr-sub">${esc([u.cargo, u.area_trabajo].filter(Boolean).join(' · '))}</div>` : ''}</div></div></td>
-          <td data-label="Rol y organización"><div class="usr-celda-doble"><span class="badge ${u.rol === 'Supervisor' ? 'bg-primary' : 'bg-dark'}">${esc(etqRol(u.rol))}</span><small class="usr-org">${directo ? 'WIN Directo' : esc(u.nombre_partner)}</small></div></td>
+          <td><div class="d-flex align-items-center gap-2"><span class="usr-avatar">${esc(iniciales(u.nombre_completo))}</span><div><div class="usr-name">${esc(u.nombre_completo)}${yo ? ' <span class="badge bg-light">Tú</span>' : ''}</div><div class="usr-sub">${esc(u.usuario || '—')} · DNI ${esc(u.dni)}</div>${u.area_trabajo ? `<div class="usr-sub">${esc(u.area_trabajo)}</div>` : ''}</div></div></td>
+          <td data-label="Perfil y organización"><div class="usr-celda-doble"><span class="badge ${u.rol === 'Supervisor' ? 'bg-primary' : 'bg-dark'}">${esc(u.perfil_nombre || etqRol(u.rol))}</span><small class="usr-org">${directo ? 'WIN Directo' : esc(u.nombre_partner)}</small></div></td>
           <td data-label="Zonas">${u.todas_zonas ? 'Todas' : (u.zonas && u.zonas.length ? esc(u.zonas.join(', ')) : '—')}</td>
           ${!ES_ADMIN ? '' : `<td data-label="Estado"><div class="usr-celda-doble"><div class="usr-insignias">${u.sin_acceso ? '<span class="badge bg-warning" title="Registrado solo con datos personales: falta que el administrador le dé acceso">Sin acceso</span>' : (+u.por_activar === 1 && !activo ? '<span class="badge bg-warning" title="Espera que la cuenta principal lo active">Por activar</span>' : `<span class="badge ${activo ? 'bg-success' : 'bg-secondary'}">${activo ? 'Activo' : 'Inactivo'}</span>`)}${u.bloqueado ? ' <span class="badge bg-danger" title="3 intentos fallidos"><i class="bi bi-lock"></i> Bloqueado</span>' : ''}${u.debe_cambiar_password && !u.sin_acceso ? ' <span class="badge bg-warning" title="Al ingresar, el sistema le pedirá crear su propia contraseña">Cambiará su contraseña</span>' : ''}</div>
             <small class="usr-ingreso" title="Último ingreso">${u.ultimo_acceso ? '<i class="bi bi-box-arrow-in-right"></i> ' + esc(fechaHora(u.ultimo_acceso)) : 'Nunca ingresó'}</small></div></td>`}
@@ -137,41 +117,38 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) { body.innerHTML = `<tr><td colspan="${ES_ADMIN ? 5 : 4}" class="text-center text-danger py-4">${esc(e.message)}</td></tr>`; }
   }
   let tQ; $('#fQ').addEventListener('input', () => { clearTimeout(tQ); tQ = setTimeout(cargarUsuarios, 300); });
-  ['#fRol', '#fOrg'].forEach((s) => $(s)?.addEventListener('change', cargarUsuarios));
+  ['#fPerfil', '#fOrg'].forEach((s) => $(s)?.addEventListener('change', cargarUsuarios));
   const marcarEstado = (valor) => {
     estadoAcceso = valor;
     document.querySelectorAll('#usrEstados [data-estado]').forEach((b) => b.classList.toggle('active', b.dataset.estado === valor));
   };
   $('#usrEstados')?.addEventListener('click', (ev) => { const b = ev.target.closest('[data-estado]'); if (b) { marcarEstado(b.dataset.estado); cargarUsuarios(); } });
-  $('#fLimpiar').addEventListener('click', () => { $('#fQ').value = ''; if ($('#fRol')) $('#fRol').value = ''; if ($('#fOrg')) $('#fOrg').value = ''; marcarEstado(''); cargarUsuarios(); });
+  $('#fLimpiar').addEventListener('click', () => { $('#fQ').value = ''; if ($('#fPerfil')) $('#fPerfil').value = ''; if ($('#fOrg')) $('#fOrg').value = ''; marcarEstado(''); cargarUsuarios(); });
 
   // Formulario: reglas visibles
   const fU = $('#formUsuario');
 
+  const rolElegido = () => fU.perfil_id.selectedOptions[0]?.dataset.rol || '';
+  const primerPerfil = (rol) => CAT.perfiles.find((p) => p.rol_base === rol)?.id;
   function syncForm() {
-    // Líder (2026-10-27): Jefe de operaciones → rol Partner de un partner; Asistente, Asesor, Almacenero y Analista, sin acceso
-    const sinAcceso = !!CAT.equipo && (CAT.cargos_sin_acceso || []).includes(fU.cargo.value);
-    if (CAT.equipo && fU.cargo.value === 'Jefe de operaciones') { fU.rol.value = 'Jefe de operaciones'; fU.organizacion.value = 'partner'; }
-    else if (CAT.equipo && fU.rol.value === 'Jefe de operaciones') fU.rol.value = 'Supervisor';
-    if (sinAcceso) fU.rol.value = 'Supervisor';
+    // Líder (2026-10-27): "Solo registrar sus datos" = persona sin acceso al sistema (sin usuario ni perfil)
+    const sinAcceso = !!CAT.equipo && $('#uSinAcceso').checked;
+    $('#uPerfil').closest('.col-md-6').classList.toggle('d-none', sinAcceso);
     $('#wrapAcceso').classList.toggle('d-none', sinAcceso); $('#sinAccesoAviso').classList.toggle('d-none', !sinAcceso);
     $('#wrapPartner').classList.toggle('d-none', fU.organizacion.value !== 'partner');
-    // Llevan zonas el supervisor y el coordinador (líder: sin zonas ve todo); el jefe de operaciones ve todo su partner
-    // (el que registra un líder lleva su zona: así queda en su equipo)
-    const rol = fU.rol.value, conZonas = ['Supervisor', 'Coordinador'].includes(rol) || (!!CAT.equipo && rol === 'Jefe de operaciones');
+    // Llevan zonas el supervisor y todo perfil con "Sus zonas y su área" (2026-10-31; sin zonas ve todo); el jefe de
+    // operaciones ve todo su partner (el que registra un líder lleva su zona: así queda en su equipo)
+    const rol = rolElegido(), porZonas = perfilDe(fU.perfil_id.value)?.alcance === 'zonas';
+    const conZonas = rol === 'Supervisor' || porZonas || (!!CAT.equipo && rol === 'Jefe de operaciones');
     $('#wrapZonas').classList.toggle('d-none', !conZonas);
-    $('#zonasLider').classList.toggle('d-none', rol !== 'Coordinador');
+    $('#zonasLider').classList.toggle('d-none', !porZonas);
     const todas = $('#chkTodasZonas').checked;
     $('#zonas').querySelectorAll('input').forEach((c) => (c.disabled = todas));
-    const personal = $('#chkPersonalizar').checked;
-    if (!personal) setChecks($('#permisos'), rolPermisos(rol));
-    aplicarDependencias($('#permisos'));
-    $('#permHint').textContent = personal ? 'Permisos personalizados solo para este usuario.' : 'Usa los permisos por defecto del rol. Activa "Personalizar" para ajustarlos.';
+    const p = perfilDe(fU.perfil_id.value);
+    $('#uPerfilAyuda').textContent = p ? `Tipo ${p.etiqueta_rol} · ve: ${textoAlcance(p)}.${CAT.equipo ? '' : ' Sus permisos están en la pestaña Permisos.'}` : '';
   }
-  ['rol', 'organizacion', 'cargo'].forEach((n) => fU[n].addEventListener('change', syncForm));
+  ['perfil_id', 'organizacion', 'sin_acceso'].forEach((n) => fU[n].addEventListener('change', syncForm));
 
-  $('#chkPersonalizar').addEventListener('change', syncForm);
-  $('#permisos').addEventListener('change', (e) => { if (e.target.name === 'permisos[]') aplicarDependencias($('#permisos')); });
   $('#chkTodasZonas').addEventListener('change', syncForm);
   let zonaBase = '';
   $('#btnGenerarPw').addEventListener('click', () => {
@@ -191,16 +168,14 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#hintPassword').textContent = completar ? 'Al guardar con contraseña, la persona queda activa y ya puede ingresar.' : (u ? 'Déjala vacía para mantener la actual.' : 'Compártela con el usuario por un medio seguro.');
     if (u) {
       ['dni', 'nombres', 'apellidos', 'email', 'telefono_personal', 'telefono_corporativo', 'usuario', 'area_trabajo', 'modalidad', 'turno'].forEach((k) => { if (fU[k]) fU[k].value = u[k] ?? ''; });
-      fU.rol.value = u.rol; fU.organizacion.value = u.organizacion; fU.partner_id.value = u.partner_id || 0;
-      llenarLista(fU.area_trabajo, CAT.areas, u.area_trabajo || ''); llenarLista(fU.cargo, CAT.cargos, u.cargo || '');
+      fU.perfil_id.value = u.perfil_id; fU.organizacion.value = u.organizacion; fU.partner_id.value = u.partner_id || 0;
+      llenarLista(fU.area_trabajo, CAT.areas, u.area_trabajo || '');
       const procs = u.procesos || [];
       document.querySelectorAll('#procesos input').forEach((c) => { c.checked = c.value === 'Todos' ? CAT.procesos.every((p) => procs.includes(p)) : procs.includes(c.value); });
       fU.querySelectorAll('input[name="zonas[]"]').forEach((c) => (c.checked = (u.zonas || []).includes(c.value)));
       $('#chkTodasZonas').checked = !!u.todas_zonas; zonaBase = (u.zonas || [])[0] || '';
-      $('#chkPersonalizar').checked = !!u.permisos_personalizados;
-    } else { fU.rol.value = 'Supervisor'; fU.organizacion.value = 'directo'; llenarLista(fU.area_trabajo, CAT.areas); llenarLista(fU.cargo, CAT.cargos); }
+    } else { fU.perfil_id.value = primerPerfil('Supervisor') ?? CAT.perfiles[0]?.id ?? ''; fU.organizacion.value = 'directo'; llenarLista(fU.area_trabajo, CAT.areas); }
     syncForm();
-    if (u && u.permisos_personalizados) { setChecks($('#permisos'), u.permisos || []); aplicarDependencias($('#permisos')); }
     mUsuario.show();
   }
   $('#btnNuevoUsuario')?.addEventListener('click', () => abrirUsuario());
@@ -209,10 +184,9 @@ document.addEventListener('DOMContentLoaded', () => {
     ev.preventDefault();
     const fd = new FormData(fU), body = {};
     fd.forEach((v, k) => { if (k.endsWith('[]')) (body[k.slice(0, -2)] = body[k.slice(0, -2)] || []).push(v); else body[k] = v; });
-    body.rol = fU.rol.value; body.permisos_personalizados = $('#chkPersonalizar').checked;
     body.pedir_cambio = $('#uPedirCambio').checked; // solo aplica si se escribe una contraseña
 
-    body.zonas = body.zonas || []; body.permisos = body.permisos || [];
+    body.zonas = body.zonas || [];
     body.todas_zonas = $('#chkTodasZonas').checked;
     // La zona base actual se envía primero para no cambiar la sede heredada del usuario.
     if (zonaBase && body.zonas.includes(zonaBase)) body.zonas = [zonaBase, ...body.zonas.filter((z) => z !== zonaBase)];
@@ -257,34 +231,127 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btnCopiarPw').addEventListener('click', () => navigator.clipboard?.writeText($('#pwValor').textContent).then(() => toast('Contraseña copiada.')));
   document.getElementById('mPassword').addEventListener('hidden.bs.modal', () => { $('#pwValor').textContent = ''; });
 
-  // ---------- Roles y permisos ----------
-  const etiquetaPermiso = (k) => (CAT.permisos.find((p) => p.clave === k) || { etiqueta: k }).etiqueta;
-  function renderRoles() {
-    $('#rolesSistema').innerHTML = CAT.roles.map((r) => `<div class="col-md-6 col-xl-4"><div class="card role-card is-system">
-      <div class="d-flex justify-content-between align-items-center"><h5><i class="bi bi-shield-lock me-1"></i>${esc(etqRol(r.rol))}</h5><span class="badge bg-light">Sistema</span></div>
-      <div class="role-meta"><span class="sgs-chip"><i class="bi bi-people"></i>${r.usuarios} activos</span><span class="sgs-chip"><i class="bi bi-check2-square"></i>${r.permisos.length} permisos</span></div>
-      ${r.descripcion ? `<p class="small mb-1">${esc(r.descripcion)}</p>` : ''}
-      <div class="role-perms">${r.permisos.slice(0, 6).map((p) => esc(etiquetaPermiso(p))).join(' · ')}${r.permisos.length > 6 ? ` · y ${r.permisos.length - 6} más` : ''}</div>
-    </div></div>`).join('');
-    // Matriz: filas = módulos (grupos con permisos de ver/editar/eliminar), columnas = roles
-    const ACC = [['ver', 'Ver'], ['editar', 'Editar'], ['eliminar', 'Eliminar']];
-    const conAccion = new Set(CAT.permisos.filter((p) => p.accion).map((p) => p.grupo));
-    const celda = (rol, grupo) => ACC.map(([a, txt]) => {
-      const perms = CAT.permisos.filter((p) => p.grupo === grupo && p.accion === a);
-      if (!perms.length) return '';
-      const tiene = perms.filter((p) => rol.permisos.includes(p.clave));
-      return `<span class="perm-acc is-${a}${tiene.length ? '' : ' is-no'}" title="${esc(perms.map((p) => `${rol.permisos.includes(p.clave) ? 'Sí' : 'No'}: ${p.etiqueta}`).join('\n'))}">${tiene.length ? '' : '<s>'}${txt}${tiene.length ? '' : '</s>'}</span>`;
-    }).join('');
-    $('#matrizPermisos').innerHTML = `<thead><tr><th>Pantalla</th>${CAT.roles.map((r) => `<th>${esc(etqRol(r.rol))}</th>`).join('')}</tr></thead>`
-      + `<tbody>${pantallas().map(([sec, lista]) => `<tr class="usr-perm-seccion"><td colspan="${CAT.roles.length + 1}">${esc(sec)}</td></tr>` + lista.filter(([g]) => conAccion.has(g)).map(([g]) => `<tr><td data-label="Pantalla" class="fw-bold">${esc(g)}</td>${CAT.roles.map((r) => `<td data-label="${esc(etqRol(r.rol))}"><div class="perm-accs">${celda(r, g)}</div></td>`).join('')}</tr>`).join('')).join('')}</tbody>`;
+  // ---------- Perfiles (2026-10-31) ----------
+  function renderPerfiles() {
+    $('#perfBody').innerHTML = CAT.perfiles.map((p) => `<tr>
+      <td data-label="Perfil"><div class="sgs-persona"><span class="sgs-mini-avatar" aria-hidden="true"><i class="bi ${iconoPerfil(p)}"></i></span><div class="sgs-persona-texto"><span class="sgs-persona-nombre">${esc(p.nombre)} <small class="text-muted">· ${esc(p.codigo)}</small></span>${p.descripcion ? `<small>${esc(p.descripcion)}</small>` : ''}</div></div></td>
+      <td data-label="Tipo base"><span class="badge bg-light">${esc(p.etiqueta_rol)}</span></td>
+      <td data-label="Datos que ve"><span class="small"><i class="bi ${ALCANCES[p.alcance][0]} me-1"></i>${esc(textoAlcance(p))}</span></td>
+      <td data-label="Trabajadores" class="text-center"><span>${p.trabajadores}</span></td>
+      <td class="text-end"><div class="sgs-row-actions justify-content-end">
+        <button type="button" class="sgs-icon-action" title="Permisos" aria-label="Permisos de ${esc(p.nombre)}" data-perfil-permisos="${p.id}"><i class="bi bi-ui-checks-grid"></i></button>
+        ${EDITA_PERFILES ? `<button type="button" class="sgs-icon-action" title="Editar" aria-label="Editar ${esc(p.nombre)}" data-perfil-editar="${p.id}"><i class="bi bi-pencil"></i></button>
+        <button type="button" class="sgs-icon-action sgs-icon-action--danger" title="${p.usuarios ? 'Tiene usuarios: no se puede eliminar' : 'Eliminar'}" aria-label="Eliminar ${esc(p.nombre)}" data-perfil-eliminar="${p.id}" data-name="${esc(p.nombre)}"${p.usuarios ? ' disabled' : ''}><i class="bi bi-trash3"></i></button>` : ''}
+      </div></td></tr>`).join('') || '<tr><td colspan="5" class="text-center text-muted py-4"><i class="bi bi-inbox d-block fs-3 mb-1"></i>No hay perfiles.</td></tr>';
   }
+  $('#perfBody')?.addEventListener('click', async (ev) => {
+    const b = ev.target.closest('button'); if (!b || b.disabled) return;
+    if (b.dataset.perfilPermisos) { perfilPermisos = +b.dataset.perfilPermisos; renderPermisos(); abrirPestana('permisos'); }
+    else if (b.dataset.perfilEditar) abrirPerfil(perfilDe(b.dataset.perfilEditar));
+    else if (b.dataset.perfilEliminar) {
+      if (!confirm(`¿Eliminar el perfil ${b.dataset.name}?`)) return;
+      try { const r = await api('perfil_eliminar', { method: 'POST', body: { id: +b.dataset.perfilEliminar } }); toast(r.message); await cargarCatalogos(); }
+      catch (e) { toast(e.message, 'error'); }
+    }
+  });
 
+  // Ventana del perfil: datos, tipo base, "¿Qué datos puede ver?" (según el tipo base) y perfiles que puede asignar
+  const fPerf = $('#formPerfil');
+  function pintarAlcances(valor) {
+    const permitidos = CAT.alcances[fPerf.rol_base.value] || [];
+    if (!permitidos.includes(valor)) valor = permitidos[0];
+    $('#perfAlcances').innerHTML = Object.entries(ALCANCES).map(([k, [icono, titulo, ayuda]]) => `<label class="perf-alcance"><input type="radio" name="alcance" value="${k}"${k === valor ? ' checked' : ''}${permitidos.includes(k) ? '' : ' disabled'}><i class="bi ${icono}" aria-hidden="true"></i><span><strong>${titulo}</strong><small>${k === 'todo' && fPerf.rol_base.value === 'Jefe de operaciones' ? 'Todo lo de su partner (lo fija el tipo Partner).' : ayuda}</small></span></label>`).join('');
+  }
+  function abrirPerfil(p = null) {
+    fPerf.reset(); $('#perfError').classList.add('d-none');
+    fPerf.id.value = p ? p.id : 0;
+    $('#mPerfilTitulo').innerHTML = `<i class="bi bi-person-vcard me-2"></i>${p ? 'Editar perfil' : 'Registrar perfil'}`;
+    fPerf.rol_base.innerHTML = CAT.tipos_base.map((t) => `<option value="${esc(t.rol)}">${esc(t.etiqueta)}</option>`).join('');
+    ['nombre', 'codigo', 'descripcion'].forEach((k) => { fPerf[k].value = p ? (p[k] ?? '') : ''; });
+    fPerf.rol_base.value = p ? p.rol_base : 'Supervisor';
+    fPerf.rol_base.disabled = !!(p && p.usuarios); // con usuarios, el tipo base no cambia
+    pintarAlcances(p ? p.alcance : '');
+    $('#perfAsignables').innerHTML = CAT.perfiles.map((x) => `<input type="checkbox" class="btn-check" name="asignables[]" value="${x.id}" id="pa${x.id}"${p && p.asignables.includes(+x.id) ? ' checked' : ''}><label class="btn btn-outline-secondary" for="pa${x.id}">${esc(x.nombre)}</label>`).join('');
+    mPerfil.show();
+  }
+  $('#btnNuevoPerfil')?.addEventListener('click', () => abrirPerfil());
+  fPerf?.rol_base.addEventListener('change', () => pintarAlcances(fPerf.querySelector('input[name="alcance"]:checked')?.value || ''));
+  fPerf?.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const body = { id: +fPerf.id.value, nombre: fPerf.nombre.value, codigo: fPerf.codigo.value, descripcion: fPerf.descripcion.value, rol_base: fPerf.rol_base.value,
+      alcance: fPerf.querySelector('input[name="alcance"]:checked')?.value || '', asignables: [...fPerf.querySelectorAll('input[name="asignables[]"]:checked')].map((c) => +c.value) };
+    const btn = $('#btnGuardarPerfil'); btn.disabled = true;
+    try { const r = await api('perfil_guardar', { method: 'POST', body }); mPerfil.hide(); toast(r.message); await cargarCatalogos(); }
+    catch (e) { $('#perfError').textContent = e.message; $('#perfError').classList.remove('d-none'); if (e.field && fPerf[e.field]) fPerf[e.field].focus(); }
+    finally { btn.disabled = false; }
+  });
+
+  // ---------- Permisos del perfil (2026-10-31) ----------
+  // Una sección del menú por tarjeta y una fila por pantalla con sus botones (Ver primero, Eliminar al final). Sin "Ver" los
+  // demás botones de esa pantalla se apagan y se bloquean (el servidor aplica la misma regla al guardar).
+  const SECCIONES = [['Supervisiones', 'bi-journal-check'], ['Seguimiento', 'bi-activity'], ['Observaciones', 'bi-eye'], ['Asistencia', 'bi-calendar-check'],
+    ['Personal', 'bi-people'], ['Indicadores', 'bi-graph-up'], ['Otros', 'bi-grid']];
+  const ORDEN_ACCION = { ver: 0, editar: 1, eliminar: 3 };
+  // Ícono de cada pantalla: el mismo del menú
+  const ICONO_PANTALLA = { 'Supervisiones': 'bi-journal-check', 'Línea de tiempo': 'bi-diagram-3', 'Mi turno': 'bi-play-circle', 'Observaciones': 'bi-clipboard2-pulse',
+    'Matriz de asistencia': 'bi-calendar3', 'Usuarios y perfiles': 'bi-person-badge', 'Técnicos y cuadrillas': 'bi-people-fill', 'Partners': 'bi-buildings',
+    'Dashboard de supervisiones': 'bi-speedometer2', 'Dashboard de partners': 'bi-buildings', 'Pendientes y rescates': 'bi-arrow-repeat', 'Clima': 'bi-cloud-sun',
+    'Exámenes': 'bi-clipboard-check' };
+  let perfilPermisos = 0; // perfil elegido
+  let marcados = new Set();
+  function renderPermisos() {
+    if (!perfilDe(perfilPermisos)) perfilPermisos = +(CAT.perfiles[0]?.id || 0);
+    const p = perfilDe(perfilPermisos); if (!p) return;
+    marcados = new Set(p.permisos);
+    $('#permPerfiles').innerHTML = CAT.perfiles.map((x) => `<button type="button" class="perm-perfil${+x.id === +p.id ? ' is-activo' : ''}" role="option" aria-selected="${+x.id === +p.id}" data-perfil="${x.id}"><span class="perm-perfil-icono" aria-hidden="true"><i class="bi ${iconoPerfil(x)}"></i></span><span class="perm-perfil-texto"><strong>${esc(x.nombre)}</strong><small>${esc(x.etiqueta_rol)} · ${esc(textoAlcance(x))}</small></span></button>`).join('');
+    $('#permAviso span').textContent = (p.rol_base === 'Administrador' ? 'Perfil de tipo Administrador: además tiene las acciones reservadas (administrar usuarios, cargar cancelaciones, eliminar supervisiones). ' : '')
+      + `Los cambios valen para todos los usuarios con el perfil ${p.nombre} (${p.trabajadores} activos).` + (EDITA_PERFILES ? '' : ' Solo el administrador general puede cambiarlos.');
+    pintarGrupos();
+  }
+  function pintarGrupos() {
+    const porPantalla = {};
+    CAT.permisos.forEach((x) => (porPantalla[x.grupo] = porPantalla[x.grupo] || { seccion: x.seccion, items: [] }).items.push(x));
+    $('#permGrupos').innerHTML = SECCIONES.map(([sec, icono]) => {
+      const pantallas = Object.entries(porPantalla).filter(([, v]) => v.seccion === sec);
+      if (!pantallas.length) return '';
+      const todos = pantallas.flatMap(([, v]) => v.items), n = todos.filter((x) => marcados.has(x.clave)).length;
+      const cabecera = `<div class="perm-grupo-cab"><i class="bi ${icono}" aria-hidden="true"></i><h6>${esc(sec)}</h6><span class="perm-grupo-cuenta">${n} de ${todos.length}</span>`
+        + (EDITA_PERFILES ? `<input class="form-check-input ms-1 mt-0" type="checkbox" data-seccion="${esc(sec)}"${n === todos.length ? ' checked' : ''} title="Marcar o quitar todo" aria-label="Marcar o quitar todo en ${esc(sec)}">` : '') + '</div>';
+      return `<div class="card p-0 perm-grupo">${cabecera}` + pantallas.map(([pantalla, v]) => {
+        const ver = v.items.find((x) => x.accion === 'ver'), conVer = !ver || marcados.has(ver.clave);
+        const botones = [...v.items].sort((a, b) => (ORDEN_ACCION[a.accion] ?? 2) - (ORDEN_ACCION[b.accion] ?? 2)).map((x) => `<button type="button" class="perm-pill" aria-pressed="${marcados.has(x.clave)}" data-permiso="${esc(x.clave)}" title="${esc(x.etiqueta)}"${!EDITA_PERFILES || (x.requiere && !conVer) ? ' disabled' : ''}><i class="bi bi-check2" aria-hidden="true"></i>${esc(x.boton)}</button>`).join('');
+        const todas = v.items.every((x) => marcados.has(x.clave));
+        const casilla = `<input class="form-check-input mt-0" type="checkbox" data-pantalla="${esc(pantalla)}"${todas ? ' checked' : ''}${EDITA_PERFILES ? '' : ' disabled'} aria-label="Todas las acciones de ${esc(pantalla)}">`;
+        return `<div class="perm-fila"><div class="perm-fila-nombre">${casilla}<i class="bi ${ICONO_PANTALLA[pantalla] || 'bi-window'}" aria-hidden="true"></i><span>${esc(pantalla)}<small>${esc(sec)}</small></span></div><div class="perm-acciones">${botones}</div></div>`;
+      }).join('') + '</div>';
+    }).join('');
+  }
+  $('#permPerfiles')?.addEventListener('click', (ev) => { const b = ev.target.closest('[data-perfil]'); if (b) { perfilPermisos = +b.dataset.perfil; renderPermisos(); } });
+  $('#permGrupos')?.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-permiso]'); if (!b || b.disabled) return;
+    const clave = b.dataset.permiso;
+    if (marcados.has(clave)) { marcados.delete(clave); CAT.permisos.filter((x) => x.requiere === clave).forEach((x) => marcados.delete(x.clave)); }
+    else marcados.add(clave);
+    pintarGrupos();
+  });
+  // Casilla de la sección o de una pantalla: marca o quita todas sus acciones
+  $('#permGrupos')?.addEventListener('change', (ev) => {
+    const c = ev.target.closest('[data-seccion], [data-pantalla]'); if (!c) return;
+    CAT.permisos.filter((x) => (c.dataset.seccion ? x.seccion === c.dataset.seccion : x.grupo === c.dataset.pantalla)).forEach((x) => (c.checked ? marcados.add(x.clave) : marcados.delete(x.clave)));
+    pintarGrupos();
+  });
+  $('#btnGuardarPermisos')?.addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget; btn.disabled = true;
+    try { const r = await api('perfil_permisos', { method: 'POST', body: { id: perfilPermisos, permisos: [...marcados] } }); toast(r.message); await cargarCatalogos(); }
+    catch (e) { toast(e.message, 'error'); }
+    finally { btn.disabled = false; }
+  });
   // ---------- Personal: solo datos personales (agregar, editar o ver ficha) ----------
   const fP = $('#formPersonal');
   let ZONAS = { zonas: [], es_partner: true, partners: [] };
   async function cargarZonasPropias() {
     ZONAS = (await api('zonas_propias')).data;
-    llenarLista($('#pArea'), ZONAS.areas || []); llenarLista($('#pCargo'), ZONAS.cargos || []);
+    llenarLista($('#pArea'), ZONAS.areas || []);
     $('#pZona').innerHTML = '<option value="">Seleccione la zona</option>' + ZONAS.zonas.map((z) => `<option value="${esc(z)}">${esc(z)}</option>`).join('');
     $('#pPartner').innerHTML = '<option value="0">Seleccione el partner</option>' + (ZONAS.partners || []).map((p) => `<option value="${p.id}">${esc(p.nombre_partner)}</option>`).join('');
   }
@@ -299,14 +366,14 @@ document.addEventListener('DOMContentLoaded', () => {
   function abrirPersonal(u = null, soloVer = false) {
     fP.reset(); fP.id.value = u ? u.id : 0; $('#pError').classList.add('d-none');
     ['dni', 'nombres', 'apellidos', 'email', 'telefono_personal', 'telefono_corporativo'].forEach((k) => { fP[k].value = u ? (u[k] ?? '') : ''; });
-    llenarLista(fP.area_trabajo, ZONAS.areas || [], u?.area_trabajo || ''); llenarLista(fP.cargo, ZONAS.cargos || [], u?.cargo || '');
+    llenarLista(fP.area_trabajo, ZONAS.areas || [], u?.area_trabajo || '');
     $('#mPersonalTitulo').textContent = soloVer ? (u?.nombres ? `${u.nombres} ${u.apellidos}` : 'Ficha') : (u ? `Editar datos · ${u.nombres} ${u.apellidos}` : 'Agregar personal');
     $('#pAyuda').classList.toggle('d-none', soloVer || !!u);
     fP.querySelectorAll('input:not([type=hidden]),select').forEach((c) => (c.disabled = soloVer));
     $('#btnGuardarPersonal').classList.toggle('d-none', soloVer);
     const info = $('#pInfo');
     info.classList.toggle('d-none', !u);
-    info.innerHTML = u ? `<div class="d-flex flex-wrap gap-2"><span class="badge ${u.rol === 'Supervisor' ? 'bg-primary' : 'bg-dark'}">${esc(etqRol(u.rol))}</span><span class="sgs-chip">${esc(u.nombre_partner || 'WIN Directo')}</span><span class="sgs-chip">${u.zonas && u.zonas.length ? esc(u.zonas.join(', ')) : 'Todas las zonas'}</span></div>` : '';
+    info.innerHTML = u ? `<div class="d-flex flex-wrap gap-2"><span class="badge ${u.rol === 'Supervisor' ? 'bg-primary' : 'bg-dark'}">${esc(u.perfil_nombre || etqRol(u.rol))}</span><span class="sgs-chip">${esc(u.nombre_partner || 'WIN Directo')}</span><span class="sgs-chip">${u.zonas && u.zonas.length ? esc(u.zonas.join(', ')) : 'Todas las zonas'}</span></div>` : '';
     syncPersonal();
     mPersonal.show();
   }

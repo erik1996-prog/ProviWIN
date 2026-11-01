@@ -7,7 +7,9 @@ require_once BACKEND_PATH . '/services/UsuarioService.php';
 final class UsuarioController
 {
     /** Acciones que requieren administrar usuarios (PERM_USERS_MANAGE). */
-    private const ADMIN = ['catalogos', 'detalle', 'guardar', 'estado', 'restablecer_password', 'desbloquear'];
+    private const ADMIN = ['catalogos', 'detalle', 'guardar', 'estado', 'restablecer_password', 'desbloquear', 'perfil_guardar', 'perfil_permisos', 'perfil_eliminar'];
+    /** Perfiles (2026-10-31): solo la cuenta principal (administrador general) los crea, edita y elimina. */
+    private const PERFILES = ['perfil_guardar', 'perfil_permisos', 'perfil_eliminar'];
     /** De esas, las que también hace un líder con su equipo (PERM_USERS_TEAM, 2026-10-27; el servicio pone los límites). */
     private const EQUIPO = ['catalogos', 'detalle', 'guardar', 'estado'];
     /** Ver la lista de personal: PERM_USERS_VIEW, PERM_STAFF_MANAGE o PERM_USERS_MANAGE (cada uno con su alcance). */
@@ -16,7 +18,7 @@ final class UsuarioController
     private const PERSONAL = ['guardar_personal'];
     /** Acciones disponibles para cualquier usuario con sesión. */
     private const PROPIAS = ['cambiar_password_propia', 'mi_foto', 'quitar_mi_foto'];
-    private const ESCRITURA = ['guardar', 'guardar_personal', 'estado', 'restablecer_password', 'desbloquear', 'cambiar_password_propia', 'mi_foto', 'quitar_mi_foto'];
+    private const ESCRITURA = ['guardar', 'guardar_personal', 'estado', 'restablecer_password', 'desbloquear', 'cambiar_password_propia', 'mi_foto', 'quitar_mi_foto', 'perfil_guardar', 'perfil_permisos', 'perfil_eliminar'];
 
     public function __construct(private UsuarioService $service, private array $user) {}
 
@@ -30,6 +32,7 @@ final class UsuarioController
         if (in_array($action, self::ESCRITURA, true) && ($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') return $this->error(405, 'Use POST para esta acción.');
         $lider = !$admin && Auth::can(Auth::PERM_USERS_TEAM, $this->user) && in_array($action, self::EQUIPO, true);
         if (in_array($action, self::ADMIN, true) && !$admin && !$lider) return $this->error(403, 'Solo el administrador puede gestionar usuarios y roles.');
+        if (in_array($action, self::PERFILES, true) && !Auth::esCuentaPrincipal((int)$this->user['id'])) return $this->error(403, 'Solo el administrador general crea y edita perfiles.');
 
         $in = $this->input();
         $actor = (int)$this->user['id'];
@@ -53,7 +56,7 @@ final class UsuarioController
                     $alcance = $this->service->alcance($this->user);
                     return ['status' => 'success', 'data' => ['zonas' => $alcance === null ? sgsOperationalDepartments() : ($alcance['zonas'] ?? sgsOperationalDepartments()),
                         'es_partner' => $alcance !== null, 'partners' => $alcance === null ? $this->service->partnersOperativos() : [],
-                        'areas' => UsuarioValidator::AREAS, 'cargos' => UsuarioValidator::CARGOS]];
+                        'areas' => UsuarioValidator::AREAS]];
                 case 'guardar_personal':
                     $id = (int)($in['id'] ?? 0);
                     $r = $this->service->guardarPersonal($in, $id, $this->user);
@@ -65,8 +68,8 @@ final class UsuarioController
                 case 'guardar':
                     $id = (int)($in['id'] ?? 0);
                     // 2026-10-26: si no lo crea la cuenta principal, el usuario queda "Por activar" hasta que ella lo active
-                    // Líder (2026-10-27): Asistente, Asesor, Almacenero y Analista quedan sin acceso (solo sus datos)
-                    if ($lider && in_array((string)($in['cargo'] ?? ''), UsuarioValidator::CARGOS_SIN_ACCESO, true)) {
+                    // Líder (2026-10-27): con "Solo registrar sus datos" la persona queda sin acceso (p. ej. asistentes, analistas)
+                    if ($lider && !empty($in['sin_acceso'])) {
                         $r = $this->service->guardarSinAcceso($in, $id, $this->user);
                         win_log_error('audit_staff_saved', 'Personal sin acceso registrado por un líder: ' . $r['nombre'], ['target_id' => $r['id'], 'actor_id' => $actor]);
                         return ['status' => 'success', 'message' => "{$r['nombre']} quedó registrado sin acceso al sistema.", 'data' => $r];
@@ -75,10 +78,23 @@ final class UsuarioController
                     $r = $this->service->guardar($in, $id, $actor, $lider || Auth::esCuentaPrincipal($actor), $lider ? $this->service->equipo($this->user) : null);
                     win_log_error('audit_user_saved', ($id ? 'Usuario actualizado' : 'Usuario creado') . ": {$r['usuario']}", ['target_id' => $r['id'], 'actor_id' => $actor, 'por_activar' => $r['por_activar']]);
                     if ($r['por_activar']) {
-                        $this->service->avisarCuentaPrincipal('Usuario por activar', "{$this->user['nombre']} creó el usuario {$r['usuario']} ({$r['nombre']}). Actívelo en Usuarios y roles para que pueda ingresar.");
+                        $this->service->avisarCuentaPrincipal('Usuario por activar', "{$this->user['nombre']} creó el usuario {$r['usuario']} ({$r['nombre']}). Actívelo en Usuarios y perfiles para que pueda ingresar.");
                         return ['status' => 'success', 'message' => "Usuario {$r['usuario']} registrado. Queda por activar: podrá ingresar cuando la cuenta principal lo active.", 'data' => $r];
                     }
                     return ['status' => 'success', 'message' => $id ? 'Usuario actualizado.' : "Usuario creado: {$r['usuario']}", 'data' => $r];
+                case 'perfil_guardar':
+                    $perfiles = new PerfilService(Database::getConnection());
+                    $r = $perfiles->guardar($in, (int)($in['id'] ?? 0));
+                    win_log_error('audit_profile_saved', ($r['nuevo'] ? 'Perfil creado: ' : 'Perfil actualizado: ') . $r['nombre'], ['target_id' => $r['id'], 'actor_id' => $actor]);
+                    return ['status' => 'success', 'message' => $r['nuevo'] ? "Perfil {$r['nombre']} creado con los permisos de su tipo base. Ajústelos en Permisos." : 'Perfil actualizado.', 'data' => $r];
+                case 'perfil_permisos':
+                    (new PerfilService(Database::getConnection()))->guardarPermisos((int)($in['id'] ?? 0), (array)($in['permisos'] ?? []), $actor);
+                    win_log_error('audit_profile_permissions', 'Permisos del perfil actualizados', ['target_id' => (int)($in['id'] ?? 0), 'actor_id' => $actor]);
+                    return ['status' => 'success', 'message' => 'Permisos guardados. Valen para todos los usuarios de este perfil.'];
+                case 'perfil_eliminar':
+                    $nombre = (new PerfilService(Database::getConnection()))->eliminar((int)($in['id'] ?? 0));
+                    win_log_error('audit_profile_deleted', "Perfil eliminado: {$nombre}", ['target_id' => (int)($in['id'] ?? 0), 'actor_id' => $actor]);
+                    return ['status' => 'success', 'message' => "Perfil {$nombre} eliminado."];
                 case 'estado':
                     $activo = !empty($in['activo']);
                     if ($activo && !Auth::esCuentaPrincipal($actor)) return $this->error(403, 'Solo la cuenta principal activa usuarios. Usted sí puede desactivarlos.');

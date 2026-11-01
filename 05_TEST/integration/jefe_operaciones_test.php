@@ -18,8 +18,9 @@ $cleanup = function () use ($pdo, $jar) {
     $pdo->exec("DELETE FROM supervisiones WHERE ticket_codigo LIKE 'PRUEBA-JEFE-%'");
     foreach (['99999961', '99999962', '99999963'] as $dni) {
         $id = (int)$pdo->query("SELECT id FROM usuarios WHERE dni='$dni'")->fetchColumn();
-        if ($id) { foreach (['notificaciones', 'usuario_departamentos_acceso', 'usuario_permisos'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id=$id"); $pdo->exec("DELETE FROM usuarios WHERE id=$id"); }
+        if ($id) { foreach (['notificaciones', 'usuario_departamentos_acceso'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id=$id"); $pdo->exec("DELETE FROM usuarios WHERE id=$id"); }
     }
+    $pdo->exec("DELETE FROM perfiles WHERE codigo = 'PRUEBAJEFE'");
     foreach (['::1', '127.0.0.1'] as $ip) $pdo->prepare('DELETE FROM login_attempts WHERE fingerprint = :f')->execute([':f' => hash('sha256', "$ip|jefe.prueba")]);
     @unlink($jar);
 };
@@ -40,8 +41,8 @@ try {
         'rol' => 'Supervisor', 'organizacion' => 'partner', 'partner_id' => $partner, 'zonas' => ['PIURA'], 'password' => $clave], 0, $admin)['id'];
     $check('el rol no se puede dar a personal directo WIN', $expectError(fn() => $svc->guardar(['dni' => '99999963', 'nombres' => 'X', 'apellidos' => 'Y', 'email' => 'x.jefe@proviwin.test',
         'rol' => 'Jefe de operaciones', 'organizacion' => 'directo', 'zonas' => ['PIURA'], 'password' => $clave], 0, $admin), 'solo para personal de un partner'));
-    $check('el rol Partner ya no existe', $expectError(fn() => $svc->guardar(['dni' => '99999963', 'nombres' => 'X', 'apellidos' => 'Y', 'email' => 'x.jefe@proviwin.test',
-        'rol' => 'Partner', 'organizacion' => 'partner', 'partner_id' => $partner, 'zonas' => ['PIURA'], 'password' => $clave], 0, $admin), 'rol válido'));
+    $check('el rol Partner ya no existe (sin perfil válido no se guarda)', $expectError(fn() => $svc->guardar(['dni' => '99999963', 'nombres' => 'X', 'apellidos' => 'Y', 'email' => 'x.jefe@proviwin.test',
+        'rol' => 'Partner', 'organizacion' => 'partner', 'partner_id' => $partner, 'zonas' => ['PIURA'], 'password' => $clave], 0, $admin), 'perfil'));
 
     // Dos órdenes de su partner asignadas al supervisor (una pendiente y otra ya finalizada) y una sin asignar
     $ins = $pdo->prepare("INSERT INTO supervisiones (codigo_supervision, fecha_registro, supervisor_id, derivacion_orden, tipo_servicio, departamento, provincia, distrito,
@@ -77,9 +78,11 @@ try {
         CURLOPT_POSTFIELDS => ['observacion_id' => $obsId, 'respuesta_partner' => 'Levantamiento del jefe']])[1];
     $r = $responder();
     $check('sin el permiso no puede responder observaciones', str_contains($r['message'] ?? '', 'Solo los representantes'), $r);
-    $permisos = array_values(array_intersect(Auth::roleDefaultPermissions('Jefe de operaciones'), UsuarioService::permisosDelegables()));
-    $permisos[] = Auth::PERM_OBSERVATION_RESPOND;
-    $svc->guardar(array_merge($svc->detalle($jefe), ['password' => '', 'permisos_personalizados' => true, 'permisos' => $permisos]), $jefe, $admin);
+    // Perfil propio (2026-10-31): el de Partner más "Responder" observaciones
+    $perfiles = new PerfilService($pdo);
+    $p = $perfiles->guardar(['nombre' => 'Prueba Jefe', 'codigo' => 'PRUEBAJEFE', 'rol_base' => 'Jefe de operaciones'], 0);
+    $perfiles->guardarPermisos($p['id'], array_merge(array_intersect(Auth::roleDefaultPermissions('Jefe de operaciones'), UsuarioService::permisosDelegables()), [Auth::PERM_OBSERVATION_RESPOND]), $admin);
+    $svc->guardar(array_merge($svc->detalle($jefe), ['password' => '', 'perfil_id' => $p['id']]), $jefe, $admin);
     $r = $responder();
     $check('con el permiso activado ya puede responder (solo le faltan las fotos)', str_contains($r['message'] ?? '', 'foto'), $r);
     $pdo->exec("DELETE FROM observaciones_supervision WHERE id = $obsId");

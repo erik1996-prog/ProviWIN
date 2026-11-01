@@ -18,8 +18,10 @@ $hoy = date('Y-m-d');
 // La descripción de cada tabla es su comentario en la base (ALTER TABLE … COMMENT='…'): toda tabla debe tenerlo.
 $tablasSgs = [
     // Seguridad y usuarios
+    'perfiles' => 'datos',            // 2026-10-31: antes que usuarios (usuarios.perfil_id)
+    'perfil_permisos' => 'datos',
+    'perfil_asignables' => 'datos',
     'usuarios' => 'datos',
-    'usuario_permisos' => 'datos',
     'usuario_departamentos_acceso' => 'datos',
     'login_attempts' => 'vacia',
     // Catálogos y maestros

@@ -1782,10 +1782,7 @@ a:hover {
     scrollbar-color: rgba(255, 255, 255, .35) transparent;
 }
 .sgs-sidebar-foot {
-    padding: 12px 22px 16px;
-    font-size: 11px;
     color: rgba(255, 255, 255, .75);
-    border-top: 1px solid rgba(255, 255, 255, .2);
 }
 .sidebar-overlay {
     background: rgba(20, 20, 20, .35) !important;
@@ -2544,10 +2541,6 @@ html {
 .sgs-menu-group + .sgs-menu-group {
     margin-top: 4px;
     border-top: 1px solid rgba(255, 255, 255, .14);
-}
-.sgs-sidebar-account {
-    padding: 6px 0;
-    border-top: 1px solid rgba(255, 255, 255, .2);
 }
 #sidebar.collapsed .sgs-menu-group + .sgs-menu-group {
     border-top-color: rgba(255, 255, 255, .22);
@@ -3526,7 +3519,6 @@ input[name="longitud"][readonly] { background: var(--sgs-surface-alt); color: va
 }
 #sidebar.sgs-sidebar ul li a i { font-size: 1.1rem; width: 22px; color: rgba(255, 255, 255, .9) !important; }
 #sidebar.sgs-sidebar ul li.active > a { font-weight: 700 !important; }
-#sidebar.sgs-sidebar .sgs-sidebar-account { padding: 8px 0; }
 #sidebar.collapsed .sgs-menu-group + .sgs-menu-group::before { left: 14px; right: 14px; }
 /* 42b. Secciones desplegables en acordeón (2026-10-15). El encabezado se ve como una opción más (mismo tamaño y letra)
    con flecha a la derecha; sus pantallas van debajo con sangría y una línea guía. Una sección con una sola opción
@@ -3649,7 +3641,7 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 { font-family: var(--sgs-fo
 .sgs-mapa-pop-fila strong { color: var(--sgs-ink-2); font-weight: 600; text-align: right; }
 .sgs-mapa-pop .btn-win { color: #fff; }
 
-/* 45. Usuarios y roles en 5 columnas (2026-10-15): "Rol y organización" y "Estado" (con el último ingreso debajo)
+/* 45. Usuarios y perfiles en 5 columnas (2026-10-15): "Rol y organización" y "Estado" (con el último ingreso debajo)
    para que la tabla entre completa sin desplazamiento lateral. */
 .usr-celda-doble { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 .usr-celda-doble .usr-org { font-size: 12.5px; font-weight: 600; color: var(--sgs-ink-2); }
@@ -3941,14 +3933,51 @@ button.sgs-cal-dia:hover, button.sgs-cal-dia:focus-visible { outline: 0; box-sha
 .sgs-gantt-blk.sgs-lluvia-tl.is-activa { border-right-style: dashed; }
 .sgs-lluvia-etq.is-inicio { margin-left: 0; transform: translate(calc(-100% - 4px), -50%); }
 
-/* 60. Roles y permisos (2026-10-23): matriz módulo × rol con lo que puede ver, editar y eliminar. Siempre con texto. */
-.perm-matriz td, .perm-matriz th { white-space: nowrap; }
-.perm-accs { display: flex; flex-wrap: wrap; gap: 4px; }
-.perm-acc { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .72rem; font-weight: 700; border: 1px solid transparent; cursor: help; }
-.perm-acc.is-ver { background: var(--sgs-success-soft); color: var(--sgs-success-dark); }
-.perm-acc.is-editar { background: var(--sgs-warning-soft); color: var(--sgs-warning-dark); }
-.perm-acc.is-eliminar { background: var(--sgs-danger-soft); color: var(--sgs-danger-dark); }
-.perm-acc.is-no { background: transparent; color: var(--sgs-muted); border-color: var(--sgs-border); font-weight: 600; opacity: .7; }
+/* 60. Perfiles y permisos (2026-10-31, reemplaza la matriz de roles): lista de perfiles a la izquierda; a la derecha, cada
+   sección del menú con sus pantallas y un botón por acción (Ver · Registrar · Editar · Eliminar u opción). Prendido = naranja
+   suave con check; apagado = borde. Sin "Ver" los demás botones de la pantalla quedan bloqueados. En celular, una columna. */
+.perm-perfiles { display: flex; flex-direction: column; gap: 4px; }
+.perm-perfil { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: 1px solid transparent; border-radius: var(--sgs-radius-sm); background: transparent; text-align: left; color: var(--sgs-ink-2); }
+.perm-perfil:hover { background: var(--sgs-surface-alt); }
+.perm-perfil.is-activo { background: var(--sgs-orange-soft); border-color: var(--sgs-orange); }
+.perm-perfil-icono { flex: 0 0 32px; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--sgs-surface-alt); color: var(--sgs-orange-dark); }
+.perm-perfil.is-activo .perm-perfil-icono { background: var(--sgs-surface); }
+.perm-perfil-texto { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.perm-perfil-texto strong { font-size: 13.5px; font-weight: 700; color: var(--sgs-ink); }
+.perm-perfil-texto small { font-size: 12px; color: var(--sgs-muted); }
+.perm-grupo { margin-bottom: 14px; }
+.perm-grupo-cab { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--sgs-border); background: var(--sgs-surface-alt); }
+.perm-grupo-cab h6 { margin: 0; font-size: 14px; font-weight: 700; color: var(--sgs-ink); }
+.perm-grupo-cab i { color: var(--sgs-orange-dark); }
+.perm-grupo-cuenta { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--sgs-muted); }
+.perm-fila { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--sgs-border); }
+.perm-fila:last-child { border-bottom: 0; }
+.perm-fila-nombre { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--sgs-ink-2); }
+.perm-fila-nombre > i { color: var(--sgs-muted); }
+.perm-fila-nombre span { display: flex; flex-direction: column; line-height: 1.25; }
+.perm-fila-nombre small { font-size: 11.5px; font-weight: 400; color: var(--sgs-muted); }
+.perm-acciones { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.perm-pill { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 0 12px; border: 1px solid var(--sgs-border); border-radius: 999px; background: var(--sgs-surface); color: var(--sgs-muted); font-size: 12.5px; font-weight: 600; }
+.perm-pill i { display: none; }
+.perm-pill[aria-pressed="true"] { background: var(--sgs-orange-soft); border-color: var(--sgs-orange); color: var(--sgs-orange-dark); font-weight: 700; }
+.perm-pill[aria-pressed="true"] i { display: inline; }
+.perm-pill:disabled { opacity: .45; cursor: not-allowed; }
+.perm-guardar { position: sticky; bottom: 12px; display: flex; justify-content: flex-end; }
+@media (max-width: 767.98px) {
+    .perm-fila { flex-direction: column; align-items: flex-start; }
+    .perm-acciones { justify-content: flex-start; }
+    .perm-guardar .btn { width: 100%; }
+}
+/* Ventana del perfil: "¿Qué datos puede ver?" como tarjetas para elegir una */
+.perf-alcances { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.perf-alcance { display: flex; gap: 10px; padding: 12px; border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); background: var(--sgs-surface); cursor: pointer; }
+.perf-alcance input { position: absolute; opacity: 0; pointer-events: none; }
+.perf-alcance i { font-size: 18px; color: var(--sgs-orange-dark); }
+.perf-alcance strong { display: block; font-size: 13.5px; font-weight: 700; color: var(--sgs-ink); }
+.perf-alcance small { color: var(--sgs-muted); font-size: 12px; }
+.perf-alcance:has(input:checked) { border-color: var(--sgs-orange); background: var(--sgs-orange-soft); }
+.perf-alcance:has(input:disabled) { opacity: .45; cursor: not-allowed; }
+.perf-alcance:has(input:focus-visible) { outline: 2px solid var(--sgs-orange); outline-offset: 2px; }
 
 /* 61. Aviso de lluvia (2026-10-23): vista previa de la foto que se publica en Teams. */
 .sgs-lluvia-foto { display: block; width: 100%; max-height: 220px; object-fit: cover; border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); }
@@ -3982,3 +4011,50 @@ button.sgs-cal-dia:hover, button.sgs-cal-dia:focus-visible { outline: 0; box-sha
 .sgs-ver-como { position: sticky; top: 0; z-index: 1031; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 14px;
     padding: 8px 16px; background: var(--sgs-warning-soft); border-bottom: 1px solid var(--sgs-warning); color: var(--sgs-ink); font-size: .88rem; font-weight: 600; }
 .sgs-ver-como > i { color: var(--sgs-warning-dark); font-size: 1.1rem; }
+
+
+/* ============================================================
+   64. Diseño compacto v3 (2026-10-31, pedido del usuario: "letras más chiquitas, más limpio", como el sistema de
+   referencia que mostró). Mismos colores y misma letra (Nunito); cambian tamaños y pesos:
+   texto 13/400 · celdas 12.5/400 · encabezado de tabla 10.5/700 · etiqueta 12/600 · botón 13/600 · título de pantalla
+   18/700 · título de tarjeta y ventana 14.5/700 · cifra de indicador 22/700 · menú 13.5/500 (activo 600).
+   Menú: el logo arriba, las secciones con íconos finos y el usuario al pie (con su perfil), sobre Mi información y
+   Cerrar sesión. Reemplaza los tamaños de la sección 43 (los !important son porque la 43 y la 42 los usan).
+   ============================================================ */
+body { font-size: 13px; font-weight: 400; }
+#content header h1, .sgs-topbar h1 { font-size: 18px !important; }
+#content header h1 + p, .sgs-topbar h1 + p { font-size: 12px; font-weight: 400; }
+#main-content-area .card h5, #main-content-area .card .h5, #main-content-area .modal-title, .modal .modal-title { font-size: 14.5px !important; }
+#main-content-area h2:not(.sgs-kpi-value) { font-size: 16px; }
+#main-content-area h3:not(.sgs-kpi-value), #main-content-area h4 { font-size: 15px; }
+.sgs-kpi-value, #main-content-area .sgs-kpi-value, #main-content-area .card .sgs-kpi-value { font-size: 22px !important; }
+.sgs-kpi-value.is-text { font-size: 14.5px !important; }
+#main-content-area td { font-size: 12.5px; font-weight: 400; }
+#main-content-area th, .table thead th { font-size: 10.5px !important; }
+.form-label, #main-content-area label { font-size: 12px; }
+.form-control, .form-select { font-size: 13px; }
+.btn { font-size: 13px; }
+.badge { font-size: 11px; }
+.sgs-persona-nombre { font-size: 13px; }
+.sgs-persona-texto small { font-size: 11.5px; }
+#main-content-area p, #main-content-area li { font-weight: 400; }
+
+/* Menú: opciones más livianas y compactas */
+#sidebar.sgs-sidebar .sgs-brand { padding: 20px 20px 14px; }
+#sidebar.sgs-sidebar ul li a,
+#sidebar.sgs-sidebar .sgs-menu-toggle { padding: 8px 12px !important; font-size: 13.5px !important; font-weight: 500 !important; gap: 12px; }
+#sidebar.sgs-sidebar ul li a i,
+#sidebar.sgs-sidebar .sgs-menu-toggle > .bi:first-child { font-size: 1rem; width: 18px; }
+#sidebar.sgs-sidebar ul li.active > a,
+#sidebar.sgs-sidebar .sgs-menu-seccion.is-current > .sgs-menu-toggle { font-weight: 600 !important; }
+#sidebar.sgs-sidebar .sgs-menu-seccion .sgs-menu-items li a { padding: 7px 12px !important; font-size: 13px !important; }
+/* Un solo menú (2026-10-31): Mi información, Instalar app y Cerrar sesión siguen a las secciones, sin líneas; la versión
+   debajo, chica; el usuario al final de todo, sin línea ni cápsula. */
+#sidebar.sgs-sidebar .sgs-sidebar-foot { padding: 2px 22px 0 66px; font-size: 10.5px; } /* debajo del nombre, alineada con el texto */
+#sidebar.sgs-sidebar .sgs-sidebar-usuario { padding: 6px 0 14px; }
+#sidebar.sgs-sidebar .sgs-sidebar-usuario .sgs-profile { margin: 0 12px; padding: 6px 8px; background: transparent; border: 0; border-radius: 10px; gap: 10px; }
+#sidebar.sgs-sidebar .sgs-sidebar-usuario .sgs-avatar { width: 34px; height: 34px; }
+#sidebar.sgs-sidebar .sgs-sidebar-usuario .sgs-avatar span { font-size: 12.5px; }
+#sidebar.sgs-sidebar .sgs-profile-name { font-size: 13px; font-weight: 600; }
+#sidebar.sgs-sidebar .sgs-role-pill { padding: 0; background: transparent; color: rgba(255, 255, 255, .85); font-size: 11.5px; font-weight: 500; }
+#sidebar.collapsed .sgs-sidebar-usuario .sgs-profile { justify-content: center; padding: 6px 0; }

@@ -1,8 +1,9 @@
 <?php
-// 03_FRONTEND/src/pages/usuarios.php - Usuarios y roles / Personal.
+// 03_FRONTEND/src/pages/usuarios.php - Usuarios y perfiles / Personal.
 // Flujo: pantalla -> api/usuarios.php -> UsuarioController -> UsuarioService -> UsuarioRepository
-// Según el permiso: administrar (todo) · su equipo (líder, 2026-10-27: roles por debajo, sus zonas, su área y sus permisos;
+// Según el permiso: administrar (todo) · su equipo (líder, 2026-10-27: los perfiles que el suyo asigna, sus zonas y su área;
 // el servidor pone los límites) · agregar y editar personal (solo datos personales) · ver (solo consulta).
+// Perfiles (2026-10-31): pestañas Perfiles y Permisos; solo la cuenta principal los crea y edita (los demás administradores, consulta).
 Auth::requireLogin();
 $esAdminTotal = Auth::can(Auth::PERM_USERS_MANAGE);
 $esAdminUsuarios = $esAdminTotal || Auth::can(Auth::PERM_USERS_TEAM); // formulario completo (el líder, con sus límites)
@@ -12,6 +13,7 @@ if (!$gestionaPersonal && !Auth::can(Auth::PERM_USERS_VIEW)) {
     return;
 }
 $miId = (int)Auth::getLoggedInUser()['id'];
+$editaPerfiles = Auth::esCuentaPrincipal($miId);
 ?>
 <style>
 .usr-tabs{display:inline-flex;gap:6px;padding:5px;background:var(--sgs-surface);border:1px solid var(--sgs-border);border-radius:14px;box-shadow:var(--sgs-shadow-field)}
@@ -28,18 +30,8 @@ $miId = (int)Auth::getLoggedInUser()['id'];
 .usr-row-off td{opacity:.55}
 .usr-org{font-size:.78rem;font-weight:700;color:var(--sgs-ink-2)}
 .usr-section{font-size:.74rem;font-weight: 700;text-transform:uppercase;letter-spacing:.06em;color:var(--sgs-orange-dark);margin:6px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--sgs-border)}
-/* Permisos por pantalla (2026-10-26): Ver / Editar / Eliminar / Opciones; sin "Ver" el resto de la fila se apaga */
-.usr-perm-tabla td,.usr-perm-tabla th{vertical-align:top}
-.usr-perm-tabla .form-check{font-size:.84rem;margin-bottom:2px}
-.usr-perm-tabla .form-check.is-bloqueado{opacity:.45}
-.usr-perm-seccion td{background:var(--sgs-surface-alt);color:var(--sgs-orange-dark);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .usr-zonas{display:flex;flex-wrap:wrap;gap:8px}
 .usr-zonas .btn-check+.btn{min-height:32px !important;font-size:.8rem !important;padding:0 12px !important}
-.role-card{height:100%;display:flex;flex-direction:column;gap:8px;padding:18px !important}
-.role-card h5{margin:0;font-size:1rem !important}
-.role-card .role-meta{display:flex;gap:8px;flex-wrap:wrap}
-.role-card .role-perms{font-size:.8rem;color:var(--sgs-muted);line-height:1.5}
-.role-card.is-system{border-top:4px solid var(--sgs-ink-2) !important}
 /* Celular: cada usuario como tarjeta (sin desplazamiento lateral) */
 @media(max-width:767.98px){
   .usr-table thead{display:none}
@@ -59,10 +51,12 @@ $miId = (int)Auth::getLoggedInUser()['id'];
     <?php if ($esAdminTotal): ?>
     <div class="usr-tabs" role="tablist">
       <button class="btn active" data-tab="usuarios" role="tab"><i class="bi bi-people"></i>Usuarios</button>
-      <button class="btn" data-tab="roles" role="tab"><i class="bi bi-shield-lock"></i>Roles y permisos</button>
+      <button class="btn" data-tab="perfiles" role="tab"><i class="bi bi-person-vcard"></i>Perfiles</button>
+      <button class="btn" data-tab="permisos" role="tab"><i class="bi bi-shield-lock"></i>Permisos</button>
     </div>
     <?php else: ?><span class="sgs-counter" id="usrContador">—</span><?php endif; ?>
     <div class="d-flex gap-2">
+      <?php if ($editaPerfiles): ?><button class="btn btn-win d-none" id="btnNuevoPerfil"><i class="bi bi-plus-lg"></i>Registrar perfil</button><?php endif; ?>
       <?php if ($esAdminUsuarios): ?><button class="btn btn-win" id="btnNuevoUsuario"><i class="bi bi-person-plus"></i>Nuevo usuario</button>
       <?php elseif ($gestionaPersonal): ?><button class="btn btn-win" id="btnNuevoPersonal"><i class="bi bi-person-plus"></i>Agregar personal</button><?php endif; ?>
     </div>
@@ -94,7 +88,7 @@ $miId = (int)Auth::getLoggedInUser()['id'];
       <div class="usr-toolbar">
         <input type="search" class="form-control form-control-sm" id="fQ" placeholder="Buscar por nombre, usuario, DNI o correo">
         <?php if ($esAdminUsuarios): ?>
-        <select class="form-select form-select-sm" id="fRol"><option value="">Todos los roles</option></select>
+        <select class="form-select form-select-sm" id="fPerfil" aria-label="Perfil"><option value="">Todos los perfiles</option></select>
         <select class="form-select form-select-sm" id="fOrg"><option value="">Todas las organizaciones</option><option value="directo">WIN Directo</option></select>
         <?php endif; ?>
         <button class="btn btn-outline-secondary btn-sm" id="fLimpiar"><i class="bi bi-x-lg"></i>Limpiar</button>
@@ -104,26 +98,34 @@ $miId = (int)Auth::getLoggedInUser()['id'];
     <div class="card p-0 overflow-hidden">
       <div class="table-responsive">
         <table class="table table-hover mb-0 usr-table">
-          <thead><tr><th>Usuario</th><th>Rol y organización</th><th>Zonas</th><?php if ($esAdminUsuarios): ?><th>Estado</th><?php endif; ?><th class="text-end">Acciones</th></tr></thead>
+          <thead><tr><th>Usuario</th><th>Perfil y organización</th><th>Zonas</th><?php if ($esAdminUsuarios): ?><th>Estado</th><?php endif; ?><th class="text-end">Acciones</th></tr></thead>
           <tbody id="usrBody"><tr><td colspan="<?= $esAdminUsuarios ? 5 : 4 ?>" class="text-center text-muted py-4">Cargando…</td></tr></tbody>
         </table>
       </div>
     </div>
   </section>
 
-  <!-- ===== Pestaña Roles y permisos ===== -->
-  <section id="tab-roles" class="d-none">
-    <div class="alert alert-primary d-flex gap-2 align-items-start mb-3">
-      <i class="bi bi-info-circle mt-1"></i>
-      <div>Cada <strong>rol</strong> trae sus permisos por defecto. Si un usuario necesita algo distinto, edítalo y activa
-        <strong>Personalizar</strong> en sus permisos: el cambio vale solo para esa persona.</div>
+  <!-- ===== Pestaña Perfiles (2026-10-31): los cargos del organigrama; los permisos se asignan por perfil ===== -->
+  <section id="tab-perfiles" class="d-none">
+    <p class="text-muted small mb-3">Cada usuario tiene un perfil. El perfil define qué datos ve, qué puede hacer en cada pantalla y qué perfiles puede asignar a su equipo.<?= $editaPerfiles ? '' : ' Solo el administrador general crea y edita perfiles.' ?></p>
+    <div class="card p-0 overflow-hidden"><div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle sgs-tabla-tarjetas">
+        <thead><tr><th>Perfil</th><th>Tipo base</th><th>Datos que ve</th><th class="text-center">Trabajadores</th><th class="text-end">Acciones</th></tr></thead>
+        <tbody id="perfBody"><tr><td colspan="5" class="text-center text-muted py-4">Cargando…</td></tr></tbody>
+      </table>
+    </div></div>
+  </section>
+
+  <!-- ===== Pestaña Permisos (2026-10-31): perfil a la izquierda; a la derecha, cada pantalla con Ver · Registrar · Editar · Eliminar ===== -->
+  <section id="tab-permisos" class="d-none">
+    <div class="row g-3">
+      <div class="col-lg-4 col-xl-3"><div class="card p-2 perm-perfiles" id="permPerfiles" role="listbox" aria-label="Perfiles"></div></div>
+      <div class="col-lg-8 col-xl-9">
+        <div class="alert alert-primary small d-flex gap-2 align-items-start mb-3" id="permAviso"><i class="bi bi-shield-check mt-1"></i><span></span></div>
+        <div id="permGrupos"></div>
+        <?php if ($editaPerfiles): ?><div class="perm-guardar"><button type="button" class="btn btn-win" id="btnGuardarPermisos"><i class="bi bi-check2 me-1"></i>Guardar permisos</button></div><?php endif; ?>
+      </div>
     </div>
-    <h6 class="usr-section">Roles del sistema</h6>
-    <div class="row g-3" id="rolesSistema"></div>
-    <!-- Matriz (2026-10-23): por módulo, qué puede ver, editar y eliminar cada rol por defecto -->
-    <h6 class="usr-section mt-4">Qué puede hacer cada rol</h6>
-    <p class="small text-muted mb-2">Permisos por defecto de cada rol en cada módulo. Pase el cursor sobre una marca para ver el detalle. En el rol Supervisor, los módulos de gestión son solo para el supervisor directo: el de partner no los ve.</p>
-    <div class="card p-0"><div class="table-responsive"><table class="table table-hover mb-0 align-middle sgs-tabla-tarjetas perm-matriz" id="matrizPermisos"></table></div></div>
   </section>
 </div>
 
@@ -147,15 +149,17 @@ $miId = (int)Auth::getLoggedInUser()['id'];
         </div>
 
 
-        <div class="usr-section">Organización y rol</div>
+        <div class="usr-section">Organización y perfil</div>
         <div class="row g-3 mb-3">
           <div class="col-md-6"><label class="form-label">Organización *</label>
             <select class="form-select" name="organizacion"><option value="directo">WIN · Personal directo</option><option value="partner">Partner (contrata)</option></select></div>
           <div class="col-md-6" id="wrapPartner"><label class="form-label">Partner *</label><select class="form-select" name="partner_id"><option value="0">Seleccione…</option></select></div>
           <div class="col-md-6"><label class="form-label" for="uArea">Área de trabajo</label><select class="form-select" id="uArea" name="area_trabajo" aria-describedby="uAreaAyuda"><option value="">—</option></select>
             <div class="form-text" id="uAreaAyuda">Instalaciones o VT (visitas técnicas): el supervisor solo ve las pendientes de su área. Con ambas, ve todas.</div></div>
-          <div class="col-md-6"><label class="form-label" for="uCargo">Cargo</label><select class="form-select" id="uCargo" name="cargo"><option value="">—</option></select></div>
-          <div class="col-md-6"><label class="form-label">Rol del sistema *</label><select class="form-select" name="rol"></select></div>
+          <div class="col-md-6"><label class="form-label" for="uPerfil">Perfil *</label><select class="form-select" id="uPerfil" name="perfil_id" aria-describedby="uPerfilAyuda"></select>
+            <div class="form-text" id="uPerfilAyuda"></div></div>
+          <!-- Líder (2026-10-27): personas sin acceso al sistema (p. ej. asistentes o analistas): solo se guardan sus datos -->
+          <div class="col-12 d-none" id="wrapSinAcceso"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" id="uSinAcceso" name="sin_acceso" value="1"><label class="form-check-label" for="uSinAcceso">Solo registrar sus datos (sin acceso al sistema)</label></div></div>
           <div class="col-md-6"><label class="form-label">Modalidad</label><select class="form-select" name="modalidad"><option value="">—</option><option>PRESENCIAL</option><option>REMOTO</option><option>HÍBRIDO</option></select></div>
           <div class="col-md-6"><label class="form-label">Turno</label><select class="form-select" name="turno"><option value="">—</option><option>Día</option><option>Noche</option></select></div>
         </div>
@@ -166,12 +170,12 @@ $miId = (int)Auth::getLoggedInUser()['id'];
 
         <div id="wrapZonas">
           <div class="usr-section">Zonas de trabajo <small class="text-muted text-transform-none">(lo que el usuario puede ver; el Norte Chico son las provincias Huaura, Huaral y Barranca)</small></div>
-          <p class="form-text mt-0 mb-2 d-none" id="zonasLider">Líder (Gestión): sin zonas ve todo; con zonas, solo esas (y solo su área de trabajo, si es Instalaciones o VT).</p>
+          <p class="form-text mt-0 mb-2 d-none" id="zonasLider">Perfil con "Sus zonas y su área": sin zonas ve todo; con zonas, solo esas (y solo su área de trabajo, si es Instalaciones o VT).</p>
           <div class="form-check form-switch mb-2" id="wrapTodasZonas"><input class="form-check-input" type="checkbox" role="switch" id="chkTodasZonas" name="todas_zonas" value="1"><label class="form-check-label" for="chkTodasZonas">Todas las zonas</label></div>
           <div class="usr-zonas mb-3" id="zonas"></div>
         </div>
 
-        <div class="alert alert-warning small d-none" id="sinAccesoAviso">Con este cargo la persona queda registrada <strong>sin acceso</strong> al sistema: solo se guardan sus datos.</div>
+        <div class="alert alert-warning small d-none" id="sinAccesoAviso">La persona queda registrada <strong>sin acceso</strong> al sistema: solo se guardan sus datos.</div>
         <div id="wrapAcceso">
         <div class="usr-section">Acceso</div>
         <div class="row g-3 mb-3">
@@ -183,12 +187,6 @@ $miId = (int)Auth::getLoggedInUser()['id'];
             <div class="form-check form-switch mt-2"><input class="form-check-input" type="checkbox" role="switch" id="uPedirCambio" name="pedir_cambio" value="1" checked><label class="form-check-label small" for="uPedirCambio">Pedir que la cambie al ingresar</label></div></div>
         </div>
 
-        <div class="usr-section d-flex align-items-center justify-content-between">
-          <span>Permisos</span>
-          <div class="form-check form-switch mb-0 text-transform-none"><input class="form-check-input" type="checkbox" id="chkPersonalizar" name="permisos_personalizados"><label class="form-check-label small fw-bold" for="chkPersonalizar">Personalizar</label></div>
-        </div>
-        <p class="small text-muted mb-2" id="permHint">Usa los permisos por defecto del rol. Activa "Personalizar" para ajustarlos solo a este usuario.</p>
-        <div id="permisos"></div>
         </div>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-win" id="btnGuardarUsuario"><i class="bi bi-check2"></i>Guardar</button></div>
@@ -213,7 +211,6 @@ $miId = (int)Auth::getLoggedInUser()['id'];
           <div class="col-md-4"><label class="form-label" for="pTelPersonal">Teléfono personal</label><input class="form-control" id="pTelPersonal" name="telefono_personal"></div>
           <div class="col-md-4"><label class="form-label" for="pTelCorp">Teléfono corporativo</label><input class="form-control" id="pTelCorp" name="telefono_corporativo"></div>
           <div class="col-md-4"><label class="form-label" for="pArea">Área de trabajo</label><select class="form-select" id="pArea" name="area_trabajo"><option value="">—</option></select></div>
-          <div class="col-md-4"><label class="form-label" for="pCargo">Cargo</label><select class="form-select" id="pCargo" name="cargo"><option value="">—</option></select></div>
           <div class="col-md-4 d-none" id="pWrapOrg"><label class="form-label" for="pOrg">Organización *</label><select class="form-select" id="pOrg" name="organizacion"><option value="directo">WIN · Personal directo</option><option value="partner">Partner (contrata)</option></select></div>
           <div class="col-md-4 d-none" id="pWrapPartner"><label class="form-label" for="pPartner">Partner *</label><select class="form-select" id="pPartner" name="partner_id"><option value="0">Seleccione el partner</option></select></div>
           <div class="col-md-4 d-none" id="pWrapZona"><label class="form-label" for="pZona" id="pZonaLabel">Zona de trabajo</label><select class="form-select" id="pZona" name="zona"><option value="">Seleccione la zona</option></select></div>
@@ -224,6 +221,36 @@ $miId = (int)Auth::getLoggedInUser()['id'];
     </form>
   </div>
 </div>
+
+<?php if ($editaPerfiles): ?>
+<!-- ===== Modal perfil (2026-10-31) ===== -->
+<div class="modal fade" id="mPerfil" tabindex="-1" aria-labelledby="mPerfilTitulo" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <form class="modal-content" id="formPerfil" novalidate>
+      <div class="modal-header"><h5 class="modal-title" id="mPerfilTitulo"><i class="bi bi-person-vcard me-2"></i>Registrar perfil</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-body">
+        <input type="hidden" name="id" value="0">
+        <div class="alert alert-danger d-none" id="perfError" role="alert"></div>
+        <div class="usr-section">Datos del perfil</div>
+        <div class="row g-3 mb-3">
+          <div class="col-md-8"><label class="form-label" for="perfNombre">Nombre *</label><input class="form-control" id="perfNombre" name="nombre" maxlength="60" required placeholder="Ej.: Jefe técnico"></div>
+          <div class="col-md-4"><label class="form-label" for="perfCodigo">Código *</label><input class="form-control text-uppercase" id="perfCodigo" name="codigo" maxlength="10" required placeholder="Ej.: JTEC"></div>
+          <div class="col-12"><label class="form-label" for="perfDescripcion">Descripción</label><textarea class="form-control" id="perfDescripcion" name="descripcion" rows="2" maxlength="255"></textarea></div>
+          <div class="col-md-6"><label class="form-label" for="perfRol">Tipo base *</label><select class="form-select" id="perfRol" name="rol_base" aria-describedby="perfRolAyuda"></select>
+            <div class="form-text" id="perfRolAyuda">Lo fijo del sistema: si registra turno, si es de un partner, etc. No se cambia si el perfil ya tiene usuarios.</div></div>
+        </div>
+        <div class="usr-section">¿Qué datos puede ver? *</div>
+        <p class="small text-muted mb-2">Los permisos dicen qué puede hacer; aquí eliges sobre qué datos.</p>
+        <div class="perf-alcances mb-3" id="perfAlcances" role="radiogroup" aria-label="Qué datos puede ver"></div>
+        <div class="usr-section">Perfiles que puede asignar</div>
+        <p class="small text-muted mb-2">Al registrar o editar a su equipo, quien tenga este perfil solo podrá elegir los perfiles marcados.</p>
+        <div class="usr-zonas" id="perfAsignables"></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-win" id="btnGuardarPerfil"><i class="bi bi-check2 me-1"></i>Guardar perfil</button></div>
+    </form>
+  </div>
+</div>
+<?php endif; ?>
 
 <!-- ===== Modal contraseña temporal ===== -->
 <div class="modal fade" id="mPassword" tabindex="-1" aria-hidden="true">
@@ -240,7 +267,7 @@ $miId = (int)Auth::getLoggedInUser()['id'];
 
 <script>window.SGS_USUARIOS = <?= json_encode([
     'miId' => $miId, 'esAdmin' => $esAdminUsuarios, 'gestiona' => $gestionaPersonal, 'esTotal' => $esAdminTotal,
-    'etiquetasRol' => Auth::ETIQUETAS_ROL, 'puedeActivar' => Auth::esCuentaPrincipal($miId),
+    'etiquetasRol' => Auth::ETIQUETAS_ROL, 'puedeActivar' => $editaPerfiles, 'editaPerfiles' => $editaPerfiles,
     // "Ver como" (2026-10-28): solo el administrador general (cuenta principal), y no mientras ya ve como otro.
     'verComo' => Auth::hasRole([Auth::ROLE_ADMINISTRADOR]) && Auth::esCuentaPrincipal($miId) && !Auth::verComoActivo(),
 ], JSON_UNESCAPED_UNICODE) ?>;</script>

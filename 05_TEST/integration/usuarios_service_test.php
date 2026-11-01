@@ -1,5 +1,5 @@
 <?php
-// 05_TEST/integration/usuarios_service_test.php - Prueba del módulo Usuarios y roles contra la BD (solo CLI).
+// 05_TEST/integration/usuarios_service_test.php - Prueba del módulo Usuarios y perfiles contra la BD (solo CLI).
 // Crea dos usuarios de prueba (DNI 9999990x), ejecuta los flujos y los BORRA al final.
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 $_SESSION = [];
@@ -22,6 +22,7 @@ $expectError = function (callable $fn, string $contains) {
 $cleanup = function () use ($pdo) {
     $pdo->exec("DELETE n FROM notificaciones n WHERE n.titulo = 'Nuevo personal por completar' AND n.mensaje LIKE 'Personal Prueba SGS%'");
     $pdo->exec("DELETE FROM usuarios WHERE dni IN ('99999902','99999903','99999906','99999907')");
+    $pdo->exec("DELETE FROM perfiles WHERE codigo = 'PRUEBASGS'");
 };
 $cleanup();
 $partner = (int)$pdo->query("SELECT id FROM partners WHERE estado=1 AND UPPER(nombre_partner) NOT IN ('WIN','WIN DIRECTO') ORDER BY id LIMIT 1")->fetchColumn();
@@ -29,24 +30,33 @@ $partner = (int)$pdo->query("SELECT id FROM partners WHERE estado=1 AND UPPER(no
 $base = ['dni' => '99999902', 'nombres' => 'Prueba', 'apellidos' => 'Integración SGS', 'email' => 'prueba.integracion@proviwin.test',
     'rol' => 'Supervisor', 'organizacion' => 'directo', 'password' => 'ClaveSegura123', 'zonas' => ['ÁNCASH', 'LA LIBERTAD']];
 
-echo "Usuarios y roles — prueba de integración\n";
+echo "Usuarios y perfiles — prueba de integración\n";
 $uid = 0;
 $check('crear supervisor directo (usuario autogenerado)', function () use ($svc, $base, $admin, &$uid) { $r = $svc->guardar($base, 0, $admin); $uid = $r['id']; return $r['usuario'] === 'pintegracion' || str_starts_with($r['usuario'], 'pintegracion'); });
-$check('detalle: organización directo, zona adicional y permisos por defecto', function () use ($svc, &$uid) {
-    $d = $svc->detalle($uid); return $d['organizacion'] === 'directo' && $d['zonas'] === ['ÁNCASH', 'LA LIBERTAD'] && !$d['todas_zonas'] && !$d['permisos_personalizados'] && in_array(Auth::PERM_ATTENDANCE_SELF, $d['permisos'], true);
+$perfilSupervisor = (int)$pdo->query("SELECT id FROM perfiles WHERE rol_base = 'Supervisor' ORDER BY id LIMIT 1")->fetchColumn();
+$check('detalle: organización directo, zona adicional y el perfil base de su rol', function () use ($svc, &$uid, $perfilSupervisor) {
+    $d = $svc->detalle($uid); return $d['organizacion'] === 'directo' && $d['zonas'] === ['ÁNCASH', 'LA LIBERTAD'] && !$d['todas_zonas'] && $d['perfil_id'] === $perfilSupervisor;
 });
 $check('zona efectiva = ÁNCASH (base) + LA LIBERTAD', function () use (&$uid) { $z = sgsUserZones($uid); sort($z); return $z === ['LA LIBERTAD', 'ÁNCASH']; });
 $check('todas las zonas = sin restricción territorial', function () use ($svc, &$uid, $admin) {    $d = $svc->detalle($uid); $svc->guardar(array_merge($d, ['password' => '', 'todas_zonas' => true, 'zonas' => []]), $uid, $admin);    $t = $svc->detalle($uid); $ok = $t['todas_zonas'] === true && $t['zonas'] === [];    $svc->guardar(array_merge($svc->detalle($uid), ['password' => '', 'todas_zonas' => false, 'zonas' => ['ÁNCASH', 'LA LIBERTAD']]), $uid, $admin);    return $ok && $svc->detalle($uid)['zonas'] === ['ÁNCASH', 'LA LIBERTAD'];});
 $check('rechaza DNI duplicado', fn() => $expectError(fn() => $svc->guardar(array_merge($base, ['email' => 'otro@proviwin.test', 'usuario' => 'otro.usuario']), 0, $admin), 'mismo DNI'));
 $check('rechaza contraseña débil', fn() => $expectError(fn() => $svc->guardar(array_merge($base, ['dni' => '99999903', 'email' => 'x@proviwin.test', 'password' => 'corta']), 0, $admin), 'al menos 10'));
 $check('rechaza supervisor sin zonas de trabajo', fn() => $expectError(fn() => $svc->guardar(array_merge($base, ['dni' => '99999903', 'email' => 'x@proviwin.test', 'zonas' => []]), 0, $admin), 'zona de trabajo'));
-$check('rechaza partner con rol Gerente', fn() => $expectError(fn() => $svc->guardar(array_merge($base, ['dni' => '99999903', 'email' => 'x@proviwin.test', 'organizacion' => 'partner', 'partner_id' => $partner, 'rol' => 'Gerente']), 0, $admin), 'solo puede tener rol'));
-$check('permisos personalizados se guardan', function () use ($svc, $base, $admin, &$uid) {
-    $svc->guardar(array_merge($base, ['password' => '', 'permisos_personalizados' => true, 'permisos' => [Auth::PERM_SUPERVISION_VIEW]]), $uid, $admin);
-    $d = $svc->detalle($uid); return $d['permisos_personalizados'] && $d['permisos'] === [Auth::PERM_SUPERVISION_VIEW];
+$check('rechaza partner con rol Gerente', fn() => $expectError(fn() => $svc->guardar(array_merge($base, ['dni' => '99999903', 'email' => 'x@proviwin.test', 'organizacion' => 'partner', 'partner_id' => $partner, 'rol' => 'Gerente']), 0, $admin), 'solo puede tener un perfil'));
+// Perfiles (2026-10-31): un perfil propio con solo "Ver supervisiones"; el usuario hereda exactamente eso.
+$check('el usuario toma el perfil elegido', function () use ($svc, $pdo, $base, $admin, &$uid) {
+    $perfiles = new PerfilService($pdo);
+    $p = $perfiles->guardar(['nombre' => 'Prueba Perfil SGS', 'codigo' => 'PRUEBASGS', 'rol_base' => 'Supervisor'], 0);
+    $perfiles->guardarPermisos($p['id'], [Auth::PERM_SUPERVISION_VIEW, Auth::PERM_SUPERVISION_CREATE], $admin);
+    $svc->guardar(array_merge($base, ['password' => '', 'perfil_id' => $p['id']]), $uid, $admin);
+    return $svc->detalle($uid)['perfil_id'] === $p['id'];
 });
-$check('Auth::can respeta el permiso personalizado', function () use (&$uid) {
-    return Auth::can(Auth::PERM_SUPERVISION_VIEW, ['id' => $uid, 'rol' => 'Supervisor']) && !Auth::can(Auth::PERM_SUPERVISION_CREATE, ['id' => $uid, 'rol' => 'Supervisor']);
+$check('Auth::can sigue los permisos del perfil (sin "Ver", lo demás de esa pantalla no cuenta)', function () use ($pdo, &$uid, $admin) {
+    $id = (int)$pdo->query("SELECT id FROM perfiles WHERE codigo = 'PRUEBASGS'")->fetchColumn();
+    $ok = Auth::can(Auth::PERM_SUPERVISION_VIEW, ['id' => $uid, 'rol' => 'Supervisor']) && !Auth::can(Auth::PERM_ATTENDANCE_SELF, ['id' => $uid, 'rol' => 'Supervisor']);
+    (new PerfilService($pdo))->guardarPermisos($id, [Auth::PERM_SUPERVISION_CREATE], $admin);
+    $guardados = $pdo->query("SELECT permiso FROM perfil_permisos WHERE perfil_id = $id")->fetchAll(PDO::FETCH_COLUMN);
+    return $ok && $guardados === [];
 });
 $check('correo libre: se guarda el que trae la persona', function () use ($svc, $base, $admin, &$uid) {
     $svc->guardar(array_merge($base, ['password' => '', 'email' => 'Prueba.Integracion@Gmail.com']), $uid, $admin);
@@ -64,11 +74,11 @@ $check('personal: el partner registra un trabajador → "Sin acceso", su partner
     $actor = ['id' => $supPartner, 'rol' => 'Supervisor', 'partner_id' => $partner, 'is_win_directo' => false, 'nombre_completo' => 'Partner SGS'];
     $r = $svc->guardarPersonal(['dni' => '99999907', 'nombres' => 'Personal', 'apellidos' => 'Prueba SGS', 'email' => 'personal.sgs@gmail.com',
         'organizacion' => 'directo', 'partner_id' => 999, 'zona' => 'LAMBAYEQUE', 'usuario' => 'intruso', 'rol' => 'Administrador',
-        'area_trabajo' => 'VT (visitas técnicas)', 'cargo' => 'Supervisor de campo', 'turno' => 'Noche', 'modalidad' => 'REMOTO'], 0, $actor);
+        'area_trabajo' => 'VT (visitas técnicas)', 'turno' => 'Noche', 'modalidad' => 'REMOTO'], 0, $actor);
     $nuevo = $r['id'];
-    $u = $pdo->query("SELECT usuario, rol, activo, partner_id, turno, modalidad, area_trabajo, cargo FROM usuarios WHERE id=$nuevo")->fetch();
+    $u = $pdo->query("SELECT usuario, rol, activo, partner_id, turno, modalidad, area_trabajo FROM usuarios WHERE id=$nuevo")->fetch();
     return $u['usuario'] === null && $u['rol'] === 'Supervisor' && (int)$u['activo'] === 0 && (int)$u['partner_id'] === $partner
-        && $u['turno'] === 'Día' && $u['modalidad'] === 'PRESENCIAL' && $u['area_trabajo'] === 'VT (visitas técnicas)' && $u['cargo'] === 'Supervisor de campo';
+        && $u['turno'] === 'Día' && $u['modalidad'] === 'PRESENCIAL' && $u['area_trabajo'] === 'VT (visitas técnicas)';
 });
 $check('personal: se avisa a los administradores', fn() => (int)$pdo->query("SELECT COUNT(*) FROM notificaciones WHERE titulo='Nuevo personal por completar' AND mensaje LIKE 'Personal Prueba SGS%'")->fetchColumn() > 0);
 $check('personal: el partner no registra fuera de sus zonas', function () use ($svc, $partner, &$supPartner, $expectError) {
@@ -98,12 +108,11 @@ $check('el administrador completa el acceso: exige contraseña y lo activa', fun
     $u = $pdo->query("SELECT usuario, activo FROM usuarios WHERE id=$nuevo")->fetch();
     return $sinClave && $u['usuario'] !== null && $u['usuario'] === $r['usuario'] && (int)$u['activo'] === 1;
 });
-$check('área y cargo: acepta valores de la lista', function () use ($svc, $base, $admin, &$uid) {
-    $svc->guardar(array_merge($base, ['password' => '', 'area_trabajo' => 'Almacén', 'cargo' => 'Almacenero']), $uid, $admin);
-    $d = $svc->detalle($uid); return $d['area_trabajo'] === 'Almacén' && $d['cargo'] === 'Almacenero';
+$check('área: acepta un valor de la lista', function () use ($svc, $base, $admin, &$uid) {
+    $svc->guardar(array_merge($base, ['password' => '', 'area_trabajo' => 'Almacén']), $uid, $admin);
+    return $svc->detalle($uid)['area_trabajo'] === 'Almacén';
 });
 $check('área: rechaza un valor fuera de la lista', fn() => $expectError(fn() => $svc->guardar(array_merge($base, ['password' => '', 'area_trabajo' => 'Inventada']), $uid, $admin), 'área de trabajo'));
-$check('cargo: rechaza un valor fuera de la lista', fn() => $expectError(fn() => $svc->guardar(array_merge($base, ['password' => '', 'cargo' => 'Presidente']), $uid, $admin), 'cargo'));
 $check('área: conserva un valor anterior que no está en la lista', function () use ($svc, $base, $admin, $pdo, &$uid) {
     $pdo->exec("UPDATE usuarios SET area_trabajo = 'SUPERVISOR UM' WHERE id = $uid");
     $svc->guardar(array_merge($base, ['password' => '', 'area_trabajo' => 'SUPERVISOR UM']), $uid, $admin);
@@ -132,10 +141,10 @@ $check('desactivar y reactivar usuario', function () use ($svc, $pdo, $admin, &$
 });
 $check('no puede desactivarse a sí mismo', fn() => $expectError(fn() => $svc->cambiarEstado($admin, false, $admin), 'propia cuenta'));
 if ((int)$pdo->query("SELECT COUNT(*) FROM usuarios WHERE rol='Administrador' AND activo=1")->fetchColumn() === 1) {
-    $check('no deja sin administrador (cambio de rol del único)', function () use ($svc, $admin, $expectError, $uid) {
+    $check('no deja sin administrador (cambio de perfil del único)', function () use ($svc, $pdo, $admin, $expectError, $uid) {
         $d = $svc->detalle($admin);
-        $in = array_merge($d, ['rol' => 'Supervisor', 'password' => '', 'zonas' => $d['zonas'] ?: ['LA LIBERTAD']]);
-        return $expectError(fn() => $svc->guardar($in, $admin, $uid), 'único administrador');
+        $in = array_merge($d, ['perfil_id' => (int)$pdo->query("SELECT id FROM perfiles WHERE rol_base = 'Supervisor' ORDER BY id LIMIT 1")->fetchColumn(), 'password' => '', 'zonas' => $d['zonas'] ?: ['LA LIBERTAD']]);
+        return $expectError(fn() => $svc->guardar($in, $admin, $uid), Auth::esProtegido($admin) ? 'perfil de tipo Administrador' : 'único administrador'); // la cuenta principal es siempre administrador (2026-10-31)
     });
 }
 

@@ -20,7 +20,7 @@ $frascos = [];
 $limpiar = function () use ($pdo, $usuarios, &$frascos) {
     $us = $pdo->query("SELECT id FROM usuarios WHERE dni IN ('" . implode("','", array_keys($usuarios)) . "')")->fetchAll(PDO::FETCH_COLUMN);
     if ($us) { $in = implode(',', array_map('intval', $us));
-        foreach (['ausencias_supervisores' => 'supervisor_id', 'notificaciones' => 'usuario_id', 'usuario_departamentos_acceso' => 'usuario_id', 'usuario_permisos' => 'usuario_id'] as $t => $c) $pdo->exec("DELETE FROM $t WHERE $c IN ($in)");
+        foreach (['ausencias_supervisores' => 'supervisor_id', 'notificaciones' => 'usuario_id', 'usuario_departamentos_acceso' => 'usuario_id'] as $t => $c) $pdo->exec("DELETE FROM $t WHERE $c IN ($in)");
         $pdo->exec("DELETE FROM usuarios WHERE id IN ($in)"); }
     foreach ($usuarios as [$u]) foreach (['::1', '127.0.0.1'] as $ip) $pdo->prepare('DELETE FROM login_attempts WHERE fingerprint = :f')->execute([':f' => hash('sha256', "$ip|$u")]);
     foreach ($frascos as $f) @unlink($f);

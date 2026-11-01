@@ -20,9 +20,10 @@ $cleanup = function () use ($pdo, &$frascos, $principal) {
     $us = $pdo->query("SELECT id FROM usuarios WHERE dni IN ('99999938','99999939') OR usuario = 'act.nuevo'")->fetchAll(PDO::FETCH_COLUMN);
     if ($us) {
         $in = implode(',', array_map('intval', $us));
-        foreach (['notificaciones', 'usuario_departamentos_acceso', 'usuario_permisos'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id IN ($in)");
+        foreach (['notificaciones', 'usuario_departamentos_acceso'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id IN ($in)");
         $pdo->exec("DELETE FROM usuarios WHERE id IN ($in)");
     }
+    $pdo->exec("DELETE FROM perfiles WHERE codigo = 'PRUEBAACT'");
     $pdo->exec("DELETE FROM notificaciones WHERE usuario_id = $principal AND titulo = 'Usuario por activar' AND mensaje LIKE '%act.nuevo%'");
     foreach (['::1', '127.0.0.1'] as $ip) foreach (['act.admin', 'act.nuevo'] as $u) $pdo->prepare('DELETE FROM login_attempts WHERE fingerprint = :f')->execute([':f' => hash('sha256', "$ip|$u")]);
     foreach ($frascos as $f) @unlink($f);
@@ -61,8 +62,7 @@ try {
 
     echo "Usuario creado por otro administrador — $base\n";
     $r = $admin("$api?action=guardar", ['id' => 0, 'dni' => '99999939', 'nombres' => 'Act', 'apellidos' => 'Nuevo Prueba', 'email' => 'act.nuevo@proviwin.test',
-        'usuario' => 'act.nuevo', 'rol' => 'Supervisor', 'organizacion' => 'directo', 'zonas' => ['PIURA'], 'password' => $clave, 'pedir_cambio' => false,
-        'permisos_personalizados' => true, 'permisos' => ['clima.edit', 'clima.delete', 'partners.view', 'partners.edit', 'supervision.view']]);
+        'usuario' => 'act.nuevo', 'rol' => 'Supervisor', 'organizacion' => 'directo', 'zonas' => ['PIURA'], 'password' => $clave, 'pedir_cambio' => false]);
     $nuevo = $pdo->query("SELECT * FROM usuarios WHERE usuario = 'act.nuevo'")->fetch(PDO::FETCH_ASSOC) ?: [];
     $check('queda "Por activar" (inactivo) y el aviso lo dice', ($r['status'] ?? '') === 'success' && (int)($nuevo['activo'] ?? 1) === 0 && (int)($nuevo['por_activar'] ?? 0) === 1
         && str_contains($r['message'] ?? '', 'por activar'), [$r['message'] ?? null, $nuevo['activo'] ?? null, $nuevo['por_activar'] ?? null]);
@@ -75,12 +75,17 @@ try {
     $r = $admin("$api?action=estado", ['id' => (int)$nuevo['id'], 'activo' => 1]);
     $check('ese administrador no puede activarlo', $r['_http'] === 403 && (int)$pdo->query("SELECT activo FROM usuarios WHERE id = {$nuevo['id']}")->fetchColumn() === 0, $r['message'] ?? null);
 
-    echo "Permisos personalizados coherentes\n";
-    $guardados = $pdo->query("SELECT permiso FROM usuario_permisos WHERE usuario_id = {$nuevo['id']} AND permitido = 1")->fetchAll(PDO::FETCH_COLUMN);
+    echo "Perfiles: solo la cuenta principal y permisos coherentes (2026-10-31)\n";
+    $r = $admin("$api?action=perfil_guardar", ['nombre' => 'Prueba Activacion', 'codigo' => 'PRUEBAACT', 'rol_base' => 'Supervisor']);
+    $check('otro administrador no crea perfiles', $r['_http'] === 403 && !$pdo->query("SELECT 1 FROM perfiles WHERE codigo = 'PRUEBAACT'")->fetchColumn(), $r['message'] ?? null);
+    $perfiles = new PerfilService($pdo);
+    $p = $perfiles->guardar(['nombre' => 'Prueba Activacion', 'codigo' => 'PRUEBAACT', 'rol_base' => 'Supervisor'], 0);
+    $perfiles->guardarPermisos($p['id'], ['clima.edit', 'clima.delete', 'partners.view', 'partners.edit', 'supervision.view'], $principal);
+    $guardados = $pdo->query("SELECT permiso FROM perfil_permisos WHERE perfil_id = {$p['id']}")->fetchAll(PDO::FETCH_COLUMN);
     $check('sin "Ver Clima" no se guarda editar ni eliminar de Clima', !array_intersect(['clima.edit', 'clima.delete'], $guardados) && in_array('partners.edit', $guardados, true), $guardados);
-    $pdo->prepare('INSERT INTO usuario_permisos (usuario_id, permiso, permitido, otorgado_por) VALUES (?, ?, 1, ?), (?, ?, 0, ?) ON DUPLICATE KEY UPDATE permitido = VALUES(permitido)')
-        ->execute([(int)$nuevo['id'], 'cuadrillas.edit', $principal, (int)$nuevo['id'], 'cuadrillas.view', $principal]);
-    $check('un permiso antiguo "editar" sin "ver" no da acceso', !Auth::can('cuadrillas.edit', ['id' => (int)$nuevo['id'], 'rol' => 'Supervisor']));
+    $pdo->exec("INSERT INTO perfil_permisos (perfil_id, permiso) VALUES ({$p['id']}, 'cuadrillas.edit')");
+    $pdo->exec("UPDATE usuarios SET perfil_id = {$p['id']} WHERE id = {$nuevo['id']}");
+    $check('un permiso "editar" guardado sin "ver" no da acceso', !Auth::can('cuadrillas.edit', ['id' => (int)$nuevo['id'], 'rol' => 'Supervisor']));
 
     echo "La cuenta principal activa\n";
     $svc->cambiarEstado((int)$nuevo['id'], true, $principal);

@@ -54,7 +54,7 @@ function supervisoresZonaCancelacion(PDO $pdo, string $departamento, bool $bloqu
     if ($target === '') return [];
     $supervisores = $stmt->fetchAll(PDO::FETCH_ASSOC);
     if ($clasificacion !== null) $supervisores = array_values(array_filter($supervisores, static fn($u) => !in_array($clasificacion, sgsClasificacionesFueraDeArea(trim((string)$u['area_trabajo'])), true)));
-    // Zonas de trabajo = zona base (sede) + departamentos adicionales marcados en Usuarios y roles.
+    // Zonas de trabajo = zona base (sede) + departamentos adicionales marcados en Usuarios y perfiles.
     $extras = [];
     foreach ($pdo->query("SELECT usuario_id, departamento FROM usuario_departamentos_acceso WHERE activo = 1")->fetchAll(PDO::FETCH_ASSOC) as $acc) {
         $extras[(int)$acc['usuario_id']][] = normalizarZonaCancelacion((string)$acc['departamento']);

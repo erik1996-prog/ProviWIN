@@ -19,7 +19,7 @@ $limpiar = function () use ($pdo, $dnis, &$frascos) {
     $pdo->exec("DELETE FROM tecnicos WHERE nombre_tecnico LIKE '%PRUEBA NUEVO%'");
     $us = $pdo->query("SELECT id FROM usuarios WHERE dni IN ('" . implode("','", $dnis) . "')")->fetchAll(PDO::FETCH_COLUMN);
     if ($us) { $in = implode(',', array_map('intval', $us));
-        foreach (['notificaciones', 'usuario_departamentos_acceso', 'usuario_permisos'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id IN ($in)");
+        foreach (['notificaciones', 'usuario_departamentos_acceso'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id IN ($in)");
         $pdo->exec("DELETE FROM usuarios WHERE id IN ($in)"); }
     foreach (['nt.admin', 'nt.sup'] as $u) foreach (['::1', '127.0.0.1'] as $ip) $pdo->prepare('DELETE FROM login_attempts WHERE fingerprint = :f')->execute([':f' => hash('sha256', "$ip|$u")]);
     foreach ($frascos as $f) @unlink($f);
@@ -46,8 +46,8 @@ try {
         $ch = curl_init("$base/index.php"); curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_COOKIEJAR => $fr, CURLOPT_COOKIEFILE => $fr]);
         preg_match('/<meta name="csrf-token" content="([^"]+)"/', (string)curl_exec($ch), $m);
         $csrf = $m[1] ?? '';
-        return function (array $datos) use ($base, $fr, $csrf): array {
-            $ch = curl_init("$base/api/tecnicos.php?action=crear_tecnico");
+        return function (array $datos, string $accion = 'crear_tecnico') use ($base, $fr, $csrf): array {
+            $ch = curl_init("$base/api/tecnicos.php?action=$accion");
             curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_POSTFIELDS => $datos, CURLOPT_COOKIEJAR => $fr, CURLOPT_COOKIEFILE => $fr, CURLOPT_HTTPHEADER => ['X-CSRF-Token: ' . $csrf]]);
             return json_decode((string)curl_exec($ch), true) ?? [];
         };
@@ -78,6 +78,18 @@ try {
     $puedeEditar = Auth::can(Auth::PERM_CUADRILLAS_EDIT, ['rol' => 'Supervisor', 'id' => 0]);
     $check($puedeEditar ? 'un supervisor registra en su zona' : 'un supervisor sin permiso de editar cuadrillas no registra', $puedeEditar ? ($r['status'] ?? '') === 'success' : ($r['status'] ?? '') === 'error', $r);
 
+    // T2 que migra a otro partner (2026-10-31): cambia de partner y deja la cuadrilla del partner anterior
+    $partner2 = (int)$pdo->query("SELECT id FROM partners WHERE estado=1 AND UPPER(TRIM(nombre_partner)) NOT IN ('WIN','WIN DIRECTO') AND id <> $partner ORDER BY id LIMIT 1")->fetchColumn();
+    $idT2 = (int)$pdo->query("SELECT id FROM tecnicos WHERE nombre_tecnico = 'PEDRO PRUEBA NUEVO APOYO'")->fetchColumn();
+    $pdo->exec("UPDATE tecnicos SET apoyo_id = $idT2 WHERE nombre_tecnico = 'P 9 PRUEBA NUEVO SGI JUAN LIDER'");
+    $r = $sup(['id' => $idT2, 'partner_id' => $partner2], 'cambiar_partner_t2');
+    $check('un supervisor no cambia de partner a un T2 de otra zona', ($r['status'] ?? '') === 'error', $r);
+    $r = $admin(['id' => $idT2, 'partner_id' => $partner2], 'cambiar_partner_t2');
+    $lider = $pdo->query("SELECT apoyo_id FROM tecnicos WHERE nombre_tecnico = 'P 9 PRUEBA NUEVO SGI JUAN LIDER'")->fetchColumn();
+    $check('el T2 cambia de partner y deja su cuadrilla anterior', ($r['status'] ?? '') === 'success' && (int)$fila('PEDRO PRUEBA NUEVO APOYO')['partner_id'] === $partner2 && $lider === null, [$r, $lider]);
+    $r = $admin(['id' => $idT2, 'partner_id' => $partner2], 'cambiar_partner_t2');
+    $check('al mismo partner no se cambia', ($r['status'] ?? '') === 'error' && str_contains($r['message'] ?? '', 'ya es de'), $r);
+
     // El T2 sin zona toma la de la supervisión donde se usa, aunque siga en proceso (2026-10-29)
     require_once BACKEND_PATH . '/config/supervision_personal.php';
     $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, dni, tipo_tecnico, partner_id) VALUES ('APOYO PRUEBA NUEVO SINZONA', '99999981', 2, :p)")->execute([':p' => $partner]);
@@ -94,6 +106,14 @@ try {
         $pdo->commit();
         $zonaT2 = $fila('APOYO PRUEBA NUEVO SINZONA')['departamento'] ?? null;
         $check('el T2 sin zona toma la de la supervisión aunque siga en proceso', $zonaT2 === 'AREQUIPA', $zonaT2);
+        // 2026-10-31: un T2 de otro partner y otra zona (buscado entre todos los T2) pasa al cerrar a esta cuadrilla, partner y zona
+        $pdo->beginTransaction();
+        guardarPersonalSupervision($pdo, $supervision, $partner, [['nombre' => 'P 9 PRUEBA NUEVO SGI JUAN LIDER', 'dni' => '99999977'], ['nombre' => 'PEDRO PRUEBA NUEVO APOYO', 'dni' => '99999978']], [], true);
+        $pdo->commit();
+        $t2 = $fila('PEDRO PRUEBA NUEVO APOYO');
+        $apoyoDelLider = (int)$pdo->query("SELECT apoyo_id FROM tecnicos WHERE nombre_tecnico = 'P 9 PRUEBA NUEVO SGI JUAN LIDER'")->fetchColumn();
+        $check('un T2 de otro partner y otra zona pasa al cerrar al partner, la zona y la cuadrilla de la supervisión',
+            (int)$t2['partner_id'] === $partner && $t2['departamento'] === 'AREQUIPA' && $apoyoDelLider === $idT2, [$t2, $apoyoDelLider]);
     } finally {
         if ($pdo->inTransaction()) $pdo->rollBack();
         $pdo->exec("DELETE FROM supervisiones WHERE id = $supervision");

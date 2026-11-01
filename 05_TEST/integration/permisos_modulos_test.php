@@ -22,9 +22,10 @@ $cleanup = function () use ($pdo, $dnis, &$frascos) {
     if ($us) {
         $in = implode(',', array_map('intval', $us));
         $pdo->exec("DELETE FROM lluvias_zona WHERE reportado_por IN ($in)");
-        foreach (['notificaciones', 'usuario_departamentos_acceso', 'usuario_permisos'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id IN ($in)");
+        foreach (['notificaciones', 'usuario_departamentos_acceso'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id IN ($in)");
         $pdo->exec("DELETE FROM usuarios WHERE id IN ($in)");
     }
+    $pdo->exec("DELETE FROM perfiles WHERE codigo IN ('PRUEBADIR', 'PRUEBAPAR')");
     foreach (['perm.admin', 'perm.directo', 'perm.partner', 'perm.otro'] as $u) foreach (['::1', '127.0.0.1'] as $ip)
         $pdo->prepare('DELETE FROM login_attempts WHERE fingerprint = :f')->execute([':f' => hash('sha256', "$ip|$u")]);
     foreach ($frascos as $f) @unlink($f);
@@ -89,11 +90,16 @@ try {
         $check("$quien: acceso a cada módulo como antes", $obtenido == $mods, $obtenido);
     }
 
-    echo "Permisos personalizados\n";
-    $ins = $pdo->prepare('INSERT INTO usuario_permisos (usuario_id, permiso, permitido, otorgado_por) VALUES (:u, :p, :ok, :by)');
-    $ins->execute([':u' => $ids['directo'], ':p' => 'clima.view', ':ok' => 0, ':by' => $admin]);
-    $ins->execute([':u' => $ids['directo'], ':p' => 'partners.view', ':ok' => 1, ':by' => $admin]);
-    $ins->execute([':u' => $ids['partner'], ':p' => 'clima.view', ':ok' => 1, ':by' => $admin]);
+    echo "Permisos de un perfil propio (2026-10-31: antes, personalizados por usuario)\n";
+    $perfiles = new PerfilService($pdo);
+    $propio = function (string $codigo, int $usuario, array $quitar, array $agregar) use ($perfiles, $pdo, $admin) {
+        $p = $perfiles->guardar(['nombre' => "Prueba $codigo", 'codigo' => $codigo, 'rol_base' => 'Supervisor'], 0);
+        $actuales = $pdo->query("SELECT permiso FROM perfil_permisos WHERE perfil_id = {$p['id']}")->fetchAll(PDO::FETCH_COLUMN);
+        $perfiles->guardarPermisos($p['id'], array_merge(array_diff($actuales, $quitar), $agregar), $admin);
+        $pdo->exec("UPDATE usuarios SET perfil_id = {$p['id']} WHERE id = $usuario");
+    };
+    $propio('PRUEBADIR', $ids['directo'], ['clima.view'], ['partners.view']);
+    $propio('PRUEBAPAR', $ids['partner'], [], ['clima.view']);
     $s['directo'] = $sesion('perm.directo'); $s['partner'] = $sesion('perm.partner');
     $check('al directo se le quita "Ver Clima": el servicio lo rechaza', $estado($s['directo'], 'clima') === 403);
     [, , $html] = $s['directo']("$base/index.php?page=dashboard_lluvias");

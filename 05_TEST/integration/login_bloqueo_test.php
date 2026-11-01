@@ -41,7 +41,7 @@ $a = $login('incorrecta-2'); $check('2.º intento fallido avisa que queda 1', st
 $a = $login('incorrecta-3'); $check('3.er intento fallido bloquea y pide contactar al administrador', !empty($a['locked']) && str_contains($a['message'] ?? '', 'administrador'), $a);
 $a = $login($clave);        $check('con la contraseña correcta sigue bloqueado', !empty($a['locked']), $a);
 $lista = $svc->listar(['q' => 'bloqueo.prueba', 'rol' => '', 'estado' => '', 'organizacion' => ''])['usuarios'];
-$check('Usuarios y roles lo muestra como bloqueado', !empty($lista[0]['bloqueado']), $lista[0] ?? null);
+$check('Usuarios y perfiles lo muestra como bloqueado', !empty($lista[0]['bloqueado']), $lista[0] ?? null);
 Auth::unlockAccount($uid);
 $a = $login($clave);        $check('tras desbloquear, ingresa con su contraseña', ($a['status'] ?? '') === 'success', $a);
 $login('incorrecta-4'); $login('incorrecta-5'); $login('incorrecta-6');

@@ -16,7 +16,7 @@ $dnis = ['99999971', '99999972'];
 $limpiar = function () use ($pdo, $dnis) {
     $us = $pdo->query("SELECT id FROM usuarios WHERE dni IN ('" . implode("','", $dnis) . "')")->fetchAll(PDO::FETCH_COLUMN);
     if ($us) { $in = implode(',', array_map('intval', $us));
-        foreach (['notificaciones', 'usuario_departamentos_acceso', 'usuario_permisos'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id IN ($in)");
+        foreach (['notificaciones', 'usuario_departamentos_acceso'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id IN ($in)");
         $pdo->exec("DELETE FROM usuarios WHERE id IN ($in)"); }
 };
 $limpiar();

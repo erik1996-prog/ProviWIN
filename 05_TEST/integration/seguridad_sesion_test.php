@@ -22,7 +22,7 @@ $frasco = tempnam(sys_get_temp_dir(), 'sgss');
 $cleanup = function () use ($pdo, $frasco, $claveCuenta) {
     $id = (int)$pdo->query("SELECT id FROM usuarios WHERE dni = '99999937'")->fetchColumn();
     if ($id) {
-        foreach (['notificaciones', 'usuario_departamentos_acceso', 'usuario_permisos'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id = $id");
+        foreach (['notificaciones', 'usuario_departamentos_acceso'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id = $id");
         $pdo->exec("DELETE FROM usuarios WHERE id = $id");
     }
     $pdo->prepare('DELETE FROM login_attempts WHERE fingerprint = :f')->execute([':f' => $claveCuenta]);

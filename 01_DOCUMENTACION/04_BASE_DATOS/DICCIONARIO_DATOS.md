@@ -1,6 +1,6 @@
 # Diccionario de datos — SGS
 
-Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-10-28 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
+Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-11-01 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
 Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 
 | # | Tabla | Para qué sirve | En la instalación |
@@ -8,34 +8,36 @@ Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 | 1 | [`categorias_observacion`](#categorias_observacion) | Categorías de observación | 6 registros |
 | 2 | [`login_attempts`](#login_attempts) | Intentos de ingreso (bloqueo a los 3 fallidos) | vacía |
 | 3 | [`partners`](#partners) | Contratas; WIN DIRECTO = personal propio | 12 registros |
-| 4 | [`sgs_migracion`](#sgs_migracion) | Cambios de base de datos ya aplicados (los registra 07_SCRIPTS/migrar.php) | vacía |
-| 5 | [`tipificaciones_cancelacion`](#tipificaciones_cancelacion) | Motivos de cancelación (los del Excel de pendientes se agregan solos) | 6 registros |
-| 6 | [`ubigeo`](#ubigeo) | Departamentos, provincias y distritos de operación | 120 registros |
-| 7 | [`vehiculos`](#vehiculos) | Vehículos de las cuadrillas | 3 registros |
-| 8 | [`subopciones_observacion`](#subopciones_observacion) | Tipificaciones de observación con gravedad y penalidad | 84 registros |
-| 9 | [`usuarios`](#usuarios) | Usuarios del sistema (personal WIN y de partners) | 10 registros |
-| 10 | [`asistencia_ajustes`](#asistencia_ajustes) | Correcciones del administrador en la matriz de asistencia | vacía |
-| 11 | [`asistencia_supervisores`](#asistencia_supervisores) | Turnos de los supervisores: inicio, fin y horas | vacía |
-| 12 | [`ausencias_supervisores`](#ausencias_supervisores) | Vacaciones, descansos médicos y licencias de los supervisores (Mi turno) | vacía |
-| 13 | [`examen_convocatorias`](#examen_convocatorias) | Links generales de examen (un link para un grupo de técnicos) | vacía |
-| 14 | [`lluvias_cortes_programados`](#lluvias_cortes_programados) | Horarios del corte de lluvias en Teams (Clima) | 1 registros |
-| 15 | [`lluvias_zona`](#lluvias_zona) | Lluvia avisada por los supervisores en su zona (línea de tiempo) | vacía |
-| 16 | [`tecnicos`](#tecnicos) | Técnicos por partner: líderes (T1) y de apoyo (T2) | 196 registros |
-| 17 | [`usuario_departamentos_acceso`](#usuario_departamentos_acceso) | Zonas adicionales que puede ver cada usuario | 0 registros |
-| 18 | [`usuario_permisos`](#usuario_permisos) | Permisos personalizados por usuario (además de los de su rol) | 0 registros |
-| 19 | [`asistencia_eventos`](#asistencia_eventos) | Pausas dentro del turno (almuerzo, reunión, capacitación) | vacía |
-| 20 | [`examen_convocatoria_tecnicos`](#examen_convocatoria_tecnicos) | Técnicos de cada link general de examen | vacía |
-| 21 | [`examen_enlaces`](#examen_enlaces) | Links de examen enviados a los técnicos | vacía |
-| 22 | [`supervisiones`](#supervisiones) | Supervisiones de campo y órdenes pendientes asignadas | vacía |
-| 23 | [`checklists_tecnicos`](#checklists_tecnicos) | Checklist de cuadrilla por supervisión | vacía |
-| 24 | [`documentos_vencimiento`](#documentos_vencimiento) | Vencimientos de la cuadrilla: SOAT, revisión técnica, extintor (vehículo) y brevete (técnico líder), con historial | vacía |
-| 25 | [`examen_respuestas`](#examen_respuestas) | Resultado de cada pregunta de los exámenes rendidos | vacía |
-| 26 | [`observaciones_supervision`](#observaciones_supervision) | Observaciones en campo, descargos del partner y plazos | vacía |
-| 27 | [`rescate_seguimientos`](#rescate_seguimientos) | Historial del rescate de cada pendiente (inicio, avances, reasignación y cierre) | vacía |
-| 28 | [`supervision_coordenadas_historial`](#supervision_coordenadas_historial) | Cambios de ubicación GPS de cada supervisión | vacía |
-| 29 | [`supervision_estado_historial`](#supervision_estado_historial) | Cambios de estado de cada supervisión (horas reales de inicio y fin) | vacía |
-| 30 | [`checklist_respuestas`](#checklist_respuestas) | Criterios evaluados en cada checklist | vacía |
-| 31 | [`notificaciones`](#notificaciones) | Avisos a los usuarios | vacía |
+| 4 | [`perfiles`](#perfiles) | Perfiles de acceso: tipo base, alcance y permisos (2026-10-31) | 17 registros |
+| 5 | [`sgs_migracion`](#sgs_migracion) | Cambios de base de datos ya aplicados (los registra 07_SCRIPTS/migrar.php) | vacía |
+| 6 | [`tipificaciones_cancelacion`](#tipificaciones_cancelacion) | Motivos de cancelación (los del Excel de pendientes se agregan solos) | 6 registros |
+| 7 | [`ubigeo`](#ubigeo) | Departamentos, provincias y distritos de operación | 120 registros |
+| 8 | [`vehiculos`](#vehiculos) | Vehículos de las cuadrillas | 3 registros |
+| 9 | [`perfil_asignables`](#perfil_asignables) | Perfiles que puede asignar quien tiene el perfil | 69 registros |
+| 10 | [`perfil_permisos`](#perfil_permisos) | Permisos de cada perfil (Auth::permissionCatalog) | 369 registros |
+| 11 | [`subopciones_observacion`](#subopciones_observacion) | Tipificaciones de observación con gravedad y penalidad | 84 registros |
+| 12 | [`usuarios`](#usuarios) | Usuarios del sistema (personal WIN y de partners) | 10 registros |
+| 13 | [`asistencia_ajustes`](#asistencia_ajustes) | Correcciones del administrador en la matriz de asistencia | vacía |
+| 14 | [`asistencia_supervisores`](#asistencia_supervisores) | Turnos de los supervisores: inicio, fin y horas | vacía |
+| 15 | [`ausencias_supervisores`](#ausencias_supervisores) | Vacaciones, descansos médicos y licencias de los supervisores (Mi turno) | vacía |
+| 16 | [`examen_convocatorias`](#examen_convocatorias) | Links generales de examen (un link para un grupo de técnicos) | vacía |
+| 17 | [`lluvias_cortes_programados`](#lluvias_cortes_programados) | Horarios del corte de lluvias en Teams (Clima) | 1 registros |
+| 18 | [`lluvias_zona`](#lluvias_zona) | Lluvia avisada por los supervisores en su zona (línea de tiempo) | vacía |
+| 19 | [`tecnicos`](#tecnicos) | Técnicos por partner: líderes (T1) y de apoyo (T2) | 196 registros |
+| 20 | [`usuario_departamentos_acceso`](#usuario_departamentos_acceso) | Zonas adicionales que puede ver cada usuario | 0 registros |
+| 21 | [`asistencia_eventos`](#asistencia_eventos) | Pausas dentro del turno (almuerzo, reunión, capacitación) | vacía |
+| 22 | [`examen_convocatoria_tecnicos`](#examen_convocatoria_tecnicos) | Técnicos de cada link general de examen | vacía |
+| 23 | [`examen_enlaces`](#examen_enlaces) | Links de examen enviados a los técnicos | vacía |
+| 24 | [`supervisiones`](#supervisiones) | Supervisiones de campo y órdenes pendientes asignadas | vacía |
+| 25 | [`checklists_tecnicos`](#checklists_tecnicos) | Checklist de cuadrilla por supervisión | vacía |
+| 26 | [`documentos_vencimiento`](#documentos_vencimiento) | Vencimientos de la cuadrilla: SOAT, revisión técnica, extintor (vehículo) y brevete (técnico líder), con historial | vacía |
+| 27 | [`examen_respuestas`](#examen_respuestas) | Resultado de cada pregunta de los exámenes rendidos | vacía |
+| 28 | [`observaciones_supervision`](#observaciones_supervision) | Observaciones en campo, descargos del partner y plazos | vacía |
+| 29 | [`rescate_seguimientos`](#rescate_seguimientos) | Historial del rescate de cada pendiente (inicio, avances, reasignación y cierre) | vacía |
+| 30 | [`supervision_coordenadas_historial`](#supervision_coordenadas_historial) | Cambios de ubicación GPS de cada supervisión | vacía |
+| 31 | [`supervision_estado_historial`](#supervision_estado_historial) | Cambios de estado de cada supervisión (horas reales de inicio y fin) | vacía |
+| 32 | [`checklist_respuestas`](#checklist_respuestas) | Criterios evaluados en cada checklist | vacía |
+| 33 | [`notificaciones`](#notificaciones) | Avisos a los usuarios | vacía |
 
 ### `categorias_observacion`
 Categorías de observación
@@ -66,6 +68,20 @@ Contratas; WIN DIRECTO = personal propio
 | `ruc` | varchar(11) | sí |  |  |
 | `estado` | tinyint(1) | sí |  |  |
 | `fecha_registro` | datetime | sí |  |  |
+
+### `perfiles`
+Perfiles de acceso: tipo base, alcance y permisos (2026-10-31)
+
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `id` | int(11) | no | PK |  |
+| `nombre` | varchar(60) | no | Única |  |
+| `codigo` | varchar(10) | no | Única |  |
+| `descripcion` | varchar(255) | sí |  |  |
+| `rol_base` | varchar(30) | no |  | Tipo base: Administrador, Gerente, Coordinador, Jefe de operaciones o Supervisor |
+| `alcance` | enum('todo','zonas','propio') | no |  | Qué datos ve: todo el país, sus zonas y su área, o solo lo suyo |
+| `fecha_registro` | datetime | no |  |  |
+| `fecha_actualizacion` | datetime | no |  |  |
 
 ### `sgs_migracion`
 Cambios de base de datos ya aplicados (los registra 07_SCRIPTS/migrar.php)
@@ -115,6 +131,22 @@ Vehículos de las cuadrillas
 | `fecha_registro` | datetime | no |  |  |
 | `fecha_actualizacion` | datetime | sí |  |  |
 
+### `perfil_asignables`
+Perfiles que puede asignar quien tiene el perfil · Depende de: `perfiles`
+
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `perfil_id` | int(11) | no | PK |  |
+| `asignable_id` | int(11) | no | PK |  |
+
+### `perfil_permisos`
+Permisos de cada perfil (Auth::permissionCatalog) · Depende de: `perfiles`
+
+| Columna | Tipo | Nulo | Clave | Descripción |
+|---|---|---|---|---|
+| `perfil_id` | int(11) | no | PK |  |
+| `permiso` | varchar(100) | no | PK |  |
+
 ### `subopciones_observacion`
 Tipificaciones de observación con gravedad y penalidad · Depende de: `categorias_observacion`
 
@@ -128,7 +160,7 @@ Tipificaciones de observación con gravedad y penalidad · Depende de: `categori
 | `accion_adicional` | varchar(255) | sí |  |  |
 
 ### `usuarios`
-Usuarios del sistema (personal WIN y de partners) · Depende de: `partners`
+Usuarios del sistema (personal WIN y de partners) · Depende de: `partners`, `perfiles`
 
 | Columna | Tipo | Nulo | Clave | Descripción |
 |---|---|---|---|---|
@@ -147,8 +179,8 @@ Usuarios del sistema (personal WIN y de partners) · Depende de: `partners`
 | `password_hash` | varchar(255) | no |  |  |
 | `password_admin_encrypted` | text | sí |  |  |
 | `rol` | enum('Administrador','Gerente','Coordinador','Supervisor','SGA','SGI','Jefe de operaciones') | no |  |  |
+| `perfil_id` | int(11) | sí | FK → `perfiles` | Perfil de acceso (perfiles.id); rol = su tipo base |
 | `area_trabajo` | varchar(100) | sí |  |  |
-| `cargo` | varchar(60) | sí |  | Puesto en la empresa (lista fija en el sistema); no da permisos |
 | `zona` | varchar(100) | sí |  |  |
 | `procesos_copiados` | text | sí |  |  |
 | `observacion` | text | sí |  |  |
@@ -286,19 +318,6 @@ Zonas adicionales que puede ver cada usuario · Depende de: `usuarios`
 | `usuario_id` | int(11) | no | FK → `usuarios` |  |
 | `departamento` | varchar(100) | no |  |  |
 | `activo` | tinyint(1) | no |  |  |
-| `otorgado_por` | int(11) | sí | FK → `usuarios` |  |
-| `fecha_registro` | datetime | no |  |  |
-| `fecha_actualizacion` | datetime | no |  |  |
-
-### `usuario_permisos`
-Permisos personalizados por usuario (además de los de su rol) · Depende de: `usuarios`
-
-| Columna | Tipo | Nulo | Clave | Descripción |
-|---|---|---|---|---|
-| `id` | bigint(20) unsigned | no | PK |  |
-| `usuario_id` | int(11) | no | FK → `usuarios` |  |
-| `permiso` | varchar(100) | no |  |  |
-| `permitido` | tinyint(1) | no |  |  |
 | `otorgado_por` | int(11) | sí | FK → `usuarios` |  |
 | `fecha_registro` | datetime | no |  |  |
 | `fecha_actualizacion` | datetime | no |  |  |

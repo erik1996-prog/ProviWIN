@@ -308,7 +308,7 @@
     const search = document.createElement('input');
     search.type = 'text';
     search.className = 'form-control';
-    search.placeholder = tipo === 1 ? 'Escriba para buscar al técnico líder...' : 'Escriba para buscar al técnico de apoyo...';
+    search.placeholder = tipo === 1 ? 'Escriba para buscar al técnico líder...' : 'Escriba el nombre o DNI del técnico de apoyo...';
     search.autocomplete = 'off';
     search.setAttribute('aria-label', search.placeholder);
     search.setAttribute('role', 'combobox');
@@ -356,10 +356,15 @@
     const renderResults = (todos = false) => {
       const term = todos ? '' : search.value.trim().toLocaleLowerCase('es');
       const otroTecnico = document.getElementById(select.id.replace(tipo === 1 ? 'tec1' : 'tec2', tipo === 1 ? 'tec2' : 'tec1'))?.value || '';
+      const coincide = item => !term || String(item.nombre_tecnico || '').toLocaleLowerCase('es').includes(term) || String(item.dni || '').includes(term); // nombre o DNI
       const technicians = listaTecnicos.filter(item => {
         const itemType = Number(item.tipo_tecnico || 1);
-        return !select.disabled && Array.from(select.options).some(option => option.value === item.nombre_tecnico) && itemType === tipo && item.nombre_tecnico !== otroTecnico && (!term || String(item.nombre_tecnico || '').toLocaleLowerCase('es').includes(term));
+        return !select.disabled && Array.from(select.options).some(option => option.value === item.nombre_tecnico) && itemType === tipo && item.nombre_tecnico !== otroTecnico && coincide(item);
       });
+      // T2 de otra zona, partner o área (2026-10-31): el que migró no salía en la lista y, al registrarlo de nuevo, su DNI ya
+      // existía. Escribiendo 3 letras (o el DNI) salen todos los T2 que existen; al cerrar pasa a esta cuadrilla, partner y zona.
+      const otros = tipo === 2 && term.length >= 3 && !select.disabled ? listaTecnicos.filter(item => Number(item.tipo_tecnico) === 2 && item.nombre_tecnico !== otroTecnico
+        && !technicians.includes(item) && coincide(item)).slice(0, 20) : [];
       results.innerHTML = '';
       if (tipo === 2 && !term) {
         const withoutT2 = document.createElement('button');
@@ -384,8 +389,29 @@
         option.addEventListener('click', () => chooseTechnician(item.nombre_tecnico));
         results.append(option);
       });
+      if (otros.length) {
+        const titulo = document.createElement('div');
+        titulo.className = 'list-group-item small text-muted fw-bold bg-light';
+        titulo.textContent = 'Otros técnicos de apoyo (otra zona, partner o área)';
+        results.append(titulo);
+        otros.forEach(item => {
+          const option = document.createElement('button');
+          option.type = 'button';
+          option.className = 'list-group-item list-group-item-action py-2';
+          option.textContent = item.nombre_tecnico;
+          const origen = document.createElement('small');
+          origen.className = 'text-muted ms-2';
+          origen.textContent = `${item.nombre_partner || 'Sin partner'} · ${zonaTecnico(item) || 'sin zona'} · pasará a esta cuadrilla al cerrar`;
+          option.append(origen);
+          option.addEventListener('click', () => {
+            if (![...select.options].some(o => o.value === item.nombre_tecnico)) { const o = new Option(item.nombre_tecnico, item.nombre_tecnico); o.dataset.id = item.id; select.add(o); }
+            chooseTechnician(item.nombre_tecnico);
+          });
+          results.append(option);
+        });
+      }
       // T2 que todavía no está registrado: se registra aquí mismo en el partner de la supervisión
-      const exacto = technicians.some(item => String(item.nombre_tecnico).toLocaleLowerCase('es') === term);
+      const exacto = [...technicians, ...otros].some(item => String(item.nombre_tecnico).toLocaleLowerCase('es') === term || String(item.dni || '') === term);
       if (tipo === 2 && term.length >= 3 && !exacto) {
         const registrar = document.createElement('button');
         registrar.type = 'button';

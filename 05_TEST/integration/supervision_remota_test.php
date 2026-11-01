@@ -32,7 +32,6 @@ $cleanup = function () use ($pdo, $dnis, &$jars, $foto) {
         $pdo->exec("DELETE FROM asistencia_supervisores WHERE supervisor_id IN ($in)");
         $pdo->exec("DELETE FROM notificaciones WHERE usuario_id IN ($in)");
         $pdo->exec("DELETE FROM usuario_departamentos_acceso WHERE usuario_id IN ($in)");
-        $pdo->exec("DELETE FROM usuario_permisos WHERE usuario_id IN ($in)");
         $pdo->exec("DELETE FROM usuarios WHERE id IN ($in)");
     }
     foreach (['rem.sup', 'rem.admin'] as $u) foreach (['::1', '127.0.0.1'] as $ip) $pdo->prepare('DELETE FROM login_attempts WHERE fingerprint = :f')->execute([':f' => hash('sha256', "$ip|$u")]);

@@ -174,6 +174,36 @@ try {
         exit;
     }
 
+    // T2 que migra a otro partner (2026-10-31): desde Técnicos y cuadrillas se le cambia el partner sin meterlo en una
+    // cuadrilla. Deja la cuadrilla que tenía (era del partner anterior); luego lo agregan a su nueva cuadrilla aquí o en una
+    // supervisión. Quien edita cuadrillas; con zona propia, solo los T2 de su zona.
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'cambiar_partner_t2') {
+        if (!Auth::puede(Auth::PERM_CUADRILLAS_EDIT, $usuario)) { http_response_code(403); throw new Exception('No tiene permiso para editar técnicos.'); }
+        $id = (int)($_POST['id'] ?? 0);
+        $partnerId = (int)($_POST['partner_id'] ?? 0);
+        $st = $pdo->prepare("SELECT a.nombre_tecnico, a.partner_id, COALESCE(NULLIF(a.departamento, ''), l.departamento) AS zona, l.id AS lider_id
+            FROM tecnicos a LEFT JOIN tecnicos l ON l.apoyo_id = a.id AND COALESCE(l.tipo_tecnico, 1) = 1 WHERE a.id = :id AND a.tipo_tecnico = 2");
+        $st->execute([':id' => $id]);
+        $t2 = $st->fetch();
+        if (!$t2) throw new Exception('El técnico de apoyo ya no existe.');
+        $zonasEditor = Auth::isAdministrative() && !sgsAlcanceLimitado($usuario) ? null : sgsUserZones((int)$usuario['id']);
+        if ($zonasEditor !== null && !in_array(mb_strtoupper(trim((string)$t2['zona']), 'UTF-8'), $zonasEditor, true)) {
+            http_response_code(403); throw new Exception('Ese técnico de apoyo es de otra zona: solo puede cambiar los de su zona.');
+        }
+        $st = $pdo->prepare("SELECT nombre_partner FROM partners WHERE id = :id AND estado = 1 AND UPPER(TRIM(nombre_partner)) NOT IN ('WIN', 'WIN DIRECTO')");
+        $st->execute([':id' => $partnerId]);
+        $partnerNombre = $st->fetchColumn();
+        if (!$partnerNombre) throw new Exception('Elija un partner activo.');
+        if ((int)$t2['partner_id'] === $partnerId) throw new Exception("{$t2['nombre_tecnico']} ya es de {$partnerNombre}.");
+        $pdo->beginTransaction();
+        $pdo->prepare('UPDATE tecnicos SET apoyo_id = NULL WHERE apoyo_id = :id')->execute([':id' => $id]);
+        $pdo->prepare('UPDATE tecnicos SET partner_id = :p, fecha_actualizacion = NOW() WHERE id = :id')->execute([':p' => $partnerId, ':id' => $id]);
+        $pdo->commit();
+        win_log_error('audit_technician_partner', 'Técnico de apoyo (T2) cambiado de partner', ['target_id' => $id, 'de' => (int)$t2['partner_id'], 'a' => $partnerId, 'deja_cuadrilla' => $t2['lider_id'] ? (int)$t2['lider_id'] : null]);
+        echo json_encode(['status' => 'success', 'message' => "{$t2['nombre_tecnico']} ahora es de {$partnerNombre}." . ($t2['lider_id'] ? ' Dejó su cuadrilla anterior: agréguelo a la nueva.' : '')], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     // Edición de una cuadrilla desde la pantalla Cuadrillas (2026-10-15): personal administrativo, para emergencias.
     // 2026-10-20: también los supervisores directos, solo para las cuadrillas de su zona (o sin zona) y solo hacia sus zonas.
     // Mismas reglas que al cerrar una supervisión: un T2 y un vehículo pertenecen a una sola cuadrilla.

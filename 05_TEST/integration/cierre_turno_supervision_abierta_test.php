@@ -22,7 +22,7 @@ $cleanup = function () use ($pdo, $jar, $u) {
         $pdo->exec("DELETE FROM supervisiones WHERE supervisor_id = $id");
         $pdo->exec("DELETE e FROM asistencia_eventos e JOIN asistencia_supervisores a ON a.id = e.asistencia_id WHERE a.supervisor_id = $id");
         $pdo->exec("DELETE FROM asistencia_supervisores WHERE supervisor_id = $id");
-        foreach (['notificaciones', 'usuario_departamentos_acceso', 'usuario_permisos'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id = $id");
+        foreach (['notificaciones', 'usuario_departamentos_acceso'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id = $id");
         $pdo->exec("DELETE FROM usuarios WHERE id = $id");
     }
     foreach (['::1', '127.0.0.1'] as $ip) $pdo->prepare('DELETE FROM login_attempts WHERE fingerprint = :f')->execute([':f' => hash('sha256', "$ip|$u")]);

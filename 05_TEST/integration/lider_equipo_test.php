@@ -20,9 +20,10 @@ $cleanup = function () use ($pdo, $dnis, $jar) {
     $us = $pdo->query("SELECT id FROM usuarios WHERE dni IN ('" . implode("','", $dnis) . "')")->fetchAll(PDO::FETCH_COLUMN);
     if ($us) {
         $in = implode(',', array_map('intval', $us));
-        foreach (['notificaciones', 'usuario_departamentos_acceso', 'usuario_permisos'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id IN ($in)");
+        foreach (['notificaciones', 'usuario_departamentos_acceso'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id IN ($in)");
         $pdo->exec("DELETE FROM usuarios WHERE id IN ($in)");
     }
+    $pdo->exec("DELETE FROM perfiles WHERE codigo = 'PRUEBALID'");
     foreach (['::1', '127.0.0.1'] as $ip) $pdo->prepare('DELETE FROM login_attempts WHERE fingerprint = :f')->execute([':f' => hash('sha256', "$ip|lid.lider")]);
     @unlink($jar);
 };
@@ -54,6 +55,11 @@ try {
         'par' => $crear('99999974', 'lid.par', 'Coordinador', ['LIMA'], 'Instalaciones'),
         'todas' => $crear('99999975', 'lid.todas', 'Supervisor', [], 'Instalaciones', ['todas_zonas' => true]),
     ];
+    // Perfil del líder (2026-11-01: ya no existe "Gestión"): tipo Gestión, sus zonas y su área; asigna Supervisor UM y al partner
+    $perfiles = new PerfilService($pdo);
+    $asigna = array_map('intval', $pdo->query("SELECT id FROM perfiles WHERE codigo IN ('SUM', 'PART', 'SPART')")->fetchAll(PDO::FETCH_COLUMN));
+    $pl = $perfiles->guardar(['nombre' => 'Prueba Líder', 'codigo' => 'PRUEBALID', 'rol_base' => 'Coordinador', 'alcance' => 'zonas', 'asignables' => $asigna], 0);
+    $pdo->exec("UPDATE usuarios SET perfil_id = {$pl['id']} WHERE id IN ({$ids['lider']}, {$ids['par']})");
     $lider = ['id' => $ids['lider'], 'rol' => 'Coordinador'];
     $check('el líder (Gestión con zona LIMA e Instalaciones) tiene alcance propio', sgsAlcanceLimitado($lider));
 
@@ -80,42 +86,40 @@ try {
         in_array($ids['inst'], $vistos, true) && !array_intersect($vistos, [$ids['ave'], $ids['norte'], $ids['par'], $ids['todas'], $ids['lider'], $admin]), $vistos);
     [, $c] = $http("$api?action=catalogos");
     $cat = $c['data'] ?? [];
-    $check('al registrar, solo le aparecen los roles Supervisor y Partner (jefe de operaciones), su zona y su área',
-        array_column($cat['roles'] ?? [], 'rol') === ['Supervisor', 'Jefe de operaciones'] && ($cat['departamentos'] ?? []) === ['LIMA'] && ($cat['areas'] ?? []) === ['Instalaciones'], [array_column($cat['roles'] ?? [], 'rol'), $cat['departamentos'] ?? null, $cat['areas'] ?? null]);
-    $check('los cargos que puede asignar son solo los de debajo (sin Gerente, Subgerente, Coordinador ni Líder técnico)', ($cat['cargos'] ?? []) === UsuarioValidator::CARGOS_DEL_LIDER, $cat['cargos'] ?? null);
-    $check('los permisos que puede dar son solo los suyos', !array_diff(array_column($cat['permisos'] ?? [], 'clave'), $permisosLider) && count($cat['permisos'] ?? []) === count($permisosLider));
+    $tipos = array_values(array_unique(array_column($cat['perfiles'] ?? [], 'rol_base'))); sort($tipos);
+    $check('al registrar, solo le aparecen los perfiles que el suyo asigna (Supervisor y Partner), su zona y su área',
+        $tipos === ['Jefe de operaciones', 'Supervisor'] && ($cat['departamentos'] ?? []) === ['LIMA'] && ($cat['areas'] ?? []) === ['Instalaciones'], [$tipos, $cat['departamentos'] ?? null, $cat['areas'] ?? null]);
+    $check('no recibe el catálogo de permisos (los permisos los define el perfil)', ($cat['permisos'] ?? null) === []);
 
     // Registrar
     $nuevo = fn(array $cambios) => $http("$api?action=guardar", $cambios + ['id' => 0, 'dni' => '99999976', 'nombres' => 'Nuevo', 'apellidos' => 'Del Líder', 'email' => 'lid.nuevo@proviwin.test',
         'usuario' => 'lid.nuevo', 'rol' => 'Supervisor', 'organizacion' => 'directo', 'zonas' => ['LIMA'], 'todas_zonas' => false, 'area_trabajo' => 'Instalaciones',
-        'password' => 'NuevoLider#2026', 'permisos_personalizados' => false, 'permisos' => []]);
+        'password' => 'NuevoLider#2026']);
     [$c1, $r1] = $nuevo(['zonas' => ['NORTE CHICO']]);
     [$c2, $r2] = $nuevo(['rol' => 'Gerente']);
     [$c3, $r3] = $nuevo(['area_trabajo' => 'VT (visitas técnicas)']);
     [$c4, $r4] = $nuevo(['todas_zonas' => true]);
-    [$c5, $r5] = $nuevo(['permisos_personalizados' => true, 'permisos' => [Auth::PERM_PARTNERS_DELETE]]);
-    [$c13, $r13] = $nuevo(['cargo' => 'Gerente']);
-    $check('no puede asignar un cargo por encima del suyo', $c13 === 422, $r13['message'] ?? '');
-    $check('no puede asignar otra zona, un rol distinto de Supervisor, otra área, "todas las zonas" ni un permiso que no tiene',
+    [$c5, $r5] = $nuevo(['perfil_id' => (int)$pdo->query("SELECT id FROM perfiles WHERE rol_base = 'Administrador' ORDER BY id LIMIT 1")->fetchColumn()]);
+    $check('no puede asignar otra zona, un rol distinto de Supervisor, otra área, "todas las zonas" ni un perfil que el suyo no asigna',
         $c1 === 422 && $c2 === 422 && $c3 === 422 && $c4 === 422 && $c5 === 422, [$r1['message'] ?? '', $r2['message'] ?? '', $r3['message'] ?? '', $r4['message'] ?? '', $r5['message'] ?? '']);
-    [$c6, $r6] = $nuevo(['cargo' => 'Supervisor UM']);
+    [$c6, $r6] = $nuevo([]);
     $creado = $pdo->query("SELECT id, activo, rol FROM usuarios WHERE dni = '99999976'")->fetch(PDO::FETCH_ASSOC) ?: [];
     [$c12, $r12] = $http("$api?action=guardar", ['id' => 0, 'dni' => '99999977', 'nombres' => 'Partner', 'apellidos' => 'Del Líder', 'email' => 'lid.partner@proviwin.test',
         'usuario' => 'lid.partner', 'rol' => 'Supervisor', 'organizacion' => 'partner', 'partner_id' => $partner, 'zonas' => ['LIMA'], 'todas_zonas' => false,
-        'area_trabajo' => 'Instalaciones', 'password' => 'NuevoLider#2026', 'permisos_personalizados' => false, 'permisos' => []]);
+        'area_trabajo' => 'Instalaciones', 'password' => 'NuevoLider#2026']);
     $check('también registra un supervisor de partner en su zona y área', $c12 === 200, [$c12, $r12['message'] ?? '']);
     // Jefe de operaciones de un partner: rol Partner (2026-10-27)
     [$c14, $r14] = $http("$api?action=guardar", ['id' => 0, 'dni' => '99999978', 'nombres' => 'Jefe', 'apellidos' => 'Del Partner', 'email' => 'lid.jefe@proviwin.test',
-        'usuario' => 'lid.jefe', 'rol' => 'Jefe de operaciones', 'cargo' => 'Jefe de operaciones', 'organizacion' => 'partner', 'partner_id' => $partner, 'zonas' => ['LIMA'],
-        'todas_zonas' => false, 'area_trabajo' => 'Instalaciones', 'password' => 'NuevoLider#2026', 'permisos_personalizados' => false, 'permisos' => []]);
+        'usuario' => 'lid.jefe', 'rol' => 'Jefe de operaciones', 'organizacion' => 'partner', 'partner_id' => $partner, 'zonas' => ['LIMA'],
+        'todas_zonas' => false, 'area_trabajo' => 'Instalaciones', 'password' => 'NuevoLider#2026']);
     $jefe = $pdo->query("SELECT rol, activo FROM usuarios WHERE dni = '99999978'")->fetch(PDO::FETCH_ASSOC) ?: [];
     $check('registra al jefe de operaciones de un partner con el rol Partner', $c14 === 200 && ($jefe['rol'] ?? '') === 'Jefe de operaciones' && (int)($jefe['activo'] ?? 0) === 1, [$c14, $r14['message'] ?? '', $jefe]);
-    // Almacenero, Analista, Asistente y Asesor: sin acceso
+    // Sin acceso (2026-10-31: casilla "Solo registrar sus datos"; antes, por el cargo Almacenero, Analista, Asistente o Asesor)
     [$c15, $r15] = $http("$api?action=guardar", ['id' => 0, 'dni' => '99999979', 'nombres' => 'Almacen', 'apellidos' => 'Del Líder', 'email' => 'lid.almacen@proviwin.test',
-        'usuario' => 'lid.almacen', 'rol' => 'Supervisor', 'cargo' => 'Almacenero', 'organizacion' => 'directo', 'zonas' => ['LIMA'], 'todas_zonas' => false,
-        'area_trabajo' => 'Instalaciones', 'password' => 'NuevoLider#2026', 'permisos_personalizados' => false, 'permisos' => []]);
-    $almacen = $pdo->query("SELECT usuario, activo, cargo FROM usuarios WHERE dni = '99999979'")->fetch(PDO::FETCH_ASSOC) ?: [];
-    $check('un almacenero queda registrado sin acceso (sin usuario e inactivo)', $c15 === 200 && $almacen && $almacen['usuario'] === null && (int)($almacen['activo'] ?? 1) === 0 && ($almacen['cargo'] ?? '') === 'Almacenero', [$c15, $r15['message'] ?? '', $almacen]);
+        'usuario' => 'lid.almacen', 'rol' => 'Supervisor', 'sin_acceso' => true, 'organizacion' => 'directo', 'zonas' => ['LIMA'], 'todas_zonas' => false,
+        'area_trabajo' => 'Instalaciones', 'password' => 'NuevoLider#2026']);
+    $almacen = $pdo->query("SELECT usuario, activo FROM usuarios WHERE dni = '99999979'")->fetch(PDO::FETCH_ASSOC) ?: [];
+    $check('con "Solo registrar sus datos" queda registrado sin acceso (sin usuario e inactivo)', $c15 === 200 && $almacen && $almacen['usuario'] === null && (int)($almacen['activo'] ?? 1) === 0, [$c15, $r15['message'] ?? '', $almacen]);
     [, $l2] = $http("$api?action=listar");
     $vistos2 = array_column($l2['usuarios'] ?? [], 'dni');
     $check('en su lista aparecen su jefe de operaciones y su almacenero', in_array('99999978', $vistos2, true) && in_array('99999979', $vistos2, true), $vistos2);
@@ -124,7 +128,7 @@ try {
     // Editar y dar de baja
     [$c7] = $http("$api?action=detalle&id={$ids['ave']}");
     [$c8, $r8] = $http("$api?action=guardar", ['id' => $ids['lider'], 'dni' => '99999970', 'nombres' => 'Lider', 'apellidos' => 'Prueba lid.lider', 'email' => 'lid.lider@proviwin.test',
-        'usuario' => 'lid.lider', 'rol' => 'Supervisor', 'organizacion' => 'directo', 'zonas' => ['LIMA'], 'area_trabajo' => 'Instalaciones', 'password' => '', 'permisos_personalizados' => false]);
+        'usuario' => 'lid.lider', 'rol' => 'Supervisor', 'organizacion' => 'directo', 'zonas' => ['LIMA'], 'area_trabajo' => 'Instalaciones', 'password' => '']);
     $check('no abre a alguien fuera de su equipo ni se modifica a sí mismo', $c7 === 422 && $c8 === 422, [$c7, $c8, $r8['message'] ?? '']);
     [$c9, $r9] = $http("$api?action=estado", ['id' => $ids['inst'], 'activo' => false]);
     [$c10] = $http("$api?action=estado", ['id' => $ids['ave'], 'activo' => false]);

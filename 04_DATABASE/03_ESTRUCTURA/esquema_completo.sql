@@ -1,6 +1,6 @@
 -- 04_DATABASE/03_ESTRUCTURA/esquema_completo.sql
--- Estructura de SGS: 31 tablas en orden de dependencias, sin datos ni DROP.
--- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-10-28. No editar a mano: los cambios van como migración en 02_CAMBIOS.
+-- Estructura de SGS: 33 tablas en orden de dependencias, sin datos ni DROP.
+-- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-11-01. No editar a mano: los cambios van como migración en 02_CAMBIOS.
 
 SET NAMES utf8mb4;
 
@@ -31,6 +31,22 @@ CREATE TABLE IF NOT EXISTS `partners` (
   `fecha_registro` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Contratas; WIN DIRECTO = personal propio';
+
+-- Tabla `perfiles`: Perfiles de acceso: tipo base, alcance y permisos (2026-10-31)
+CREATE TABLE IF NOT EXISTS `perfiles` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(60) NOT NULL,
+  `codigo` varchar(10) NOT NULL,
+  `descripcion` varchar(255) DEFAULT NULL,
+  `rol_base` varchar(30) NOT NULL COMMENT 'Tipo base: Administrador, Gerente, Coordinador, Jefe de operaciones o Supervisor',
+  `alcance` enum('todo','zonas','propio') NOT NULL DEFAULT 'todo' COMMENT 'Qué datos ve: todo el país, sus zonas y su área, o solo lo suyo',
+  `fecha_registro` datetime NOT NULL DEFAULT current_timestamp(),
+  `fecha_actualizacion` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_perfiles_nombre` (`nombre`),
+  UNIQUE KEY `uq_perfiles_codigo` (`codigo`),
+  KEY `idx_perfiles_rol_base` (`rol_base`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Perfiles de acceso: tipo base, alcance y permisos (2026-10-31)';
 
 -- Tabla `sgs_migracion`: Cambios de base de datos ya aplicados (los registra 07_SCRIPTS/migrar.php)
 CREATE TABLE IF NOT EXISTS `sgs_migracion` (
@@ -79,6 +95,24 @@ CREATE TABLE IF NOT EXISTS `vehiculos` (
   UNIQUE KEY `uq_vehiculos_placa` (`placa`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Vehículos de las cuadrillas';
 
+-- Tabla `perfil_asignables`: Perfiles que puede asignar quien tiene el perfil (depende de: perfiles)
+CREATE TABLE IF NOT EXISTS `perfil_asignables` (
+  `perfil_id` int(11) NOT NULL,
+  `asignable_id` int(11) NOT NULL,
+  PRIMARY KEY (`perfil_id`,`asignable_id`),
+  KEY `idx_perfil_asignables_asignable` (`asignable_id`),
+  CONSTRAINT `fk_perfil_asignables_asignable` FOREIGN KEY (`asignable_id`) REFERENCES `perfiles` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_perfil_asignables_perfil` FOREIGN KEY (`perfil_id`) REFERENCES `perfiles` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Perfiles que puede asignar quien tiene el perfil';
+
+-- Tabla `perfil_permisos`: Permisos de cada perfil (Auth::permissionCatalog) (depende de: perfiles)
+CREATE TABLE IF NOT EXISTS `perfil_permisos` (
+  `perfil_id` int(11) NOT NULL,
+  `permiso` varchar(100) NOT NULL,
+  PRIMARY KEY (`perfil_id`,`permiso`),
+  CONSTRAINT `fk_perfil_permisos_perfil` FOREIGN KEY (`perfil_id`) REFERENCES `perfiles` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Permisos de cada perfil (Auth::permissionCatalog)';
+
 -- Tabla `subopciones_observacion`: Tipificaciones de observación con gravedad y penalidad (depende de: categorias_observacion)
 CREATE TABLE IF NOT EXISTS `subopciones_observacion` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -92,7 +126,7 @@ CREATE TABLE IF NOT EXISTS `subopciones_observacion` (
   CONSTRAINT `fk_subopciones_observacion_categoria_id` FOREIGN KEY (`categoria_id`) REFERENCES `categorias_observacion` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Tipificaciones de observación con gravedad y penalidad';
 
--- Tabla `usuarios`: Usuarios del sistema (personal WIN y de partners) (depende de: partners)
+-- Tabla `usuarios`: Usuarios del sistema (personal WIN y de partners) (depende de: partners, perfiles)
 CREATE TABLE IF NOT EXISTS `usuarios` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `dni` varchar(8) NOT NULL,
@@ -109,8 +143,8 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
   `password_hash` varchar(255) NOT NULL,
   `password_admin_encrypted` text DEFAULT NULL,
   `rol` enum('Administrador','Gerente','Coordinador','Supervisor','SGA','SGI','Jefe de operaciones') NOT NULL DEFAULT 'Supervisor',
+  `perfil_id` int(11) DEFAULT NULL COMMENT 'Perfil de acceso (perfiles.id); rol = su tipo base',
   `area_trabajo` varchar(100) DEFAULT NULL,
-  `cargo` varchar(60) DEFAULT NULL COMMENT 'Puesto en la empresa (lista fija en el sistema); no da permisos',
   `zona` varchar(100) DEFAULT 'Provincias',
   `procesos_copiados` text DEFAULT NULL,
   `observacion` text DEFAULT NULL,
@@ -127,7 +161,9 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
   UNIQUE KEY `uq_usuarios_email` (`email`),
   UNIQUE KEY `uq_usuarios_usuario` (`usuario`),
   KEY `idx_usuarios_partner_id` (`partner_id`),
-  CONSTRAINT `fk_usuarios_partner_id` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`) ON DELETE SET NULL
+  KEY `idx_usuarios_perfil` (`perfil_id`),
+  CONSTRAINT `fk_usuarios_partner_id` FOREIGN KEY (`partner_id`) REFERENCES `partners` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_usuarios_perfil` FOREIGN KEY (`perfil_id`) REFERENCES `perfiles` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Usuarios del sistema (personal WIN y de partners)';
 
 -- Tabla `asistencia_ajustes`: Correcciones del administrador en la matriz de asistencia (depende de: usuarios)
@@ -295,23 +331,6 @@ CREATE TABLE IF NOT EXISTS `usuario_departamentos_acceso` (
   CONSTRAINT `fk_usuario_departamentos_acceso_otorgado_por` FOREIGN KEY (`otorgado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_usuario_departamentos_acceso_usuario_id` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Zonas adicionales que puede ver cada usuario';
-
--- Tabla `usuario_permisos`: Permisos personalizados por usuario (además de los de su rol) (depende de: usuarios)
-CREATE TABLE IF NOT EXISTS `usuario_permisos` (
-  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-  `usuario_id` int(11) NOT NULL,
-  `permiso` varchar(100) NOT NULL,
-  `permitido` tinyint(1) NOT NULL DEFAULT 1,
-  `otorgado_por` int(11) DEFAULT NULL,
-  `fecha_registro` datetime NOT NULL DEFAULT current_timestamp(),
-  `fecha_actualizacion` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uq_usuario_permisos_usuario_id_permiso` (`usuario_id`,`permiso`),
-  KEY `idx_usuario_permisos_usuario_id_permitido` (`usuario_id`,`permitido`),
-  KEY `idx_usuario_permisos_otorgado_por` (`otorgado_por`),
-  CONSTRAINT `fk_usuario_permisos_otorgado_por` FOREIGN KEY (`otorgado_por`) REFERENCES `usuarios` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_usuario_permisos_usuario_id` FOREIGN KEY (`usuario_id`) REFERENCES `usuarios` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Permisos personalizados por usuario (además de los de su rol)';
 
 -- Tabla `asistencia_eventos`: Pausas dentro del turno (almuerzo, reunión, capacitación) (depende de: asistencia_supervisores)
 CREATE TABLE IF NOT EXISTS `asistencia_eventos` (

@@ -134,7 +134,7 @@ $desdeT2 = 'FROM tecnicos a LEFT JOIN tecnicos l ON l.apoyo_id = a.id AND COALES
     WHERE ' . implode(' AND ', $whereT2);
 $apoyosLista = [];
 if ($vista === 'apoyo') {
-    $stT2 = $pdo->prepare("SELECT a.id, a.nombre_tecnico, a.dni, a.celular, a.estado_operativo, a.provincia, a.departamento, p.nombre_partner,
+    $stT2 = $pdo->prepare("SELECT a.id, a.nombre_tecnico, a.dni, a.celular, a.estado_operativo, a.provincia, a.departamento, a.partner_id, p.nombre_partner,
             l.id AS lider_id, l.nombre_tecnico AS lider_nombre, l.provincia AS lider_provincia, l.departamento AS lider_departamento
         {$desdeT2} ORDER BY (l.id IS NULL), p.nombre_partner, a.nombre_tecnico LIMIT 1000");
     $stT2->execute($paramsT2);
@@ -335,7 +335,9 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
           <td data-label="Partner y zona"><div><div><?= $e($partnerCuadrilla($a['nombre_partner'], $a['lider_departamento'], $a['lider_nombre'])) ?></div><small class="text-muted"><i class="bi bi-geo-alt me-1"></i><?= trim((string)$a['departamento']) !== '' ? $zonaTexto($a['provincia'], $a['departamento']) : $zonaTexto($a['lider_provincia'], $a['lider_departamento']) ?></small></div></td>
           <td data-label="Apoya a"><?= $a['lider_id'] ? $e($a['lider_nombre']) : '<span class="text-muted">Sin cuadrilla</span>' ?></td>
           <td data-label="Último examen"><?= $badgeExamen((int)$a['id']) ?></td>
-          <td class="text-end"><div class="sgs-row-actions justify-content-end"><?php if ($a['lider_id']): ?>
+          <td class="text-end"><div class="sgs-row-actions justify-content-end"><?php if ($puedeEditar): ?>
+            <button type="button" class="sgs-icon-action" title="Cambiar de partner" aria-label="Cambiar de partner a <?= $e($a['nombre_tecnico']) ?>" data-t2-partner="<?= (int)$a['id'] ?>" data-nombre="<?= $e($a['nombre_tecnico']) ?>" data-partner="<?= (int)$a['partner_id'] ?>" data-cuadrilla="<?= $e($a['lider_nombre'] ?? '') ?>"><i class="bi bi-arrow-left-right"></i></button>
+          <?php endif; ?><?php if ($a['lider_id']): ?>
             <a class="sgs-icon-action" href="index.php?page=cuadrillas&amp;q=<?= $e(rawurlencode($a['lider_nombre'])) ?>" title="Ver su cuadrilla" aria-label="Ver la cuadrilla de <?= $e($a['nombre_tecnico']) ?>"><i class="bi bi-people"></i></a>
           <?php endif; ?></div></td>
         </tr>
@@ -441,6 +443,25 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
         <div class="alert alert-danger d-none mt-3 mb-0" id="cuadError" role="alert"></div>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-win" id="btnGuardarCuadrilla"><i class="bi bi-check2 me-1"></i>Guardar cuadrilla</button></div>
+    </form>
+  </div></div>
+</div>
+
+<!-- ===== T2 que cambia de partner (2026-10-31) ===== -->
+<div class="modal fade" id="mPartnerT2" tabindex="-1" aria-labelledby="mPartnerT2Titulo" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <form id="fPartnerT2" novalidate>
+      <input type="hidden" name="id" id="pt2Id">
+      <div class="modal-header"><h5 class="modal-title" id="mPartnerT2Titulo"><i class="bi bi-arrow-left-right me-2"></i>Cambiar de partner</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-body">
+        <p class="mb-3">Técnico de apoyo: <strong id="pt2Nombre"></strong></p>
+        <label class="form-label" for="pt2Partner">Nuevo partner</label>
+        <select class="form-select" id="pt2Partner" name="partner_id" required><option value="">Seleccione</option>
+          <?php foreach ($partners as $p): ?><option value="<?= (int)$p['id'] ?>"><?= $e($p['nombre_partner']) ?></option><?php endforeach; ?></select>
+        <small class="text-muted d-block mt-2" id="pt2Ayuda">Después agréguelo a su nueva cuadrilla aquí (Editar cuadrilla) o al registrar una supervisión.</small>
+        <div class="alert alert-danger d-none mt-3 mb-0" id="pt2Error" role="alert"></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-win" id="btnGuardarPartnerT2"><i class="bi bi-check2 me-1"></i>Cambiar partner</button></div>
     </form>
   </div></div>
 </div>

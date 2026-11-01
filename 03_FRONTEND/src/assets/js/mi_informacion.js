@@ -1,4 +1,5 @@
-// 03_FRONTEND/src/assets/js/mi_informacion.js - Mi información (pages/mi_informacion.php): cambio de contraseña propia y foto de perfil.
+// 03_FRONTEND/src/assets/js/mi_informacion.js - Mi información (pages/mi_informacion.php): cambio de contraseña propia, foto de perfil
+// y, solo para el administrador general, el respaldo de la base de datos (2026-11-01, api/respaldos.php).
 // 2026-10-27: salió de la página a este archivo (sistema liviano: el navegador lo guarda).
 (() => {
   const f = document.getElementById('formPassword'), msg = document.getElementById('pwMsg'), btn = document.getElementById('btnPassword');
@@ -136,4 +137,34 @@
     } catch (_) { say('No hay conexión con el servidor.', false); }
     finally { quitar.disabled = false; }
   });
+})();
+
+// Respaldo de la base de datos (2026-11-01): lista de respaldos, crear uno ahora y descargarlo. Solo existe para el administrador general.
+(() => {
+  const body = document.getElementById('respaldosBody');
+  if (!body) return;
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fecha = (v) => { const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : v; };
+  const tamano = (kb) => (kb >= 1024 ? (kb / 1024).toFixed(1) + ' MB' : kb + ' KB');
+  async function cargar() {
+    try {
+      const r = await (await fetch('api/respaldos.php?action=lista', { cache: 'no-store' })).json();
+      if (r.status !== 'success') throw new Error(r.message);
+      body.innerHTML = r.data.length ? r.data.map((x) => `<tr><td data-label="Fecha"><span>${esc(fecha(x.fecha))}</span></td><td data-label="Archivo"><small class="text-muted text-break">${esc(x.archivo)}</small></td>`
+        + `<td data-label="Tamaño" class="text-end"><span>${tamano(x.kb)}</span></td><td class="text-end"><a class="btn btn-outline-secondary btn-sm" href="api/respaldos.php?action=descargar&amp;archivo=${encodeURIComponent(x.archivo)}"><i class="bi bi-download me-1"></i>Descargar</a></td></tr>`).join('')
+        : '<tr><td colspan="4" class="text-center text-muted py-3"><i class="bi bi-inbox d-block fs-4 mb-1"></i>Todavía no hay respaldos: cree uno.</td></tr>';
+    } catch (e) { body.innerHTML = `<tr><td colspan="4" class="text-center text-danger py-3">${esc(e.message || 'No se pudo leer la lista de respaldos.')}</td></tr>`; }
+  }
+  document.getElementById('btnCrearRespaldo').addEventListener('click', async (ev) => {
+    const btn = ev.currentTarget; btn.disabled = true;
+    const original = btn.innerHTML; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Creando…';
+    try {
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+      const r = await (await fetch('api/respaldos.php?action=crear', { method: 'POST', headers: { 'X-CSRF-Token': csrf } })).json();
+      (window.showToast || alert)(r.message || 'No se pudo crear el respaldo.', r.status === 'success' ? 'success' : 'error');
+      await cargar();
+    } catch (_) { (window.showToast || alert)('No hay conexión con el servidor.', 'error'); }
+    finally { btn.disabled = false; btn.innerHTML = original; }
+  });
+  cargar();
 })();

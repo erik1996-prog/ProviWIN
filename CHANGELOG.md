@@ -4,6 +4,83 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Descargar el respaldo de la base (2026-11-01)
+- **Añadido**: en **Mi información**, la tarjeta **"Respaldo de la base de datos"**, solo para el administrador general. Muestra los últimos 10 respaldos (los automáticos de cada 6 horas y los manuales), con **"Crear respaldo ahora"** y **"Descargar"**.
+  - El archivo es un `.sql.gz` y se restaura en phpMyAdmin → Importar.
+  - Para no cargar el hosting, solo se puede crear un respaldo cada 10 minutos, y solo de la base: sin fotos ni sistema.
+  - Ningún otro usuario puede listar ni descargar respaldos, y la descarga no deja bajar otros archivos del servidor. Cada descarga queda registrada.
+- **Cambiado**: Mi información muestra el **Perfil** de la persona en vez del rol.
+
+### Solo los perfiles del organigrama (2026-11-01)
+- **Eliminado** (cambio de base `2026-11-01_01_solo_perfiles_del_organigrama`): el perfil "Gestión" y todos los "(permisos anteriores N)". Cada persona pasa a su perfil real:
+  - supervisores → Supervisor UM, o Supervisor de partner si son de un partner;
+  - Gestión (el líder técnico de antes) → el Líder técnico de su área y zona: VT → de visitas técnicas; Instalaciones o Lima → de instalaciones; si no → de provincia;
+  - administrador, gerente o jefe de partner → su perfil real.
+
+### Perfiles del organigrama; el cargo es el perfil (2026-10-31)
+- **Añadido** (cambio de base `2026-10-31_04_perfiles_del_organigrama_y_cargo_como_perfil`): los perfiles son los cargos del organigrama de WIN, ordenados por jerarquía:
+  - Gerente general · Subgerente Lima · Subgerente Provincia;
+  - Coordinador y Líder técnico de instalaciones, de visitas técnicas (DBT) y de provincia;
+  - Supervisor SGI · Supervisor SGA · Supervisor UM · Gestor SGI · Gestor SGA;
+  - del partner: Jefe de operaciones (partner) y Supervisor de partner;
+  - Administrador.
+  - Cada uno trae sus permisos de partida, qué datos ve y a quién puede asignar según el organigrama. Por ejemplo, el Coordinador de instalaciones asigna Supervisor SGI y Gestor SGI, y los Líderes técnicos asignan Supervisor UM.
+  - "Consulta" pasó a ser "Gerente general" y "Supervisor" pasó a ser "Supervisor UM". Los supervisores de un partner pasaron a "Supervisor de partner".
+  - "Gestión" queda solo para quien ya lo tenía: el administrador general pasa a esas personas a su perfil del organigrama y luego lo elimina.
+- **Eliminado**: el campo **Cargo**, una lista fija que repetía lo mismo que el perfil, y la columna `usuarios.cargo`.
+  - El líder registra a las personas sin acceso al sistema (asistentes, analistas…) con la casilla **"Solo registrar sus datos"**.
+  - El área "SUPERVISOR UM" que algunos tenían por error se borró: era su cargo y ahora lo da el perfil.
+
+### Diseño más limpio, v3 (2026-10-31)
+- **Cambiado**: letra **más chica y más liviana** en todo el sistema, como el sistema de referencia que mostró el usuario. Misma letra (Nunito) y mismos colores de WIN:
+  - texto 13 px y celdas 12,5 px (antes 14 y 13,5), con peso normal;
+  - títulos de pantalla 18 px (antes 20) y títulos de tarjeta 14,5 px;
+  - menú 13,5 px sin negrita.
+- **Cambiado**: en el menú queda **solo el logo de WIN arriba**.
+  - Nuevo orden: Inicio (Mi turno) → Supervisiones → Seguimiento → Observaciones → **Indicadores** → Asistencia → Personal → Mi información → Instalar app → Cerrar sesión.
+  - El **usuario va al final de todo**, con su nombre y solo el nombre de su perfil (por ejemplo, "Administrador").
+  - **Un solo menú**: Mi información, Instalar app y Cerrar sesión siguen a las secciones, sin líneas que lo dividan.
+- **Cambiado**: "Usuarios y roles" pasa a llamarse **"Usuarios y perfiles"**, y "Organización y rol" pasa a **"Organización y perfil"**.
+- **Cambiado** (cambio de base `2026-10-31_03_cuenta_principal_en_perfil_administrador`): la cuenta principal (eplasencia) queda siempre en el perfil **Administrador**, y el sistema no deja ponerle otro tipo de perfil. Se borran los perfiles antiguos que quedaron sin usuarios.
+- **Añadido**: en Permisos, cada pantalla tiene su **casilla** para marcar o quitar todas sus acciones y su **ícono**, como en el sistema de referencia.
+- Skill `sgs-diseno` pasa a la v3.0 con la nueva escala (sección 64 de `sgs-theme.css`).
+
+### Perfiles de acceso (2026-10-31)
+- **Añadido**: **perfiles** en Usuarios y roles, al estilo del sistema de referencia que pasó el usuario. Hay tres pestañas: **Usuarios · Perfiles · Permisos**.
+  - **Perfiles**: lista con nombre, código, descripción, tipo base, **datos que ve** y número de trabajadores. "Registrar perfil" abre una ventana con:
+    - nombre, código y descripción;
+    - **tipo base**: uno de los 5 roles, que define lo fijo del sistema (turno, partner…);
+    - **"¿Qué datos puede ver?"**: Todo el país, Sus zonas y su área, o Solo lo suyo;
+    - **"Perfiles que puede asignar"** a su equipo.
+  - **Permisos**: los perfiles a la izquierda y, a la derecha, cada sección del menú con sus pantallas y un botón por acción (**Ver · Registrar · Editar · Eliminar** u opción, por ejemplo "Asignar pendientes" o "Cargar Excel"), con un contador por sección y una casilla para marcar o quitar todo.
+    - Sin "Ver", los demás botones de esa pantalla se apagan.
+  - Solo el **administrador general** crea, edita y elimina perfiles. Los demás administradores solo los consultan.
+  - Un perfil con usuarios no se elimina ni cambia de tipo base. Tampoco se elimina el único perfil de su tipo base.
+- **Cambiado**: al crear o editar un usuario se elige su **perfil**, ya no un rol. El rol se guarda solo: es el tipo base del perfil. Las zonas las llevan el supervisor y todo perfil con "Sus zonas y su área".
+- **Cambiado**: "Sus zonas y su área" vale para cualquier perfil que lo tenga. Antes solo limitaba al rol Gestión.
+- **Cambiado**: el líder registra a su equipo solo con los perfiles que el suyo puede asignar. Antes eran Supervisor y Partner fijos.
+- **Eliminado**: los permisos personalizados por usuario ("Personalizar"): ahora todo va por perfil.
+- **Base de datos** (`2026-10-31_01_perfiles_con_permisos_alcance_y_perfiles_que_puede_asignar`):
+  - tablas nuevas `perfiles`, `perfil_permisos` y `perfil_asignables`, y columna nueva `usuarios.perfil_id`;
+  - se crean 5 perfiles iguales a los roles de hoy y cada usuario queda en el suyo;
+  - quien tenía permisos personalizados recibe un perfil propio ("Supervisor · usuario") con exactamente esos permisos;
+  - después se elimina `usuario_permisos`.
+- Pruebas actualizadas: `usuarios_service_test`, `permisos_modulos_test`, `usuarios_activacion_permisos_test`, `lider_equipo_test`, `jefe_operaciones_test`.
+- **Corregido** (cambio de base `2026-10-31_02_unir_perfiles_personalizados_iguales`): en el hosting salió un perfil propio por cada usuario que alguna vez tuvo "Personalizar", porque el editor anterior guardaba todos sus permisos aunque fueran los de su rol.
+  - Los perfiles propios **iguales** al perfil base se eliminan y sus usuarios vuelven al base.
+  - Los que de verdad eran distintos se juntan en uno por cada combinación de permisos, "Supervisor (permisos anteriores N)", para revisarlos.
+
+### Técnico de apoyo que cambia de partner (2026-10-31)
+- **Añadido**: en **Técnicos y cuadrillas → Técnicos de apoyo (T2)**, cada T2 tiene el botón **"Cambiar de partner"**, para los T2 que migran a otro partner.
+  - Al cambiarlo, deja la cuadrilla que tenía, porque era del partner anterior. Después se le agrega a su nueva cuadrilla en "Editar cuadrilla" o al registrar una supervisión.
+  - Solo quien puede editar cuadrillas, y con zona propia, solo los T2 de su zona.
+- **Corregido**: en la supervisión, el T2 que migró de partner o de zona no salía en la lista, y al intentar registrarlo de nuevo su DNI ya existía.
+  - Ahora, al escribir 3 letras del nombre o el DNI, también salen **"Otros técnicos de apoyo"**: todos los T2 que existen, de cualquier partner, zona o área, con su partner y zona actuales.
+  - Al elegir uno y **finalizar** la supervisión, pasa al partner, la zona y la cuadrilla de esa supervisión.
+  - Si el DNI escrito ya es de un T2, no se ofrece registrarlo de nuevo.
+- Sigue como antes: en "Editar cuadrilla" se puede elegir un T2 de otro partner y, al guardar, pasa al partner de esa cuadrilla.
+- Prueba: `nuevo_tecnico_test` (14 revisiones).
+
 ### Cuadrillas SGI / SGA en Lima, Callao y Norte Chico (2026-10-31)
 - **Añadido**: en **LIMA, CALLAO y NORTE CHICO** cada cuadrilla es de **SGI** (instalaciones) o de **SGA** (visitas técnicas). El área se lee de la nomenclatura de su técnico líder ("P 1 KAJOMI **SGI** JUAN PEREZ"); el T2 sigue a su líder. **En provincia no hay división**: la cuadrilla atiende todo, aunque su nomenclatura diga SGI o SGA.
   - En el formulario de supervisión, una **Instalación** solo ofrece cuadrillas SGI y una **Avería, Postventa o Reiterada** solo SGA. La **Garantía** la atienden las dos. Los demás tipos (incidencias, proyectos, capacitación) aceptan cualquiera. La lista cambia sola al cambiar el tipo de supervisión.

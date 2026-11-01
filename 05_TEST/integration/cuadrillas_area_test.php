@@ -17,7 +17,7 @@ $limpiar = function () use ($pdo) {
     $pdo->exec("DELETE FROM tecnicos WHERE nombre_tecnico LIKE 'P 9 PRUEBA AREA %'");
     $us = $pdo->query("SELECT id FROM usuarios WHERE dni = '99999964'")->fetchAll(PDO::FETCH_COLUMN);
     if ($us) { $in = implode(',', array_map('intval', $us));
-        foreach (['usuario_departamentos_acceso', 'usuario_permisos', 'notificaciones'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id IN ($in)");
+        foreach (['usuario_departamentos_acceso', 'notificaciones'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id IN ($in)");
         $pdo->exec("DELETE FROM usuarios WHERE id IN ($in)"); }
 };
 $limpiar();

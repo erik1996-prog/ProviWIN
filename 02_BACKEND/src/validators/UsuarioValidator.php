@@ -17,17 +17,7 @@ final class UsuarioValidator
     public const TURNOS = ['Día', 'Noche'];
     /** Área de trabajo: el equipo al que pertenece (2026-10-12). No da permisos. */
     public const AREAS = ['Instalaciones', 'VT (visitas técnicas)', 'Instalaciones y VT', 'Almacén']; // 2026-10-27: VT = averías
-    /** Cargo: su puesto en la empresa (2026-10-12). No da permisos; eso lo define el rol del sistema. */
-    public const CARGOS = ['Supervisor de campo', 'Supervisor de calidad', 'Supervisor UM', 'Líder técnico', 'Coordinador', 'Jefe de operaciones', 'Gerente',
-        'Subgerente', 'Asistente', 'Asesor', 'Almacenero', 'Analista'];
-    /**
-     * Cargos que asigna un líder (coordinador o líder técnico) a su gente (2026-10-27, definido por el administrador). Los que
-     * no están aquí (Gerente, Subgerente, Coordinador, Líder técnico) están por encima: el líder no los ve ni los asigna.
-     */
-    public const CARGOS_DEL_LIDER = ['Supervisor de campo', 'Supervisor de calidad', 'Supervisor UM', 'Jefe de operaciones', 'Asistente', 'Asesor',
-        'Almacenero', 'Analista'];
-    /** De esos, los que el líder registra sin acceso al sistema (solo sus datos, 2026-10-27). */
-    public const CARGOS_SIN_ACCESO = ['Asistente', 'Asesor', 'Almacenero', 'Analista'];
+    // 2026-10-31: el cargo es el perfil (pestaña Perfiles, según el organigrama); ya no hay lista fija de cargos.
     /** Procesos en los que se le copia en los correos (se guardan en usuarios.procesos_copiados). */
     public const PROCESOS = ['Liquidaciones', 'Penalidades', 'Gestión Phoenix'];
 
@@ -60,19 +50,17 @@ final class UsuarioValidator
             'email' => mb_strtolower(trim((string)($in['email'] ?? ''))),
             'telefono_personal' => self::text($in['telefono_personal'] ?? '', 20),
             'telefono_corporativo' => self::text($in['telefono_corporativo'] ?? '', 20),
-            'rol' => trim((string)($in['rol'] ?? '')),
+            'perfil_id' => max(0, (int)($in['perfil_id'] ?? 0)),
+            'rol' => trim((string)($in['rol'] ?? '')), // sin perfil_id: el perfil base de ese rol (UsuarioService::guardar)
             'partner_id' => max(0, (int)($in['partner_id'] ?? 0)),
             'todas_zonas' => !empty($in['todas_zonas']),
             'area_trabajo' => self::text($in['area_trabajo'] ?? '', 100),
-            'cargo' => self::text($in['cargo'] ?? '', 60),
             'procesos_copiados' => self::procesos($in['procesos'] ?? []),
             'modalidad' => self::text($in['modalidad'] ?? '', 30),
             'turno' => self::text($in['turno'] ?? '', 30),
             'password' => (string)($in['password'] ?? ''),
             'pedir_cambio' => !empty($in['pedir_cambio']) && $in['pedir_cambio'] !== 'false', // la pantalla lo envía marcado por defecto
             'zonas' => array_values(array_unique(array_filter(array_map(static fn($z) => mb_strtoupper(trim((string)$z)), (array)($in['zonas'] ?? []))))),
-            'permisos' => array_values(array_unique(array_map('strval', (array)($in['permisos'] ?? [])))),
-            'permisos_personalizados' => !empty($in['permisos_personalizados']),
         ];
         if (strlen($d['dni']) !== 8) throw new ValidationException('El DNI debe tener 8 dígitos.', 'dni');
         if ($d['nombres'] === '' || $d['apellidos'] === '') throw new ValidationException('Ingrese nombres y apellidos.', 'nombres');
@@ -84,7 +72,6 @@ final class UsuarioValidator
         if ($d['usuario'] !== '' && !preg_match('/^[a-z0-9._-]{3,50}$/', $d['usuario'])) {
             throw new ValidationException('El usuario solo admite letras minúsculas, números, punto, guion y guion bajo (3 a 50).', 'usuario');
         }
-        if (!in_array($d['rol'], self::ROLES, true)) throw new ValidationException('Seleccione un rol válido.', 'rol');
         // Zonas de trabajo = departamentos que el usuario puede ver (o todas).
         $validas = sgsOperationalDepartments();
         foreach ($d['zonas'] as $z) if (!in_array($z, $validas, true)) throw new ValidationException("Zona de trabajo no válida: $z.", 'zonas');
@@ -104,7 +91,6 @@ final class UsuarioValidator
             'telefono_personal' => self::text($in['telefono_personal'] ?? '', 20),
             'telefono_corporativo' => self::text($in['telefono_corporativo'] ?? '', 20),
             'area_trabajo' => self::text($in['area_trabajo'] ?? '', 100),
-            'cargo' => self::text($in['cargo'] ?? '', 60),
         ];
         if (strlen($d['dni']) !== 8) throw new ValidationException('El DNI debe tener 8 dígitos.', 'dni');
         if ($d['nombres'] === '' || $d['apellidos'] === '') throw new ValidationException('Ingrese nombres y apellidos.', 'nombres');

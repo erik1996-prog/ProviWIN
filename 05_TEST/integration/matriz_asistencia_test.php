@@ -23,7 +23,7 @@ $cleanup = function () use ($pdo, $dnis, &$frascos) {
     if ($us) {
         $in = implode(',', array_map('intval', $us));
         foreach (['asistencia_ajustes' => 'supervisor_id', 'ausencias_supervisores' => 'supervisor_id', 'asistencia_supervisores' => 'supervisor_id',
-            'notificaciones' => 'usuario_id', 'usuario_departamentos_acceso' => 'usuario_id', 'usuario_permisos' => 'usuario_id'] as $t => $c) $pdo->exec("DELETE FROM $t WHERE $c IN ($in)");
+            'notificaciones' => 'usuario_id', 'usuario_departamentos_acceso' => 'usuario_id'] as $t => $c) $pdo->exec("DELETE FROM $t WHERE $c IN ($in)");
         $pdo->exec("DELETE FROM usuarios WHERE id IN ($in)");
     }
     foreach (['mas.admin', 'mas.uno', 'mas.dos'] as $u) foreach (['::1', '127.0.0.1'] as $ip)

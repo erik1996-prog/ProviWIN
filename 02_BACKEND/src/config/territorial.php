@@ -64,11 +64,14 @@ function sgsPrecargarUsuarios(array $ids): array
     $pdo = Database::getConnection();
     $lista = implode(',', $faltan); // enteros
     $filas = [];
-    foreach ($pdo->query("SELECT id, sede, zona, rol, area_trabajo FROM usuarios WHERE id IN ($lista)")->fetchAll() as $u) $filas[(int)$u['id']] = $u;
+    // Alcance del perfil (2026-10-31): sin perfil, el del perfil base de su rol (el primero con ese tipo base).
+    foreach ($pdo->query("SELECT u.id, u.sede, u.zona, u.rol, u.area_trabajo,
+            COALESCE(p.alcance, (SELECT b.alcance FROM perfiles b WHERE b.rol_base = u.rol ORDER BY b.id LIMIT 1), 'todo') AS alcance
+        FROM usuarios u LEFT JOIN perfiles p ON p.id = u.perfil_id WHERE u.id IN ($lista)")->fetchAll() as $u) $filas[(int)$u['id']] = $u;
     foreach ($faltan as $id) {
         $u = $filas[$id] ?? [];
         $base = operationalDepartmentFromSite((string)(($u['sede'] ?? '') ?: ($u['zona'] ?? '')));
-        $cache[$id] = ['rol' => (string)($u['rol'] ?? ''), 'area' => trim((string)($u['area_trabajo'] ?? '')),
+        $cache[$id] = ['rol' => (string)($u['rol'] ?? ''), 'area' => trim((string)($u['area_trabajo'] ?? '')), 'alcance' => (string)($u['alcance'] ?? 'todo'),
             'zonas' => $base === 'PROVINCIAS' ? null : ($base !== '' ? [mb_strtoupper($base, 'UTF-8')] : [])];
     }
     foreach ($pdo->query("SELECT usuario_id, departamento FROM usuario_departamentos_acceso WHERE activo = 1 AND usuario_id IN ($lista)")->fetchAll() as $a) {
@@ -211,6 +214,12 @@ function sgsUserRol(int $userId): string
     return sgsPrecargarUsuarios([$userId])[$userId]['rol'];
 }
 
+/** Qué datos ve el usuario según su perfil (2026-10-31): 'todo', 'zonas' (sus zonas y su área) o 'propio' (solo lo suyo). */
+function sgsUserAlcance(int $userId): string
+{
+    return sgsPrecargarUsuarios([$userId])[$userId]['alcance'];
+}
+
 /** Área de trabajo del usuario, leída de la base (refleja cambios sin volver a iniciar sesión). */
 function sgsUserArea(int $userId): string
 {
@@ -289,14 +298,14 @@ function sgsTecnicoConZonaSql(string $departamento): string
 }
 
 /**
- * Líder con alcance propio (2026-10-27): un Coordinador (líder técnico) con zonas marcadas o con área Instalaciones o
- * VT ve solo eso (supervisiones, pendientes, supervisores, línea de tiempo, dashboards, técnicos y usuarios). Sin
- * zonas y con ambas áreas ve todo, como antes. El administrador y el gerente ven todo siempre.
+ * Alcance propio (2026-10-27): quien tiene un perfil con "Sus zonas y su área" (2026-10-31; antes, solo el Coordinador o
+ * líder técnico) y zonas marcadas o área Instalaciones o VT ve solo eso (supervisiones, pendientes, supervisores, línea de
+ * tiempo, dashboards, técnicos y usuarios). Sin zonas y con ambas áreas ve todo. Un perfil "Todo el país" ve todo siempre.
  */
 function sgsAlcanceLimitado(array $user): bool
 {
-    if (($user['rol'] ?? '') !== Auth::ROLE_COORDINADOR) return false;
     $id = (int)($user['id'] ?? 0);
+    if (sgsUserAlcance($id) !== 'zonas') return false;
     return (bool)sgsUserZones($id) || sgsClasificacionesFueraDeArea(sgsUserArea($id)) !== [];
 }
 

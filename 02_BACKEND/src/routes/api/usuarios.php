@@ -1,5 +1,5 @@
 <?php
-// 02_BACKEND/src/routes/api/usuarios.php - Ruta del módulo Usuarios y roles (primer módulo en capas, fase 2).
+// 02_BACKEND/src/routes/api/usuarios.php - Ruta del módulo Usuarios y perfiles (primer módulo en capas, fase 2).
 // Solo autenticación, CSRF y despacho: la lógica vive en controllers/ services/ repositories/ validators/.
 ob_start();
 header('Content-Type: application/json; charset=utf-8');

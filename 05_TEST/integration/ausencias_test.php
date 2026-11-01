@@ -26,7 +26,7 @@ $cleanup = function () use ($pdo, $dnis, &$frascos, $pdf) {
         $pdo->exec("DELETE FROM ausencias_supervisores WHERE supervisor_id IN ($in)");
         $pdo->exec("DELETE e FROM asistencia_eventos e JOIN asistencia_supervisores a ON a.id = e.asistencia_id WHERE a.supervisor_id IN ($in)");
         $pdo->exec("DELETE FROM asistencia_supervisores WHERE supervisor_id IN ($in)");
-        foreach (['notificaciones', 'usuario_departamentos_acceso', 'usuario_permisos'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id IN ($in)");
+        foreach (['notificaciones', 'usuario_departamentos_acceso'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id IN ($in)");
         $pdo->exec("DELETE FROM usuarios WHERE id IN ($in)");
     }
     foreach (['aus.jefe', 'aus.sup', 'aus.otro'] as $u) foreach (['::1', '127.0.0.1'] as $ip)

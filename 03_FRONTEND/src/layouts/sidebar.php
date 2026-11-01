@@ -51,6 +51,15 @@ try {
 } catch (Throwable $t) {
     win_log_error('sidebar_status_error', $t->getMessage());
 }
+// Nombre del perfil (2026-10-31): el suyo o, sin perfil, el perfil base de su rol; si no hay perfiles, el nombre del rol
+$perfilNombre = Auth::etiquetaRol($rol);
+try {
+    $stPerfil = Database::getConnection()->prepare('SELECT p.nombre FROM usuarios u JOIN perfiles p ON p.id = COALESCE(u.perfil_id, (SELECT b.id FROM perfiles b WHERE b.rol_base = u.rol ORDER BY b.id LIMIT 1)) WHERE u.id = :uid');
+    $stPerfil->execute([':uid' => $user['id']]);
+    $perfilNombre = $stPerfil->fetchColumn() ?: $perfilNombre;
+} catch (Throwable $t) {
+    win_log_error('sidebar_profile_error', $t->getMessage());
+}
 
 $menuItem = static function (string $href, array $pages, string $icon, string $label, string $current): string {
     $active = in_array($current, $pages, true) ? ' class="active"' : '';
@@ -71,20 +80,6 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
             </button>
         </div>
 
-        <div class="sgs-profile">
-            <div class="sgs-avatar">
-                <?php if ($hasAvatar): ?>
-                    <img src="<?= htmlspecialchars($avatarPath) ?>" alt="">
-                <?php else: ?>
-                    <span><?= htmlspecialchars($sidebarInitials) ?></span>
-                <?php endif; ?>
-                <i class="sgs-status-dot <?= $isUserActive ? 'is-on' : '' ?>" title="<?= $isUserActive ? 'En turno' : 'Fuera de turno' ?>"></i>
-            </div>
-            <div class="menu-label-text overflow-hidden">
-                <div class="sgs-profile-name text-truncate" title="<?= htmlspecialchars($user['nombre'] ?? '') ?>"><?= htmlspecialchars($shortName) ?></div>
-                <span class="sgs-role-pill"><?= htmlspecialchars(Auth::etiquetaRol($rol)) ?></span>
-            </div>
-        </div>
     </div>
 
     <?php
@@ -110,23 +105,23 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
             [$canViewObservations, 'index.php?page=registro_observaciones', ['registro_observaciones', 'observaciones_partner'], 'bi-clipboard2-pulse', 'Registro', 'Observaciones'],
             [$showAdministrativeMenu && $canReviewObservations, 'index.php?page=control_observaciones', ['control_observaciones'], 'bi-exclamation-diamond', 'Control y recurrencia'],
         ]],
-        // 2026-10-29: "Asistencia" junta las vacaciones y licencias (antes en Mi turno y en el Monitor de turnos) y la matriz.
-        ['Asistencia', 'bi-calendar-check', [
-            [$isDirectMenu || $showAdministrativeMenu, 'index.php?page=vacaciones', ['vacaciones'], 'bi-calendar2-x', 'Vacaciones y licencias'],
-            [$ve(Auth::PERM_ASISTENCIA_MATRIZ_VIEW), 'index.php?page=matriz_asistencia', ['matriz_asistencia'], 'bi-calendar3', 'Matriz de asistencia'],
-        ]],
-        ['Personal', 'bi-people', [
-            [$canSeeStaff, 'index.php?page=usuarios', ['usuarios'], 'bi-person-badge', $canManageUsers ? 'Usuarios y roles' : 'Personal'],
-            [$ve(Auth::PERM_CUADRILLAS_VIEW), 'index.php?page=cuadrillas', ['cuadrillas'], 'bi-people-fill', 'Técnicos y cuadrillas'],
-            [$ve(Auth::PERM_PARTNERS_VIEW), 'index.php?page=partners', ['partners'], 'bi-buildings', 'Partners'],
-        ]],
-        // 2026-10-29: los indicadores van al final (primero el turno y las supervisiones).
+        // 2026-10-31: los indicadores van después de Observaciones y antes de Asistencia y Personal (pedido del usuario).
         ['Indicadores', 'bi-graph-up', [
             [$showAdministrativeMenu && $canViewDashboard, 'index.php?page=admin_dashboard', ['admin_dashboard'], 'bi-speedometer2', 'Dashboard de supervisiones'],
             [$ve(Auth::PERM_PARTNERS_DASHBOARD), 'index.php?page=dashboard_partners', ['dashboard_partners'], 'bi-buildings', 'Dashboard de partners'],
             [$ve(Auth::PERM_PENDIENTES_VIEW), 'index.php?page=dashboard_pendientes', ['dashboard_pendientes'], 'bi-arrow-repeat', 'Pendientes y rescates'],
             [$ve(Auth::PERM_CLIMA_VIEW), 'index.php?page=dashboard_lluvias', ['dashboard_lluvias'], 'bi-cloud-sun', 'Clima'],
             [$ve(Auth::PERM_EXAMENES_VIEW), 'index.php?page=examenes', ['examenes'], 'bi-clipboard-check', 'Exámenes'],
+        ]],
+        // 2026-10-29: "Asistencia" junta las vacaciones y licencias (antes en Mi turno y en el Monitor de turnos) y la matriz.
+        ['Asistencia', 'bi-calendar-check', [
+            [$isDirectMenu || $showAdministrativeMenu, 'index.php?page=vacaciones', ['vacaciones'], 'bi-calendar2-x', 'Vacaciones y licencias'],
+            [$ve(Auth::PERM_ASISTENCIA_MATRIZ_VIEW), 'index.php?page=matriz_asistencia', ['matriz_asistencia'], 'bi-calendar3', 'Matriz de asistencia'],
+        ]],
+        ['Personal', 'bi-people', [
+            [$canSeeStaff, 'index.php?page=usuarios', ['usuarios'], 'bi-person-badge', $canManageUsers ? 'Usuarios y perfiles' : 'Personal'],
+            [$ve(Auth::PERM_CUADRILLAS_VIEW), 'index.php?page=cuadrillas', ['cuadrillas'], 'bi-people-fill', 'Técnicos y cuadrillas'],
+            [$ve(Auth::PERM_PARTNERS_VIEW), 'index.php?page=partners', ['partners'], 'bi-buildings', 'Partners'],
         ]],
     ];
     ?>
@@ -154,6 +149,19 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
             </div>
         </div>
         <?php endforeach; ?>
+        <!-- Diseño v3 (2026-10-31, pedido del usuario): un solo menú; al final Mi información, Instalar app y Cerrar sesión -->
+        <div class="sgs-menu-group sgs-menu-cuenta">
+            <ul class="list-unstyled components mb-0">
+                <?= $menuItem('index.php?page=mi_informacion', ['mi_informacion'], 'bi-person-vcard', 'Mi información', $currentPage) ?>
+                <!-- Instalar app (2026-10-26, app-instalable.js): con un toque donde el navegador lo permite; en otros celulares (Huawei, iPhone…) muestra los pasos -->
+                <li class="d-none"><a href="#" id="btnInstalarApp" title="Instalar la app en este equipo"><i class="bi bi-phone"></i><span class="menu-label-text">Instalar app</span></a></li>
+                <li>
+                    <a href="#" id="btn-logout-sidebar" class="sgs-logout" title="Cerrar sesión">
+                        <i class="bi bi-box-arrow-right"></i><span class="menu-label-text">Cerrar sesión</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
     </div>
     <script>
     // Acordeón: al abrir una sección se cierran las demás.
@@ -166,19 +174,25 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
         }));
     })();
     </script>
-    <div class="sgs-sidebar-account flex-shrink-0">
-        <ul class="list-unstyled components mb-0">
-            <?= $menuItem('index.php?page=mi_informacion', ['mi_informacion'], 'bi-person-vcard', 'Mi información', $currentPage) ?>
-            <!-- Instalar app (2026-10-26, app-instalable.js): con un toque donde el navegador lo permite; en otros celulares (Huawei, iPhone…) muestra los pasos -->
-            <li class="d-none"><a href="#" id="btnInstalarApp" title="Instalar la app en este equipo"><i class="bi bi-phone"></i><span class="menu-label-text">Instalar app</span></a></li>
-            <li>
-                <a href="#" id="btn-logout-sidebar" class="sgs-logout" title="Cerrar sesión">
-                    <i class="bi bi-box-arrow-right"></i><span class="menu-label-text">Cerrar sesión</span>
-                </a>
-            </li>
-        </ul>
+    <!-- El usuario al final de todo, con solo el nombre de su perfil -->
+    <div class="sgs-sidebar-usuario flex-shrink-0">
+        <div class="sgs-profile">
+            <div class="sgs-avatar">
+                <?php if ($hasAvatar): ?>
+                    <img src="<?= htmlspecialchars($avatarPath) ?>" alt="">
+                <?php else: ?>
+                    <span><?= htmlspecialchars($sidebarInitials) ?></span>
+                <?php endif; ?>
+                <i class="sgs-status-dot <?= $isUserActive ? 'is-on' : '' ?>" title="<?= $isUserActive ? 'En turno' : 'Fuera de turno' ?>"></i>
+            </div>
+            <div class="menu-label-text overflow-hidden">
+                <div class="sgs-profile-name text-truncate" title="<?= htmlspecialchars($user['nombre'] ?? '') ?>"><?= htmlspecialchars($shortName) ?></div>
+                <span class="sgs-role-pill"><?= htmlspecialchars($perfilNombre) ?></span>
+            </div>
+        </div>
+        <!-- La versión, debajo del nombre del usuario (2026-10-31, pedido del usuario) -->
+        <div class="sgs-sidebar-foot menu-label-text">v<?= htmlspecialchars(APP_VERSION) ?> · <?= htmlspecialchars(APP_ENV) ?></div>
     </div>
-    <div class="sgs-sidebar-foot menu-label-text">v<?= htmlspecialchars(APP_VERSION) ?> · <?= htmlspecialchars(APP_ENV) ?></div>
 </nav>
 
 <script>

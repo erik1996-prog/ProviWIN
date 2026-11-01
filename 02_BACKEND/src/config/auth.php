@@ -132,24 +132,30 @@ class Auth {
         self::ROLE_JEFE_OPERACIONES => [self::PERM_SUPERVISION_VIEW, self::PERM_OBSERVATION_VIEW, self::PERM_OBSERVATION_FILTER_DATE, self::PERM_USERS_VIEW],
     ];
 
-    private static array $permissionOverrides = [];
+    /** Permisos del perfil de cada usuario leído en esta petición: [id => [permiso => true]] o null (aún sin perfiles). */
+    private static array $permisosPerfil = [];
 
+    /**
+     * Perfiles (2026-10-31): los permisos delegables salen del perfil del usuario (sin perfil: el perfil base de su rol);
+     * los reservados (administrar usuarios, importar, eliminar supervisiones, sistema) siguen el tipo base (rol).
+     */
     public static function can(string $permission, ?array $user = null): bool {
         $role = (string)($user['rol'] ?? ($_SESSION['user_rol'] ?? ''));
         $allowed = in_array($permission, self::ROLE_PERMISSIONS[$role] ?? [], true);
         $userId = (int)($user['id'] ?? ($_SESSION['user_id'] ?? 0));
-        if ($userId < 1 || !array_key_exists($permission, self::permissionCatalog())) return $allowed;
-        if (!array_key_exists($userId, self::$permissionOverrides)) {
-            self::$permissionOverrides[$userId] = [];
+        if ($userId < 1 || empty(self::permissionCatalog()[$permission]['delegable'])) return $allowed;
+        if (!array_key_exists($userId, self::$permisosPerfil)) {
             try {
-                $stmt = Database::getConnection()->prepare('SELECT permiso, permitido FROM usuario_permisos WHERE usuario_id=:usuario_id');
-                $stmt->execute([':usuario_id'=>$userId]);
-                foreach ($stmt->fetchAll() as $row) self::$permissionOverrides[$userId][$row['permiso']] = (bool)$row['permitido'];
+                $st = Database::getConnection()->prepare('SELECT pp.permiso FROM usuarios u
+                    JOIN perfiles p ON p.id = COALESCE(u.perfil_id, (SELECT b.id FROM perfiles b WHERE b.rol_base = u.rol ORDER BY b.id LIMIT 1))
+                    JOIN perfil_permisos pp ON pp.perfil_id = p.id WHERE u.id = :id');
+                $st->execute([':id' => $userId]);
+                self::$permisosPerfil[$userId] = array_fill_keys($st->fetchAll(PDO::FETCH_COLUMN), true);
             } catch (Throwable $error) {
-                // Durante una migración pendiente se conservan de forma segura los permisos del rol.
+                self::$permisosPerfil[$userId] = null; // migración pendiente: se conservan los permisos del rol
             }
         }
-        $tiene = self::$permissionOverrides[$userId][$permission] ?? $allowed;
+        $tiene = self::$permisosPerfil[$userId] === null ? $allowed : isset(self::$permisosPerfil[$userId][$permission]);
         // 2026-10-26: sin "Ver" de la pantalla no hay editar, eliminar ni opciones en ella (aunque hubiera quedado marcado)
         if ($tiene && ($requerido = self::permisoRequerido($permission)) !== null) return self::can($requerido, $user);
         return $tiene;
@@ -167,7 +173,7 @@ class Auth {
         return $ver[$d['group']] ?? null;
     }
 
-    /** Quita de una lista los permisos cuya pantalla no se puede ver (al guardar permisos personalizados). */
+    /** Quita de una lista los permisos cuya pantalla no se puede ver (al guardar los permisos de un perfil). */
     public static function conDependencias(array $permisos): array {
         return array_values(array_filter($permisos, static fn($p) => ($r = self::permisoRequerido((string)$p)) === null || in_array($r, $permisos, true)));
     }
@@ -176,44 +182,44 @@ class Auth {
         static $catalogo = null;
         return $catalogo ??= [
             self::PERM_SUPERVISION_VIEW => ['group'=>'Supervisiones','label'=>'Ver el módulo de supervisiones','action'=>'ver','delegable'=>true],
-            self::PERM_SUPERVISION_VIEW_ALL => ['group'=>'Supervisiones','label'=>'Global: ver registros de todos los usuarios','delegable'=>true],
-            self::PERM_SUPERVISION_CREATE => ['group'=>'Supervisiones','label'=>'Editar: registrar y completar supervisiones','action'=>'editar','delegable'=>true],
-            self::PERM_SUPERVISION_ASSIGN => ['group'=>'Supervisiones','label'=>'Asignar pendientes a responsables','action'=>'editar','delegable'=>true],
-            self::PERM_SUPERVISION_FILTERS => ['group'=>'Supervisiones','label'=>'Usar filtros y configuración de columnas','delegable'=>true],
-            self::PERM_SUPERVISION_FILTER_DATE => ['group'=>'Supervisiones','label'=>'Rango de fechas','delegable'=>true],
-            self::PERM_SUPERVISION_FILTER_STATUS => ['group'=>'Supervisiones','label'=>'Estados de supervisión','delegable'=>true],
-            self::PERM_SUPERVISION_FILTER_COLUMNS => ['group'=>'Supervisiones','label'=>'Columnas visibles','delegable'=>true],
-            self::PERM_SUPERVISION_MAP => ['group'=>'Supervisiones','label'=>'Ver mapa y rutas de pendientes','delegable'=>true],
-            self::PERM_FORM_FINDINGS => ['group'=>'Supervisiones','label'=>'Abrir formulario de hallazgos','delegable'=>true],
-            self::PERM_FORM_CHECKLIST => ['group'=>'Supervisiones','label'=>'Abrir checklist técnico','delegable'=>true],
+            self::PERM_SUPERVISION_VIEW_ALL => ['boton'=>'Ver de todos','group'=>'Supervisiones','label'=>'Global: ver registros de todos los usuarios','delegable'=>true],
+            self::PERM_SUPERVISION_CREATE => ['boton'=>'Registrar','group'=>'Supervisiones','label'=>'Editar: registrar y completar supervisiones','action'=>'editar','delegable'=>true],
+            self::PERM_SUPERVISION_ASSIGN => ['boton'=>'Asignar pendientes','group'=>'Supervisiones','label'=>'Asignar pendientes a responsables','action'=>'editar','delegable'=>true],
+            self::PERM_SUPERVISION_FILTERS => ['boton'=>'Filtros','group'=>'Supervisiones','label'=>'Usar filtros y configuración de columnas','delegable'=>true],
+            self::PERM_SUPERVISION_FILTER_DATE => ['boton'=>'Fechas','group'=>'Supervisiones','label'=>'Rango de fechas','delegable'=>true],
+            self::PERM_SUPERVISION_FILTER_STATUS => ['boton'=>'Estados','group'=>'Supervisiones','label'=>'Estados de supervisión','delegable'=>true],
+            self::PERM_SUPERVISION_FILTER_COLUMNS => ['boton'=>'Columnas','group'=>'Supervisiones','label'=>'Columnas visibles','delegable'=>true],
+            self::PERM_SUPERVISION_MAP => ['boton'=>'Mapa y rutas','group'=>'Supervisiones','label'=>'Ver mapa y rutas de pendientes','delegable'=>true],
+            self::PERM_FORM_FINDINGS => ['boton'=>'Hallazgos','group'=>'Supervisiones','label'=>'Abrir formulario de hallazgos','delegable'=>true],
+            self::PERM_FORM_CHECKLIST => ['boton'=>'Checklist','group'=>'Supervisiones','label'=>'Abrir checklist técnico','delegable'=>true],
             self::PERM_OBSERVATION_VIEW => ['group'=>'Observaciones','label'=>'Ver observaciones','action'=>'ver','delegable'=>true],
-            self::PERM_OBSERVATION_RESPOND => ['group'=>'Observaciones','label'=>'Responder observaciones del partner (levantamiento con fotos)','action'=>'editar','delegable'=>true],
-            self::PERM_OBSERVATION_FILTER_DATE => ['group'=>'Observaciones','label'=>'Rango de fechas','delegable'=>true],
-            self::PERM_OBSERVATION_FILTER_ADVANCED => ['group'=>'Observaciones','label'=>'Partner, técnico, zona y estado','delegable'=>true],
-            self::PERM_OBSERVATION_REVIEW => ['group'=>'Observaciones','label'=>'Revisar y validar observaciones','action'=>'editar','delegable'=>true],
+            self::PERM_OBSERVATION_RESPOND => ['boton'=>'Responder','group'=>'Observaciones','label'=>'Responder observaciones del partner (levantamiento con fotos)','action'=>'editar','delegable'=>true],
+            self::PERM_OBSERVATION_FILTER_DATE => ['boton'=>'Fechas','group'=>'Observaciones','label'=>'Rango de fechas','delegable'=>true],
+            self::PERM_OBSERVATION_FILTER_ADVANCED => ['boton'=>'Filtros','group'=>'Observaciones','label'=>'Partner, técnico, zona y estado','delegable'=>true],
+            self::PERM_OBSERVATION_REVIEW => ['boton'=>'Validar','group'=>'Observaciones','label'=>'Revisar y validar observaciones','action'=>'editar','delegable'=>true],
             self::PERM_OBSERVATION_DELETE => ['group'=>'Observaciones','label'=>'Eliminar observaciones','action'=>'eliminar','delegable'=>true],
-            self::PERM_USERS_VIEW => ['group'=>'Usuarios y roles','label'=>'Ver usuarios (solo consulta; el partner ve solo a su partner y sus zonas)','action'=>'ver','delegable'=>true],
-            self::PERM_STAFF_MANAGE => ['group'=>'Usuarios y roles','label'=>'Agregar y editar personal (solo datos personales; sin acceso, rol ni activar)','action'=>'editar','delegable'=>true],
-            self::PERM_USERS_TEAM => ['group'=>'Usuarios y roles','label'=>'Registrar, editar y dar de baja a sus supervisores (directos o de partner; sus zonas, su área y sus permisos)','action'=>'editar','delegable'=>true],
+            self::PERM_USERS_VIEW => ['group'=>'Usuarios y perfiles','label'=>'Ver usuarios (solo consulta; el partner ve solo a su partner y sus zonas)','action'=>'ver','delegable'=>true],
+            self::PERM_STAFF_MANAGE => ['boton'=>'Datos personales','group'=>'Usuarios y perfiles','label'=>'Agregar y editar personal (solo datos personales; sin acceso, rol ni activar)','action'=>'editar','delegable'=>true],
+            self::PERM_USERS_TEAM => ['boton'=>'Su equipo','group'=>'Usuarios y perfiles','label'=>'Registrar, editar y dar de baja a sus supervisores (directos o de partner; sus zonas, su área y sus permisos)','action'=>'editar','delegable'=>true],
             self::PERM_DASHBOARD_VIEW => ['group'=>'Dashboard de supervisiones','label'=>'Ver Dashboard de supervisiones','action'=>'ver','delegable'=>true],
             self::PERM_PARTNERS_DASHBOARD => ['group'=>'Dashboard de partners','label'=>'Ver Dashboard de partners','action'=>'ver','delegable'=>true],
             self::PERM_PENDIENTES_VIEW => ['group'=>'Pendientes y rescates','label'=>'Ver Pendientes y rescates','action'=>'ver','delegable'=>true],
             self::PERM_ASISTENCIA_MATRIZ_VIEW => ['group'=>'Matriz de asistencia','label'=>'Ver la matriz de asistencia mensual','action'=>'ver','delegable'=>true],
             self::PERM_ASISTENCIA_MATRIZ_EDIT => ['group'=>'Matriz de asistencia','label'=>'Editar: corregir el código de un día','action'=>'editar','delegable'=>true],
             self::PERM_CLIMA_VIEW => ['group'=>'Clima','label'=>'Ver: indicador de clima y lluvias','action'=>'ver','delegable'=>true],
-            self::PERM_CLIMA_EDIT => ['group'=>'Clima','label'=>'Editar: avisar y cerrar lluvias en su zona (Mi turno)','action'=>'editar','delegable'=>true],
+            self::PERM_CLIMA_EDIT => ['boton'=>'Avisar lluvias','group'=>'Clima','label'=>'Editar: avisar y cerrar lluvias en su zona (Mi turno)','action'=>'editar','delegable'=>true],
             self::PERM_CLIMA_DELETE => ['group'=>'Clima','label'=>'Eliminar registros de lluvia','action'=>'eliminar','delegable'=>true],
             self::PERM_EXAMENES_VIEW => ['group'=>'Exámenes','label'=>'Ver: resultados y links de examen','action'=>'ver','delegable'=>true],
-            self::PERM_EXAMENES_EDIT => ['group'=>'Exámenes','label'=>'Editar: generar links de examen','action'=>'editar','delegable'=>true],
-            self::PERM_EXAMENES_DELETE => ['group'=>'Exámenes','label'=>'Eliminar: anular links de examen','action'=>'eliminar','delegable'=>true],
+            self::PERM_EXAMENES_EDIT => ['boton'=>'Generar links','group'=>'Exámenes','label'=>'Editar: generar links de examen','action'=>'editar','delegable'=>true],
+            self::PERM_EXAMENES_DELETE => ['boton'=>'Anular links','group'=>'Exámenes','label'=>'Eliminar: anular links de examen','action'=>'eliminar','delegable'=>true],
             self::PERM_CUADRILLAS_VIEW => ['group'=>'Técnicos y cuadrillas','label'=>'Ver: técnicos, cuadrillas y vencimientos','action'=>'ver','delegable'=>true],
             self::PERM_CUADRILLAS_EDIT => ['group'=>'Técnicos y cuadrillas','label'=>'Editar: cuadrillas y fechas de vencimiento','action'=>'editar','delegable'=>true],
-            self::PERM_CUADRILLAS_IMPORT => ['group'=>'Técnicos y cuadrillas','label'=>'Cargar y descargar técnicos líderes (Excel)','action'=>'editar','delegable'=>true],
+            self::PERM_CUADRILLAS_IMPORT => ['boton'=>'Cargar Excel','group'=>'Técnicos y cuadrillas','label'=>'Cargar y descargar técnicos líderes (Excel)','action'=>'editar','delegable'=>true],
             self::PERM_PARTNERS_VIEW => ['group'=>'Partners','label'=>'Ver partners','action'=>'ver','delegable'=>true],
             self::PERM_PARTNERS_EDIT => ['group'=>'Partners','label'=>'Editar: crear, renombrar, activar y desactivar partners','action'=>'editar','delegable'=>true],
             self::PERM_PARTNERS_DELETE => ['group'=>'Partners','label'=>'Eliminar partners (solo sin historial)','action'=>'eliminar','delegable'=>true],
             self::PERM_TIMELINE_VIEW => ['group'=>'Línea de tiempo','label'=>'Ver línea de tiempo','action'=>'ver','delegable'=>true],
-            self::PERM_ATTENDANCE_SELF => ['group'=>'Mi turno','label'=>'Registrar el propio turno','action'=>'editar','delegable'=>true],
+            self::PERM_ATTENDANCE_SELF => ['boton'=>'Registrar turno','group'=>'Mi turno','label'=>'Registrar el propio turno','action'=>'editar','delegable'=>true],
             self::PERM_USERS_MANAGE => ['group'=>'Reservado','label'=>'Administrar usuarios','delegable'=>false],
             self::PERM_SUPERVISION_DELETE => ['group'=>'Reservado','label'=>'Eliminar supervisiones','delegable'=>false],
             self::PERM_SUPERVISION_IMPORT => ['group'=>'Reservado','label'=>'Importar cancelaciones, corregir las pendientes cargadas y marcarlas con prioridad alta','delegable'=>false],
@@ -353,7 +359,7 @@ class Auth {
     /** El administrador libera la cuenta (también al restablecer la contraseña). */
     public static function unlockAccount(int $userId): void { self::clearFailedLogins($userId); }
 
-    /** IDs bloqueados, para mostrarlos en Usuarios y roles. */
+    /** IDs bloqueados, para mostrarlos en Usuarios y perfiles. */
     public static function lockedAccountIds(array $userIds): array {
         if (!$userIds) return [];
         $keys = []; foreach ($userIds as $id) $keys[self::accountKey((int)$id)] = (int)$id;

@@ -1,6 +1,7 @@
 <?php
 // 02_BACKEND/src/repositories/UsuarioRepository.php - Único lugar con SQL de usuarios, permisos y zonas.
-// Tablas: usuarios, partners, usuario_permisos, usuario_departamentos_acceso.
+// Tablas: usuarios, partners, perfiles (solo lectura; 2026-10-31), usuario_departamentos_acceso.
+// Perfil efectivo: el suyo o, si no tiene (personal sin acceso, datos anteriores), el perfil base de su rol.
 
 final class UsuarioRepository
 {
@@ -9,17 +10,18 @@ final class UsuarioRepository
     public function listar(array $f): array
     {
         $sql = "SELECT u.id, u.dni, u.nombres, u.apellidos, u.nombre_completo, u.usuario, u.email, u.telefono_personal,
-                       u.telefono_corporativo, u.rol, u.partner_id, p.nombre_partner, u.sede, u.zona, u.area_trabajo, u.cargo, u.activo,
-                       u.fecha_creacion, u.ultimo_acceso, u.debe_cambiar_password, u.por_activar
+                       u.telefono_corporativo, u.rol, u.partner_id, p.nombre_partner, u.sede, u.zona, u.area_trabajo, u.activo,
+                       u.fecha_creacion, u.ultimo_acceso, u.debe_cambiar_password, u.por_activar, pf.id AS perfil_id, pf.nombre AS perfil_nombre
                 FROM usuarios u
                 LEFT JOIN partners p ON p.id = u.partner_id
+                LEFT JOIN perfiles pf ON pf.id = COALESCE(u.perfil_id, (SELECT b.id FROM perfiles b WHERE b.rol_base = u.rol ORDER BY b.id LIMIT 1))
                 WHERE 1=1";
         $params = [];
         if ($f['q'] !== '') {
             $sql .= " AND (u.nombre_completo LIKE :q1 OR u.usuario LIKE :q2 OR u.dni LIKE :q3 OR u.email LIKE :q4)";
             foreach (['q1', 'q2', 'q3', 'q4'] as $k) $params[":$k"] = '%' . $f['q'] . '%';
         }
-        if ($f['rol'] !== '') { $sql .= ' AND u.rol = :rol'; $params[':rol'] = $f['rol']; }
+        if ($f['perfil'] > 0) { $sql .= ' AND pf.id = :perfil'; $params[':perfil'] = $f['perfil']; }
         // "Activos" incluye al personal recién registrado que espera acceso (sin usuario), para que no se pierda de vista.
         if ($f['estado'] === 'activos') $sql .= " AND (u.activo = 1 OR u.usuario IS NULL OR u.usuario = '')";
         if ($f['estado'] === 'inactivos') $sql .= " AND u.activo = 0 AND u.usuario IS NOT NULL AND u.usuario <> ''";
@@ -42,8 +44,8 @@ final class UsuarioRepository
 
     public function obtener(int $id): ?array
     {
-        $st = $this->pdo->prepare("SELECT u.*, p.nombre_partner
-            FROM usuarios u LEFT JOIN partners p ON p.id = u.partner_id WHERE u.id = :id LIMIT 1");
+        $st = $this->pdo->prepare("SELECT u.*, p.nombre_partner, pf.id AS perfil_id, pf.nombre AS perfil_nombre
+            FROM usuarios u LEFT JOIN partners p ON p.id = u.partner_id LEFT JOIN perfiles pf ON pf.id = COALESCE(u.perfil_id, (SELECT b.id FROM perfiles b WHERE b.rol_base = u.rol ORDER BY b.id LIMIT 1)) WHERE u.id = :id LIMIT 1");
         $st->execute([':id' => $id]);
         $u = $st->fetch();
         return $u ?: null;
@@ -68,8 +70,8 @@ final class UsuarioRepository
     public function crear(array $d, string $hash, bool $activo = true): int
     {
         $st = $this->pdo->prepare("INSERT INTO usuarios (dni, nombres, apellidos, nombre_completo, usuario, email, telefono_personal,
-                telefono_corporativo, password_hash, rol, partner_id, sede, zona, area_trabajo, cargo, procesos_copiados, modalidad, turno, activo, por_activar, fecha_creacion)
-            VALUES (:dni, :nom, :ape, :nc, :usr, :email, :tp, :tc, :hash, :rol, :pid, :sede, :zona, :area, :cargo, :procesos, :mod, :turno, :activo, :por_activar, NOW())");
+                telefono_corporativo, password_hash, rol, perfil_id, partner_id, sede, zona, area_trabajo, procesos_copiados, modalidad, turno, activo, por_activar, fecha_creacion)
+            VALUES (:dni, :nom, :ape, :nc, :usr, :email, :tp, :tc, :hash, :rol, :perfil, :pid, :sede, :zona, :area, :procesos, :mod, :turno, :activo, :por_activar, NOW())");
         $st->execute($this->campos($d) + [':hash' => $hash, ':activo' => $activo ? 1 : 0, ':por_activar' => $activo ? 0 : 1]);
         return (int)$this->pdo->lastInsertId();
     }
@@ -82,11 +84,11 @@ final class UsuarioRepository
     {
         // Por defecto: turno Día y modalidad Presencial (el administrador puede cambiarlos al completar el acceso).
         $st = $this->pdo->prepare("INSERT INTO usuarios (dni, nombres, apellidos, nombre_completo, usuario, email, telefono_personal,
-                telefono_corporativo, area_trabajo, cargo, turno, modalidad, password_hash, rol, partner_id, sede, zona, activo, fecha_creacion)
-            VALUES (:dni, :nom, :ape, :nc, NULL, :email, :tp, :tc, :area, :cargo, 'Día', 'PRESENCIAL', :hash, 'Supervisor', :pid, :sede, :zona, 0, NOW())");
+                telefono_corporativo, area_trabajo, turno, modalidad, password_hash, rol, partner_id, sede, zona, activo, fecha_creacion)
+            VALUES (:dni, :nom, :ape, :nc, NULL, :email, :tp, :tc, :area, 'Día', 'PRESENCIAL', :hash, 'Supervisor', :pid, :sede, :zona, 0, NOW())");
         $st->execute([':dni' => $d['dni'], ':nom' => $d['nombres'], ':ape' => $d['apellidos'], ':nc' => $d['nombres'] . ' ' . $d['apellidos'],
             ':email' => $d['email'], ':tp' => $d['telefono_personal'] ?: null, ':tc' => $d['telefono_corporativo'] ?: null, ':area' => $d['area_trabajo'] ?: null,
-            ':cargo' => ($d['cargo'] ?? '') ?: null, ':hash' => $hash,
+            ':hash' => $hash,
             ':pid' => $d['partner_id'] ?: null, ':sede' => $d['sede'] ?: null,
             ':zona' => $d['sede'] === '' ? 'Provincias' : mb_convert_case(mb_strtolower($d['sede']), MB_CASE_TITLE)]);
         return (int)$this->pdo->lastInsertId();
@@ -96,10 +98,10 @@ final class UsuarioRepository
     public function actualizarPersonal(int $id, array $d): void
     {
         $this->pdo->prepare("UPDATE usuarios SET dni = :dni, nombres = :nom, apellidos = :ape, nombre_completo = :nc, email = :email,
-                telefono_personal = :tp, telefono_corporativo = :tc, area_trabajo = :area, cargo = :cargo WHERE id = :id")
+                telefono_personal = :tp, telefono_corporativo = :tc, area_trabajo = :area WHERE id = :id")
             ->execute([':dni' => $d['dni'], ':nom' => $d['nombres'], ':ape' => $d['apellidos'], ':nc' => $d['nombres'] . ' ' . $d['apellidos'],
                 ':email' => $d['email'], ':tp' => $d['telefono_personal'] ?: null, ':tc' => $d['telefono_corporativo'] ?: null,
-                ':area' => $d['area_trabajo'] ?: null, ':cargo' => ($d['cargo'] ?? '') ?: null, ':id' => $id]);
+                ':area' => $d['area_trabajo'] ?: null, ':id' => $id]);
     }
 
     public function activar(int $id): void
@@ -125,8 +127,8 @@ final class UsuarioRepository
     public function actualizar(int $id, array $d): void
     {
         $st = $this->pdo->prepare("UPDATE usuarios SET dni = :dni, nombres = :nom, apellidos = :ape, nombre_completo = :nc, usuario = :usr,
-                email = :email, telefono_personal = :tp, telefono_corporativo = :tc, rol = :rol, partner_id = :pid, sede = :sede,
-                zona = :zona, area_trabajo = :area, cargo = :cargo, procesos_copiados = :procesos, modalidad = :mod, turno = :turno WHERE id = :id");
+                email = :email, telefono_personal = :tp, telefono_corporativo = :tc, rol = :rol, perfil_id = :perfil, partner_id = :pid, sede = :sede,
+                zona = :zona, area_trabajo = :area, procesos_copiados = :procesos, modalidad = :mod, turno = :turno WHERE id = :id");
         $st->execute($this->campos($d) + [':id' => $id]);
     }
 
@@ -184,29 +186,6 @@ final class UsuarioRepository
         return $id === false ? null : (int)$id;
     }
 
-    /** Permisos personalizados: borra los delegables y escribe el estado explícito de cada uno. */
-    public function guardarPermisos(int $userId, array $permitidos, array $delegables, int $otorgadoPor): void
-    {
-        $in = implode(',', array_fill(0, count($delegables), '?'));
-        $this->pdo->prepare("DELETE FROM usuario_permisos WHERE usuario_id = ? AND permiso IN ($in)")->execute(array_merge([$userId], $delegables));
-        $ins = $this->pdo->prepare('INSERT INTO usuario_permisos (usuario_id, permiso, permitido, otorgado_por, fecha_registro, fecha_actualizacion) VALUES (:u, :p, :ok, :by, NOW(), NOW())');
-        $set = array_flip($permitidos);
-        foreach ($delegables as $perm) $ins->execute([':u' => $userId, ':p' => $perm, ':ok' => isset($set[$perm]) ? 1 : 0, ':by' => $otorgadoPor]);
-    }
-
-    /** Vuelve a los permisos por defecto del rol. */
-    public function limpiarPermisos(int $userId): void
-    {
-        $this->pdo->prepare('DELETE FROM usuario_permisos WHERE usuario_id = :u')->execute([':u' => $userId]);
-    }
-
-    public function permisosPersonalizados(int $userId): array
-    {
-        $st = $this->pdo->prepare('SELECT permiso, permitido FROM usuario_permisos WHERE usuario_id = :u');
-        $st->execute([':u' => $userId]);
-        return array_map('boolval', array_column($st->fetchAll(), 'permitido', 'permiso'));
-    }
-
     public function zonasAdicionales(int $userId): array
     {
         $st = $this->pdo->prepare('SELECT UPPER(departamento) FROM usuario_departamentos_acceso WHERE usuario_id = :u AND activo = 1 ORDER BY departamento');
@@ -237,18 +216,13 @@ final class UsuarioRepository
     }
 
 
-    public function conteoPorRol(): array
-    {
-        return array_map('intval', array_column($this->pdo->query("SELECT rol, COUNT(*) n FROM usuarios WHERE activo = 1 GROUP BY rol")->fetchAll(), 'n', 'rol'));
-    }
-
     private function campos(array $d): array
     {
         return [
             ':dni' => $d['dni'], ':nom' => $d['nombres'], ':ape' => $d['apellidos'], ':nc' => $d['nombres'] . ' ' . $d['apellidos'],
             ':usr' => $d['usuario'], ':email' => $d['email'], ':tp' => $d['telefono_personal'] ?: null, ':tc' => $d['telefono_corporativo'] ?: null,
-            ':rol' => $d['rol'], ':pid' => $d['partner_id'] ?: null, ':sede' => $d['sede'] ?: null, ':zona' => $d['sede'] === 'PROVINCIAS' || $d['sede'] === '' ? 'Provincias' : mb_convert_case(mb_strtolower($d['sede']), MB_CASE_TITLE),
-            ':area' => $d['area_trabajo'] ?: null, ':cargo' => ($d['cargo'] ?? '') ?: null, ':procesos' => ($d['procesos_copiados'] ?? '') ?: null,
+            ':rol' => $d['rol'], ':perfil' => $d['perfil_id'], ':pid' => $d['partner_id'] ?: null, ':sede' => $d['sede'] ?: null, ':zona' => $d['sede'] === 'PROVINCIAS' || $d['sede'] === '' ? 'Provincias' : mb_convert_case(mb_strtolower($d['sede']), MB_CASE_TITLE),
+            ':area' => $d['area_trabajo'] ?: null, ':procesos' => ($d['procesos_copiados'] ?? '') ?: null,
             ':mod' => $d['modalidad'] ?: null, ':turno' => $d['turno'] ?: null,
         ];
     }

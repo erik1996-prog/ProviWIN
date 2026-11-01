@@ -3,7 +3,7 @@ name: sgs-diseno
 description: Sistema de diseño oficial de ProviWIN / SGS, versión 2.0 (colores WIN, tipografía única Nunito, menú por secciones, componentes, textos y verificación). Usar SIEMPRE antes de crear, modificar o revisar cualquier pantalla, sección, menú, modal, tabla, indicador, formulario, ficha o estilo en C:\xampp\htdocs\ProviWIN — también al corregir algo "que se ve tosco, grande o desordenado".
 ---
 
-# Sistema de diseño SGS v2.0 (2026-10-15)
+# Sistema de diseño SGS v3.0 (2026-10-31; v2.0 del 2026-10-15)
 
 **Objetivo:** que todo el sistema se vea **profesional, limpio y liviano**, igual en cada pantalla. El usuario pidió
 expresamente: "todo lo que se vea tosco o grande, rediséñalo" y "el tipo de letra a nivel de todo el sistema".
@@ -39,34 +39,37 @@ expresamente: "todo lo que se vea tosco o grande, rediséñalo" y "el tipo de le
 Forma: `--sgs-radius-sm` 10px (controles) · `--sgs-radius` 16px (tarjetas) · `--sgs-radius-lg` 20px (modales).
 Bootstrap ya está mapeado: `btn-*`, `badge bg-*`, `alert-*`, `text-*` funcionan sin colores propios.
 
-## 3. Tipografía v2 — una sola letra en TODO el sistema (sección 43)
+## 3. Tipografía v3 — una sola letra en TODO el sistema (secciones 43 y 64)
+- **v3 (2026-10-31, pedido del usuario):** "letras más chiquitas, más limpio", como el sistema de referencia (NetStack) que mostró. Misma letra y mismos colores; tamaños y pesos más livianos (sección 64 de `sgs-theme.css`).
 - **Solo Nunito** (`var(--sgs-font)`). `--sgs-font-display` apunta a la misma letra. **Montserrat se eliminó**: no volver a cargarla
   ni usarla. Las fuentes "MADETommySoft" y "Panton" nunca existieron (no hay archivos): no declararlas.
 - Google Fonts: `family=Nunito:wght@400;500;600;700;800&display=swap` (index.php, login.php, cambiar_password.php).
-- **Pesos:** texto 500 · etiquetas, botones, pestañas 600 · títulos, cifras, encabezados de tabla, insignias, botón principal 700.
+- **Pesos:** texto y celdas 400 · menú 500 (activo 600) · etiquetas, botones, pestañas 600 · títulos, cifras, encabezados de tabla, insignias, botón principal 700.
   **Nunca 800 ni 900** (se ve tosco). `fw-bolder`, `strong`, `b` quedan en 700.
 
 | Elemento | Tamaño / peso |
 |---|---|
-| Título de pantalla (barra superior) | 20px / 700 · descripción 12.5px / 500 gris |
-| Título de tarjeta `<h5>`, título de modal | 15.5px / 700 |
-| `h2` / `h3`-`h4` dentro de pantallas | 18px / 16.5px, 700 |
-| Texto y celdas de tabla | 14px / 13.5px, 500 |
-| Etiqueta de campo `.form-label` | ~12.5px / 600, siempre ARRIBA del campo |
-| Botón | 13.5px / 600 (principal `btn-win` 700) |
-| Encabezado de tabla, etiqueta de indicador | 11.5px / 700, mayúsculas, gris, `letter-spacing .04em` |
-| Cifra de indicador `.sgs-kpi-value` | 24px / 700, `tabular-nums` (texto largo: `.is-text` 15.5px) |
-| Menú lateral | 14.5px / 600 (activo 700); subopciones 14px |
+| Título de pantalla (barra superior) | 18px / 700 · descripción 12px / 400 gris |
+| Título de tarjeta `<h5>`, título de modal | 14.5px / 700 |
+| `h2` / `h3`-`h4` dentro de pantallas | 16px / 15px, 700 |
+| Texto y celdas de tabla | 13px / 12.5px, 400 |
+| Etiqueta de campo `.form-label` | 12px / 600, siempre ARRIBA del campo; campo 13px |
+| Botón | 13px / 600 (principal `btn-win` 700) · insignia 11px |
+| Encabezado de tabla, etiqueta de indicador | 10.5px / 700, mayúsculas, gris, `letter-spacing .04em` |
+| Cifra de indicador `.sgs-kpi-value` | 22px / 700, `tabular-nums` (texto largo: `.is-text` 14.5px) |
+| Menú lateral | 13.5px / 500 (activo 600); subopciones 13px |
 
 Para comprobar en todas las pantallas: medir con JavaScript (`getComputedStyle`) que ningún texto visible pase de 700.
 
 ## 4. Estructura de la aplicación
-### Menú lateral (`03_FRONTEND/src/layouts/sidebar.php`, secciones 3, 42, 42b, 42c)
-- **Ancho 228 px**, naranja con logo WIN blanco **centrado** y subtítulo en una línea.
+### Menú lateral (`03_FRONTEND/src/layouts/sidebar.php`, secciones 3, 42, 42b, 42c y 64)
+- **Ancho 228 px**, naranja con logo WIN blanco **centrado arriba** y subtítulo en una línea.
+- **v3 (2026-10-31):** arriba solo el logo. Abajo, en este orden: "Mi información", "Instalar app", "Cerrar sesión", la versión y, **al final de todo, el usuario** (círculo con iniciales o foto, punto de turno, nombre y solo el **nombre de su perfil**, p. ej. "Administrador").
 - **Secciones por tarea, en acordeón** (al abrir una se cierra la otra; la de la pantalla actual empieza abierta):
   Inicio (Mi turno) · Supervisiones · Seguimiento (Línea de tiempo, Monitor de turnos) · Observaciones (Registro, Control y
-  recurrencia) · Asistencia (Vacaciones y licencias, Matriz de asistencia) · Personal (Usuarios y roles, Técnicos y cuadrillas,
-  Partners) · Indicadores (Dashboard de supervisiones, Dashboard de partners, Pendientes y rescates, Clima, Exámenes).
+  recurrencia) · Indicadores (Dashboard de supervisiones, Dashboard de partners, Pendientes y rescates, Clima, Exámenes) ·
+  Asistencia (Vacaciones y licencias, Matriz de asistencia) · Personal (Usuarios y perfiles, Técnicos y cuadrillas, Partners).
+  (Orden del usuario, 2026-10-31: el supervisor ve primero su turno y sus supervisiones; los indicadores van antes de Asistencia.)
   (2026-10-20: todo dashboard nuevo va en Indicadores. 2026-10-29, regla del usuario: primero el turno y las supervisiones,
   los indicadores al final; lo de asistencia del personal va en Asistencia.)
 - **Dashboards**: usar las piezas comunes — `config/dashboard.php` (filtros, consultas agregadas, tabla por páginas, Excel) y

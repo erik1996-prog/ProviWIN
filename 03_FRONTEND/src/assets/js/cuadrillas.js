@@ -225,6 +225,29 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!confirm('¿Aplicar los cambios de la vista previa? Los técnicos que no vienen en el archivo quedarán inhabilitados.')) return;
     procesar('aplicar');
   });
+  // T2 que cambia de partner (2026-10-31, api/tecnicos.php?action=cambiar_partner_t2): deja su cuadrilla anterior; luego lo
+  // agregan a la nueva aquí o en una supervisión.
+  const fPartnerT2 = $('fPartnerT2');
+  document.addEventListener('click', (ev) => {
+    const b = ev.target.closest('[data-t2-partner]'); if (!b || !fPartnerT2) return;
+    fPartnerT2.reset(); $('pt2Error').classList.add('d-none');
+    $('pt2Id').value = b.dataset.t2Partner; $('pt2Nombre').textContent = b.dataset.nombre;
+    [...$('pt2Partner').options].forEach((o) => { o.disabled = o.value !== '' && o.value === b.dataset.partner; });
+    $('pt2Ayuda').textContent = (b.dataset.cuadrilla ? `Dejará la cuadrilla de ${b.dataset.cuadrilla}. ` : '') + 'Después agréguelo a su nueva cuadrilla aquí (Editar cuadrilla) o al registrar una supervisión.';
+    bootstrap.Modal.getOrCreateInstance($('mPartnerT2')).show();
+  });
+  fPartnerT2?.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const error = $('pt2Error');
+    if (!$('pt2Partner').value) { error.textContent = 'Elija el nuevo partner.'; error.classList.remove('d-none'); return; }
+    const boton = $('btnGuardarPartnerT2'); boton.disabled = true;
+    try {
+      const r = await enviar('cambiar_partner_t2', new FormData(fPartnerT2));
+      window.showToast(r.message, 'success');
+      window.location.reload();
+    } catch (e) { error.textContent = e.message; error.classList.remove('d-none'); }
+    finally { boton.disabled = false; }
+  });
   // Nuevo técnico (2026-10-29): un técnico líder (T1) o de apoyo (T2) suelto, sin el Excel (api/tecnicos.php?action=crear_tecnico).
   const fNuevo = $('fNuevoTecnico');
   $('btnNuevoTecnico')?.addEventListener('click', () => {

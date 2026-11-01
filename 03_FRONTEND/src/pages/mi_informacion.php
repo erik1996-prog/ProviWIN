@@ -16,6 +16,10 @@ $initials = mb_strtoupper(mb_substr(trim((string)($profile['nombres'] ?? $fullNa
 $avatar = trim((string)($profile['avatar'] ?? ''));
 $hasAvatar = $avatar !== '' && !str_contains($avatar, 'default-avatar') && is_file(SHARED_FILES_PATH . '/' . $avatar);
 $rolPerfil = (string)($profile['rol'] ?? '');
+// Nombre del perfil (2026-11-01): el suyo o, sin perfil, el perfil base de su rol
+$stPerfil = $pdo->prepare('SELECT p.nombre FROM usuarios u JOIN perfiles p ON p.id = COALESCE(u.perfil_id, (SELECT b.id FROM perfiles b WHERE b.rol_base = u.rol ORDER BY b.id LIMIT 1)) WHERE u.id = :id');
+$stPerfil->execute([':id' => $profileUserId]);
+$perfilNombre = (string)($stPerfil->fetchColumn() ?: Auth::etiquetaRol($rolPerfil));
 $partnerName = trim((string)($profile['nombre_partner'] ?? ''));
 $isDirectStaff = $partnerName === '' || in_array(mb_strtoupper($partnerName), ['WIN', 'WIN DIRECTO'], true);
 $organizacion = $isDirectStaff ? 'WIN · Personal directo' : $partnerName . ' · Partner';
@@ -105,7 +109,7 @@ $grupos = [
         ['Teléfono corporativo', $profile['telefono_corporativo'] ?? '', 'tel'],
     ]],
     ['Datos laborales', 'bi-briefcase', [
-        ['Usuario', $profile['usuario'] ?? ''], ['Rol', Auth::etiquetaRol($rolPerfil)], ['Organización', $organizacion],
+        ['Usuario', $profile['usuario'] ?? ''], ['Perfil', $perfilNombre], ['Organización', $organizacion],
         ['Área de trabajo', $profile['area_trabajo'] ?? ''], 
         ['Modalidad', $profile['modalidad'] ?? ''], ['Turno', $profile['turno'] ?? ''],
     ]],
@@ -179,7 +183,7 @@ $e = static fn($v): string => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         
         <h3 class="sgs-pcard-name"><?= $e($fullName ?: 'Usuario') ?></h3>
         <div class="sgs-pcard-chips">
-          <span class="sgs-chip sgs-chip--brand"><i class="bi bi-person-badge"></i><?= $e($rolPerfil ? Auth::etiquetaRol($rolPerfil) : 'Sin rol') ?></span>
+          <span class="sgs-chip sgs-chip--brand"><i class="bi bi-person-badge"></i><?= $e($perfilNombre ?: 'Sin perfil') ?></span>
           <span class="sgs-chip"><i class="bi bi-building"></i><?= $e($isDirectStaff ? 'WIN Directo' : $partnerName) ?></span>
           <span class="sgs-chip <?= $activo ? 'sgs-chip--ok' : 'sgs-chip--off' ?>"><?= $activo ? 'Cuenta activa' : 'Cuenta inactiva' ?></span>
         </div>
@@ -271,6 +275,18 @@ $e = static fn($v): string => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
           <div class="col-12"><div class="alert d-none mb-0" id="pwMsg" role="alert"></div></div>
         </form>
       </div>
+      <?php if (Auth::esCuentaPrincipal($profileUserId) && !Auth::verComoActivo()): ?>
+      <!-- Respaldo de la base de datos (2026-11-01): solo el administrador general; api/respaldos.php -->
+      <div class="card p-3 p-md-4" id="cardRespaldos">
+        <div class="sgs-section-head"><i class="bi bi-database-down"></i><h2>Respaldo de la base de datos</h2></div>
+        <p class="text-muted small mb-3">El sistema hace un respaldo automático cada 6 horas y conserva los de la última semana. Puede crear uno ahora y descargarlo. Se restaura en phpMyAdmin → Importar. Guárdelo en un lugar seguro: trae todos los datos del sistema.</p>
+        <div class="mb-3"><button type="button" class="btn btn-win" id="btnCrearRespaldo"><i class="bi bi-plus-lg"></i>Crear respaldo ahora</button></div>
+        <div class="table-responsive"><table class="table table-hover mb-0 align-middle sgs-tabla-tarjetas">
+          <thead><tr><th>Fecha</th><th>Archivo</th><th class="text-end">Tamaño</th><th class="text-end">Descargar</th></tr></thead>
+          <tbody id="respaldosBody"><tr><td colspan="4" class="text-center text-muted py-3">Cargando…</td></tr></tbody>
+        </table></div>
+      </div>
+      <?php endif; ?>
       
     </div>
   </div>
