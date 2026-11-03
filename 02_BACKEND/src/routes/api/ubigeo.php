@@ -33,10 +33,11 @@ if ($action === 'provincias') {
 if ($action === 'distritos') {
     $dep = $_GET['departamento'] ?? '';
     $prov = $_GET['provincia'] ?? '';
-    $stmt = $pdo->prepare("SELECT DISTINCT distrito FROM ubigeo WHERE departamento = :dep AND provincia = :prov ORDER BY distrito ASC");
+    $stmt = $pdo->prepare("SELECT distrito, segmento_servicio FROM ubigeo WHERE departamento = :dep AND provincia = :prov ORDER BY distrito ASC");
     $stmt->execute([':dep' => $dep, ':prov' => $prov]);
-    $data = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    echo json_encode(['status' => 'success', 'data' => $data]);
+    $segmentos = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    // 'segmentos' (2026-11-03): ZAV o Regular de cada distrito, para llenar solo el segmento del servicio
+    echo json_encode(['status' => 'success', 'data' => array_keys($segmentos), 'segmentos' => $segmentos]);
     exit;
 }
 

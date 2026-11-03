@@ -357,7 +357,7 @@ try {
             latitud, longitud
         ) VALUES (
             :code, NOW(), NOW(), :uploader, :assigned_by, :zone,
-            'Líder', 'Regular', :dep, :prov, :dist, :direccion,
+            'Líder', :segment, :dep, :prov, :dist, :direccion,
             NULL, NULL, :ticket, :cancel_date, 'En frío',
             :partner, :tec1_id, :tec1_nombre, :tec1_dni, NULL, NULL,
             'Ninguno', NULL, NULL, NULL,
@@ -373,6 +373,7 @@ try {
             ':uploader' => $assignedSupervisor['id'],
             ':assigned_by' => $user['id'],
             ':zone' => $zone,
+            ':segment' => $ubicacion['error'] === '' ? $ubicacion['segmento'] : 'Regular', // ZAV o Regular según el distrito (2026-11-03)
             ':dep' => $department,
             ':prov' => $province,
             ':dist' => $district,

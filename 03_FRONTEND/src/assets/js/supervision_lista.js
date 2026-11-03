@@ -2714,8 +2714,8 @@
             </select>
           </div>
           <div class="field-bitacora">
-            <label for="edit_tipo_servicio">Tipo de servicio</label>
-            <select id="edit_tipo_servicio" name="tipo_servicio">
+            <label for="edit_tipo_servicio">Segmento del servicio</label>
+            <select id="edit_tipo_servicio" name="tipo_servicio" class="sgs-campo-bloqueado" tabindex="-1" aria-readonly="true" title="Sale del distrito">
               <option value="Regular" ${rec.tipo_servicio==='Regular'?'selected':''}>Regular</option>
               <option value="ZAV" ${rec.tipo_servicio==='ZAV'?'selected':''}>ZAV</option>
             </select>
@@ -4131,7 +4131,7 @@
     }
 
     // Bloquear campos importados que no deben editarse (según requerimiento)
-    const lockedFields = ['new_tipo_supervision','new_derivacion','new_tipo_servicio','new_tipo_sup','new_dep','new_prov','new_dis','new_ticket_codigo','new_partner'];
+    const lockedFields = ['new_tipo_supervision','new_derivacion','new_tipo_sup','new_dep','new_prov','new_dis','new_ticket_codigo','new_partner'];
     lockedFields.forEach(id => {
       const el = document.getElementById(id);
       if (el) {
@@ -4337,6 +4337,7 @@
   }
 
   // UBIGEO DINÁMICO PARA PANTALLA NUEVA
+  let segmentosDistrito = {}; // distrito → ZAV / Regular de la provincia elegida
   async function cargarUbigeoNew() {
     const cboDep = document.getElementById('new_dep');
     const cboProv = document.getElementById('new_prov');
@@ -4408,7 +4409,13 @@
             const val = (typeof di === 'object' && di !== null) ? (di.distrito || di) : di;
             cboDis.innerHTML += `<option value="${val}">${val}</option>`;
           });
+          segmentosDistrito = d.segmentos || {};
         }
+      };
+      // Segmento del servicio (2026-11-03): ZAV o Regular según el distrito elegido
+      cboDis.onchange = () => {
+        const segmento = document.getElementById('new_tipo_servicio');
+        if (segmento) segmento.value = segmentosDistrito[cboDis.value] || 'Regular';
       };
       if (restrictDepartment && cboDep.value) await loadProvinces();
     } catch(e){}

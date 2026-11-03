@@ -296,14 +296,6 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
             </select>
           </div>
 
-          <div class="field-bitacora">
-            <label for="new_tipo_servicio">Segmento del servicio *</label>
-            <select id="new_tipo_servicio" name="tipo_servicio" required>
-              <option value="Regular">Regular</option>
-              <option value="ZAV">ZAV (Zona de Alto Valor)</option>
-            </select>
-          </div>
-
           <div class="field-bitacora" id="new_field_modalidad">
             <label for="new_tipo_sup">Modalidad de ejecución *</label>
             <select id="new_tipo_sup" name="tipo_supervision_inicial" required>
@@ -336,6 +328,16 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
             <select id="new_dis" name="distrito" required>
               <option value="">Seleccione provincia</option>
             </select>
+          </div>
+
+          <!-- Segmento del servicio (2026-11-03): no se elige, sale del distrito (ZAV o Regular). El servidor lo vuelve a calcular. -->
+          <div class="field-bitacora">
+            <label for="new_tipo_servicio">Segmento del servicio</label>
+            <select id="new_tipo_servicio" name="tipo_servicio" class="sgs-campo-bloqueado" tabindex="-1" aria-readonly="true" aria-describedby="new_tipo_servicio_ayuda">
+              <option value="Regular">Regular</option>
+              <option value="ZAV">ZAV (Zona de Alto Valor)</option>
+            </select>
+            <small class="text-muted" id="new_tipo_servicio_ayuda">Se pone solo según el distrito.</small>
           </div>
         </div>
 

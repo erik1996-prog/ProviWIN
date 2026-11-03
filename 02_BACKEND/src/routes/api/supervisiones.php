@@ -469,10 +469,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
 
     // PASO 1: Datos Generales
     $derivacionOrden = !empty($input['derivacion_orden']) ? $input['derivacion_orden'] : 'Autogestión';
-    $tipoServicio = !empty($input['tipo_servicio']) ? $input['tipo_servicio'] : 'Regular';
     $departamento = !empty($input['departamento']) ? $input['departamento'] : 'LIMA';
     $provincia = !empty($input['provincia']) ? $input['provincia'] : 'LIMA';
     $distrito = !empty($input['distrito']) ? $input['distrito'] : 'LIMA';
+    // Segmento del servicio (2026-11-03): no se elige, sale del distrito (ZAV o Regular, tabla ubigeo)
+    require_once __DIR__ . '/../../config/zonas_peru.php';
+    $tipoServicio = sgsSegmentoServicio($pdo, (string)$departamento, (string)$provincia, (string)$distrito);
     if ($requestedEditId === 0
         && $workflowUser['rol'] === Auth::ROLE_SUPERVISOR
         && !empty($workflowUser['is_win_directo'])
@@ -2006,11 +2008,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'corregir_pendiente') {
         [$t1Id, $t1Nombre, $t1Dni] = $tecnico === 'actual' ? [$sup['tecnico1_id'], $sup['tecnico1_nombre'], $sup['tecnico1_dni']]
             : ($lider ? [(int)$lider['id'], $lider['nombre_tecnico'], preg_match('/^\d{8}$/', (string)$lider['dni']) ? $lider['dni'] : null] : [null, null, null]);
         $pdo->prepare('UPDATE supervisiones SET ticket_codigo = :ticket, partner_id = :partner, clasificacion_supervision = :tipo, area_servicio = :tipo2,
-                departamento = :dep, provincia = :prov, distrito = :dist, zona_asignacion = :zona, direccion = :dir, supervisor_id = :sup,
+                departamento = :dep, provincia = :prov, distrito = :dist, tipo_servicio = :seg, zona_asignacion = :zona, direccion = :dir, supervisor_id = :sup,
                 tecnico1_id = :t1id, tecnico1_nombre = :t1n, tecnico1_dni = :t1d, fecha_cancelacion = :fecha, tipificacion_cancelacion = :motivo,
                 observacion_previa = :obs, latitud = :lat, longitud = :lng WHERE id = :id')
             ->execute([':ticket' => $ticket, ':partner' => $partner['id'], ':tipo' => $tipo, ':tipo2' => $tipo, ':dep' => $ubicacion['departamento'],
-                ':prov' => $ubicacion['provincia'] ?: null, ':dist' => $ubicacion['distrito'] ?: null,
+                ':prov' => $ubicacion['provincia'] ?: null, ':dist' => $ubicacion['distrito'] ?: null, ':seg' => $ubicacion['segmento'],
                 ':zona' => zonaAsignacionCancelacion($ubicacion['departamento'], $ubicacion['provincia'], $ubicacion['distrito']),
                 ':dir' => $direccion !== '' ? $direccion : null, ':sup' => $supervisorId, ':t1id' => $t1Id, ':t1n' => $t1Nombre, ':t1d' => $t1Dni,
                 ':fecha' => $fecha, ':motivo' => $motivo !== '' ? $motivo : null, ':obs' => $obsPrevia !== '' ? $obsPrevia : null,

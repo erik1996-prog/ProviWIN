@@ -4,6 +4,17 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Segmento del servicio (ZAV / Regular) según el distrito (2026-11-03)
+- **Cambiado**: en "Nueva supervisión", el "Segmento del servicio" va después de Departamento, Provincia y Distrito, y se pone solo al elegir el distrito. Ya no se elige a mano.
+  - **ZAV**: Barranco, Jesús María, La Molina, Lince, Magdalena del Mar, Miraflores, Pueblo Libre, San Borja, San Isidro, San Miguel, Santiago de Surco y Surquillo (Lima).
+  - **Regular**: todos los demás distritos de todos los departamentos.
+- El servidor también lo calcula del distrito al guardar una supervisión, al cargar el Excel de cancelaciones y al corregir una pendiente. En la edición de una supervisión el segmento se muestra bloqueado.
+- Cambio de base `2026-11-03_02_segmento_zav_por_distrito`:
+  - columna nueva `ubigeo.segmento_servicio`, con los 12 distritos ZAV;
+  - las pendientes sin iniciar toman el segmento de su distrito;
+  - las supervisiones ya registradas no se tocan.
+- Prueba nueva: `segmento_zav_test`.
+
 ### Editar y eliminar técnicos de apoyo (T2) (2026-11-03)
 - **Corregido**: en Técnicos y cuadrillas → Técnicos de apoyo (T2) solo se podía cambiar de partner. Ahora cada T2 tiene:
   - **Editar** (como el T1): nombre, DNI, celular, estado, observación, **zona (provincia)** y **partner** (permiso "Editar" de la pantalla). Si cambia de partner, o pasa a otra zona que la de su líder, deja su cuadrilla. Quien tiene zona propia solo edita los T2 de su zona y solo los pasa a su zona. Reemplaza al botón aparte "Cambiar de partner" (`cambiar_partner_t2` → `editar_t2`);

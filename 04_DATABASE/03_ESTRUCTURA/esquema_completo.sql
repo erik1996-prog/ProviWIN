@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS `ubigeo` (
   `departamento` varchar(100) NOT NULL,
   `provincia` varchar(100) NOT NULL,
   `distrito` varchar(100) NOT NULL,
+  `segmento_servicio` enum('Regular','ZAV') NOT NULL DEFAULT 'Regular' COMMENT 'Segmento del servicio del distrito: ZAV (Zona de Alto Valor) o Regular',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_ubigeo_departamento_provincia_distrito` (`departamento`,`provincia`,`distrito`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Departamentos, provincias y distritos de operación';

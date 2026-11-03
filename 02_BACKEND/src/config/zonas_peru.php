@@ -111,14 +111,15 @@ function sgsDepartamentoOficial(string $texto): string {
  * misma del formulario de supervisión) (2026-10-26). Compara sin tildes ni mayúsculas y devuelve los nombres tal como
  * están en el catálogo. Si algo no existe, 'error' dice qué y, si es de otro lugar del Perú, dónde está
  * ("HUANCAYO no es un departamento: es una provincia de JUNÍN"). Provincia y distrito vacíos no se revisan.
- * @return array{departamento: string, provincia: string, distrito: string, error: string}
+ * 'segmento' (2026-11-03): Regular o ZAV, el del distrito (sin distrito, Regular).
+ * @return array{departamento: string, provincia: string, distrito: string, segmento: string, error: string}
  */
 function sgsValidarUbicacion(PDO $pdo, string $departamento, string $provincia = '', string $distrito = ''): array {
     static $catalogo = null;
-    $catalogo ??= $pdo->query('SELECT departamento, provincia, distrito FROM ubigeo')->fetchAll(PDO::FETCH_ASSOC);
+    $catalogo ??= $pdo->query('SELECT departamento, provincia, distrito, segmento_servicio FROM ubigeo')->fetchAll(PDO::FETCH_ASSOC);
     $n = static fn(string $v) => normalizeImportText($v);
     [$dep, $prov, $dist] = array_map(static fn($v) => mb_strtoupper(trim($v), 'UTF-8'), [$departamento, $provincia, $distrito]);
-    $r = ['departamento' => $dep, 'provincia' => $prov, 'distrito' => $dist, 'error' => ''];
+    $r = ['departamento' => $dep, 'provincia' => $prov, 'distrito' => $dist, 'segmento' => 'Regular', 'error' => ''];
     $falla = static fn(string $msg) => ['error' => $msg] + $r;
     // Dónde está una provincia en el Perú (lista oficial), para orientar el mensaje
     $depDeProvincia = static function (string $p) use ($n): string {
@@ -158,7 +159,15 @@ function sgsValidarUbicacion(PDO $pdo, string $departamento, string $provincia =
                 : "El distrito {$dist} no existe en {$lugar}.");
         }
         $r['distrito'] = $deDist[0]['distrito'];
+        $r['segmento'] = $deDist[0]['segmento_servicio'];
         if ($prov === '') $r['provincia'] = $deDist[0]['provincia'];
     }
     return $r;
+}
+
+/** Segmento del servicio (Regular o ZAV) de un distrito, según el catálogo de ubicaciones (2026-11-03). Si la ubicación no
+ *  existe o falta el distrito, Regular. */
+function sgsSegmentoServicio(PDO $pdo, string $departamento, string $provincia, string $distrito): string {
+    $u = sgsValidarUbicacion($pdo, $departamento, $provincia, $distrito);
+    return $u['error'] === '' ? $u['segmento'] : 'Regular';
 }

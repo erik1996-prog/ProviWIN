@@ -110,6 +110,7 @@ Departamentos, provincias y distritos de operación
 | `departamento` | varchar(100) | no |  |  |
 | `provincia` | varchar(100) | no |  |  |
 | `distrito` | varchar(100) | no |  |  |
+| `segmento_servicio` | enum('Regular','ZAV') | no |  | Segmento del servicio del distrito: ZAV (Zona de Alto Valor) o Regular |
 
 ### `vehiculos`
 Vehículos de las cuadrillas
