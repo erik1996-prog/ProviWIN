@@ -78,17 +78,22 @@ try {
     $puedeEditar = Auth::can(Auth::PERM_CUADRILLAS_EDIT, ['rol' => 'Supervisor', 'id' => 0]);
     $check($puedeEditar ? 'un supervisor registra en su zona' : 'un supervisor sin permiso de editar cuadrillas no registra', $puedeEditar ? ($r['status'] ?? '') === 'success' : ($r['status'] ?? '') === 'error', $r);
 
-    // T2 que migra a otro partner (2026-10-31): cambia de partner y deja la cuadrilla del partner anterior
+    // Editar un T2 (2026-11-03, como el T1): datos, zona y partner; si cambia de partner o de zona deja su cuadrilla
     $partner2 = (int)$pdo->query("SELECT id FROM partners WHERE estado=1 AND UPPER(TRIM(nombre_partner)) NOT IN ('WIN','WIN DIRECTO') AND id <> $partner ORDER BY id LIMIT 1")->fetchColumn();
     $idT2 = (int)$pdo->query("SELECT id FROM tecnicos WHERE nombre_tecnico = 'PEDRO PRUEBA NUEVO APOYO'")->fetchColumn();
     $pdo->exec("UPDATE tecnicos SET apoyo_id = $idT2 WHERE nombre_tecnico = 'P 9 PRUEBA NUEVO SGI JUAN LIDER'");
-    $r = $sup(['id' => $idT2, 'partner_id' => $partner2], 'cambiar_partner_t2');
-    $check('un supervisor no cambia de partner a un T2 de otra zona', ($r['status'] ?? '') === 'error', $r);
-    $r = $admin(['id' => $idT2, 'partner_id' => $partner2], 'cambiar_partner_t2');
+    $editarT2 = fn(array $cambios) => $cambios + ['id' => $idT2, 'nombre_tecnico' => 'PEDRO PRUEBA NUEVO APOYO', 'dni' => '99999978', 'celular' => '987654321',
+        'estado_operativo' => 'Habilitado', 'observacion' => '', 'partner_id' => $partner, 'provincia' => 'SANTA'];
+    $r = $sup($editarT2(['partner_id' => $partner2]), 'editar_t2');
+    $check('un supervisor no edita un T2 de otra zona', ($r['status'] ?? '') === 'error', $r);
+    $r = $admin($editarT2(['partner_id' => $partner2]), 'editar_t2');
     $lider = $pdo->query("SELECT apoyo_id FROM tecnicos WHERE nombre_tecnico = 'P 9 PRUEBA NUEVO SGI JUAN LIDER'")->fetchColumn();
     $check('el T2 cambia de partner y deja su cuadrilla anterior', ($r['status'] ?? '') === 'success' && (int)$fila('PEDRO PRUEBA NUEVO APOYO')['partner_id'] === $partner2 && $lider === null, [$r, $lider]);
-    $r = $admin(['id' => $idT2, 'partner_id' => $partner2], 'cambiar_partner_t2');
-    $check('al mismo partner no se cambia', ($r['status'] ?? '') === 'error' && str_contains($r['message'] ?? '', 'ya es de'), $r);
+    $r = $admin($editarT2(['partner_id' => $partner2, 'provincia' => 'AREQUIPA']), 'editar_t2');
+    $check('el T2 cambia de zona (AREQUIPA)', ($r['status'] ?? '') === 'success' && $fila('PEDRO PRUEBA NUEVO APOYO')['departamento'] === 'AREQUIPA', $r);
+    $r = $admin($editarT2(['partner_id' => $partner2, 'provincia' => 'NO EXISTE']), 'editar_t2');
+    $check('una provincia que no existe se rechaza al editar', ($r['status'] ?? '') === 'error' && str_contains($r['message'] ?? '', 'No se reconoce'), $r);
+    $pdo->exec("UPDATE tecnicos SET partner_id = $partner2, departamento = 'ÁNCASH', provincia = 'SANTA' WHERE id = $idT2"); // como venía
 
     // El T2 sin zona toma la de la supervisión donde se usa, aunque siga en proceso (2026-10-29)
     require_once BACKEND_PATH . '/config/supervision_personal.php';
@@ -114,6 +119,24 @@ try {
         $apoyoDelLider = (int)$pdo->query("SELECT apoyo_id FROM tecnicos WHERE nombre_tecnico = 'P 9 PRUEBA NUEVO SGI JUAN LIDER'")->fetchColumn();
         $check('un T2 de otro partner y otra zona pasa al cerrar al partner, la zona y la cuadrilla de la supervisión',
             (int)$t2['partner_id'] === $partner && $t2['departamento'] === 'AREQUIPA' && $apoyoDelLider === $idT2, [$t2, $apoyoDelLider]);
+
+        // Editar y eliminar un T2 en Técnicos y cuadrillas (2026-11-03)
+        $r = $admin($editarT2(['celular' => '912345678', 'observacion' => 'Prueba', 'provincia' => 'AREQUIPA']), 'editar_t2');
+        $sigue = (int)$pdo->query("SELECT apoyo_id FROM tecnicos WHERE nombre_tecnico = 'P 9 PRUEBA NUEVO SGI JUAN LIDER'")->fetchColumn() === $idT2;
+        $check('edita un T2 (celular y observación) sin cambiar partner ni zona: sigue en su cuadrilla',
+            ($r['status'] ?? '') === 'success' && $pdo->query("SELECT celular FROM tecnicos WHERE id = $idT2")->fetchColumn() === '912345678' && $sigue, [$r, $sigue]);
+        $r = $sup(['id' => $idT2], 'eliminar_t2');
+        $check('un supervisor sin el permiso no elimina un T2', ($r['status'] ?? '') === 'error', $r);
+        $enSupervision = (int)$pdo->query("SELECT COUNT(*) FROM supervisiones WHERE tecnico2_id = $idT2 OR tecnico1_id = $idT2")->fetchColumn();
+        $r = $admin(['id' => $idT2], 'eliminar_t2');
+        $quedo = $pdo->query("SELECT estado_operativo FROM tecnicos WHERE id = $idT2")->fetchColumn();
+        $apoyoDelLider = $pdo->query("SELECT apoyo_id FROM tecnicos WHERE nombre_tecnico = 'P 9 PRUEBA NUEVO SGI JUAN LIDER'")->fetchColumn();
+        $check('un T2 con supervisiones no se borra: queda Inhabilitado y fuera de su cuadrilla',
+            $enSupervision > 0 && ($r['status'] ?? '') === 'success' && $quedo === 'Inhabilitado' && $apoyoDelLider === null, [$enSupervision, $r, $quedo, $apoyoDelLider]);
+        $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, dni, tipo_tecnico, partner_id, departamento) VALUES ('BORRAR PRUEBA NUEVO', '99999982', 2, :p, 'AREQUIPA')")->execute([':p' => $partner]);
+        $idBorrar = (int)$pdo->lastInsertId();
+        $r = $admin(['id' => $idBorrar], 'eliminar_t2');
+        $check('un T2 sin supervisiones se elimina', ($r['status'] ?? '') === 'success' && !$pdo->query("SELECT id FROM tecnicos WHERE id = $idBorrar")->fetchColumn(), $r);
     } finally {
         if ($pdo->inTransaction()) $pdo->rollBack();
         $pdo->exec("DELETE FROM supervisiones WHERE id = $supervision");

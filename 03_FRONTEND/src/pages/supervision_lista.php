@@ -8,6 +8,7 @@ $stmtRegisteredScope = $pdo->prepare('SELECT sede,zona FROM usuarios WHERE id=:i
 $stmtRegisteredScope->execute([':id'=>(int)($effectiveViewUser['id'] ?? 0)]);
 $registeredUserSite = $stmtRegisteredScope->fetch();
 $registeredDepartmentScope = operationalDepartmentFromSite((string)(($registeredUserSite['sede'] ?? '') ?: ($registeredUserSite['zona'] ?? '')));
+$zonasSupervisor = sgsUserZones((int)($effectiveViewUser['id'] ?? 0));
 $esVistaSupervisorDirecto = ($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($user['is_win_directo']);
 $esJefeOperacionesVista = ($effectiveViewUser['rol'] ?? '') === Auth::ROLE_JEFE_OPERACIONES;
 $esSupervisorPartnerVista = $esJefeOperacionesVista
@@ -775,6 +776,8 @@ window.SGS_SUPERVISION = <?= json_encode([
     'rol' => $effectiveViewUser['rol'] ?? '',
     'departamento' => $registeredDepartmentScope, // zona de trabajo (LIMA, NORTE CHICO, AREQUIPA…)
     'departamentoZona' => sgsDepartamentoDeZona((string)$registeredDepartmentScope), // su departamento oficial (NORTE CHICO → LIMA)
+    'zonasSupervisor' => $zonasSupervisor, // todas sus zonas (null = todas): elige entre ellas al registrar (2026-11-03)
+    'departamentosSupervisor' => $zonasSupervisor === null ? null : array_values(array_unique(array_map('sgsDepartamentoDeZona', $zonasSupervisor))),
     'zonasPorProvincia' => SGS_ZONAS_POR_PROVINCIA, // provincias con zona propia (LIMA / HUAURA → NORTE CHICO)
     // Cuadrillas por área (2026-10-31): zonas donde se dividen en SGI / SGA y lo que NO atiende cada una (territorial.php)
     'cuadrillaPorArea' => ['zonas' => SGS_ZONAS_CUADRILLA_POR_AREA,

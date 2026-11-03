@@ -22,7 +22,7 @@ Se instalan **33 tablas**: con sus datos actuales (usuarios, permisos, partners,
 | `08_tabla_ubigeo.sql` | `ubigeo`: Departamentos, provincias y distritos de operación | 120 registros |
 | `09_tabla_vehiculos.sql` | `vehiculos`: Vehículos de las cuadrillas | 3 registros |
 | `10_tabla_perfil_asignables.sql` | `perfil_asignables`: Perfiles que puede asignar quien tiene el perfil | 34 registros |
-| `11_tabla_perfil_permisos.sql` | `perfil_permisos`: Permisos de cada perfil (Auth::permissionCatalog) | 240 registros |
+| `11_tabla_perfil_permisos.sql` | `perfil_permisos`: Permisos de cada perfil (Auth::permissionCatalog) | 245 registros |
 | `12_tabla_subopciones_observacion.sql` | `subopciones_observacion`: Tipificaciones de observación con gravedad y penalidad | 84 registros |
 | `13_tabla_usuarios.sql` | `usuarios`: Usuarios del sistema (personal WIN y de partners) | 10 registros |
 | `14_tabla_asistencia_ajustes.sql` | `asistencia_ajustes`: Correcciones del administrador en la matriz de asistencia | vacía |

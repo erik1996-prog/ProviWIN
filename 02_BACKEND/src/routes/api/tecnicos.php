@@ -71,7 +71,9 @@ try {
         exit;
     }
 
+    // Corregir un técnico: desde la supervisión (quien registra) y desde Técnicos y cuadrillas (quien edita cuadrillas; 2026-11-03)
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'update') {
+        if (!Auth::can(Auth::PERM_SUPERVISION_CREATE, $usuario) && !Auth::puede(Auth::PERM_CUADRILLAS_EDIT, $usuario)) { http_response_code(403); throw new Exception('No tiene permiso para editar técnicos.'); }
         $id = intval($_POST['id'] ?? 0);
         $nombre = trim($_POST['nombre_tecnico'] ?? '');
         $dni = trim($_POST['dni'] ?? '');
@@ -174,33 +176,85 @@ try {
         exit;
     }
 
-    // T2 que migra a otro partner (2026-10-31): desde Técnicos y cuadrillas se le cambia el partner sin meterlo en una
-    // cuadrilla. Deja la cuadrilla que tenía (era del partner anterior); luego lo agregan a su nueva cuadrilla aquí o en una
-    // supervisión. Quien edita cuadrillas; con zona propia, solo los T2 de su zona.
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'cambiar_partner_t2') {
+    // Editar un técnico de apoyo (T2) desde Técnicos y cuadrillas (2026-11-03, como el T1): nombre, DNI, celular, estado,
+    // observación, zona (provincia) y partner. Si cambia de partner o pasa a otra zona que la de su líder, deja la cuadrilla
+    // (era de otro partner o zona); luego lo agregan a la nueva aquí o en una supervisión. Quien edita cuadrillas; con zona
+    // propia, solo los T2 de su zona y hacia su zona. (Reemplaza a cambiar_partner_t2, 2026-10-31.)
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'editar_t2') {
         if (!Auth::puede(Auth::PERM_CUADRILLAS_EDIT, $usuario)) { http_response_code(403); throw new Exception('No tiene permiso para editar técnicos.'); }
+        require_once __DIR__ . '/../../config/zonas_peru.php';
         $id = (int)($_POST['id'] ?? 0);
+        $st = $pdo->prepare("SELECT a.nombre_tecnico, a.partner_id, COALESCE(NULLIF(a.departamento, ''), l.departamento) AS zona, l.id AS lider_id, l.departamento AS zona_lider
+            FROM tecnicos a LEFT JOIN tecnicos l ON l.apoyo_id = a.id AND COALESCE(l.tipo_tecnico, 1) = 1 WHERE a.id = :id AND a.tipo_tecnico = 2");
+        $st->execute([':id' => $id]);
+        $t2 = $st->fetch();
+        if (!$t2) throw new Exception('El técnico de apoyo ya no existe.');
+        $zonasEditor = Auth::isAdministrative() && !sgsAlcanceLimitado($usuario) ? null : sgsUserZones((int)$usuario['id']);
+        $deSuZona = static fn($zona) => $zonasEditor === null || in_array(mb_strtoupper(trim((string)$zona), 'UTF-8'), $zonasEditor, true);
+        if (!$deSuZona($t2['zona'])) { http_response_code(403); throw new Exception('Ese técnico de apoyo es de otra zona: solo puede editar los de su zona.'); }
+
+        $nombre = mb_strtoupper(trim(preg_replace('/\s+/u', ' ', (string)($_POST['nombre_tecnico'] ?? ''))), 'UTF-8');
+        $dni = trim((string)($_POST['dni'] ?? ''));
+        $celular = preg_replace('/\D/', '', (string)($_POST['celular'] ?? ''));
+        $estado = (string)($_POST['estado_operativo'] ?? '');
+        $observacion = mb_substr(trim((string)($_POST['observacion'] ?? '')), 0, 255);
+        if (mb_strlen($nombre) < 5) throw new Exception('Escriba los nombres y apellidos del técnico.');
+        if (!preg_match('/^\d{8}$/', $dni)) throw new Exception('El DNI debe tener 8 dígitos.');
+        if ($celular !== '' && !preg_match('/^9\d{8}$/', $celular)) throw new Exception('El celular debe tener 9 dígitos y empezar con 9.');
+        if (!in_array($estado, ['Habilitado', 'Inhabilitado', 'Blacklist'], true)) throw new Exception('Seleccione un estado válido.');
+        $st = $pdo->prepare('SELECT nombre_tecnico FROM tecnicos WHERE (dni = :dni OR nombre_tecnico = :nom) AND id <> :id LIMIT 1');
+        $st->execute([':dni' => $dni, ':nom' => $nombre, ':id' => $id]);
+        if ($otro = $st->fetchColumn()) throw new Exception("Ese DNI o nombre ya es de {$otro}.");
+
+        $provinciaTexto = mb_substr(trim((string)($_POST['provincia'] ?? '')), 0, 100);
+        $zona = $provinciaTexto !== '' ? sgsZonaDesdeProvincia($provinciaTexto, $pdo) : ['provincia' => null, 'departamento' => null];
+        if (!$zona) throw new Exception("No se reconoce la provincia \"{$provinciaTexto}\". Escríbala como en el mapa del Perú (p. ej. TRUJILLO, SANTA, CHICLAYO).");
+        if (!$zona['departamento'] && !sgsVeTecnicosSinZona($usuario)) throw new Exception('Escriba la provincia donde trabaja el técnico: solo el administrador general deja técnicos sin zona.');
+        if ($zona['departamento'] && !$deSuZona($zona['departamento'])) throw new Exception('La provincia elegida es de otra zona: solo puede pasarlo a su zona (' . implode(', ', (array)$zonasEditor) . ').');
+
         $partnerId = (int)($_POST['partner_id'] ?? 0);
-        $st = $pdo->prepare("SELECT a.nombre_tecnico, a.partner_id, COALESCE(NULLIF(a.departamento, ''), l.departamento) AS zona, l.id AS lider_id
+        $st = $pdo->prepare("SELECT nombre_partner FROM partners WHERE id = :id AND estado = 1 AND UPPER(TRIM(nombre_partner)) NOT IN ('WIN', 'WIN DIRECTO')");
+        $st->execute([':id' => $partnerId]);
+        if (!$st->fetchColumn()) throw new Exception('Elija un partner activo.');
+
+        $dejaCuadrilla = $t2['lider_id'] && ((int)$t2['partner_id'] !== $partnerId
+            || ($zona['departamento'] && mb_strtoupper((string)$zona['departamento'], 'UTF-8') !== mb_strtoupper(trim((string)$t2['zona_lider']), 'UTF-8')));
+        $pdo->beginTransaction();
+        if ($dejaCuadrilla) $pdo->prepare('UPDATE tecnicos SET apoyo_id = NULL WHERE apoyo_id = :id')->execute([':id' => $id]);
+        $pdo->prepare('UPDATE tecnicos SET nombre_tecnico = :nom, dni = :dni, celular = :cel, estado_operativo = :e, observacion = :obs, provincia = :prov,
+                departamento = :dep, partner_id = :p, fecha_actualizacion = NOW() WHERE id = :id')
+            ->execute([':nom' => $nombre, ':dni' => $dni, ':cel' => $celular ?: null, ':e' => $estado, ':obs' => $observacion ?: null,
+                ':prov' => $zona['provincia'], ':dep' => $zona['departamento'], ':p' => $partnerId, ':id' => $id]);
+        $pdo->commit();
+        win_log_error('audit_technician_updated', 'Técnico de apoyo (T2) editado', ['target_id' => $id, 'partner_de' => (int)$t2['partner_id'], 'partner_a' => $partnerId, 'deja_cuadrilla' => $dejaCuadrilla ? (int)$t2['lider_id'] : null]);
+        echo json_encode(['status' => 'success', 'message' => "{$nombre} actualizado." . ($dejaCuadrilla ? ' Cambió de partner o de zona: dejó su cuadrilla anterior, agréguelo a la nueva.' : '')], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    // Eliminar un técnico de apoyo (T2) (2026-11-03): sale de su cuadrilla. Si ya está en supervisiones no se borra (se perdería
+    // el historial): queda Inhabilitado, y así deja de aparecer en la lista y al registrar supervisiones.
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'eliminar_t2') {
+        if (!Auth::puede(Auth::PERM_CUADRILLAS_DELETE, $usuario)) { http_response_code(403); throw new Exception('No tiene permiso para eliminar técnicos.'); }
+        $id = (int)($_POST['id'] ?? 0);
+        $st = $pdo->prepare("SELECT a.nombre_tecnico, COALESCE(NULLIF(a.departamento, ''), l.departamento) AS zona,
+                (SELECT COUNT(*) FROM supervisiones s WHERE s.tecnico2_id = a.id OR s.tecnico1_id = a.id) AS supervisiones
             FROM tecnicos a LEFT JOIN tecnicos l ON l.apoyo_id = a.id AND COALESCE(l.tipo_tecnico, 1) = 1 WHERE a.id = :id AND a.tipo_tecnico = 2");
         $st->execute([':id' => $id]);
         $t2 = $st->fetch();
         if (!$t2) throw new Exception('El técnico de apoyo ya no existe.');
         $zonasEditor = Auth::isAdministrative() && !sgsAlcanceLimitado($usuario) ? null : sgsUserZones((int)$usuario['id']);
         if ($zonasEditor !== null && !in_array(mb_strtoupper(trim((string)$t2['zona']), 'UTF-8'), $zonasEditor, true)) {
-            http_response_code(403); throw new Exception('Ese técnico de apoyo es de otra zona: solo puede cambiar los de su zona.');
+            http_response_code(403); throw new Exception('Ese técnico de apoyo es de otra zona: solo puede eliminar los de su zona.');
         }
-        $st = $pdo->prepare("SELECT nombre_partner FROM partners WHERE id = :id AND estado = 1 AND UPPER(TRIM(nombre_partner)) NOT IN ('WIN', 'WIN DIRECTO')");
-        $st->execute([':id' => $partnerId]);
-        $partnerNombre = $st->fetchColumn();
-        if (!$partnerNombre) throw new Exception('Elija un partner activo.');
-        if ((int)$t2['partner_id'] === $partnerId) throw new Exception("{$t2['nombre_tecnico']} ya es de {$partnerNombre}.");
         $pdo->beginTransaction();
         $pdo->prepare('UPDATE tecnicos SET apoyo_id = NULL WHERE apoyo_id = :id')->execute([':id' => $id]);
-        $pdo->prepare('UPDATE tecnicos SET partner_id = :p, fecha_actualizacion = NOW() WHERE id = :id')->execute([':p' => $partnerId, ':id' => $id]);
+        if ($t2['supervisiones'] > 0) $pdo->prepare("UPDATE tecnicos SET estado_operativo = 'Inhabilitado', fecha_actualizacion = NOW() WHERE id = :id")->execute([':id' => $id]);
+        else $pdo->prepare('DELETE FROM tecnicos WHERE id = :id')->execute([':id' => $id]);
         $pdo->commit();
-        win_log_error('audit_technician_partner', 'Técnico de apoyo (T2) cambiado de partner', ['target_id' => $id, 'de' => (int)$t2['partner_id'], 'a' => $partnerId, 'deja_cuadrilla' => $t2['lider_id'] ? (int)$t2['lider_id'] : null]);
-        echo json_encode(['status' => 'success', 'message' => "{$t2['nombre_tecnico']} ahora es de {$partnerNombre}." . ($t2['lider_id'] ? ' Dejó su cuadrilla anterior: agréguelo a la nueva.' : '')], JSON_UNESCAPED_UNICODE);
+        win_log_error('audit_technician_delete', 'Técnico de apoyo (T2) eliminado', ['target_id' => $id, 'inhabilitado' => $t2['supervisiones'] > 0]);
+        echo json_encode(['status' => 'success', 'message' => $t2['supervisiones'] > 0
+            ? "{$t2['nombre_tecnico']} sale en {$t2['supervisiones']} supervisión(es): para no perder ese historial quedó Inhabilitado y fuera de su cuadrilla."
+            : "{$t2['nombre_tecnico']} eliminado."], JSON_UNESCAPED_UNICODE);
         exit;
     }
 

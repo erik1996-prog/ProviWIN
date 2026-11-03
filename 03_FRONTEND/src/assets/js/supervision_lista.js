@@ -4344,28 +4344,30 @@
     if(!cboDep || !cboProv || !cboDis) return;
 
     try {
-      const restrictDepartment = currentUserRole === 'Supervisor'
-        && currentUserDepartment
-        && currentUserDepartment.toLocaleUpperCase('es') !== 'PROVINCIAS';
+      // El supervisor elige entre los departamentos de sus zonas (2026-11-03); empieza en el de su zona base
+      const zonasSupervisor = SGS_SUPERVISION.zonasSupervisor;
+      const restrictDepartment = currentUserRole === 'Supervisor' && Array.isArray(zonasSupervisor);
+      const mayus = (v) => String(v).toLocaleUpperCase('es');
+      const departamentosPermitidos = restrictDepartment ? SGS_SUPERVISION.departamentosSupervisor.map(mayus) : [];
       const rDep = await fetch('api/ubigeo.php?action=departamentos');
       const dDep = await rDep.json();
       if(dDep.status === 'success') {
         cboDep.innerHTML = '<option value="">Seleccione departamento</option>';
         const departments = dDep.data.map(d => (typeof d === 'object' && d !== null) ? (d.departamento || d) : d);
         const visibleDepartments = restrictDepartment
-          ? departments.filter(value => String(value).toLocaleUpperCase('es') === String(currentUserZoneDepartment).toLocaleUpperCase('es'))
+          ? departments.filter(value => departamentosPermitidos.includes(mayus(value)))
           : departments;
         visibleDepartments.forEach(val => {
           cboDep.innerHTML += `<option value="${val}">${val}</option>`;
         });
         if (restrictDepartment) {
           if (!visibleDepartments.length) {
-            cboDep.innerHTML = `<option value="">Departamento ${escapeHtml(currentUserDepartment)} sin ubigeo configurado</option>`;
-            showToast(`El departamento ${currentUserDepartment} no tiene provincias configuradas. Contacte al administrador.`);
+            cboDep.innerHTML = '<option value="">Sus zonas no tienen ubigeo configurado</option>';
+            showToast('Sus zonas de trabajo no tienen provincias configuradas. Contacte al administrador.');
           } else {
-            cboDep.value = visibleDepartments[0];
+            cboDep.value = visibleDepartments.find((v) => mayus(v) === mayus(currentUserZoneDepartment)) || visibleDepartments[0];
           }
-          cboDep.disabled = true;
+          cboDep.disabled = visibleDepartments.length < 2; // con una sola zona no hay que elegir
         } else {
           cboDep.disabled = false;
         }
@@ -4380,7 +4382,7 @@
         }
         cboProv.innerHTML = '<option value="">Cargando...</option>';
         cboDis.innerHTML = '<option value="">Seleccione provincia primero</option>';
-        const zona = restrictDepartment ? `&zona=${encodeURIComponent(currentUserDepartment)}` : ''; // solo las provincias de su zona
+        const zona = restrictDepartment ? `&zona=${encodeURIComponent(zonasSupervisor.join(','))}` : ''; // solo las provincias de sus zonas
         const r = await fetch(`api/ubigeo.php?action=provincias&departamento=${encodeURIComponent(dep)}${zona}`);
         const d = await r.json();
         if(d.status === 'success') {

@@ -19,6 +19,7 @@ $esAdmin = Auth::isAdministrative() && !sgsAlcanceLimitado($user); // líder con
 // Permisos (2026-10-23, Roles y permisos): ver, editar cuadrillas (el directo, solo de su zona), cargar Excel y links de examen.
 $puedeEditar = Auth::puede(Auth::PERM_CUADRILLAS_EDIT, $user);
 $puedeImportar = Auth::puede(Auth::PERM_CUADRILLAS_IMPORT, $user);
+$puedeEliminar = Auth::puede(Auth::PERM_CUADRILLAS_DELETE, $user); // técnicos de apoyo (T2), 2026-11-03
 $puedeExamen = Auth::puede(Auth::PERM_EXAMENES_EDIT, $user);
 $puedeAnularExamen = Auth::puede(Auth::PERM_EXAMENES_DELETE, $user);
 if (!Auth::puede(Auth::PERM_CUADRILLAS_VIEW, $user)) {
@@ -134,7 +135,7 @@ $desdeT2 = 'FROM tecnicos a LEFT JOIN tecnicos l ON l.apoyo_id = a.id AND COALES
     WHERE ' . implode(' AND ', $whereT2);
 $apoyosLista = [];
 if ($vista === 'apoyo') {
-    $stT2 = $pdo->prepare("SELECT a.id, a.nombre_tecnico, a.dni, a.celular, a.estado_operativo, a.provincia, a.departamento, a.partner_id, p.nombre_partner,
+    $stT2 = $pdo->prepare("SELECT a.id, a.nombre_tecnico, a.dni, a.celular, a.observacion, a.estado_operativo, a.provincia, a.departamento, a.partner_id, p.nombre_partner,
             l.id AS lider_id, l.nombre_tecnico AS lider_nombre, l.provincia AS lider_provincia, l.departamento AS lider_departamento
         {$desdeT2} ORDER BY (l.id IS NULL), p.nombre_partner, a.nombre_tecnico LIMIT 1000");
     $stT2->execute($paramsT2);
@@ -336,7 +337,10 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
           <td data-label="Apoya a"><?= $a['lider_id'] ? $e($a['lider_nombre']) : '<span class="text-muted">Sin cuadrilla</span>' ?></td>
           <td data-label="Último examen"><?= $badgeExamen((int)$a['id']) ?></td>
           <td class="text-end"><div class="sgs-row-actions justify-content-end"><?php if ($puedeEditar): ?>
-            <button type="button" class="sgs-icon-action" title="Cambiar de partner" aria-label="Cambiar de partner a <?= $e($a['nombre_tecnico']) ?>" data-t2-partner="<?= (int)$a['id'] ?>" data-nombre="<?= $e($a['nombre_tecnico']) ?>" data-partner="<?= (int)$a['partner_id'] ?>" data-cuadrilla="<?= $e($a['lider_nombre'] ?? '') ?>"><i class="bi bi-arrow-left-right"></i></button>
+            <button type="button" class="sgs-icon-action" title="Editar" aria-label="Editar a <?= $e($a['nombre_tecnico']) ?>" data-t2-editar="<?= (int)$a['id'] ?>" data-nombre="<?= $e($a['nombre_tecnico']) ?>" data-dni="<?= $e($a['dni']) ?>" data-celular="<?= $e($a['celular']) ?>" data-estado="<?= $e($a['estado_operativo']) ?>" data-observacion="<?= $e($a['observacion']) ?>"
+              data-partner="<?= (int)$a['partner_id'] ?>" data-provincia="<?= $e(trim((string)$a['provincia']) !== '' ? $a['provincia'] : $a['lider_provincia']) ?>" data-cuadrilla="<?= $e($a['lider_nombre'] ?? '') ?>"><i class="bi bi-pencil"></i></button>
+          <?php endif; ?><?php if ($puedeEliminar): ?>
+            <button type="button" class="sgs-icon-action sgs-icon-action--danger" title="Eliminar" aria-label="Eliminar a <?= $e($a['nombre_tecnico']) ?>" data-t2-eliminar="<?= (int)$a['id'] ?>" data-nombre="<?= $e($a['nombre_tecnico']) ?>"><i class="bi bi-trash3"></i></button>
           <?php endif; ?><?php if ($a['lider_id']): ?>
             <a class="sgs-icon-action" href="index.php?page=cuadrillas&amp;q=<?= $e(rawurlencode($a['lider_nombre'])) ?>" title="Ver su cuadrilla" aria-label="Ver la cuadrilla de <?= $e($a['nombre_tecnico']) ?>"><i class="bi bi-people"></i></a>
           <?php endif; ?></div></td>
@@ -447,21 +451,24 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
   </div></div>
 </div>
 
-<!-- ===== T2 que cambia de partner (2026-10-31) ===== -->
-<div class="modal fade" id="mPartnerT2" tabindex="-1" aria-labelledby="mPartnerT2Titulo" aria-hidden="true">
+<!-- ===== Editar técnico de apoyo (T2) (2026-11-03) ===== -->
+<div class="modal fade" id="mEditarT2" tabindex="-1" aria-labelledby="mEditarT2Titulo" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
-    <form id="fPartnerT2" novalidate>
-      <input type="hidden" name="id" id="pt2Id">
-      <div class="modal-header"><h5 class="modal-title" id="mPartnerT2Titulo"><i class="bi bi-arrow-left-right me-2"></i>Cambiar de partner</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
-      <div class="modal-body">
-        <p class="mb-3">Técnico de apoyo: <strong id="pt2Nombre"></strong></p>
-        <label class="form-label" for="pt2Partner">Nuevo partner</label>
-        <select class="form-select" id="pt2Partner" name="partner_id" required><option value="">Seleccione</option>
-          <?php foreach ($partners as $p): ?><option value="<?= (int)$p['id'] ?>"><?= $e($p['nombre_partner']) ?></option><?php endforeach; ?></select>
-        <small class="text-muted d-block mt-2" id="pt2Ayuda">Después agréguelo a su nueva cuadrilla aquí (Editar cuadrilla) o al registrar una supervisión.</small>
-        <div class="alert alert-danger d-none mt-3 mb-0" id="pt2Error" role="alert"></div>
-      </div>
-      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-win" id="btnGuardarPartnerT2"><i class="bi bi-check2 me-1"></i>Cambiar partner</button></div>
+    <form id="fEditarT2" novalidate>
+      <input type="hidden" name="id" id="et2Id">
+      <div class="modal-header"><h5 class="modal-title" id="mEditarT2Titulo"><i class="bi bi-pencil me-2"></i>Editar técnico de apoyo</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-body"><div class="row g-3">
+        <div class="col-12"><label class="form-label" for="et2Nombre">Nombre *</label><input class="form-control" id="et2Nombre" name="nombre_tecnico" maxlength="150" required></div>
+        <div class="col-sm-6"><label class="form-label" for="et2Dni">DNI *</label><input class="form-control" id="et2Dni" name="dni" inputmode="numeric" maxlength="8" required></div>
+        <div class="col-sm-6"><label class="form-label" for="et2Celular">Celular</label><input class="form-control" id="et2Celular" name="celular" inputmode="numeric" maxlength="9"></div>
+        <div class="col-sm-6"><label class="form-label" for="et2Partner">Partner *</label><select class="form-select" id="et2Partner" name="partner_id" required><option value="">Seleccione</option>
+          <?php foreach ($partners as $p): ?><option value="<?= (int)$p['id'] ?>"><?= $e($p['nombre_partner']) ?></option><?php endforeach; ?></select></div>
+        <div class="col-sm-6"><label class="form-label" for="et2Provincia">Provincia (zona)</label><input class="form-control text-uppercase" id="et2Provincia" name="provincia" maxlength="100" list="listaProvincias" placeholder="Ej.: TRUJILLO" autocomplete="off"></div>
+        <div class="col-12"><small class="text-muted" id="et2Ayuda">El departamento se busca solo.<?= $veSinZona ? ' Vacía = sin zona (solo usted la verá).' : ($esAdmin ? '' : ' Solo provincias de su zona.') ?></small></div>
+        <div class="col-sm-6"><label class="form-label" for="et2Estado">Estado</label><select class="form-select" id="et2Estado" name="estado_operativo"><option>Habilitado</option><option>Inhabilitado</option><option value="Blacklist">Lista negra</option></select></div>
+        <div class="col-12"><label class="form-label" for="et2Observacion">Observación</label><textarea class="form-control" id="et2Observacion" name="observacion" rows="2" maxlength="255"></textarea></div>
+      </div><div class="alert alert-danger d-none mt-3 mb-0" id="et2Error" role="alert"></div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-win" id="btnGuardarT2"><i class="bi bi-check2 me-1"></i>Guardar cambios</button></div>
     </form>
   </div></div>
 </div>

@@ -22,9 +22,10 @@ if ($action === 'provincias') {
     $stmt = $pdo->prepare("SELECT DISTINCT provincia FROM ubigeo WHERE departamento = :dep ORDER BY provincia ASC");
     $stmt->execute([':dep' => $dep]);
     $data = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    // Con zona (supervisor de una zona, 2026-10-27): solo las provincias de esa zona (NORTE CHICO → Huaura, Huaral, Barranca)
-    $zona = mb_strtoupper(trim((string)($_GET['zona'] ?? '')), 'UTF-8');
-    if ($zona !== '') $data = array_values(array_filter($data, static fn($p) => sgsZonaDeUbicacion($dep, $p) === $zona));
+    // Con zonas (supervisor, 2026-10-27; varias separadas por coma desde 2026-11-03): solo las provincias de esas zonas
+    // (NORTE CHICO → Huaura, Huaral, Barranca)
+    $zonas = array_filter(array_map(static fn($z) => mb_strtoupper(trim($z), 'UTF-8'), explode(',', (string)($_GET['zona'] ?? ''))));
+    if ($zonas) $data = array_values(array_filter($data, static fn($p) => in_array(sgsZonaDeUbicacion($dep, $p), $zonas, true)));
     echo json_encode(['status' => 'success', 'data' => $data]);
     exit;
 }

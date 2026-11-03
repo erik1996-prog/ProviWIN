@@ -4,6 +4,20 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Editar y eliminar técnicos de apoyo (T2) (2026-11-03)
+- **Corregido**: en Técnicos y cuadrillas → Técnicos de apoyo (T2) solo se podía cambiar de partner. Ahora cada T2 tiene:
+  - **Editar** (como el T1): nombre, DNI, celular, estado, observación, **zona (provincia)** y **partner** (permiso "Editar" de la pantalla). Si cambia de partner, o pasa a otra zona que la de su líder, deja su cuadrilla. Quien tiene zona propia solo edita los T2 de su zona y solo los pasa a su zona. Reemplaza al botón aparte "Cambiar de partner" (`cambiar_partner_t2` → `editar_t2`);
+  - **Eliminar**: sale de su cuadrilla y se borra. Si ya está en supervisiones no se borra, para no perder ese historial: queda Inhabilitado y deja de verse en la lista.
+- **Añadido**: el permiso "Eliminar técnicos de apoyo (T2)". El cambio de base `2026-11-03_01_permiso_eliminar_tecnicos_de_apoyo` lo da a los perfiles que cargan técnicos con el Excel (Gerente general, Subgerente, Coordinador, Líder técnico). Los perfiles administradores lo tienen sin marcarlo.
+- **Corregido**: corregir un técnico (`api/tecnicos.php?action=update`) no pedía ningún permiso. Ahora exige registrar supervisiones o editar cuadrillas.
+- Prueba: `nuevo_tecnico_test` (editar, sin permiso no elimina, con supervisiones queda Inhabilitado, sin supervisiones se borra).
+
+### El supervisor elige el departamento entre sus zonas (2026-11-03)
+- **Cambiado**: en "Nueva supervisión", el supervisor ya no queda fijo en su zona base. Puede elegir el departamento entre todas las zonas que tiene habilitadas en su usuario, y en cada uno ve solo las provincias de esas zonas (p. ej. en Lima, solo Norte Chico).
+  - Con una sola zona, el departamento queda fijo, como antes.
+  - Con "Todas las zonas", elige cualquiera.
+  - El servidor ya aceptaba todas sus zonas: no cambia.
+
 ### Supervisor de SGI y de SGA separados en el hosting (2026-11-01)
 - **Corregido**: en el hosting seguía apareciendo "Supervisor SGI/SGA" porque quedó aplicada la primera versión de `2026-11-01_02`. El cambio `2026-11-01_04_separar_supervisor_de_sgi_y_de_sga_en_el_hosting`:
   - los vuelve a separar en Supervisor de SGI (SSGI) y Supervisor de SGA (SSGA), con los mismos permisos y asignables;

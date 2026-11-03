@@ -62,6 +62,7 @@ class Auth {
     public const PERM_CUADRILLAS_VIEW = 'cuadrillas.view';
     public const PERM_CUADRILLAS_EDIT = 'cuadrillas.edit';
     public const PERM_CUADRILLAS_IMPORT = 'cuadrillas.import';
+    public const PERM_CUADRILLAS_DELETE = 'cuadrillas.delete';
     public const PERM_PARTNERS_VIEW = 'partners.view';
     public const PERM_PARTNERS_EDIT = 'partners.edit';
     public const PERM_PARTNERS_DELETE = 'partners.delete';
@@ -90,7 +91,7 @@ class Auth {
             self::PERM_PARTNERS_DASHBOARD, self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW, self::PERM_CLIMA_DELETE,
             self::PERM_ASISTENCIA_MATRIZ_VIEW, self::PERM_ASISTENCIA_MATRIZ_EDIT,
             self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
-            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT,
+            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT, self::PERM_CUADRILLAS_DELETE,
             self::PERM_PARTNERS_VIEW, self::PERM_PARTNERS_EDIT, self::PERM_PARTNERS_DELETE, self::PERM_OBSERVATION_DELETE,
         ],
         self::ROLE_GERENTE => [
@@ -101,7 +102,7 @@ class Auth {
             self::PERM_OBSERVATION_FILTER_DATE, self::PERM_OBSERVATION_FILTER_ADVANCED,
             self::PERM_PARTNERS_DASHBOARD, self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW, self::PERM_ASISTENCIA_MATRIZ_VIEW,
             self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
-            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT,
+            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT, self::PERM_CUADRILLAS_DELETE,
         ],
         self::ROLE_COORDINADOR => [
             self::PERM_SUPERVISION_VIEW, self::PERM_SUPERVISION_VIEW_ALL,
@@ -113,7 +114,7 @@ class Auth {
             self::PERM_OBSERVATION_FILTER_DATE, self::PERM_OBSERVATION_FILTER_ADVANCED,
             self::PERM_PARTNERS_DASHBOARD, self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW, self::PERM_ASISTENCIA_MATRIZ_VIEW,
             self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
-            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT,
+            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT, self::PERM_CUADRILLAS_DELETE,
             self::PERM_USERS_TEAM, // 2026-10-27: el líder (Gestión) registra a sus supervisores de su zona y área
         ],
         self::ROLE_SUPERVISOR => [
@@ -224,6 +225,7 @@ class Auth {
             self::PERM_CUADRILLAS_VIEW => ['group'=>'Técnicos y cuadrillas','label'=>'Ver: técnicos, cuadrillas y vencimientos','action'=>'ver'],
             self::PERM_CUADRILLAS_EDIT => ['group'=>'Técnicos y cuadrillas','label'=>'Editar: cuadrillas y fechas de vencimiento','action'=>'editar'],
             self::PERM_CUADRILLAS_IMPORT => ['boton'=>'Cargar Excel','group'=>'Técnicos y cuadrillas','label'=>'Cargar y descargar técnicos líderes (Excel)','action'=>'editar'],
+            self::PERM_CUADRILLAS_DELETE => ['group'=>'Técnicos y cuadrillas','label'=>'Eliminar técnicos de apoyo (T2); si ya salen en supervisiones quedan Inhabilitados y fuera de su cuadrilla','action'=>'eliminar'],
             self::PERM_PARTNERS_VIEW => ['group'=>'Partners','label'=>'Ver partners','action'=>'ver'],
             self::PERM_PARTNERS_EDIT => ['group'=>'Partners','label'=>'Editar: crear, renombrar, activar y desactivar partners','action'=>'editar'],
             self::PERM_PARTNERS_DELETE => ['group'=>'Partners','label'=>'Eliminar partners (solo sin historial)','action'=>'eliminar'],
