@@ -36,14 +36,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---------- Catálogos ----------
   // Perfiles (2026-10-31): el usuario elige su perfil; su tipo base (rol) y lo que ve salen del perfil.
-  const ALCANCES = {
-    todo: ['bi-buildings', 'Todo el país', 'Todas las zonas y áreas. Ej.: gerencia, administración.'],
-    zonas: ['bi-geo-alt', 'Sus zonas y su área', 'Solo las zonas y el área de trabajo marcadas en cada usuario. Ej.: líder técnico.'],
-    propio: ['bi-person', 'Solo lo suyo', 'Su turno, sus supervisiones y su asistencia. Ej.: supervisor.'],
+  // 2026-11-01: el perfil se define con "Perfil administrador" y "¿Qué datos puede ver?" (el tipo base sale de ahí).
+  const DATOS = {
+    todo: ['bi-globe-americas', 'Todo el país', 'Todas las zonas y áreas. Ej.: gerencia general.'],
+    zonas: ['bi-geo-alt', 'Sus zonas a cargo', 'Las zonas y el área que se marquen a cada usuario. Ej.: subgerente, coordinador, líder técnico.'],
+    partner: ['bi-buildings', 'Su partner', 'Todo lo de su contrata. Ej.: jefe de operaciones.'],
+    propio: ['bi-person', 'Solo lo suyo', 'Su turno, sus supervisiones y su asistencia. Ej.: supervisor, gestor.'],
   };
   const perfilDe = (id) => CAT.perfiles.find((p) => +p.id === +id);
-  const textoAlcance = (p) => (p.rol_base === 'Jefe de operaciones' ? 'Todo su partner' : ALCANCES[p.alcance][1]);
-  const iconoPerfil = (p) => (p.rol_base === 'Administrador' ? 'bi-shield-lock' : 'bi-person-vcard');
+  const esAdminPerfil = (p) => p.rol_base === 'Administrador';
+  const datosDe = (p) => (p.rol_base === 'Jefe de operaciones' ? 'partner' : p.alcance);
+  const textoAlcance = (p) => DATOS[datosDe(p)][1];
+  const iconoPerfil = (p) => (esAdminPerfil(p) ? 'bi-shield-lock' : 'bi-person-vcard');
 
   async function cargarCatalogos() {
     CAT = (await api('catalogos')).data;
@@ -145,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const todas = $('#chkTodasZonas').checked;
     $('#zonas').querySelectorAll('input').forEach((c) => (c.disabled = todas));
     const p = perfilDe(fU.perfil_id.value);
-    $('#uPerfilAyuda').textContent = p ? `Tipo ${p.etiqueta_rol} · ve: ${textoAlcance(p)}.${CAT.equipo ? '' : ' Sus permisos están en la pestaña Permisos.'}` : '';
+    $('#uPerfilAyuda').textContent = p ? `${esAdminPerfil(p) ? 'Perfil administrador · ' : ''}Ve: ${textoAlcance(p)}.${CAT.equipo ? '' : ' Sus permisos están en la pestaña Permisos.'}` : '';
   }
   ['perfil_id', 'organizacion', 'sin_acceso'].forEach((n) => fU[n].addEventListener('change', syncForm));
 
@@ -235,8 +239,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function renderPerfiles() {
     $('#perfBody').innerHTML = CAT.perfiles.map((p) => `<tr>
       <td data-label="Perfil"><div class="sgs-persona"><span class="sgs-mini-avatar" aria-hidden="true"><i class="bi ${iconoPerfil(p)}"></i></span><div class="sgs-persona-texto"><span class="sgs-persona-nombre">${esc(p.nombre)} <small class="text-muted">· ${esc(p.codigo)}</small></span>${p.descripcion ? `<small>${esc(p.descripcion)}</small>` : ''}</div></div></td>
-      <td data-label="Tipo base"><span class="badge bg-light">${esc(p.etiqueta_rol)}</span></td>
-      <td data-label="Datos que ve"><span class="small"><i class="bi ${ALCANCES[p.alcance][0]} me-1"></i>${esc(textoAlcance(p))}</span></td>
+      <td data-label="Tipo de acceso">${esAdminPerfil(p) ? '<span class="badge bg-primary"><i class="bi bi-shield-lock me-1"></i>Acceso total</span>' : `<span class="badge bg-light">${p.permisos.length} acciones</span>`}</td>
+      <td data-label="Datos que ve"><span class="small"><i class="bi ${DATOS[datosDe(p)][0]} me-1"></i>${esc(textoAlcance(p))}</span></td>
       <td data-label="Trabajadores" class="text-center"><span>${p.trabajadores}</span></td>
       <td class="text-end"><div class="sgs-row-actions justify-content-end">
         <button type="button" class="sgs-icon-action" title="Permisos" aria-label="Permisos de ${esc(p.nombre)}" data-perfil-permisos="${p.id}"><i class="bi bi-ui-checks-grid"></i></button>
@@ -255,31 +259,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Ventana del perfil: datos, tipo base, "¿Qué datos puede ver?" (según el tipo base) y perfiles que puede asignar
+  // Ventana del perfil: datos, "Perfil administrador", "¿Qué datos puede ver?" y perfiles que puede asignar. Si el perfil tiene
+  // usuarios, lo que se cambie vale para todos ellos (el servidor valida que no choque con su organización). Un perfil
+  // administrador ve todo el país.
   const fPerf = $('#formPerfil');
-  function pintarAlcances(valor) {
-    const permitidos = CAT.alcances[fPerf.rol_base.value] || [];
-    if (!permitidos.includes(valor)) valor = permitidos[0];
-    $('#perfAlcances').innerHTML = Object.entries(ALCANCES).map(([k, [icono, titulo, ayuda]]) => `<label class="perf-alcance"><input type="radio" name="alcance" value="${k}"${k === valor ? ' checked' : ''}${permitidos.includes(k) ? '' : ' disabled'}><i class="bi ${icono}" aria-hidden="true"></i><span><strong>${titulo}</strong><small>${k === 'todo' && fPerf.rol_base.value === 'Jefe de operaciones' ? 'Todo lo de su partner (lo fija el tipo Partner).' : ayuda}</small></span></label>`).join('');
+  function pintarDatos(valor) {
+    const admin = fPerf.es_admin.checked;
+    if (admin) valor = 'todo';
+    $('#perfAlcances').innerHTML = Object.entries(DATOS).map(([k, [icono, titulo, ayuda]]) => `<label class="perf-alcance"><input type="radio" name="datos" value="${k}"${k === valor ? ' checked' : ''}${admin ? ' disabled' : ''}><i class="bi ${icono}" aria-hidden="true"></i><span><strong>${titulo}</strong><small>${ayuda}</small></span></label>`).join('');
   }
   function abrirPerfil(p = null) {
     fPerf.reset(); $('#perfError').classList.add('d-none');
     fPerf.id.value = p ? p.id : 0;
-    $('#mPerfilTitulo').innerHTML = `<i class="bi bi-person-vcard me-2"></i>${p ? 'Editar perfil' : 'Registrar perfil'}`;
-    fPerf.rol_base.innerHTML = CAT.tipos_base.map((t) => `<option value="${esc(t.rol)}">${esc(t.etiqueta)}</option>`).join('');
+    $('#mPerfilTitulo').textContent = p ? 'Editar perfil' : 'Registrar perfil';
     ['nombre', 'codigo', 'descripcion'].forEach((k) => { fPerf[k].value = p ? (p[k] ?? '') : ''; });
-    fPerf.rol_base.value = p ? p.rol_base : 'Supervisor';
-    fPerf.rol_base.disabled = !!(p && p.usuarios); // con usuarios, el tipo base no cambia
-    pintarAlcances(p ? p.alcance : '');
-    $('#perfAsignables').innerHTML = CAT.perfiles.map((x) => `<input type="checkbox" class="btn-check" name="asignables[]" value="${x.id}" id="pa${x.id}"${p && p.asignables.includes(+x.id) ? ' checked' : ''}><label class="btn btn-outline-secondary" for="pa${x.id}">${esc(x.nombre)}</label>`).join('');
+    fPerf.es_admin.checked = !!(p && esAdminPerfil(p));
+    pintarDatos(p ? datosDe(p) : 'propio');
+    // Perfiles que puede asignar: tarjetas con casilla; un perfil administrador no se delega
+    $('#perfAsignables').innerHTML = CAT.perfiles.map((x) => {
+      const noDelega = esAdminPerfil(x) && !(p && esAdminPerfil(p));
+      return `<label class="perf-asignable"><input class="form-check-input mt-0" type="checkbox" name="asignables[]" value="${x.id}"${p && p.asignables.includes(+x.id) ? ' checked' : ''}${noDelega ? ' disabled' : ''}>`
+        + `<span><strong>${esc(x.nombre)}${p && +x.id === +p.id ? ' <small class="text-muted">(este perfil)</small>' : ''}</strong><small>${esc(x.codigo)}${noDelega ? ' · no se delega' : ''}</small></span></label>`;
+    }).join('');
     mPerfil.show();
   }
   $('#btnNuevoPerfil')?.addEventListener('click', () => abrirPerfil());
-  fPerf?.rol_base.addEventListener('change', () => pintarAlcances(fPerf.querySelector('input[name="alcance"]:checked')?.value || ''));
+  fPerf?.es_admin.addEventListener('change', () => pintarDatos(fPerf.querySelector('input[name="datos"]:checked')?.value || 'propio'));
   fPerf?.addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    const body = { id: +fPerf.id.value, nombre: fPerf.nombre.value, codigo: fPerf.codigo.value, descripcion: fPerf.descripcion.value, rol_base: fPerf.rol_base.value,
-      alcance: fPerf.querySelector('input[name="alcance"]:checked')?.value || '', asignables: [...fPerf.querySelectorAll('input[name="asignables[]"]:checked')].map((c) => +c.value) };
+    const body = { id: +fPerf.id.value, nombre: fPerf.nombre.value, codigo: fPerf.codigo.value, descripcion: fPerf.descripcion.value, es_admin: fPerf.es_admin.checked,
+      datos: fPerf.querySelector('input[name="datos"]:checked')?.value || '', asignables: [...fPerf.querySelectorAll('input[name="asignables[]"]:checked')].map((c) => +c.value) };
     const btn = $('#btnGuardarPerfil'); btn.disabled = true;
     try { const r = await api('perfil_guardar', { method: 'POST', body }); mPerfil.hide(); toast(r.message); await cargarCatalogos(); }
     catch (e) { $('#perfError').textContent = e.message; $('#perfError').classList.remove('d-none'); if (e.field && fPerf[e.field]) fPerf[e.field].focus(); }
@@ -303,25 +312,30 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!perfilDe(perfilPermisos)) perfilPermisos = +(CAT.perfiles[0]?.id || 0);
     const p = perfilDe(perfilPermisos); if (!p) return;
     marcados = new Set(p.permisos);
-    $('#permPerfiles').innerHTML = CAT.perfiles.map((x) => `<button type="button" class="perm-perfil${+x.id === +p.id ? ' is-activo' : ''}" role="option" aria-selected="${+x.id === +p.id}" data-perfil="${x.id}"><span class="perm-perfil-icono" aria-hidden="true"><i class="bi ${iconoPerfil(x)}"></i></span><span class="perm-perfil-texto"><strong>${esc(x.nombre)}</strong><small>${esc(x.etiqueta_rol)} · ${esc(textoAlcance(x))}</small></span></button>`).join('');
-    $('#permAviso span').textContent = (p.rol_base === 'Administrador' ? 'Perfil de tipo Administrador: además tiene las acciones reservadas (administrar usuarios, cargar cancelaciones, eliminar supervisiones). ' : '')
-      + `Los cambios valen para todos los usuarios con el perfil ${p.nombre} (${p.trabajadores} activos).` + (EDITA_PERFILES ? '' : ' Solo el administrador general puede cambiarlos.');
+    $('#permPerfiles').innerHTML = CAT.perfiles.map((x) => `<button type="button" class="perm-perfil${+x.id === +p.id ? ' is-activo' : ''}" role="option" aria-selected="${+x.id === +p.id}" data-perfil="${x.id}"><span class="perm-perfil-icono" aria-hidden="true"><i class="bi ${iconoPerfil(x)}"></i></span><span class="perm-perfil-texto"><strong>${esc(x.nombre)}</strong><small>${esAdminPerfil(x) ? 'Acceso total · ' : ''}${esc(textoAlcance(x))}</small></span></button>`).join('');
+    $('#permAviso span').textContent = esAdminPerfil(p)
+      ? 'Este perfil es administrador: tiene acceso total a todas las pantallas y acciones sin marcarlas (menos registrar supervisiones, su turno, avisar lluvias y responder observaciones como partner, que son de campo).'
+      : `Los cambios valen para todos los usuarios con el perfil ${p.nombre} (${p.trabajadores} activos).` + (EDITA_PERFILES ? '' : ' Solo el administrador general puede cambiarlos.');
+    $('.perm-guardar')?.classList.toggle('d-none', esAdminPerfil(p));
     pintarGrupos();
   }
   function pintarGrupos() {
+    // Perfil administrador: tiene todo menos lo de campo, aunque no esté marcado; no se edita aquí
+    const admin = esAdminPerfil(perfilDe(perfilPermisos)), editable = EDITA_PERFILES && !admin;
+    const tiene = (clave) => (admin ? !CAT.de_campo.includes(clave) : marcados.has(clave));
     const porPantalla = {};
     CAT.permisos.forEach((x) => (porPantalla[x.grupo] = porPantalla[x.grupo] || { seccion: x.seccion, items: [] }).items.push(x));
     $('#permGrupos').innerHTML = SECCIONES.map(([sec, icono]) => {
       const pantallas = Object.entries(porPantalla).filter(([, v]) => v.seccion === sec);
       if (!pantallas.length) return '';
-      const todos = pantallas.flatMap(([, v]) => v.items), n = todos.filter((x) => marcados.has(x.clave)).length;
+      const todos = pantallas.flatMap(([, v]) => v.items), n = todos.filter((x) => tiene(x.clave)).length;
       const cabecera = `<div class="perm-grupo-cab"><i class="bi ${icono}" aria-hidden="true"></i><h6>${esc(sec)}</h6><span class="perm-grupo-cuenta">${n} de ${todos.length}</span>`
-        + (EDITA_PERFILES ? `<input class="form-check-input ms-1 mt-0" type="checkbox" data-seccion="${esc(sec)}"${n === todos.length ? ' checked' : ''} title="Marcar o quitar todo" aria-label="Marcar o quitar todo en ${esc(sec)}">` : '') + '</div>';
+        + (editable ? `<input class="form-check-input ms-1 mt-0" type="checkbox" data-seccion="${esc(sec)}"${n === todos.length ? ' checked' : ''} title="Marcar o quitar todo" aria-label="Marcar o quitar todo en ${esc(sec)}">` : '') + '</div>';
       return `<div class="card p-0 perm-grupo">${cabecera}` + pantallas.map(([pantalla, v]) => {
-        const ver = v.items.find((x) => x.accion === 'ver'), conVer = !ver || marcados.has(ver.clave);
-        const botones = [...v.items].sort((a, b) => (ORDEN_ACCION[a.accion] ?? 2) - (ORDEN_ACCION[b.accion] ?? 2)).map((x) => `<button type="button" class="perm-pill" aria-pressed="${marcados.has(x.clave)}" data-permiso="${esc(x.clave)}" title="${esc(x.etiqueta)}"${!EDITA_PERFILES || (x.requiere && !conVer) ? ' disabled' : ''}><i class="bi bi-check2" aria-hidden="true"></i>${esc(x.boton)}</button>`).join('');
-        const todas = v.items.every((x) => marcados.has(x.clave));
-        const casilla = `<input class="form-check-input mt-0" type="checkbox" data-pantalla="${esc(pantalla)}"${todas ? ' checked' : ''}${EDITA_PERFILES ? '' : ' disabled'} aria-label="Todas las acciones de ${esc(pantalla)}">`;
+        const ver = v.items.find((x) => x.accion === 'ver'), conVer = !ver || tiene(ver.clave);
+        const botones = [...v.items].sort((a, b) => (ORDEN_ACCION[a.accion] ?? 2) - (ORDEN_ACCION[b.accion] ?? 2)).map((x) => `<button type="button" class="perm-pill" aria-pressed="${tiene(x.clave)}" data-permiso="${esc(x.clave)}" title="${esc(x.etiqueta)}"${!editable || (x.requiere && !conVer) ? ' disabled' : ''}><i class="bi bi-check2" aria-hidden="true"></i>${esc(x.boton)}</button>`).join('');
+        const todas = v.items.every((x) => tiene(x.clave));
+        const casilla = `<input class="form-check-input mt-0" type="checkbox" data-pantalla="${esc(pantalla)}"${todas ? ' checked' : ''}${editable ? '' : ' disabled'} aria-label="Todas las acciones de ${esc(pantalla)}">`;
         return `<div class="perm-fila"><div class="perm-fila-nombre">${casilla}<i class="bi ${ICONO_PANTALLA[pantalla] || 'bi-window'}" aria-hidden="true"></i><span>${esc(pantalla)}<small>${esc(sec)}</small></span></div><div class="perm-acciones">${botones}</div></div>`;
       }).join('') + '</div>';
     }).join('');

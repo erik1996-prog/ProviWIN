@@ -21,8 +21,9 @@ $maxNotif = (int)$pdo->query('SELECT COALESCE(MAX(id), 0) FROM notificaciones')-
 $cleanup = function () use ($pdo, $jar, $xlsx, &$maxNotif) {
     $pdo->exec("DELETE FROM supervisiones WHERE ticket_codigo LIKE 'PRUEBA-CAN-%' OR ticket_codigo = '990000123'");
     $pdo->prepare('DELETE FROM notificaciones WHERE id > :m')->execute([':m' => $maxNotif]);
-    $pdo->exec("DELETE FROM usuarios WHERE dni = '99999920'");
-    foreach (['::1', '127.0.0.1'] as $ip) $pdo->prepare('DELETE FROM login_attempts WHERE fingerprint = :f')->execute([':f' => hash('sha256', "$ip|carga.prueba")]);
+    $pdo->exec("DELETE FROM usuario_departamentos_acceso WHERE usuario_id IN (SELECT id FROM usuarios WHERE dni IN ('99999920', '99999921'))");
+    $pdo->exec("DELETE FROM usuarios WHERE dni IN ('99999920', '99999921')");
+    foreach (['::1', '127.0.0.1'] as $ip) foreach (['carga.prueba', 'carga.lider'] as $u) $pdo->prepare('DELETE FROM login_attempts WHERE fingerprint = :f')->execute([':f' => hash('sha256', "$ip|$u")]);
     @unlink($jar); @unlink($xlsx);
 };
 $cleanup();
@@ -156,6 +157,26 @@ PY;
     $check('eliminar por POST sin token se rechaza y la supervisión sigue', str_contains($rs['message'] ?? '', 'CSRF') && $existe(), $rs);
     [, $rok] = $http("$base/api/supervisiones.php?action=delete", [CURLOPT_POST => true, CURLOPT_HTTPHEADER => ['X-CSRF-Token: ' . ($m[1] ?? '')], CURLOPT_POSTFIELDS => ['id' => $idBorrar]]);
     $check('eliminar por POST con token sí funciona', ($rok['status'] ?? '') === 'success' && !$existe(), $rok);
+
+    // 2026-11-01: "Subir pendientes" es un permiso del perfil; el Líder técnico lo tiene, pero solo para sus zonas y su área
+    $perfilLider = (int)$pdo->query("SELECT id FROM perfiles WHERE codigo = 'LT'")->fetchColumn();
+    (new UsuarioService($pdo))->guardar(['dni' => '99999921', 'nombres' => 'Carga', 'apellidos' => 'Lider Prueba', 'email' => 'carga.lider@proviwin.test', 'usuario' => 'carga.lider',
+        'perfil_id' => $perfilLider, 'organizacion' => 'directo', 'zonas' => ['AREQUIPA'], 'area_trabajo' => 'Instalaciones', 'password' => $clave], 0, $admin);
+    $pdo->exec("UPDATE usuarios SET debe_cambiar_password = 0 WHERE dni = '99999921'");
+    @unlink($jar);
+    $http("$base/api/auth.php?action=login", [CURLOPT_POST => true, CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_POSTFIELDS => json_encode(['usuario' => 'carga.lider', 'password' => $clave])]);
+    [$pagina] = $http("$base/index.php?page=supervision_lista");
+    preg_match('/<meta name="csrf-token" content="([^"]+)"/', $pagina, $m);
+    $check('el líder técnico ve la opción "Subir pendientes"', str_contains($pagina, 'modalImportarCancelaciones'));
+    file_put_contents($script = tempnam(sys_get_temp_dir(), 'sgsxl') . '.py', $py);
+    file_put_contents($datosJson = $script . '.json', json_encode([['ticket' => 'PRUEBA-CAN-600', 'partner' => $partner['nombre_partner'], 'dep' => $ubi['departamento'], 'prov' => $ubi['provincia'], 'dist' => $ubi['distrito']]]));
+    exec('"' . SGS_PYTHON_BIN . '" -I ' . escapeshellarg($script) . ' ' . escapeshellarg($xlsx) . ' ' . escapeshellarg($datosJson) . ' 2>&1');
+    @unlink($script); @unlink($datosJson);
+    [, $rl] = $http("$base/api/cancelaciones_import.php", [CURLOPT_POST => true, CURLOPT_HTTPHEADER => ['X-CSRF-Token: ' . ($m[1] ?? '')],
+        CURLOPT_POSTFIELDS => ['archivo' => new CURLFile($xlsx, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'cancelaciones.xlsx')]]);
+    $obsLider = implode(' ', array_column($rl['observadas'] ?? [], 'errores', 'ticket')['PRUEBA-CAN-600'] ?? []);
+    $check('un líder de AREQUIPA no sube una pendiente de PIURA: se rechaza y dice por qué', ($rl['creadas'] ?? -1) === 0 && str_contains($obsLider, 'solo puede subir pendientes de sus zonas'), $rl);
 } finally {
     $cleanup();
 }

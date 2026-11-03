@@ -8,13 +8,13 @@ Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 | 1 | [`categorias_observacion`](#categorias_observacion) | Categorías de observación | 6 registros |
 | 2 | [`login_attempts`](#login_attempts) | Intentos de ingreso (bloqueo a los 3 fallidos) | vacía |
 | 3 | [`partners`](#partners) | Contratas; WIN DIRECTO = personal propio | 12 registros |
-| 4 | [`perfiles`](#perfiles) | Perfiles de acceso: tipo base, alcance y permisos (2026-10-31) | 17 registros |
+| 4 | [`perfiles`](#perfiles) | Perfiles de acceso: tipo base, alcance y permisos (2026-10-31) | 11 registros |
 | 5 | [`sgs_migracion`](#sgs_migracion) | Cambios de base de datos ya aplicados (los registra 07_SCRIPTS/migrar.php) | vacía |
 | 6 | [`tipificaciones_cancelacion`](#tipificaciones_cancelacion) | Motivos de cancelación (los del Excel de pendientes se agregan solos) | 6 registros |
 | 7 | [`ubigeo`](#ubigeo) | Departamentos, provincias y distritos de operación | 120 registros |
 | 8 | [`vehiculos`](#vehiculos) | Vehículos de las cuadrillas | 3 registros |
-| 9 | [`perfil_asignables`](#perfil_asignables) | Perfiles que puede asignar quien tiene el perfil | 69 registros |
-| 10 | [`perfil_permisos`](#perfil_permisos) | Permisos de cada perfil (Auth::permissionCatalog) | 369 registros |
+| 9 | [`perfil_asignables`](#perfil_asignables) | Perfiles que puede asignar quien tiene el perfil | 34 registros |
+| 10 | [`perfil_permisos`](#perfil_permisos) | Permisos de cada perfil (Auth::permissionCatalog) | 240 registros |
 | 11 | [`subopciones_observacion`](#subopciones_observacion) | Tipificaciones de observación con gravedad y penalidad | 84 registros |
 | 12 | [`usuarios`](#usuarios) | Usuarios del sistema (personal WIN y de partners) | 10 registros |
 | 13 | [`asistencia_ajustes`](#asistencia_ajustes) | Correcciones del administrador en la matriz de asistencia | vacía |

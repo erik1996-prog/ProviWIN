@@ -4,6 +4,49 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Supervisor de SGI y de SGA separados en el hosting (2026-11-01)
+- **Corregido**: en el hosting seguía apareciendo "Supervisor SGI/SGA" porque quedó aplicada la primera versión de `2026-11-01_02`. El cambio `2026-11-01_04_separar_supervisor_de_sgi_y_de_sga_en_el_hosting`:
+  - los vuelve a separar en Supervisor de SGI (SSGI) y Supervisor de SGA (SSGA), con los mismos permisos y asignables;
+  - pasa a SSGA a los usuarios con área "VT (visitas técnicas)".
+  - Donde ya estaban separados, no cambia nada.
+
+### Ventana del perfil como la referencia (2026-11-01)
+- **Cambiado**: "Registrar / Editar perfil" se arma como en la referencia que mostró el usuario:
+  - sin "Tipo base";
+  - interruptor **Perfil administrador**: acceso total a todas las pantallas y acciones sin marcarlas. No tiene lo de campo: registrar supervisiones, su turno, avisar lluvias y responder observaciones como partner;
+  - **¿Qué datos puede ver?** en 4 tarjetas: Todo el país · Sus zonas a cargo · Su partner · Solo lo suyo. El tipo del sistema sale de esas respuestas;
+  - **Perfiles que puede asignar** en tarjetas con casilla y código. El perfil administrador "no se delega".
+- **Cambiado**: el **código** del perfil es opcional; si falta, se arma con las iniciales (p. ej. "Jefe técnico" → JT).
+- **Cambiado**: la tabla de perfiles muestra "Tipo de acceso" (Acceso total o N acciones). En Permisos, un perfil administrador se ve todo marcado y sin "Guardar permisos".
+- **Cambiado**: el administrador general puede cambiar "Perfil administrador" y "¿Qué datos puede ver?" aunque el perfil tenga usuarios. Todos sus usuarios cambian con él. No se permite si choca:
+  - el perfil de la cuenta principal sigue siendo administrador;
+  - el personal de un partner solo puede ser "Su partner" o "Solo lo suyo";
+  - "Su partner" no es para WIN Directo.
+- Sin cambio de base. Prueba: `usuarios_service_test` (acceso total, código automático, cambio de tipo con usuarios y sus límites).
+
+### Todo se maneja desde Permisos (2026-11-01)
+- **Cambiado**: ya no hay permisos "reservados" fijos del Administrador. Ahora se dan por perfil en la pestaña Permisos:
+  - **Subir pendientes**: el Excel de cancelaciones, corregirlas y marcar prioridad alta;
+  - **Eliminar** supervisiones;
+  - **Administrar a todos** los usuarios;
+  - **Guía de diseño**.
+  - Cambio de base `2026-11-01_03_permisos_antes_reservados_en_los_perfiles`: el Administrador conserva los 4 y el **Líder técnico** recibe "Subir pendientes".
+- **Cambiado**: en Supervisiones, Subir pendientes, Eliminar y **Asignar pendientes a un partner** dependen del permiso del perfil, ya no del rol. Asignar es solo para personal de WIN.
+- **Añadido**: quien tiene "Sus zonas y su área" solo **sube, corrige, prioriza y asigna** pendientes de sus zonas y su área. Las filas de otra zona se rechazan y se dice por qué.
+- **Corregido**: el menú "Cancelaciones" le aparecía a Consulta y Gestión, pero la ventana para subir el archivo solo existía para el Administrador: el botón no hacía nada.
+- Prueba: `importar_cancelaciones_test` (un líder de Arequipa no sube una pendiente de Piura).
+
+### Perfiles por tipo de trabajador (2026-11-01)
+- **Cambiado** (cambio de base `2026-11-01_02_perfiles_por_tipo_de_trabajador`): la zona y el área se eligen al crear el usuario, así que los perfiles ya no las repiten en el nombre. Quedan 11:
+  - Administrador · Gerente general · **Subgerente** · **Coordinador** · **Líder técnico**;
+  - Supervisor UM · **Supervisor de SGI** · **Supervisor de SGA** · **Gestor**;
+  - Jefe de operaciones (partner) · Supervisor de partner.
+  - Los perfiles "de Lima", "de provincia", "de instalaciones", "de visitas técnicas", "SGI" y "SGA" se juntaron, y sus usuarios pasaron solos.
+- Qué hace cada equipo (aclarado por el usuario):
+  - **Supervisor de SGI** y **Supervisor de SGA** (separados): los equipos remotos que hacen seguimiento a los gestores (SGI en instalaciones, SGA en visitas técnicas).
+  - **Supervisor UM**: hace seguimiento a los técnicos en campo.
+  - El área de trabajo sigue siendo Instalaciones, VT (visitas técnicas), las dos o Almacén. Las áreas que en realidad eran cargos (por ejemplo, "LIDER TÉCNICO PROVINCIAS") quedaron vacías.
+
 ### Descargar el respaldo de la base (2026-11-01)
 - **Añadido**: en **Mi información**, la tarjeta **"Respaldo de la base de datos"**, solo para el administrador general. Muestra los últimos 10 respaldos (los automáticos de cada 6 horas y los manuales), con **"Crear respaldo ahora"** y **"Descargar"**.
   - El archivo es un `.sql.gz` y se restaura en phpMyAdmin → Importar.

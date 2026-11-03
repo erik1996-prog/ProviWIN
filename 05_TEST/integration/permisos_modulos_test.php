@@ -93,7 +93,7 @@ try {
     echo "Permisos de un perfil propio (2026-10-31: antes, personalizados por usuario)\n";
     $perfiles = new PerfilService($pdo);
     $propio = function (string $codigo, int $usuario, array $quitar, array $agregar) use ($perfiles, $pdo, $admin) {
-        $p = $perfiles->guardar(['nombre' => "Prueba $codigo", 'codigo' => $codigo, 'rol_base' => 'Supervisor'], 0);
+        $p = $perfiles->guardar(['nombre' => "Prueba $codigo", 'codigo' => $codigo, 'datos' => 'propio'], 0);
         $actuales = $pdo->query("SELECT permiso FROM perfil_permisos WHERE perfil_id = {$p['id']}")->fetchAll(PDO::FETCH_COLUMN);
         $perfiles->guardarPermisos($p['id'], array_merge(array_diff($actuales, $quitar), $agregar), $admin);
         $pdo->exec("UPDATE usuarios SET perfil_id = {$p['id']} WHERE id = $usuario");
@@ -127,7 +127,7 @@ try {
     $cat = Auth::permissionCatalog();
     $nuevos = ['dashboard.partners', 'pendientes.view', 'clima.view', 'clima.edit', 'clima.delete', 'examenes.view', 'examenes.edit', 'examenes.delete',
         'cuadrillas.view', 'cuadrillas.edit', 'cuadrillas.import', 'partners.view', 'partners.edit', 'partners.delete', 'observation.delete'];
-    $check('los permisos nuevos salen en Roles y permisos y se pueden personalizar', !array_diff($nuevos, array_keys(array_filter($cat, fn($d) => !empty($d['delegable'])))),
+    $check('los permisos nuevos salen en Permisos y se dan por perfil', !array_diff($nuevos, array_keys($cat)),
         array_values(array_diff($nuevos, array_keys($cat))));
 } finally {
     $cleanup();

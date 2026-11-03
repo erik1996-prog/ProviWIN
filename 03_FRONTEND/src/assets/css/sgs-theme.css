@@ -4058,3 +4058,22 @@ body { font-size: 13px; font-weight: 400; }
 #sidebar.sgs-sidebar .sgs-profile-name { font-size: 13px; font-weight: 600; }
 #sidebar.sgs-sidebar .sgs-role-pill { padding: 0; background: transparent; color: rgba(255, 255, 255, .85); font-size: 11.5px; font-weight: 500; }
 #sidebar.collapsed .sgs-sidebar-usuario .sgs-profile { justify-content: center; padding: 6px 0; }
+
+/* 65. Ventana del perfil (2026-11-01, como el sistema de referencia): cabecera con ícono en caja, interruptor "Perfil
+   administrador" en tarjeta y perfiles que puede asignar como tarjetas con casilla. */
+.perf-cabecera { display: flex; align-items: center; gap: 12px; }
+.perf-cabecera small { display: block; color: var(--sgs-muted); font-size: 12px; }
+.perf-cabecera-icono, .perf-admin-icono { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 38px; height: 38px; border-radius: var(--sgs-radius-sm); background: var(--sgs-orange-soft); color: var(--sgs-orange-dark); font-size: 18px; }
+.perf-admin { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); background: var(--sgs-surface-alt); cursor: pointer; }
+.perf-admin-texto { flex: 1 1 auto; min-width: 0; }
+.perf-admin-texto strong { display: block; font-size: 13.5px; font-weight: 700; color: var(--sgs-ink); }
+.perf-admin-texto small { color: var(--sgs-muted); font-size: 12px; }
+.perf-admin .form-switch .form-check-input { width: 2.4em; height: 1.3em; margin: 0; cursor: pointer; }
+.perf-admin:has(input:checked) { border-color: var(--sgs-orange); background: var(--sgs-orange-soft); }
+.perf-admin:has(input:disabled) { cursor: not-allowed; opacity: .7; }
+.perf-asignables { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.perf-asignable { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); background: var(--sgs-surface); cursor: pointer; }
+.perf-asignable strong { display: block; font-size: 13px; font-weight: 600; color: var(--sgs-ink); }
+.perf-asignable small { color: var(--sgs-muted); font-size: 11.5px; }
+.perf-asignable:has(input:checked) { border-color: var(--sgs-orange); background: var(--sgs-orange-soft); }
+.perf-asignable:has(input:disabled) { opacity: .5; cursor: not-allowed; }

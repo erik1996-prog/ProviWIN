@@ -39,7 +39,7 @@ echo "Líder técnico con su equipo — $base\n";
 try {
     $svc = new UsuarioService($pdo);
     // Permisos del líder: los de su rol (Gestión ya trae registrar a sus supervisores)
-    $permisosLider = array_values(array_intersect(Auth::roleDefaultPermissions('Coordinador'), UsuarioService::permisosDelegables()));
+    $permisosLider = array_values(Auth::roleDefaultPermissions('Coordinador'));
     $check('el rol Gestión trae por defecto registrar a sus supervisores', in_array(Auth::PERM_USERS_TEAM, $permisosLider, true));
     $crear = function (string $dni, string $usuario, string $rol, array $zonas, string $area, array $extra = []) use ($svc, $admin, $clave, $pdo): int {
         $id = (int)$svc->guardar(['dni' => $dni, 'nombres' => 'Lider', 'apellidos' => "Prueba $usuario", 'email' => "$usuario@proviwin.test", 'usuario' => $usuario,
@@ -58,7 +58,7 @@ try {
     // Perfil del líder (2026-11-01: ya no existe "Gestión"): tipo Gestión, sus zonas y su área; asigna Supervisor UM y al partner
     $perfiles = new PerfilService($pdo);
     $asigna = array_map('intval', $pdo->query("SELECT id FROM perfiles WHERE codigo IN ('SUM', 'PART', 'SPART')")->fetchAll(PDO::FETCH_COLUMN));
-    $pl = $perfiles->guardar(['nombre' => 'Prueba Líder', 'codigo' => 'PRUEBALID', 'rol_base' => 'Coordinador', 'alcance' => 'zonas', 'asignables' => $asigna], 0);
+    $pl = $perfiles->guardar(['nombre' => 'Prueba Líder', 'codigo' => 'PRUEBALID', 'datos' => 'zonas', 'asignables' => $asigna], 0);
     $pdo->exec("UPDATE usuarios SET perfil_id = {$pl['id']} WHERE id IN ({$ids['lider']}, {$ids['par']})");
     $lider = ['id' => $ids['lider'], 'rol' => 'Coordinador'];
     $check('el líder (Gestión con zona LIMA e Instalaciones) tiene alcance propio', sgsAlcanceLimitado($lider));

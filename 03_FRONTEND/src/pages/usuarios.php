@@ -110,7 +110,7 @@ $editaPerfiles = Auth::esCuentaPrincipal($miId);
     <p class="text-muted small mb-3">Cada usuario tiene un perfil. El perfil define qué datos ve, qué puede hacer en cada pantalla y qué perfiles puede asignar a su equipo.<?= $editaPerfiles ? '' : ' Solo el administrador general crea y edita perfiles.' ?></p>
     <div class="card p-0 overflow-hidden"><div class="table-responsive">
       <table class="table table-hover mb-0 align-middle sgs-tabla-tarjetas">
-        <thead><tr><th>Perfil</th><th>Tipo base</th><th>Datos que ve</th><th class="text-center">Trabajadores</th><th class="text-end">Acciones</th></tr></thead>
+        <thead><tr><th>Perfil</th><th>Tipo de acceso</th><th>Datos que ve</th><th class="text-center">Trabajadores</th><th class="text-end">Acciones</th></tr></thead>
         <tbody id="perfBody"><tr><td colspan="5" class="text-center text-muted py-4">Cargando…</td></tr></tbody>
       </table>
     </div></div>
@@ -223,28 +223,29 @@ $editaPerfiles = Auth::esCuentaPrincipal($miId);
 </div>
 
 <?php if ($editaPerfiles): ?>
-<!-- ===== Modal perfil (2026-10-31) ===== -->
+<!-- ===== Modal perfil (2026-10-31; 2026-11-01 como el sistema de referencia: perfil administrador y qué datos ve) ===== -->
 <div class="modal fade" id="mPerfil" tabindex="-1" aria-labelledby="mPerfilTitulo" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <form class="modal-content" id="formPerfil" novalidate>
-      <div class="modal-header"><h5 class="modal-title" id="mPerfilTitulo"><i class="bi bi-person-vcard me-2"></i>Registrar perfil</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+      <div class="modal-header"><div class="perf-cabecera"><span class="perf-cabecera-icono" aria-hidden="true"><i class="bi bi-shield-check"></i></span><div><h5 class="modal-title" id="mPerfilTitulo">Registrar perfil</h5><small>Los campos con * son obligatorios.</small></div></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
       <div class="modal-body">
         <input type="hidden" name="id" value="0">
         <div class="alert alert-danger d-none" id="perfError" role="alert"></div>
         <div class="usr-section">Datos del perfil</div>
         <div class="row g-3 mb-3">
           <div class="col-md-8"><label class="form-label" for="perfNombre">Nombre *</label><input class="form-control" id="perfNombre" name="nombre" maxlength="60" required placeholder="Ej.: Jefe técnico"></div>
-          <div class="col-md-4"><label class="form-label" for="perfCodigo">Código *</label><input class="form-control text-uppercase" id="perfCodigo" name="codigo" maxlength="10" required placeholder="Ej.: JTEC"></div>
+          <div class="col-md-4"><label class="form-label" for="perfCodigo">Código</label><input class="form-control text-uppercase" id="perfCodigo" name="codigo" maxlength="10" placeholder="Se arma solo"></div>
           <div class="col-12"><label class="form-label" for="perfDescripcion">Descripción</label><textarea class="form-control" id="perfDescripcion" name="descripcion" rows="2" maxlength="255"></textarea></div>
-          <div class="col-md-6"><label class="form-label" for="perfRol">Tipo base *</label><select class="form-select" id="perfRol" name="rol_base" aria-describedby="perfRolAyuda"></select>
-            <div class="form-text" id="perfRolAyuda">Lo fijo del sistema: si registra turno, si es de un partner, etc. No se cambia si el perfil ya tiene usuarios.</div></div>
         </div>
+        <label class="perf-admin mb-3" for="perfAdmin"><span class="perf-admin-icono" aria-hidden="true"><i class="bi bi-shield-lock"></i></span>
+          <span class="perf-admin-texto"><strong>Perfil administrador</strong><small>Tiene acceso total a todas las pantallas y acciones, sin necesidad de asignar permisos (menos registrar supervisiones y su turno, que son de campo).</small></span>
+          <span class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" role="switch" id="perfAdmin" name="es_admin" value="1"></span></label>
         <div class="usr-section">¿Qué datos puede ver? *</div>
-        <p class="small text-muted mb-2">Los permisos dicen qué puede hacer; aquí eliges sobre qué datos.</p>
+        <p class="small text-muted mb-2" id="perfDatosAyuda">Los permisos dicen qué puede hacer; aquí eliges sobre qué datos. Si lo cambias, cambia para todos los usuarios con este perfil.</p>
         <div class="perf-alcances mb-3" id="perfAlcances" role="radiogroup" aria-label="Qué datos puede ver"></div>
         <div class="usr-section">Perfiles que puede asignar</div>
         <p class="small text-muted mb-2">Al registrar o editar a su equipo, quien tenga este perfil solo podrá elegir los perfiles marcados.</p>
-        <div class="usr-zonas" id="perfAsignables"></div>
+        <div class="perf-asignables" id="perfAsignables"></div>
       </div>
       <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-win" id="btnGuardarPerfil"><i class="bi bi-check2 me-1"></i>Guardar perfil</button></div>
     </form>

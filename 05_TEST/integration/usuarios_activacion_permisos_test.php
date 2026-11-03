@@ -76,10 +76,10 @@ try {
     $check('ese administrador no puede activarlo', $r['_http'] === 403 && (int)$pdo->query("SELECT activo FROM usuarios WHERE id = {$nuevo['id']}")->fetchColumn() === 0, $r['message'] ?? null);
 
     echo "Perfiles: solo la cuenta principal y permisos coherentes (2026-10-31)\n";
-    $r = $admin("$api?action=perfil_guardar", ['nombre' => 'Prueba Activacion', 'codigo' => 'PRUEBAACT', 'rol_base' => 'Supervisor']);
+    $r = $admin("$api?action=perfil_guardar", ['nombre' => 'Prueba Activacion', 'codigo' => 'PRUEBAACT', 'datos' => 'propio']);
     $check('otro administrador no crea perfiles', $r['_http'] === 403 && !$pdo->query("SELECT 1 FROM perfiles WHERE codigo = 'PRUEBAACT'")->fetchColumn(), $r['message'] ?? null);
     $perfiles = new PerfilService($pdo);
-    $p = $perfiles->guardar(['nombre' => 'Prueba Activacion', 'codigo' => 'PRUEBAACT', 'rol_base' => 'Supervisor'], 0);
+    $p = $perfiles->guardar(['nombre' => 'Prueba Activacion', 'codigo' => 'PRUEBAACT', 'datos' => 'propio'], 0);
     $perfiles->guardarPermisos($p['id'], ['clima.edit', 'clima.delete', 'partners.view', 'partners.edit', 'supervision.view'], $principal);
     $guardados = $pdo->query("SELECT permiso FROM perfil_permisos WHERE perfil_id = {$p['id']}")->fetchAll(PDO::FETCH_COLUMN);
     $check('sin "Ver Clima" no se guarda editar ni eliminar de Clima', !array_intersect(['clima.edit', 'clima.delete'], $guardados) && in_array('partners.edit', $guardados, true), $guardados);

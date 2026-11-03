@@ -108,7 +108,8 @@
   const esJefeOperacionesActual = SGS_SUPERVISION.jefeOperaciones;   // solo consulta
   const canUseFindingsForm = SGS_SUPERVISION.formHallazgos;
   const canUseChecklistForm = SGS_SUPERVISION.formChecklist;
-  const puedeAsignarPartner = esAdministradorActual || esSupervisorWinDirecto;
+  const puedeAsignarPartner = SGS_SUPERVISION.puedeAsignar; // permiso "Asignar pendientes" (2026-11-01; antes, por rol)
+  const puedeEliminar = SGS_SUPERVISION.puedeEliminar;       // permiso "Eliminar" de Supervisiones (2026-11-01)
 
   var LISTA_TRABAJOS_POSTVENTA = [
     'CABLEADO 02 MESH - POSTVENTA',
@@ -1816,7 +1817,7 @@
       rowHtml += `
         <td class="text-center" onclick="event.stopPropagation();"><div class="sgs-row-actions">
           ${puedeAsignarPartner && rec.estado === 'pendiente' ? `<button type="button" class="sgs-icon-action sgs-icon-action--primary" title="Asignar a supervisor partner" aria-label="Asignar a supervisor partner" onclick="asignarOrdenPartner(${rec.id}, '${escapeHtml(codigoDisplay)}')"><i class="bi bi-person-check-fill"></i></button>` : ''}
-          ${esAdministradorActual ? `<button type="button" class="sgs-icon-action sgs-icon-action--danger" title="Eliminar supervisión" aria-label="Eliminar supervisión" onclick="eliminarSupervision(${rec.id}, '${rec.codigo}')"><i class="bi bi-trash3"></i></button>` : ''}
+          ${puedeEliminar ? `<button type="button" class="sgs-icon-action sgs-icon-action--danger" title="Eliminar supervisión" aria-label="Eliminar supervisión" onclick="eliminarSupervision(${rec.id}, '${rec.codigo}')"><i class="bi bi-trash3"></i></button>` : ''}
         </div></td>
       `;
       row.innerHTML = rowHtml;
@@ -1877,13 +1878,13 @@
               <i class="bi bi-info-circle me-1"></i> ${escapeHtml(rec.sub_tipo_atencion)}
             </div>` : ''}
           </div>
-          ${(puedeAsignarPartner && rec.estado === 'pendiente') || esAdministradorActual ? `
+          ${(puedeAsignarPartner && rec.estado === 'pendiente') || puedeEliminar ? `
           <div class="mobile-card-footer" onclick="event.stopPropagation();">
             ${puedeAsignarPartner && rec.estado === 'pendiente' ? `
               <button type="button" class="btn-mobile-action btn-mobile-assign" onclick="asignarOrdenPartner(${rec.id}, '${escapeHtml(codigoDisplay)}')">
                 <i class="bi bi-person-check-fill me-1"></i> Asignar Partner
               </button>` : ''}
-            ${esAdministradorActual ? `
+            ${puedeEliminar ? `
               <button type="button" class="btn-mobile-action btn-mobile-delete" onclick="eliminarSupervision(${rec.id}, '${rec.codigo}')">
                 <i class="bi bi-trash3-fill me-1"></i> Eliminar
               </button>` : ''}
@@ -2658,7 +2659,7 @@
         </div>
         <div style="display:flex; align-items:center;">
           <span class="badge-exec ${rec.estado}">${labelState}</span>
-          ${esAdministradorActual ? `<button type="button" class="btn-bitacora btn-danger-subtle" style="margin-left:12px; padding:6px 12px; font-size:12px;" onclick="eliminarSupervision(${rec.id}, '${rec.codigo}')"><i class="bi bi-trash3 me-1"></i>Eliminar</button>` : ''}
+          ${puedeEliminar ? `<button type="button" class="btn-bitacora btn-danger-subtle" style="margin-left:12px; padding:6px 12px; font-size:12px;" onclick="eliminarSupervision(${rec.id}, '${rec.codigo}')"><i class="bi bi-trash3 me-1"></i>Eliminar</button>` : ''}
         </div>
       </div>
 

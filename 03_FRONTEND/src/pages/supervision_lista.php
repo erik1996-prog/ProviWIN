@@ -168,7 +168,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
           </div>
         </div>
           </div><?php endif; ?>
-          <?php if (Auth::isAdministrative()): ?><div class="dropdown">
+          <?php if (Auth::can(Auth::PERM_SUPERVISION_IMPORT)): // 2026-11-01: por permiso (antes, personal administrativo) ?><div class="dropdown">
             <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-x-octagon me-1"></i>Cancelaciones</button>
             <div class="dropdown-menu dropdown-menu-end">
               <a class="dropdown-item" href="03_FRONTEND/src/assets/templates/plantilla_cancelaciones_v5.xlsx?v=<?= (int)@filemtime(FRONTEND_PATH . '/assets/templates/plantilla_cancelaciones_v5.xlsx') ?>" download="plantilla_cancelaciones_v5.xlsx"><i class="bi bi-file-earmark-arrow-down me-2"></i>Descargar modelo (Excel)</a>
@@ -640,7 +640,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
 
 </div>
 
-<?php if (($user['rol'] ?? '') === 'Administrador'): ?>
+<?php if (Auth::can(Auth::PERM_SUPERVISION_IMPORT)): ?>
 <div class="modal fade" id="modalImportarCancelaciones" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content border-0 shadow-lg">
     <div class="modal-header bg-dark text-white"><h5 class="modal-title fw-bold"><i class="bi bi-file-earmark-excel-fill me-2 text-success"></i>Carga masiva de cancelaciones</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
@@ -789,6 +789,9 @@ window.SGS_SUPERVISION = <?= json_encode([
     'itemsVencimiento' => $itemsVencimiento,
     'inicioVencimiento' => $inicioVencimiento,
     'corregirPendientes' => Auth::can(Auth::PERM_SUPERVISION_IMPORT), // 2026-10-27: quien carga cancelaciones corrige pendientes
+    // 2026-11-01: por permiso del perfil (antes, por el rol Administrador / supervisor directo)
+    'puedeEliminar' => Auth::can(Auth::PERM_SUPERVISION_DELETE),
+    'puedeAsignar' => Auth::can(Auth::PERM_SUPERVISION_ASSIGN) && Auth::esPersonalWin(),
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
 </script>
 <script src="03_FRONTEND/src/assets/js/supervision_lista.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>

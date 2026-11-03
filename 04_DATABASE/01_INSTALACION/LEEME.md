@@ -16,13 +16,13 @@ Se instalan **33 tablas**: con sus datos actuales (usuarios, permisos, partners,
 | `02_tabla_categorias_observacion.sql` | `categorias_observacion`: Categorías de observación | 6 registros |
 | `03_tabla_login_attempts.sql` | `login_attempts`: Intentos de ingreso (bloqueo a los 3 fallidos) | vacía |
 | `04_tabla_partners.sql` | `partners`: Contratas; WIN DIRECTO = personal propio | 12 registros |
-| `05_tabla_perfiles.sql` | `perfiles`: Perfiles de acceso: tipo base, alcance y permisos (2026-10-31) | 17 registros |
+| `05_tabla_perfiles.sql` | `perfiles`: Perfiles de acceso: tipo base, alcance y permisos (2026-10-31) | 11 registros |
 | `06_tabla_sgs_migracion.sql` | `sgs_migracion`: Cambios de base de datos ya aplicados (los registra 07_SCRIPTS/migrar.php) | vacía |
 | `07_tabla_tipificaciones_cancelacion.sql` | `tipificaciones_cancelacion`: Motivos de cancelación (los del Excel de pendientes se agregan solos) | 6 registros |
 | `08_tabla_ubigeo.sql` | `ubigeo`: Departamentos, provincias y distritos de operación | 120 registros |
 | `09_tabla_vehiculos.sql` | `vehiculos`: Vehículos de las cuadrillas | 3 registros |
-| `10_tabla_perfil_asignables.sql` | `perfil_asignables`: Perfiles que puede asignar quien tiene el perfil | 69 registros |
-| `11_tabla_perfil_permisos.sql` | `perfil_permisos`: Permisos de cada perfil (Auth::permissionCatalog) | 369 registros |
+| `10_tabla_perfil_asignables.sql` | `perfil_asignables`: Perfiles que puede asignar quien tiene el perfil | 34 registros |
+| `11_tabla_perfil_permisos.sql` | `perfil_permisos`: Permisos de cada perfil (Auth::permissionCatalog) | 240 registros |
 | `12_tabla_subopciones_observacion.sql` | `subopciones_observacion`: Tipificaciones de observación con gravedad y penalidad | 84 registros |
 | `13_tabla_usuarios.sql` | `usuarios`: Usuarios del sistema (personal WIN y de partners) | 10 registros |
 | `14_tabla_asistencia_ajustes.sql` | `asistencia_ajustes`: Correcciones del administrador en la matriz de asistencia | vacía |

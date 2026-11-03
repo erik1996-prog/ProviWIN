@@ -15,7 +15,7 @@ Auth::requireLogin();
 Auth::requireCsrf();
 if (!Auth::can(Auth::PERM_SUPERVISION_IMPORT)) {
     http_response_code(403);
-    echo json_encode(['status' => 'error', 'message' => 'Solo el administrador puede cargar cancelaciones.']);
+    echo json_encode(['status' => 'error', 'message' => 'No tiene permiso para subir pendientes.']);
     exit;
 }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_FILES['archivo'])) {
@@ -312,8 +312,12 @@ try {
         $assignedSupervisor = null;
         if (!$rowErrors) {
             $zonaTrabajo = sgsZonaDeUbicacion($department, $province); // LIMA / HUAURA → NORTE CHICO (2026-10-27)
-            $assignedSupervisor = elegirSupervisorCancelacion($pdo, $zonaTrabajo, $supervisionType);
-            if (!$assignedSupervisor) $rowErrors[] = "No hay supervisor directo activo para la zona {$zonaTrabajo}.";
+            // 2026-11-01: quien tiene "Sus zonas y su área" (p. ej. un líder técnico) solo sube pendientes de sus zonas y su área
+            if (!sgsAlcancePermiteSupervision($user, ['departamento' => $department, 'provincia' => $province, 'clasificacion_supervision' => $supervisionType])) {
+                $rowErrors[] = "La pendiente es de {$zonaTrabajo} ({$supervisionType}): solo puede subir pendientes de sus zonas y su área.";
+            }
+            $assignedSupervisor = $rowErrors ? null : elegirSupervisorCancelacion($pdo, $zonaTrabajo, $supervisionType);
+            if (!$rowErrors && !$assignedSupervisor) $rowErrors[] = "No hay supervisor directo activo para la zona {$zonaTrabajo}.";
         }
         if (!empty($rowErrors)) {
             $errors[] = [

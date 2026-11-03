@@ -65,6 +65,22 @@ final class PerfilRepository
             ->execute([':n' => $d['nombre'], ':c' => $d['codigo'], ':d' => $d['descripcion'] ?: null, ':r' => $d['rol_base'], ':a' => $d['alcance'], ':id' => $id]);
     }
 
+    /** Usuarios del perfil por organización: ['partner' => n, 'directo' => n] (WIN Directo = directo). */
+    public function usuariosPorOrganizacion(int $id): array
+    {
+        $st = $this->pdo->prepare("SELECT COALESCE(SUM(UPPER(TRIM(pa.nombre_partner)) NOT IN ('WIN DIRECTO','WIN')), 0) AS partner,
+            COALESCE(SUM(pa.id IS NULL OR UPPER(TRIM(pa.nombre_partner)) IN ('WIN DIRECTO','WIN')), 0) AS directo
+            FROM usuarios u LEFT JOIN partners pa ON pa.id = u.partner_id WHERE u.perfil_id = :id");
+        $st->execute([':id' => $id]);
+        return array_map('intval', $st->fetch());
+    }
+
+    /** El tipo (usuarios.rol) de los usuarios sigue al de su perfil. */
+    public function cambiarTipoDeUsuarios(int $id, string $rol): void
+    {
+        $this->pdo->prepare('UPDATE usuarios SET rol = :r WHERE perfil_id = :id')->execute([':r' => $rol, ':id' => $id]);
+    }
+
     public function guardarAsignables(int $id, array $asignables): void
     {
         $this->pdo->prepare('DELETE FROM perfil_asignables WHERE perfil_id = :id')->execute([':id' => $id]);

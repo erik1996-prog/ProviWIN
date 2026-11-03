@@ -80,8 +80,8 @@ try {
     $check('sin el permiso no puede responder observaciones', str_contains($r['message'] ?? '', 'Solo los representantes'), $r);
     // Perfil propio (2026-10-31): el de Partner más "Responder" observaciones
     $perfiles = new PerfilService($pdo);
-    $p = $perfiles->guardar(['nombre' => 'Prueba Jefe', 'codigo' => 'PRUEBAJEFE', 'rol_base' => 'Jefe de operaciones'], 0);
-    $perfiles->guardarPermisos($p['id'], array_merge(array_intersect(Auth::roleDefaultPermissions('Jefe de operaciones'), UsuarioService::permisosDelegables()), [Auth::PERM_OBSERVATION_RESPOND]), $admin);
+    $p = $perfiles->guardar(['nombre' => 'Prueba Jefe', 'codigo' => 'PRUEBAJEFE', 'datos' => 'partner'], 0);
+    $perfiles->guardarPermisos($p['id'], array_merge(Auth::roleDefaultPermissions('Jefe de operaciones'), [Auth::PERM_OBSERVATION_RESPOND]), $admin);
     $svc->guardar(array_merge($svc->detalle($jefe), ['password' => '', 'perfil_id' => $p['id']]), $jefe, $admin);
     $r = $responder();
     $check('con el permiso activado ya puede responder (solo le faltan las fotos)', str_contains($r['message'] ?? '', 'foto'), $r);

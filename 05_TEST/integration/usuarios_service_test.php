@@ -22,7 +22,7 @@ $expectError = function (callable $fn, string $contains) {
 $cleanup = function () use ($pdo) {
     $pdo->exec("DELETE n FROM notificaciones n WHERE n.titulo = 'Nuevo personal por completar' AND n.mensaje LIKE 'Personal Prueba SGS%'");
     $pdo->exec("DELETE FROM usuarios WHERE dni IN ('99999902','99999903','99999906','99999907')");
-    $pdo->exec("DELETE FROM perfiles WHERE codigo = 'PRUEBASGS'");
+    $pdo->exec("DELETE FROM perfiles WHERE codigo = 'PRUEBASGS' OR nombre IN ('Prueba Sin Codigo', 'Prueba Sin Clave')");
 };
 $cleanup();
 $partner = (int)$pdo->query("SELECT id FROM partners WHERE estado=1 AND UPPER(nombre_partner) NOT IN ('WIN','WIN DIRECTO') ORDER BY id LIMIT 1")->fetchColumn();
@@ -46,7 +46,7 @@ $check('rechaza partner con rol Gerente', fn() => $expectError(fn() => $svc->gua
 // Perfiles (2026-10-31): un perfil propio con solo "Ver supervisiones"; el usuario hereda exactamente eso.
 $check('el usuario toma el perfil elegido', function () use ($svc, $pdo, $base, $admin, &$uid) {
     $perfiles = new PerfilService($pdo);
-    $p = $perfiles->guardar(['nombre' => 'Prueba Perfil SGS', 'codigo' => 'PRUEBASGS', 'rol_base' => 'Supervisor'], 0);
+    $p = $perfiles->guardar(['nombre' => 'Prueba Perfil SGS', 'codigo' => 'PRUEBASGS', 'datos' => 'propio'], 0);
     $perfiles->guardarPermisos($p['id'], [Auth::PERM_SUPERVISION_VIEW, Auth::PERM_SUPERVISION_CREATE], $admin);
     $svc->guardar(array_merge($base, ['password' => '', 'perfil_id' => $p['id']]), $uid, $admin);
     return $svc->detalle($uid)['perfil_id'] === $p['id'];
@@ -58,6 +58,39 @@ $check('Auth::can sigue los permisos del perfil (sin "Ver", lo demás de esa pan
     $guardados = $pdo->query("SELECT permiso FROM perfil_permisos WHERE perfil_id = $id")->fetchAll(PDO::FETCH_COLUMN);
     return $ok && $guardados === [];
 });
+// 2026-11-01: perfil administrador = acceso total sin marcar permisos (menos lo de campo); código opcional; con usuarios no
+// cambia qué datos ve
+$check('perfil administrador: acceso total sin marcar permisos, menos lo de campo', function () use ($admin) {
+    return Auth::can(Auth::PERM_USERS_MANAGE, ['id' => $admin, 'rol' => 'Administrador']) && Auth::can(Auth::PERM_SUPERVISION_IMPORT, ['id' => $admin, 'rol' => 'Administrador'])
+        && !Auth::can(Auth::PERM_SUPERVISION_CREATE, ['id' => $admin, 'rol' => 'Administrador']);
+});
+$check('perfil sin código: se arma con las iniciales; "Su partner" = tipo Jefe de operaciones', function () use ($pdo) {
+    $perfiles = new PerfilService($pdo);
+    $p = $perfiles->guardar(['nombre' => 'Prueba Sin Codigo', 'codigo' => '', 'datos' => 'partner'], 0);
+    $fila = $pdo->query("SELECT codigo, rol_base, alcance FROM perfiles WHERE id = {$p['id']}")->fetch();
+    $p2 = $perfiles->guardar(['nombre' => 'Prueba Sin Clave', 'codigo' => '', 'es_admin' => true], 0);
+    $fila2 = $pdo->query("SELECT codigo, rol_base FROM perfiles WHERE id = {$p2['id']}")->fetch();
+    $pdo->exec("DELETE FROM perfiles WHERE id IN ({$p['id']}, {$p2['id']})");
+    return $fila['codigo'] === 'PSC' && $fila['rol_base'] === 'Jefe de operaciones' && $fila['alcance'] === 'todo'
+        && $fila2['codigo'] === 'PSC2' && $fila2['rol_base'] === 'Administrador';
+});
+$check('perfil con usuarios: cambiar qué datos ve cambia el tipo de sus usuarios', function () use ($pdo, &$uid) {
+    $id = (int)$pdo->query("SELECT id FROM perfiles WHERE codigo = 'PRUEBASGS'")->fetchColumn();
+    $perfiles = new PerfilService($pdo);
+    $perfiles->guardar(['nombre' => 'Prueba Perfil SGS', 'codigo' => 'PRUEBASGS', 'datos' => 'todo'], $id);
+    $rol = $pdo->query("SELECT rol FROM usuarios WHERE id = $uid")->fetchColumn();
+    $perfiles->guardar(['nombre' => 'Prueba Perfil SGS', 'codigo' => 'PRUEBASGS', 'datos' => 'propio'], $id);
+    return $rol === 'Gerente' && $pdo->query("SELECT rol FROM usuarios WHERE id = $uid")->fetchColumn() === 'Supervisor';
+});
+$check('perfil con usuarios de WIN Directo: no pasa a "Su partner"', fn() => $expectError(function () use ($pdo) {
+    $id = (int)$pdo->query("SELECT id FROM perfiles WHERE codigo = 'PRUEBASGS'")->fetchColumn();
+    (new PerfilService($pdo))->guardar(['nombre' => 'Prueba Perfil SGS', 'codigo' => 'PRUEBASGS', 'datos' => 'partner'], $id);
+}, 'solo para personal de un partner'));
+$check('el perfil de la cuenta principal sigue siendo administrador', fn() => $expectError(function () use ($pdo) {
+    $p = $pdo->query('SELECT p.id, p.nombre, p.codigo FROM perfiles p JOIN usuarios u ON u.perfil_id = p.id WHERE u.id = ' . (int)Auth::cuentaPrincipalId())->fetch();
+    (new PerfilService($pdo))->guardar(['nombre' => $p['nombre'], 'codigo' => $p['codigo'], 'datos' => 'todo'], (int)$p['id']);
+}, 'cuenta principal'));
+$check('perfil sin "qué datos ve" se rechaza', fn() => $expectError(fn() => (new PerfilService($pdo))->guardar(['nombre' => 'Prueba X', 'codigo' => 'PRUEBAX'], 0), 'qué datos puede ver'));
 $check('correo libre: se guarda el que trae la persona', function () use ($svc, $base, $admin, &$uid) {
     $svc->guardar(array_merge($base, ['password' => '', 'email' => 'Prueba.Integracion@Gmail.com']), $uid, $admin);
     $ok = $svc->detalle($uid)['email'] === 'prueba.integracion@gmail.com';

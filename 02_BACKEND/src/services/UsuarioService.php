@@ -33,26 +33,19 @@ final class UsuarioService
         $this->perfiles = new PerfilService($pdo);
     }
 
-    /** Permisos que el administrador puede delegar (los "reservados" quedan fijos por rol). */
-    public static function permisosDelegables(): array
-    {
-        return array_keys(array_filter(Auth::permissionCatalog(), static fn($p) => !empty($p['delegable'])));
-    }
-
     /** Sección del menú de cada pantalla (2026-10-26): el editor de permisos y la matriz las ordenan igual que el menú. */
     public const SECCION_PANTALLA = [
         'Dashboard de supervisiones' => 'Indicadores', 'Dashboard de partners' => 'Indicadores', 'Pendientes y rescates' => 'Indicadores', 'Matriz de asistencia' => 'Asistencia',
         'Clima' => 'Indicadores', 'Exámenes' => 'Indicadores', 'Supervisiones' => 'Supervisiones', 'Línea de tiempo' => 'Seguimiento',
         'Mi turno' => 'Seguimiento', 'Observaciones' => 'Observaciones', 'Usuarios y perfiles' => 'Personal', 'Técnicos y cuadrillas' => 'Personal',
-        'Partners' => 'Personal',
+        'Partners' => 'Personal', 'Guía de diseño' => 'Otros',
     ];
 
     public static function catalogoSgs(): array
     {
         $out = [];
         foreach (Auth::permissionCatalog() as $clave => $def) {
-            if (empty($def['delegable'])) continue;
-            // boton (2026-10-31): texto corto de la pantalla Permisos (Ver, Registrar, Editar, Eliminar o el de su opción)
+                // boton (2026-10-31): texto corto de la pantalla Permisos (Ver, Registrar, Editar, Eliminar o el de su opción)
             $out[] = ['clave' => $clave, 'grupo' => $def['group'], 'etiqueta' => $def['label'], 'accion' => $def['action'] ?? null,
                 'boton' => $def['boton'] ?? (['ver' => 'Ver', 'editar' => 'Editar', 'eliminar' => 'Eliminar'][$def['action'] ?? ''] ?? $def['label']),
                 'requiere' => Auth::permisoRequerido($clave), 'seccion' => self::SECCION_PANTALLA[$def['group']] ?? 'Otros'];
@@ -77,8 +70,7 @@ final class UsuarioService
         return [
             'equipo' => (bool)$eq,
             'perfiles' => $perfiles,
-            'alcances' => PerfilService::ALCANCES_POR_ROL,
-            'tipos_base' => array_map(static fn($r) => ['rol' => $r, 'etiqueta' => Auth::etiquetaRol($r)], UsuarioValidator::ROLES),
+            'de_campo' => Auth::PERMISOS_DE_CAMPO, // un perfil administrador tiene todo menos esto (2026-11-01)
             'partners' => array_values(array_filter($this->usuarios->partners(), static fn($p) => !in_array(mb_strtoupper(trim($p['nombre_partner'])), ['WIN', 'WIN DIRECTO'], true))),
             'departamentos' => $departamentos,
             'permisos' => $eq ? [] : self::catalogoSgs(),

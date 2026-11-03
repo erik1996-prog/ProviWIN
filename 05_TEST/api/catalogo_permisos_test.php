@@ -27,7 +27,6 @@ $check('cada pantalla pide un permiso que existe en Roles y permisos', $m && !$f
 
 $sinSeccion = []; $sinVer = [];
 foreach ($catalogo as $clave => $d) {
-    if (empty($d['delegable'])) continue;
     if (!isset(UsuarioService::SECCION_PANTALLA[$d['group']])) $sinSeccion[] = "{$d['group']} ($clave)";
     if (($d['action'] ?? '') !== 'ver' && Auth::permisoRequerido($clave) === null && $d['group'] !== 'Mi turno') $sinVer[] = $clave;
 }

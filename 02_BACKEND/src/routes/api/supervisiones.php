@@ -188,11 +188,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'partner_update') {
 }
 
 if ($action === 'supervisores_partner') {
-    $canAssignPartner = Auth::can(Auth::PERM_SUPERVISION_ASSIGN, $user)
-        && (($user['rol'] ?? '') === Auth::ROLE_ADMINISTRADOR
-            || (($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($user['is_win_directo'])));
+    $canAssignPartner = Auth::can(Auth::PERM_SUPERVISION_ASSIGN, $user) && Auth::esPersonalWin($user); // por permiso (2026-11-01)
     if (!$canAssignPartner) {
-        http_response_code(403); echo json_encode(['status'=>'error','message'=>'Solo el administrador o un supervisor directo de WIN puede realizar asignaciones.']); exit;
+        http_response_code(403); echo json_encode(['status'=>'error','message'=>'No tiene permiso para asignar pendientes a un partner.']); exit;
     }
     $supervisionId = (int)($_GET['supervision_id'] ?? 0);
     $stmtOrder = $pdo->prepare("SELECT id,supervisor_id,partner_id,departamento,provincia,estado_supervision FROM supervisiones WHERE id=:id LIMIT 1");
@@ -223,23 +221,25 @@ if ($action === 'supervisores_partner') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'asignar_partner') {
-    $isAdminAssigning = Auth::can(Auth::PERM_SUPERVISION_ASSIGN, $user)
-        && ($user['rol'] ?? '') === Auth::ROLE_ADMINISTRADOR;
-    $canAssignPartner = $isAdminAssigning || ($user['rol'] === Auth::ROLE_SUPERVISOR && !empty($user['is_win_directo']));
+    // 2026-11-01: por permiso "Asignar pendientes" y personal de WIN. El supervisor asigna las de su zona; quien no es
+    // supervisor (líder, coordinador, administrador) asigna cualquiera dentro de su alcance (sus zonas y su área, si los tiene).
+    $canAssignPartner = Auth::can(Auth::PERM_SUPERVISION_ASSIGN, $user) && Auth::esPersonalWin($user);
+    $isAdminAssigning = $canAssignPartner && ($user['rol'] ?? '') !== Auth::ROLE_SUPERVISOR;
     if (!$canAssignPartner) {
-        http_response_code(403); echo json_encode(['status'=>'error','message'=>'Solo el administrador o un supervisor directo de WIN puede realizar asignaciones.']); exit;
+        http_response_code(403); echo json_encode(['status'=>'error','message'=>'No tiene permiso para asignar pendientes a un partner.']); exit;
     }
     $supervisionId = (int)($_POST['supervision_id'] ?? 0);
     $partnerSupervisorId = (int)($_POST['supervisor_partner_id'] ?? 0);
     $pdo->beginTransaction();
     try {
-        $stmtOrder = $pdo->prepare("SELECT id,codigo_supervision,supervisor_id,partner_id,departamento,provincia,estado_supervision,rescate_estado FROM supervisiones WHERE id=:id FOR UPDATE");
+        $stmtOrder = $pdo->prepare("SELECT id,codigo_supervision,supervisor_id,partner_id,departamento,provincia,clasificacion_supervision,estado_supervision,rescate_estado FROM supervisiones WHERE id=:id FOR UPDATE");
         $stmtOrder->execute([':id'=>$supervisionId]);
         $order = $stmtOrder->fetch();
         if ($order && ($order['rescate_estado'] ?? '') === 'En rescate') {
             throw new RuntimeException('La orden está en rescate: no se puede asignar a un partner mientras dure el rescate.');
         }
-        if (!$order || $order['estado_supervision'] !== 'Pendiente' || (!$isAdminAssigning && !canAccessSupervision($user, $order, true))) {
+        if (!$order || $order['estado_supervision'] !== 'Pendiente' || (!$isAdminAssigning && !canAccessSupervision($user, $order, true))
+            || ($isAdminAssigning && !sgsAlcancePermiteSupervision($user, $order))) {
             throw new RuntimeException('La orden ya no está pendiente o no pertenece a una zona autorizada.');
         }
         $departmentSql = operationalDepartmentSql('u');
@@ -1910,13 +1910,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'prioridad_pendiente') 
         echo json_encode(['status' => $estado, 'message' => $mensaje], JSON_UNESCAPED_UNICODE);
         exit;
     };
-    if (!Auth::can(Auth::PERM_SUPERVISION_IMPORT, $user)) $responder(403, 'Solo quien carga las cancelaciones puede marcar la prioridad.');
+    if (!Auth::can(Auth::PERM_SUPERVISION_IMPORT, $user)) $responder(403, 'Solo quien sube pendientes puede marcar la prioridad.');
     $id = (int)($_POST['supervision_id'] ?? 0);
     $prioridad = ($_POST['prioridad'] ?? '') === '1' ? 1 : 0;
-    $st = $pdo->prepare('SELECT id, ticket_codigo, codigo_supervision, estado_supervision FROM supervisiones WHERE id = :id');
+    $st = $pdo->prepare('SELECT id, ticket_codigo, codigo_supervision, estado_supervision, departamento, provincia, clasificacion_supervision FROM supervisiones WHERE id = :id');
     $st->execute([':id' => $id]);
     $orden = $st->fetch();
     if (!$orden) $responder(404, 'La orden no existe.');
+    if (!sgsAlcancePermiteSupervision($user, $orden)) $responder(403, 'Esa pendiente no es de sus zonas o su área.'); // 2026-11-01
     if ($orden['estado_supervision'] !== 'Pendiente') $responder(409, 'Solo se marca la prioridad de una orden pendiente. Actualice la lista.');
     $pdo->prepare('UPDATE supervisiones SET prioridad_alta = :p WHERE id = :id')->execute([':p' => $prioridad, ':id' => $id]);
     $codigo = $orden['ticket_codigo'] ?: $orden['codigo_supervision'];
@@ -1932,7 +1933,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'corregir_pendiente') {
         echo json_encode(['status' => $estado, 'message' => $mensaje], JSON_UNESCAPED_UNICODE);
         exit;
     };
-    if (!Auth::can(Auth::PERM_SUPERVISION_IMPORT, $user)) $responder(403, 'Solo quien carga las cancelaciones puede corregir las pendientes.');
+    if (!Auth::can(Auth::PERM_SUPERVISION_IMPORT, $user)) $responder(403, 'Solo quien sube pendientes puede corregirlas.');
     $id = (int)($_POST['id'] ?? 0);
     $texto = static fn(string $k, int $max): string => mb_substr(trim(preg_replace('/\s+/u', ' ', (string)($_POST[$k] ?? ''))), 0, $max);
     $ticket = normalizarTicket((string)($_POST['ticket'] ?? ''));
@@ -1966,6 +1967,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'corregir_pendiente') {
         if (!$lider) $errores[] = 'La cuadrilla elegida no es un técnico líder de ese partner.';
     }
     if ($errores) $responder(422, implode(' ', $errores));
+    // 2026-11-01: con "Sus zonas y su área", la nueva ubicación y gestión también deben ser suyas
+    if (!sgsAlcancePermiteSupervision($user, ['departamento' => $ubicacion['departamento'], 'provincia' => $ubicacion['provincia'], 'clasificacion_supervision' => $tipo])) $responder(403, 'Esa ubicación o gestión no es de sus zonas o su área.');
 
     $pdo->beginTransaction();
     try {
@@ -1974,6 +1977,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'corregir_pendiente') {
         $st->execute([':id' => $id]);
         $sup = $st->fetch(PDO::FETCH_ASSOC);
         if (!$sup) throw new RuntimeException('Esta pendiente ya no existe.', 404);
+        if (!sgsAlcancePermiteSupervision($user, $sup)) throw new RuntimeException('Esa pendiente no es de sus zonas o su área.', 403);
         if ($sup['estado_supervision'] !== 'Pendiente' || !(int)$sup['es_cancelacion'] || !(int)$sup['origen_importacion'] || ($sup['rescate_estado'] ?? '') === 'En rescate') {
             throw new RuntimeException('Solo se corrigen pendientes cargadas que aún no se iniciaron ni están en rescate. Actualice la lista.', 409);
         }
