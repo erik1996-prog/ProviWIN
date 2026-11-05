@@ -273,6 +273,7 @@ CREATE TABLE IF NOT EXISTS `lluvias_zona` (
   `fin` datetime DEFAULT NULL COMMENT 'NULL = sigue lloviendo',
   `reportado_por` int(11) NOT NULL,
   `comentario_inicio` varchar(150) DEFAULT NULL COMMENT 'Qué hacía quien avisó la lluvia',
+  `observacion` varchar(200) DEFAULT NULL COMMENT 'Comentario que escribió el supervisor al avisar la lluvia',
   `cerrado_por` int(11) DEFAULT NULL,
   `comentario_fin` varchar(150) DEFAULT NULL COMMENT 'Qué hacía quien la cerró',
   PRIMARY KEY (`id`),

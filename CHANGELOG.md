@@ -4,6 +4,24 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Foto de la lluvia: tomarla o subirla (2026-11-03)
+- **Cambiado**: al avisar una lluvia (Mi turno), la foto ya no obliga a usar la cámara. Hay dos botones:
+  - **Tomar foto**: abre la cámara;
+  - **Subir foto**: elige una de la galería.
+- Vale la última foto elegida y se reduce igual que antes (1600 px) antes de enviarse.
+
+### Excel de lluvias (2026-11-03)
+- **Añadido**: en Indicadores → Clima, el botón **Descargar Excel** baja las lluvias del mes y la zona elegidos, de la más antigua a la más nueva. Usa el formato que mostró el usuario:
+  - FECHA, CIUDAD, SUPERVISOR (quien avisó);
+  - INICIO y FINAL con segundos (o "Sigue lloviendo");
+  - OBSERVACIONES: el comentario que escribió el supervisor al avisar la lluvia, o "Sin observaciones";
+  - MINUTOS como "01h 37m 21s";
+  - TRAMO HORARIO: la hora en que empezó (p. ej. 9);
+  - MES en letras (OCTUBRE).
+- El encabezado sale naranja WIN con letras blancas, con bordes finos y columnas a la medida. `sgsEscribirXlsx` / `sgsEnviarXlsx` tienen la opción `$colorWin`; los demás Excel no cambian.
+- Ve las mismas zonas que el indicador (`api/dashboard_lluvias.php?action=excel`).
+- **Cambiado**: el comentario del aviso de lluvia (Mi turno) antes solo iba a Teams. Ahora además se guarda: cambio de base `2026-11-03_03_observacion_del_supervisor_en_la_lluvia` (columna `lluvias_zona.observacion`). Las lluvias anteriores salen "Sin observaciones".
+
 ### Segmento del servicio (ZAV / Regular) según el distrito (2026-11-03)
 - **Cambiado**: en "Nueva supervisión", el "Segmento del servicio" va después de Departamento, Provincia y Distrito, y se pone solo al elegir el distrito. Ya no se elige a mano.
   - **ZAV**: Barranco, Jesús María, La Molina, Lince, Magdalena del Mar, Miraflores, Pueblo Libre, San Borja, San Isidro, San Miguel, Santiago de Surco y Surquillo (Lima).

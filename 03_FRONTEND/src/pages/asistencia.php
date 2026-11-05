@@ -291,8 +291,14 @@ if (empty($user['is_win_directo']) && !$isAdmin) {
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
             </div>
             <div class="modal-body">
-                <label for="lluviaFoto" class="form-label">Foto de la lluvia</label>
-                <input type="file" id="lluviaFoto" class="form-control" accept="image/*" capture="environment" data-sin-comprimir>
+                <!-- Foto (2026-11-03): tomarla con la cámara o subirla de la galería -->
+                <span class="form-label d-block" id="lluviaFotoEtiqueta">Foto de la lluvia</span>
+                <div class="d-flex gap-2" role="group" aria-labelledby="lluviaFotoEtiqueta">
+                    <label class="btn btn-outline-secondary flex-fill mb-0" for="lluviaFotoCamara"><i class="bi bi-camera me-1"></i>Tomar foto</label>
+                    <label class="btn btn-outline-secondary flex-fill mb-0" for="lluviaFotoGaleria"><i class="bi bi-image me-1"></i>Subir foto</label>
+                </div>
+                <input type="file" id="lluviaFotoCamara" class="visually-hidden" accept="image/*" capture="environment" data-sin-comprimir>
+                <input type="file" id="lluviaFotoGaleria" class="visually-hidden" accept="image/*" data-sin-comprimir>
                 <img id="lluviaFotoPrevia" class="sgs-lluvia-foto mt-2" alt="Foto de la lluvia elegida" hidden>
                 <label for="lluviaComentario" class="form-label mt-3">Comentario</label>
                 <textarea id="lluviaComentario" class="form-control" rows="2" maxlength="200" placeholder="Por ejemplo: lluvia fuerte en el centro de la ciudad"></textarea>

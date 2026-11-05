@@ -63,10 +63,10 @@ function sgsPorcentaje(int|float $parte, int|float $total): int {
     return $total > 0 ? (int)round($parte * 100 / $total) : 0;
 }
 
-/** Envía un Excel de una hoja (primera fila = encabezados) y termina. */
-function sgsEnviarXlsx(array $hoja, string $nombreHoja, string $archivo): never {
+/** Envía un Excel de una hoja (primera fila = encabezados) y termina. $colorWin: encabezado naranja WIN (sgsEscribirXlsx). */
+function sgsEnviarXlsx(array $hoja, string $nombreHoja, string $archivo, bool $colorWin = false): never {
     require_once __DIR__ . '/tecnicos_lideres.php'; // sgsEscribirXlsx
-    $bin = sgsEscribirXlsx($hoja, $nombreHoja);
+    $bin = sgsEscribirXlsx($hoja, $nombreHoja, $colorWin);
     header_remove('Content-Type');
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     header('Content-Disposition: attachment; filename="' . $archivo . '_' . date('Ymd_Hi') . '.xlsx"');

@@ -192,7 +192,7 @@
     document.addEventListener('visibilitychange', actualizar);
 
     D.iniciar({
-        raiz, form: $('dllFiltros'), url: 'api/dashboard_lluvias.php?action=dashboard', tip: $('dllTip'),
+        raiz, form: $('dllFiltros'), url: 'api/dashboard_lluvias.php?action=dashboard', excel: $('dllExcel'), tip: $('dllTip'),
         pintar: (d) => {
             if (datos?.mes !== d.mes) diaElegido = ''; // al actualizar solo, se mantiene el día elegido
             if ($('dllEnVivo')) $('dllEnVivo').lastChild.textContent = `En vivo · actualizado a las ${new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false })}`;

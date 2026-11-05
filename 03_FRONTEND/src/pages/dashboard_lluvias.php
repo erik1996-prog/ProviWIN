@@ -22,6 +22,7 @@ $kpis = [
 <div class="container-fluid p-3 p-md-4 dsh" id="dll" data-puede-eliminar="<?= Auth::puede(Auth::PERM_CLIMA_DELETE, $user) ? '1' : '0' ?>">
   <div class="sgs-page-actions">
     <span class="sgs-counter" id="dllContador">Cargando…</span>
+    <a class="btn btn-outline-secondary" id="dllExcel" href="api/dashboard_lluvias.php?action=excel" data-base="api/dashboard_lluvias.php?action=excel" title="Las lluvias del mes y la zona elegidos: fecha, ciudad, supervisor, inicio, fin, duración, tramo y observaciones"><i class="bi bi-file-earmark-arrow-down me-1"></i>Descargar Excel</a>
   </div>
 
   <form class="card sgs-toolbar-card p-3 mb-3" id="dllFiltros">

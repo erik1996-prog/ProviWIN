@@ -182,6 +182,7 @@ try {
     $ll = $pdo->query("SELECT * FROM lluvias_zona WHERE id = " . (int)($ll['id'] ?? 0))->fetch(PDO::FETCH_ASSOC) ?: [];
     $check('Dos la cierra en su almuerzo: fin con "En almuerzo" y él como quien cerró', ($r['status'] ?? '') === 'success' && empty($r['data']['abiertas'])
         && $ll['fin'] !== null && (int)$ll['cerrado_por'] === $d2 && $ll['comentario_fin'] === 'En almuerzo', [$r, $ll]);
+    $check('el comentario que escribió Uno al avisar queda como observación de la lluvia (Excel de lluvias, 2026-11-03)', ($ll['observacion'] ?? '') === 'Lluvia de prueba', $ll);
     $ind = $http("$base/api/dashboard_lluvias.php?action=dashboard&mes=" . date('Y-m') . '&zona=AREQUIPA');
     $fila = array_values(array_filter($ind['data']['bitacora'] ?? [], fn($x) => (int)$x['id'] === (int)($ll['id'] ?? 0)))[0] ?? null;
     $check('indicador de lluvias: el día cuenta y la bitácora trae quién avisó y quién cerró', ($ind['data']['kpis']['dias'] ?? 0) >= 1 && isset($ind['data']['dias'][date('Y-m-d')])

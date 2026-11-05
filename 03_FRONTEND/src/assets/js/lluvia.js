@@ -61,18 +61,20 @@
         return new File([jpeg], 'lluvia.jpg', { type: 'image/jpeg' });
     };
     const modal = document.getElementById('modalLluvia');
-    const foto = document.getElementById('lluviaFoto'), previa = document.getElementById('lluviaFotoPrevia');
+    // Dos entradas (2026-11-03): la cámara o la galería; vale la última foto elegida
+    const entradasFoto = ['lluviaFotoCamara', 'lluviaFotoGaleria'].map((id) => document.getElementById(id)), previa = document.getElementById('lluviaFotoPrevia');
     const comentario = document.getElementById('lluviaComentario'), botonEnviar = document.getElementById('lluviaEnviar');
     let zonaAviso = '', fotoLista = null;
     const limpiarFoto = () => { fotoLista = null; previa.hidden = true; if (previa.src) URL.revokeObjectURL(previa.src); previa.removeAttribute('src'); };
-    foto.addEventListener('change', async () => {
-        limpiarFoto();
+    entradasFoto.forEach((foto) => foto.addEventListener('change', async () => {
         if (!foto.files[0]) return;
+        limpiarFoto();
         try { fotoLista = await reducir(foto.files[0]); previa.src = URL.createObjectURL(fotoLista); previa.hidden = false; }
-        catch (e) { window.showToast?.(e.message || 'No se pudo leer la foto.', 'error'); foto.value = ''; }
-    });
+        catch (e) { window.showToast?.(e.message || 'No se pudo leer la foto.', 'error'); }
+        foto.value = ''; // así se puede volver a elegir la misma foto
+    }));
     botonEnviar.addEventListener('click', async () => {
-        if (!fotoLista) { window.showToast?.('Tome una foto de la lluvia.', 'error'); return; }
+        if (!fotoLista) { window.showToast?.('Tome o suba una foto de la lluvia.', 'error'); return; }
         if (!comentario.value.trim()) { window.showToast?.('Escriba un comentario de la lluvia.', 'error'); comentario.focus(); return; }
         const datos = { zona: zonaAviso, comentario: comentario.value.trim(), foto: fotoLista };
         if (await enviar('avisar', datos, botonEnviar)) bootstrap.Modal.getOrCreateInstance(modal).hide();
@@ -82,7 +84,7 @@
         const b = ev.target.closest('[data-accion]');
         if (!b) return;
         if (b.dataset.accion === 'paro') { enviar('paro', { zona: b.dataset.zona }, b); return; }
-        zonaAviso = b.dataset.zona; limpiarFoto(); foto.value = ''; comentario.value = '';
+        zonaAviso = b.dataset.zona; limpiarFoto(); comentario.value = '';
         document.getElementById('lluviaZonaTitulo').textContent = zonaAviso;
         bootstrap.Modal.getOrCreateInstance(modal).show();
     });

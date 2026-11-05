@@ -43,12 +43,13 @@ function sgsLluviasAbiertas(PDO $pdo, array $zonas): array {
     return array_column($st->fetchAll(PDO::FETCH_ASSOC), null, 'departamento');
 }
 
-/** Avisa que llueve en la zona. Si ya hay una lluvia abierta ahí, devuelve esa (no se duplica). */
-function sgsAvisarLluvia(PDO $pdo, int $usuarioId, string $zona): array {
+/** Avisa que llueve en la zona. Si ya hay una lluvia abierta ahí, devuelve esa (no se duplica). La observación es el comentario
+ *  que escribió el supervisor (2026-11-03: se guarda para el Excel de lluvias). */
+function sgsAvisarLluvia(PDO $pdo, int $usuarioId, string $zona, string $observacion): array {
     $abierta = sgsLluviasAbiertas($pdo, [$zona])[$zona] ?? null;
     if ($abierta) return ['nueva' => false, 'lluvia' => $abierta];
-    $pdo->prepare('INSERT INTO lluvias_zona (departamento, inicio, reportado_por, comentario_inicio) VALUES (?, NOW(), ?, ?)')
-        ->execute([$zona, $usuarioId, sgsQueHaceSupervisor($pdo, $usuarioId)]);
+    $pdo->prepare('INSERT INTO lluvias_zona (departamento, inicio, reportado_por, comentario_inicio, observacion) VALUES (?, NOW(), ?, ?, ?)')
+        ->execute([$zona, $usuarioId, sgsQueHaceSupervisor($pdo, $usuarioId), $observacion]);
     return ['nueva' => true, 'lluvia' => sgsLluviasAbiertas($pdo, [$zona])[$zona] ?? null];
 }
 

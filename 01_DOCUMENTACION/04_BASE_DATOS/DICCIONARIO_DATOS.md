@@ -286,6 +286,7 @@ Lluvia avisada por los supervisores en su zona (línea de tiempo) · Depende de:
 | `fin` | datetime | sí |  | NULL = sigue lloviendo |
 | `reportado_por` | int(11) | no | FK → `usuarios` |  |
 | `comentario_inicio` | varchar(150) | sí |  | Qué hacía quien avisó la lluvia |
+| `observacion` | varchar(200) | sí |  | Comentario que escribió el supervisor al avisar la lluvia |
 | `cerrado_por` | int(11) | sí | FK → `usuarios` |  |
 | `comentario_fin` | varchar(150) | sí |  | Qué hacía quien la cerró |
 

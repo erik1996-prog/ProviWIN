@@ -2,6 +2,9 @@
 // 02_BACKEND/src/routes/api/dashboard_lluvias.php - Indicador de lluvias por zona (2026-10-20). Tabla lluvias_zona.
 // Cada lluvia es de una zona: inicio = el primer supervisor que la avisó, fin = el que la cerró (con qué hacía cada uno).
 //   GET ?action=dashboard&mes=AAAA-MM[&zona=X] → indicadores del mes, horas por zona, días del calendario y bitácora.
+//   GET ?action=excel&mes=AAAA-MM[&zona=X] → las lluvias del mes en Excel (2026-11-03): fecha, ciudad, supervisor, inicio,
+//     final, observaciones (el comentario que escribió el supervisor al avisar), minutos (00h 00m 00s), tramo horario (hora
+//     de inicio) y mes, con el encabezado naranja WIN (formato que pidió el usuario). Mismos filtros y zonas que el indicador.
 // Administración ve todas las zonas; el supervisor directo, las suyas. Pocas filas por mes: se resumen aquí mismo.
 //   POST ?action=eliminar  id → borra un registro de lluvia (permiso "Eliminar registros de lluvia", 2026-10-23).
 //     Si era de hoy, avisa en Teams que el aviso se anuló (el inicio ya se había publicado en el grupo).
@@ -79,7 +82,7 @@ if (str_starts_with($accion, 'programa')) {
     if (isset($mensaje)) win_log_error('audit_rain_report_schedule', $mensaje, ['actor_id' => (int)$usuario['id'], 'accion' => $accion]);
     $responder(['status' => 'success', 'data' => $lista(), 'message' => $mensaje ?? '']);
 }
-if ($accion !== 'dashboard') $responder(['status' => 'error', 'message' => 'Acción no válida.'], 404);
+if (!in_array($accion, ['dashboard', 'excel'], true)) $responder(['status' => 'error', 'message' => 'Acción no válida.'], 404);
 $pdo = Database::getConnection();
 sgsCerrarLluviasViejas($pdo);
 
@@ -95,12 +98,28 @@ if (!$esAdmin && sgsUserZones((int)$usuario['id']) !== null) {
     $where[] = sgsZoneSql('l.departamento', (int)$usuario['id'], $zp, ':uz');
     $params += $zp;
 }
-$st = $pdo->prepare("SELECT l.id, l.departamento AS zona, l.inicio, l.fin, ua.nombre_completo AS aviso, l.comentario_inicio,
+$st = $pdo->prepare("SELECT l.id, l.departamento AS zona, l.inicio, l.fin, ua.nombre_completo AS aviso, l.comentario_inicio, l.observacion,
         uc.nombre_completo AS cerro, l.comentario_fin, TIMESTAMPDIFF(MINUTE, l.inicio, COALESCE(l.fin, NOW())) AS minutos
     FROM lluvias_zona l JOIN usuarios ua ON ua.id = l.reportado_por LEFT JOIN usuarios uc ON uc.id = l.cerrado_por
     WHERE " . implode(' AND ', $where) . ' ORDER BY l.inicio DESC LIMIT 1000');
 $st->execute($params);
 $bitacora = array_map(static fn($r) => ['minutos' => max(0, (int)$r['minutos']), 'sigue' => $r['fin'] === null] + $r, $st->fetchAll(PDO::FETCH_ASSOC));
+
+if ($accion === 'excel') {
+    require_once __DIR__ . '/../../config/dashboard.php'; // sgsEnviarXlsx
+    $duracion = static fn(int $s) => sprintf('%02dh %02dm %02ds', intdiv($s, 3600), intdiv($s % 3600, 60), $s % 60);
+    $meses = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SETIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+    $hoja = [['FECHA', 'CIUDAD', 'SUPERVISOR', 'INICIO', 'FINAL', 'OBSERVACIONES', 'MINUTOS', 'TRAMO HORARIO', 'MES']];
+    foreach (array_reverse($bitacora) as $l) { // de la más antigua a la más nueva
+        $ini = strtotime($l['inicio']);
+        $fin = $l['sigue'] ? time() : strtotime($l['fin']);
+        // Tramo horario: la hora en que empezó (09:07 → 9)
+        $hoja[] = [date('d/m/Y', $ini), $l['zona'], $l['aviso'], date('H:i:s', $ini), $l['sigue'] ? 'Sigue lloviendo' : date('H:i:s', $fin),
+            trim((string)$l['observacion']) !== '' ? $l['observacion'] : 'Sin observaciones', $duracion(max(0, $fin - $ini)), date('G', $ini),
+            $meses[(int)date('n', $ini) - 1]];
+    }
+    sgsEnviarXlsx($hoja, 'Lluvias ' . $mes, 'lluvias_' . $mes . ($zona !== '' ? '_' . preg_replace('/[^A-Za-z0-9]+/', '_', $zona) : ''), true);
+}
 
 // Resúmenes: por zona y por día (fecha de inicio de la lluvia)
 $porZona = []; $dias = [];

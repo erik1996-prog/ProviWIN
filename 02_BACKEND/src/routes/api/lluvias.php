@@ -5,7 +5,8 @@
 //   POST ?action=avisar  zona    → con turno abierto: avisa la lluvia (si otro ya la avisó, no se duplica)
 //   POST ?action=paro    zona    → cierra la lluvia de la zona (cualquiera de la zona)
 // Cada inicio y fin se publica en el grupo de Teams si está configurado (sgsAvisoTeamsLluvia).
-// Al avisar llegan también comentario y foto (archivo, reducido en el celular a 1600 px): solo se publican en Teams. En el
+// Al avisar llegan también comentario y foto (archivo, reducido en el celular a 1600 px): se publican en Teams y el comentario
+// se guarda como observación de la lluvia (2026-11-03, para el Excel de lluvias). En el
 // servidor (https) la foto se guarda 90 días en uploads/lluvias_teams para que Teams la muestre nítida y ampliable (2026-10-26).
 header('Content-Type: application/json; charset=utf-8');
 
@@ -45,8 +46,8 @@ if ($action === 'avisar') {
     $comentario = trim(preg_replace('/\s+/u', ' ', (string)($_POST['comentario'] ?? '')));
     if ($comentario === '' || mb_strlen($comentario) > 200) $responder(['status' => 'error', 'message' => 'Escriba un comentario corto de la lluvia.'], 422);
     $archivoFoto = $_FILES['foto'] ?? [];
-    if (($archivoFoto['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) $responder(['status' => 'error', 'message' => 'Tome una foto de la lluvia.'], 422);
-    $r = sgsAvisarLluvia($pdo, $uid, $zona);
+    if (($archivoFoto['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) $responder(['status' => 'error', 'message' => 'Tome o suba una foto de la lluvia.'], 422);
+    $r = sgsAvisarLluvia($pdo, $uid, $zona, $comentario);
     if ($r['nueva']) sgsAvisoTeamsLluvia("Inicio de lluvia — {$zona}", 'Hora: ' . date('H:i') . " · Reportó: {$usuario['nombre']}", $comentario,
         sgsFotoLluviaParaTeams($archivoFoto, sgsUrlSistema()));
     $responder(['status' => 'success', 'data' => $estado(), 'message' => $r['nueva'] ? "Lluvia avisada en {$zona}. Avise cuando pare."
