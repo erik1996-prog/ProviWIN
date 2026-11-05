@@ -40,7 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
             <small><strong>${Number(h.rindieron)}</strong> de ${Number(h.total)} rindieron · ${Number(h.aprobados)} aprobados</small></div>
           <div class="ex-historial-acciones"><span class="badge ${clase}">${texto}</span>
             <button type="button" class="btn btn-sm btn-outline-secondary" data-ver-link="${h.id}"><i class="bi bi-broadcast me-1" aria-hidden="true"></i>Seguimiento</button>
-            ${h.estado === 'activo' && $('mExamen').dataset.puedeAnular === '1' ? `<button type="button" class="btn btn-sm btn-outline-danger" data-anular-link="${h.id}"><i class="bi bi-lock me-1" aria-hidden="true"></i>Cerrar link</button>` : ''}</div></li>`;
+            ${h.estado === 'activo' && $('mExamen').dataset.puedeAnular === '1' ? `<button type="button" class="btn btn-sm btn-outline-danger" data-anular-link="${h.id}"><i class="bi bi-lock me-1" aria-hidden="true"></i>Cerrar link</button>` : ''}
+            ${$('mExamen').dataset.puedeBorrar === '1' ? `<button type="button" class="btn btn-sm btn-outline-danger sgs-btn-icono" data-borrar-link="${h.id}" title="Borrar link y resultados" aria-label="Borrar link y resultados"><i class="bi bi-trash"></i></button>` : ''}</div></li>`;
       }).join('') + '</ul>';
   };
   const listaTecnicos = (titulo, items, clase, conEditar) => !items.length ? '' :
@@ -166,6 +167,17 @@ document.addEventListener('DOMContentLoaded', () => {
   $('exHistorial').addEventListener('click', async (ev) => {
     const ver = ev.target.closest('[data-ver-link]');
     if (ver) { linkEnVivo = ver.dataset.verLink; $('exDetalle').innerHTML = '<p class="text-muted small mb-0">Cargando…</p>'; mExamenDetalle.show(); verEnVivo(); return; }
+    const borrar = ev.target.closest('[data-borrar-link]');
+    if (borrar) { // 2026-11-05: links de prueba (permiso "Borrar exámenes")
+      if (!confirm('¿Borrar este link con todos sus resultados? Desaparece también del dashboard de Exámenes. No se puede deshacer.')) return;
+      borrar.disabled = true;
+      try {
+        const datos = new FormData(); datos.append('id', borrar.dataset.borrarLink);
+        const r = await llamar('examenes', 'grupo_borrar', datos);
+        pintarHistorial(r.data); window.showToast?.(r.message, 'success');
+      } catch (e) { window.showToast?.(e.message, 'error'); borrar.disabled = false; }
+      return;
+    }
     const b = ev.target.closest('[data-anular-link]'); if (!b) return;
     cerrarLink(b.dataset.anularLink, b);
   });

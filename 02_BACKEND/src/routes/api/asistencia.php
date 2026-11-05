@@ -45,11 +45,11 @@ if (in_array($action, ['start', 'end', 'start_event', 'end_event'], true) && emp
     exit;
 }
 
-// Control del turno: lo registra SOLO el propio supervisor directo, con su sesión.
+// Control del turno: lo registra SOLO el propio supervisor directo con "Registrar turno" (Permisos), con su sesión.
 if (in_array($action, ['start', 'end', 'start_event', 'end_event'], true)) {
-    if (($user['rol'] ?? '') !== Auth::ROLE_SUPERVISOR || empty($user['is_win_directo'])) {
+    if (!Auth::registraTurno($user)) {
         ob_clean(); http_response_code(403);
-        echo json_encode(['status' => 'error', 'message' => 'El turno solo lo registra el supervisor directo de WIN desde su propia cuenta.']);
+        echo json_encode(['status' => 'error', 'message' => 'Su perfil no registra turno (permiso "Registrar turno").']);
         exit;
     }
 }

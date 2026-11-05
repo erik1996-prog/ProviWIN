@@ -59,6 +59,7 @@ class Auth {
     public const PERM_EXAMENES_VIEW = 'examenes.view';
     public const PERM_EXAMENES_EDIT = 'examenes.edit';
     public const PERM_EXAMENES_DELETE = 'examenes.delete';
+    public const PERM_EXAMENES_PURGE = 'examenes.purge'; // borrar exámenes de prueba (2026-11-05): solo perfiles administradores, salvo que se marque
     public const PERM_CUADRILLAS_VIEW = 'cuadrillas.view';
     public const PERM_CUADRILLAS_EDIT = 'cuadrillas.edit';
     public const PERM_CUADRILLAS_IMPORT = 'cuadrillas.import';
@@ -231,6 +232,7 @@ class Auth {
             self::PERM_EXAMENES_VIEW => ['group'=>'Exámenes','label'=>'Ver: resultados y links de examen','action'=>'ver'],
             self::PERM_EXAMENES_EDIT => ['boton'=>'Generar links','group'=>'Exámenes','label'=>'Editar: generar links de examen','action'=>'editar'],
             self::PERM_EXAMENES_DELETE => ['boton'=>'Cerrar links','group'=>'Exámenes','label'=>'Eliminar: cerrar links de examen','action'=>'eliminar'],
+            self::PERM_EXAMENES_PURGE => ['boton'=>'Borrar exámenes','group'=>'Exámenes','label'=>'Eliminar: borrar exámenes y sus resultados (por ejemplo, los de prueba)','action'=>'eliminar'],
             self::PERM_CUADRILLAS_VIEW => ['group'=>'Técnicos y cuadrillas','label'=>'Ver: técnicos, cuadrillas y vencimientos','action'=>'ver'],
             self::PERM_CUADRILLAS_EDIT => ['group'=>'Técnicos y cuadrillas','label'=>'Editar: cuadrillas y fechas de vencimiento','action'=>'editar'],
             self::PERM_CUADRILLAS_IMPORT => ['boton'=>'Cargar Excel y agregar T1','group'=>'Técnicos y cuadrillas','label'=>'Cargar y descargar técnicos líderes (Excel) y agregar un técnico líder (T1)','action'=>'editar'],
@@ -563,6 +565,15 @@ class Auth {
     public static function puede(string $permission, ?array $user = null): bool {
         $user ??= self::getLoggedInUser();
         return self::esPersonalWin($user) && self::can($permission, $user);
+    }
+
+    /**
+     * Registra su propio turno (Mi turno) y necesita tenerlo iniciado para trabajar supervisiones (2026-11-05): supervisor
+     * directo de WIN con el permiso "Registrar turno" de su perfil. Sin el permiso no ve Mi turno ni se le pide turno.
+     */
+    public static function registraTurno(?array $user = null): bool {
+        $user ??= self::getLoggedInUser();
+        return ($user['rol'] ?? '') === self::ROLE_SUPERVISOR && !empty($user['is_win_directo']) && self::can(self::PERM_ATTENDANCE_SELF, $user);
     }
 
     public static function isAdministrative(): bool {

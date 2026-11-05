@@ -68,7 +68,7 @@ try {
                 ['Supervisiones del mes', (int)($sup['mes'] ?? 0), 'sgs-kpi--info', date('m/Y')],
                 ['Finalizadas del mes', (int)($sup['finalizadas'] ?? 0), 'sgs-kpi--success', 'Con cierre definitivo'],
             ],
-            'accion' => ['index.php?page=asistencia', 'bi-play-circle', 'Ir a mi turno'],
+            'accion' => Auth::registraTurno($sessionUser) ? ['index.php?page=asistencia', 'bi-play-circle', 'Ir a mi turno'] : null, // según "Registrar turno"
         ];
     } elseif ($isPartnerSupervisor) {
         $lim = 'DATE_ADD(fecha_asignacion, INTERVAL 24 HOUR)';
@@ -205,7 +205,7 @@ $e = static fn($v): string => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
       <div class="card p-3 p-md-4">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
           <div class="sgs-section-head mb-0"><i class="bi <?= $actividad['icono'] ?>"></i><h2><?= $e($actividad['titulo']) ?></h2></div>
-          <a class="btn btn-win btn-sm" href="<?= $actividad['accion'][0] ?>"><i class="bi <?= $actividad['accion'][1] ?>"></i><?= $e($actividad['accion'][2]) ?></a>
+          <?php if ($actividad['accion']): ?><a class="btn btn-win btn-sm" href="<?= $actividad['accion'][0] ?>"><i class="bi <?= $actividad['accion'][1] ?>"></i><?= $e($actividad['accion'][2]) ?></a><?php endif; ?>
         </div>
         <div class="row g-3">
           <?php foreach ($actividad['kpis'] as [$label, $valor, $cls, $sub]): ?>

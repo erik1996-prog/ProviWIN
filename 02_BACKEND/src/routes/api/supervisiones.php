@@ -404,8 +404,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
     }
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
 
-    // Validar turno activo (Solo para Supervisores)
-    if (($workflowUser['rol'] ?? '') === Auth::ROLE_SUPERVISOR) {
+    // Validar turno activo (solo quien registra turno: permiso "Registrar turno", 2026-11-05)
+    if (Auth::registraTurno($workflowUser)) {
         $stmtTurno = $pdo->prepare("SELECT id, fin_turno FROM asistencia_supervisores WHERE supervisor_id = :sup_id AND fecha = CURRENT_DATE() LIMIT 1");
         $stmtTurno->execute([':sup_id' => $workflowUser['id']]);
         $turnoHoy = $stmtTurno->fetch();
@@ -1787,6 +1787,7 @@ $sgsPuedeTrabajar = static function () use ($pdo, $user): ?string {
     if (($user['rol'] ?? '') !== Auth::ROLE_SUPERVISOR || empty($user['is_win_directo']) || !Auth::can(Auth::PERM_SUPERVISION_CREATE, $user)) {
         return 'Las supervisiones operativas solo pueden ser registradas por un supervisor directo.';
     }
+    if (!Auth::registraTurno($user)) return null; // su perfil no registra turno: trabaja sin él (2026-11-05)
     $st = $pdo->prepare('SELECT fin_turno FROM asistencia_supervisores WHERE supervisor_id = :s AND fecha = CURRENT_DATE() LIMIT 1');
     $st->execute([':s' => (int)$user['id']]);
     $turno = $st->fetch();

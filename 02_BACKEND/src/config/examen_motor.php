@@ -192,6 +192,34 @@ function sgsCerrarExamenesVencidos(PDO $pdo, ?int $convocatoriaId = null): int {
 }
 
 /**
+ * Examen rendido de un técnico, pregunta por pregunta, para que el supervisor vea qué falló y lo refuerce (2026-11-05).
+ * El técnico nunca lo ve. Cada alternativa: 'marcada' (lo que eligió; en "orden", la posición que le dio) y 'correcta'
+ * (si es correcta; en "orden", la posición correcta).
+ */
+function sgsDetalleExamenTecnico(array $part, array $banco): array {
+    $respuestas = json_decode((string)$part['respuestas'], true) ?: [];
+    $preguntas = [];
+    foreach (json_decode((string)$part['preguntas'], true) ?: [] as $n => $a) {
+        $p = sgsPreguntaDelBanco($banco, $a['id']);
+        if (!$p) continue;
+        $r = sgsNormalizarRespuesta($p, $respuestas[(string)$n] ?? []);
+        $correctas = array_map('intval', $p['correcta']);
+        // En "orden" los pasos se muestran en el orden correcto, cada uno con la posición que le dio el técnico.
+        $orden = $p['tipo'] === 'orden' ? array_keys($p['opciones']) : $a['orden'];
+        $preguntas[] = ['n' => $n + 1, 'tema' => $p['tema'], 'tipo' => $p['tipo'], 'texto' => $p['texto'], 'imagen' => sgsImagenExamen($p['imagen'] ?? null),
+            'acierto' => sgsRespuestaCorrecta($p, $r), 'respondida' => (bool)$r,
+            'opciones' => array_map(static function ($k) use ($p, $r, $correctas) {
+                $pos = array_search((int)$k, $r, true);
+                return ['texto' => $p['opciones'][$k], 'imagen' => sgsImagenExamen($p['imagenes'][$k] ?? null),
+                    'marcada' => $pos === false ? null : ($p['tipo'] === 'orden' ? $pos + 1 : true),
+                    'correcta' => $p['tipo'] === 'orden' ? (int)$k + 1 : in_array((int)$k, $correctas, true)];
+            }, $orden)];
+    }
+    usort($preguntas, static fn($x, $y) => $x['acierto'] <=> $y['acierto'] ?: $x['n'] <=> $y['n']); // primero las falladas
+    return $preguntas;
+}
+
+/**
  * Seguimiento en vivo de un link (2026-11-05): cada técnico con su estado (falta / entró / en curso / terminado), cuántas
  * preguntas respondió y cuánto tiempo le queda si está en curso. Antes cierra los que se quedaron sin tiempo.
  */

@@ -786,6 +786,7 @@ window.SGS_SUPERVISION = <?= json_encode([
         'noAtiende' => ['SGI' => sgsCuadrillaNoAtiende('SGI'), 'SGA' => sgsCuadrillaNoAtiende('SGA')]],
     'usuarioId' => (int)($effectiveViewUser['id'] ?? 0),
     'winDirecto' => !empty($effectiveViewUser['is_win_directo']),
+    'registraTurno' => Auth::registraTurno($effectiveViewUser), // pedir turno iniciado solo si su perfil registra turno
     'supervisorPartner' => !empty($esSupervisorPartnerVista),
     'jefeOperaciones' => !empty($esJefeOperacionesVista),
     'formHallazgos' => (bool)$canUseFindingsForm,

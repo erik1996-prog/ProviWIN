@@ -29,7 +29,7 @@ $shortName = formatSidebarShortName($user['nombre'] ?? '');
 $sidebarInitials = formatSidebarInitials($user);
 $showAdministrativeMenu = Auth::isAdministrative();
 $isPartnerMenu = $rol === Auth::ROLE_JEFE_OPERACIONES || ($rol === Auth::ROLE_SUPERVISOR && empty($user['is_win_directo']));
-$isDirectMenu = $rol === Auth::ROLE_SUPERVISOR && !empty($user['is_win_directo']);
+$isDirectMenu = Auth::registraTurno($user); // Mi turno: según "Registrar turno" en Permisos (2026-11-05)
 $canMonitorShifts = in_array($rol, [Auth::ROLE_ADMINISTRADOR, Auth::ROLE_GERENTE, Auth::ROLE_COORDINADOR], true); // 2026-10-12: también el administrador
 $canViewSupervisions = Auth::can(Auth::PERM_SUPERVISION_VIEW, $user);
 $canViewObservations = Auth::can(Auth::PERM_OBSERVATION_VIEW, $user);

@@ -3,9 +3,9 @@
 Auth::requireLogin();
 $user = Auth::getLoggedInUser();
 $isAdmin = in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador']);
-$isReadOnlyWinSupervisor = $user['rol'] === 'Supervisor' && !empty($user['is_win_directo']);
+$isReadOnlyWinSupervisor = Auth::registraTurno($user);
 
-if (empty($user['is_win_directo']) && !$isAdmin) {
+if (!$isReadOnlyWinSupervisor && !$isAdmin) {
     echo '<div class="alert alert-warning m-4"><i class="bi bi-shield-lock-fill me-2"></i>El registro de asistencia e inicio de turno es exclusivo para los supervisores directos de WIN. Será derivado al panel de observaciones. <script>setTimeout(function(){ window.location.href="index.php?page=supervision_lista"; }, 2500);</script></div>';
     exit;
 }

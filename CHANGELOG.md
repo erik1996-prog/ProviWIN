@@ -4,6 +4,32 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Exámenes: ver qué falló el técnico y borrar exámenes de prueba (2026-11-05)
+- **Añadido**: en Indicadores → Exámenes, el ojo de cada fila abre el **examen rendido** pregunta por pregunta:
+  - nota y temas a reforzar;
+  - primero las preguntas falladas, luego las acertadas;
+  - en cada una, la respuesta del técnico y la correcta. En "ordenar pasos", el orden correcto y la posición que le dio el técnico.
+- Lo ven quienes ven Exámenes, solo los técnicos de sus zonas, para reforzar. El técnico nunca ve las respuestas correctas.
+- **Añadido**: permiso **Borrar exámenes** (Exámenes, en Permisos). Los perfiles administradores lo tienen sin marcarlo; nadie más, salvo que se marque. Permite:
+  - el tacho de cada fila en Exámenes: borra el examen de ese técnico con sus respuestas;
+  - el tacho de cada link en Cuadrillas → Links generados: borra el link con todos sus resultados.
+- Si un link se queda sin técnicos, también se borra. Todo queda en el registro de auditoría.
+- **Corregido** antes de publicarse: el tablero de Exámenes usaba Bootstrap antes de que cargara.
+- Sin cambio de base. Prueba: `examen_general_test` (48 verificaciones).
+
+### "Registrar turno" en Permisos ahora sí decide el turno (2026-11-05)
+- **Corregido**: el permiso "Registrar turno" (sección Mi turno) existía en Permisos pero el sistema no lo usaba. Todo dependía de una regla fija: ser supervisor directo. Ahora lo decide el permiso del perfil (`Auth::registraTurno`).
+- **Con el permiso**:
+  - ve "Mi turno" en el menú;
+  - registra inicio, fin y pausas;
+  - sin turno iniciado no puede empezar supervisiones; le sale la ventana "Inicia tu turno".
+- **Sin el permiso**:
+  - no ve "Mi turno" (si abre la dirección, va a Supervisiones);
+  - la API no le deja registrar turno;
+  - no se le pide turno para trabajar supervisiones;
+  - en Mi información no sale "Ir a mi turno".
+- Sin cambio de base: los perfiles que ya lo tenían marcado siguen igual. Prueba nueva: `turno_permiso_test` (8 verificaciones).
+
 ### Examen: preguntas con imagen, link corto, link por cuadrilla y seguimiento en vivo (2026-11-05)
 - **Añadido**: 5 preguntas nuevas en "Seguridad: trabajo en altura" (ALT51 a ALT55). Salen en **todos** los exámenes (`'siempre' => true`); las otras 15 siguen al azar:
   - ¿Quién es el primer responsable de tu seguridad?, con una foto por alternativa;

@@ -4176,7 +4176,7 @@
   // Antes de trabajar en una supervisión, el supervisor directo debe tener su turno de hoy iniciado (y no cerrado).
   // Devuelve true si puede seguir; si no, muestra el aviso con el botón "Iniciar turno".
   async function verificarTurnoActivo() {
-    if (!esSupervisorWinDirecto) return true; // solo el personal directo registra turno (partners no)
+    if (!SGS_SUPERVISION.registraTurno) return true; // solo quien tiene "Registrar turno" en su perfil (partners no)
     try {
       const res = await fetch('api/asistencia.php?action=status', { headers: { 'Accept': 'application/json' } });
       const data = await res.json();

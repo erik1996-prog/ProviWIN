@@ -4082,3 +4082,24 @@ body { font-size: 13px; font-weight: 400; }
    "Examen terminado" y "Faltan" (Cuadrillas → Link de examen → Seguimiento). */
 .ex-vivo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
 .ex-vivo-hora { margin-left: auto; }
+
+/* 67. Examen rendido de un técnico (2026-11-05, Exámenes → ojo de cada fila): primero las preguntas falladas, cada una con
+   lo que marcó el técnico y la correcta, para que el supervisor refuerce. */
+.exr-resumen { padding: 10px 14px; border-radius: var(--sgs-radius-sm); margin-bottom: 10px; font-size: 14px; }
+.exr-resumen.is-aprobado { background: var(--sgs-success-soft); color: var(--sgs-success-dark); }
+.exr-resumen.is-desaprobado { background: var(--sgs-danger-soft); color: var(--sgs-danger-dark); }
+.exr-pregunta { border: 1px solid var(--sgs-border); border-left-width: 4px; border-radius: var(--sgs-radius-sm); padding: 10px 12px; margin-bottom: 10px; }
+.exr-pregunta.is-falla { border-left-color: var(--sgs-danger); }
+.exr-pregunta.is-acierto { border-left-color: var(--sgs-success); }
+.exr-cabecera { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
+.exr-texto { font-weight: 600; color: var(--sgs-ink); margin: 0 0 8px; }
+.exr-imagen { display: block; max-width: 100%; max-height: 220px; border-radius: 8px; margin-bottom: 8px; }
+.exr-opciones { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.exr-opcion { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; font-size: 13px; }
+.exr-opcion.is-correcta { background: var(--sgs-success-soft); }
+.exr-opcion.is-error { background: var(--sgs-danger-soft); }
+.exr-opcion-texto { flex: 1 1 auto; min-width: 0; }
+.exr-opcion-estado { flex: 0 0 auto; display: flex; gap: 4px; }
+.exr-opcion-foto { width: 40px; height: 54px; object-fit: contain; border-radius: 6px; background: var(--sgs-surface-alt); }
+.exr-pos { flex: 0 0 22px; height: 22px; display: grid; place-items: center; border-radius: 6px; background: var(--sgs-surface-alt); border: 1px solid var(--sgs-border); font-size: 12px; font-weight: 700; }
+@media (max-width: 575.98px) { .exr-opcion { flex-wrap: wrap; } }

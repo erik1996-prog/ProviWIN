@@ -29,6 +29,7 @@ $cleanup = function () use ($pdo, $jar, $u) {
     $pdo->exec("UPDATE tecnicos SET apoyo_id = NULL WHERE nombre_tecnico LIKE '%PRUEBAEXG%'");
     $pdo->exec("DELETE FROM tecnicos WHERE nombre_tecnico LIKE '%PRUEBAEXG%'");
     $pdo->exec("DELETE FROM usuarios WHERE dni = '99999931'");
+    $pdo->exec("DELETE FROM perfiles WHERE nombre = 'Prueba borrar examenes'");
     foreach (['::1', '127.0.0.1'] as $ip) $pdo->prepare('DELETE FROM login_attempts WHERE fingerprint = :f')->execute([':f' => hash('sha256', "$ip|$u")]);
     @unlink($jar);
 };
@@ -200,20 +201,56 @@ try {
         && (int)($fila['aprobados'] ?? 0) === 1 && ($fila['estado'] ?? '') === 'completo', $fila);
     [, $j] = $http("$api?action=grupo&id=$conv");
     $check('el detalle lista a los técnicos con su nota', count($j['data']['tecnicos'] ?? []) === 3 && count(array_filter($j['data']['tecnicos'] ?? [], fn($t) => $t['nota'] !== null)) === 3, $j);
+
+    echo "Examen rendido de un técnico (para reforzar)\n";
+    $partA = (int)$pdo->query("SELECT id FROM examen_convocatoria_tecnicos WHERE convocatoria_id = $conv AND tecnico_id = $t1A")->fetchColumn();
+    [, $j] = $http("$api?action=examen_tecnico&id=$partA");
+    $pregs = $j['data']['preguntas'] ?? [];
+    $falladas = array_values(array_filter($pregs, fn($p) => !$p['acierto']));
+    $check('el supervisor ve las 20 preguntas, primero las 19 falladas', count($pregs) === 20 && count($falladas) === 19 && !empty($pregs[19]['acierto']), count($falladas));
+    $conCorrecta = array_filter($pregs, fn($p) => $p['tipo'] === 'orden' || array_filter(array_column($p['opciones'], 'correcta')));
+    $check('cada pregunta muestra cuál era la correcta y qué marcó', count($conCorrecta) === 20 && count(array_filter(array_column($pregs[19]['opciones'], 'marcada'))) > 0
+        && count($j['data']['resultado']['reforzar'] ?? []) > 0, $pregs[19] ?? null);
+    [, $j] = $http("$api?action=examen_tecnico&id=999999999");
+    $check('un examen que no existe no se muestra', ($j['status'] ?? '') === 'error', $j);
+
+    echo "Borrar exámenes\n";
+    $partB = (int)$pdo->query("SELECT id FROM examen_convocatoria_tecnicos WHERE convocatoria_id = $conv AND tecnico_id = $t2B")->fetchColumn();
+    [, $j] = $http("$api?action=resultado_borrar", ['id' => $partB]);
+    $check('sin el permiso "Borrar exámenes" no puede borrar', ($j['status'] ?? '') === 'error' && ($j['_http'] ?? 0) === 403, $j);
+    // Perfil de prueba igual al del supervisor, más "Borrar exámenes".
+    $supId = (int)$pdo->query("SELECT id FROM usuarios WHERE dni = '99999931'")->fetchColumn();
+    $perfilSup = (int)$pdo->query("SELECT COALESCE(u.perfil_id, (SELECT b.id FROM perfiles b WHERE b.rol_base = u.rol ORDER BY b.id LIMIT 1)) FROM usuarios u WHERE u.id = $supId")->fetchColumn();
+    $pdo->exec("INSERT INTO perfiles (nombre, codigo, descripcion, rol_base, alcance, fecha_registro) VALUES ('Prueba borrar examenes', 'PBEXAM', 'Prueba', 'Supervisor', 'zonas', NOW())");
+    $perfilBorrar = (int)$pdo->lastInsertId();
+    $pdo->exec("INSERT INTO perfil_permisos (perfil_id, permiso) SELECT $perfilBorrar, permiso FROM perfil_permisos WHERE perfil_id = $perfilSup");
+    $pdo->exec("INSERT IGNORE INTO perfil_permisos (perfil_id, permiso) VALUES ($perfilBorrar, 'examenes.purge')");
+    $pdo->exec("UPDATE usuarios SET perfil_id = $perfilBorrar WHERE id = $supId");
+    [, $j] = $http("$api?action=resultado_borrar", ['id' => $partB]);
+    $check('con el permiso borra el examen de un técnico (y sus respuestas)', ($j['status'] ?? '') === 'success'
+        && !(int)$pdo->query("SELECT COUNT(*) FROM examen_convocatoria_tecnicos WHERE id = $partB")->fetchColumn()
+        && !(int)$pdo->query("SELECT COUNT(*) FROM examen_respuestas WHERE participacion_id = $partB")->fetchColumn(), $j);
+    [, $j] = $http("$api?action=grupo_generar", ['lider_ids' => [$t1C], 'examen' => 'altura']);
+    $convPrueba = (int)($j['data']['id'] ?? 0);
+    [, $j] = $http("$api?action=grupo_borrar", ['id' => $convPrueba]);
+    $check('borra un link completo con sus técnicos', ($j['status'] ?? '') === 'success' && $convPrueba
+        && !(int)$pdo->query("SELECT COUNT(*) FROM examen_convocatorias WHERE id = $convPrueba")->fetchColumn()
+        && !(int)$pdo->query("SELECT COUNT(*) FROM examen_convocatoria_tecnicos WHERE convocatoria_id = $convPrueba")->fetchColumn(), $j);
+    $pdo->exec("UPDATE usuarios SET perfil_id = $perfilSup WHERE id = $supId");
     echo "Dashboard de exámenes\n";
     [, $j] = $http("$api?action=dashboard&zona=PIURA&examen=altura");
     $k = $j['data']['kpis'] ?? [];
-    $check('indicadores: 3 convocados, 3 rindieron, 1 aprobado (33 %)', ($k['convocados'] ?? 0) === 3 && ($k['rindieron'] ?? 0) === 3 && ($k['aprobados'] ?? 0) === 1 && ($k['pct_aprobacion'] ?? 0) == 33, $k);
-    $check('temas con más errores y notas por rango', count($j['data']['temas'] ?? []) > 0 && array_sum(array_column($j['data']['notas'] ?? [], 'cantidad')) === 3, $j['data']['notas'] ?? null);
+    $check('indicadores (sin el examen borrado): 2 convocados, 2 rindieron, 0 aprobados', ($k['convocados'] ?? 0) === 2 && ($k['rindieron'] ?? 0) === 2 && ($k['aprobados'] ?? -1) === 0, $k);
+    $check('temas con más errores y notas por rango', count($j['data']['temas'] ?? []) > 0 && array_sum(array_column($j['data']['notas'] ?? [], 'cantidad')) === 2, $j['data']['notas'] ?? null);
     [, $j] = $http("$api?action=dashboard&zona=LA%20LIBERTAD");
     $check('el supervisor no ve técnicos de otra zona', ($j['data']['kpis']['convocados'] ?? -1) === 0, $j['data']['kpis'] ?? $j);
     [, $j] = $http("$api?action=dashboard_tabla&zona=PIURA&examen=altura");
     [, $j2] = $http("$api?action=dashboard_tabla&zona=PIURA&estado=aprobado");
     [, $j3] = $http("$api?action=dashboard_tabla&zona=PIURA&q=" . rawurlencode('APOYO B'));
-    $check('la tabla llega por páginas y la filtra el servidor (resultado y búsqueda)', ($j['data']['total'] ?? 0) === 3 && count($j['data']['filas'] ?? []) === 3
-        && ($j2['data']['total'] ?? 0) === 1 && ($j2['data']['filas'][0]['estado'] ?? '') === 'aprobado' && ($j3['data']['total'] ?? 0) === 1, [$j['data']['total'] ?? null, $j2['data']['total'] ?? null, $j3['data']['total'] ?? null]);
+    $check('la tabla llega por páginas y la filtra el servidor (resultado y búsqueda)', ($j['data']['total'] ?? 0) === 2 && count($j['data']['filas'] ?? []) === 2 && !empty($j['data']['filas'][0]['id'])
+        && ($j2['data']['total'] ?? -1) === 0 && ($j3['data']['total'] ?? -1) === 0, [$j['data']['total'] ?? null, $j2['data']['total'] ?? null, $j3['data']['total'] ?? null]);
     [, $j] = $http("$api?action=dashboard&zona=PIURA");
-    $check('el dashboard ya no envía la tabla completa (solo totales y gráficos)', !isset($j['data']['filas']) && ($j['data']['cuentas']['aprobado'] ?? -1) === 1, $j['data']['cuentas'] ?? null);
+    $check('el dashboard ya no envía la tabla completa (solo totales y gráficos)', !isset($j['data']['filas']) && ($j['data']['cuentas']['desaprobado'] ?? -1) === 2, $j['data']['cuentas'] ?? null);
     [$b] = $http("$api?action=dashboard_excel&zona=PIURA");
     $check('descarga el Excel de resultados', str_starts_with($b, 'PK'), substr($b, 0, 80));
     [$pg] = $http("$base/index.php?page=examenes");

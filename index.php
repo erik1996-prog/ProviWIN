@@ -55,9 +55,9 @@ $allowedViews = [
     'guia_estilo'            => ['file' => 'guia_estilo.php',            'title' => 'Guía de diseño',           'perm' => Auth::PERM_USERS_MANAGE],
 ];
 
-// Seguimiento: el supervisor directo WIN empieza su jornada registrando el turno;
-// sin turno activo la API no le permite registrar supervisiones.
-$isDirectSupervisorView = $rol === Auth::ROLE_SUPERVISOR && $isWinDirecto;
+// Seguimiento: el supervisor directo WIN con "Registrar turno" (Permisos) empieza su jornada registrando el turno;
+// sin turno activo la API no le permite registrar supervisiones. Sin ese permiso no ve Mi turno (2026-11-05).
+$isDirectSupervisorView = Auth::registraTurno($user);
 $canMonitorShifts = in_array($rol, [Auth::ROLE_ADMINISTRADOR, Auth::ROLE_GERENTE, Auth::ROLE_COORDINADOR], true); // 2026-10-12: también el administrador
 // Vencimientos (2026-10-15): quedaron dentro de Cuadrillas; la dirección antigua lleva a las cuadrillas con alertas.
 if ($page === 'vencimientos') {

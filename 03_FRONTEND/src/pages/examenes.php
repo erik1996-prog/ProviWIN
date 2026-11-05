@@ -22,7 +22,7 @@ $zonas = $pdo->query("SELECT DISTINCT departamento FROM tecnicos WHERE departame
 if ($zonasUsuario !== null) $zonas = array_values(array_filter($zonas, static fn($z) => in_array(mb_strtoupper(trim($z), 'UTF-8'), $zonasUsuario, true)));
 $examenes = sgsExamenesDisponibles();
 ?>
-<div class="container-fluid p-3 p-md-4 dsh" id="exd">
+<div class="container-fluid p-3 p-md-4 dsh" id="exd" data-puede-borrar="<?= Auth::puede(Auth::PERM_EXAMENES_PURGE) ? '1' : '0' ?>">
   <div class="sgs-page-actions">
     <span class="sgs-counter" id="exdContador">Cargando…</span>
     <a class="btn btn-outline-secondary" id="exdExcel" href="api/examenes.php?action=dashboard_excel" data-base="api/examenes.php?action=dashboard_excel"><i class="bi bi-file-earmark-arrow-down me-1"></i>Descargar Excel</a>
@@ -100,12 +100,21 @@ $examenes = sgsExamenesDisponibles();
         <div class="sgs-filtro-busqueda"><i class="bi bi-search" aria-hidden="true"></i><input type="search" class="form-control" id="exdBuscar" placeholder="Técnico, DNI o partner"></div></div>
     </div>
     <div class="table-responsive"><table class="table table-hover mb-0 align-middle sgs-tabla-tarjetas">
-      <thead><tr><th>Técnico</th><th>Partner y zona</th><th>Examen</th><th>Rendido</th><th class="text-end">Nota</th><th>Resultado</th></tr></thead>
-      <tbody id="exdTabla"><tr><td colspan="6" class="text-center text-muted py-4">Cargando…</td></tr></tbody>
+      <thead><tr><th>Técnico</th><th>Partner y zona</th><th>Examen</th><th>Rendido</th><th class="text-end">Nota</th><th>Resultado</th><th class="text-end">Acciones</th></tr></thead>
+      <tbody id="exdTabla"><tr><td colspan="7" class="text-center text-muted py-4">Cargando…</td></tr></tbody>
     </table></div>
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3" id="exdPaginas"></div>
   </div>
   <div class="dsh-tip" id="exdTip" role="tooltip" hidden></div>
+</div>
+
+<!-- ===== Examen rendido de un técnico (2026-11-05): qué falló, para reforzar. El técnico nunca ve esto. ===== -->
+<div class="modal fade" id="mExamenTec" tabindex="-1" aria-labelledby="mExamenTecTitulo" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="mExamenTecTitulo"><i class="bi bi-clipboard-check me-2"></i><span id="exTecTitulo">Examen del técnico</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+    <div class="modal-body" id="exTecCuerpo"></div>
+    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Salir</button></div>
+  </div></div>
 </div>
 <script src="03_FRONTEND/src/assets/js/sgs-dashboard.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
 <script src="03_FRONTEND/src/assets/js/examenes.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>

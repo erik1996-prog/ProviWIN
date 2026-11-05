@@ -8,6 +8,9 @@
 //   GET  ?action=grupos          → links generados (los del usuario; la administración ve todos)
 //   GET  ?action=grupo&id=N      → seguimiento en vivo: técnicos del link en curso / terminados / faltan (la pantalla lo pide cada 30 s)
 //   POST ?action=grupo_anular    → id del link: "Cerrar link" (nadie más entra; quien ya está rindiendo termina)
+//   POST ?action=grupo_borrar    → id del link: lo borra con todos sus resultados (permiso "Borrar exámenes", 2026-11-05)
+//   POST ?action=resultado_borrar → id (participación): borra el examen de un técnico (mismo permiso)
+//   GET  ?action=examen_tecnico&id=N → examen rendido pregunta por pregunta: qué marcó y cuál era la correcta (para reforzar)
 // Dashboard (pantalla Exámenes). Filtros: desde, hasta (fecha del link), partner_id, zona, examen.
 //   GET  ?action=dashboard        → indicadores, aprobación por partner y zona, notas, temas más fallados y por día
 //   GET  ?action=dashboard_tabla  → resultados por técnico, de 50 en 50 (estado, q, pagina)
@@ -103,6 +106,46 @@ try {
         $responder(['status' => 'success', 'message' => 'Link cerrado: ya nadie puede entrar con él. Quien estaba rindiendo termina su examen.', 'data' => sgsListarConvocatorias($pdo, $generadoPor)]);
     }
 
+    // ---------- Borrar exámenes (2026-11-05): links o resultados de prueba. Se borran con sus respuestas (ON DELETE CASCADE). ----------
+    if ($esPost && in_array($action, ['grupo_borrar', 'resultado_borrar'], true)) {
+        if (!Auth::puede(Auth::PERM_EXAMENES_PURGE, $usuario)) $responder(['status' => 'error', 'message' => 'No tiene permiso para borrar exámenes.'], 403);
+        $id = (int)($_POST['id'] ?? 0);
+        if ($action === 'grupo_borrar') {
+            $c = $convocatoria($id);
+            $pdo->prepare('DELETE FROM examen_convocatorias WHERE id = :id')->execute([':id' => (int)$c['id']]);
+            win_log_error('audit_exam_group_deleted', 'Link de examen borrado con sus resultados', ['actor_id' => (int)$usuario['id'], 'convocatoria_id' => (int)$c['id'], 'titulo' => $c['titulo'], 'filtro' => $c['filtro']]);
+            $responder(['status' => 'success', 'message' => 'Link borrado con todos sus resultados.', 'data' => sgsListarConvocatorias($pdo, $generadoPor)]);
+        }
+        $st = $pdo->prepare('SELECT ct.id, ct.tecnico_id, ct.convocatoria_id FROM examen_convocatoria_tecnicos ct WHERE ct.id = :id');
+        $st->execute([':id' => $id]);
+        $p = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$p) throw new Exception('Ese examen ya no existe.');
+        $convocatoria((int)$p['convocatoria_id']);
+        $pdo->prepare('DELETE FROM examen_convocatoria_tecnicos WHERE id = :id')->execute([':id' => $id]);
+        $pdo->prepare('DELETE c FROM examen_convocatorias c WHERE c.id = :c AND NOT EXISTS (SELECT 1 FROM examen_convocatoria_tecnicos ct WHERE ct.convocatoria_id = c.id)')
+            ->execute([':c' => (int)$p['convocatoria_id']]); // link sin técnicos: se va también
+        win_log_error('audit_exam_result_deleted', 'Examen de un técnico borrado', ['actor_id' => (int)$usuario['id'], 'target_id' => (int)$p['tecnico_id'], 'convocatoria_id' => (int)$p['convocatoria_id']]);
+        $responder(['status' => 'success', 'message' => 'Examen borrado.']);
+    }
+
+    // ---------- Examen rendido de un técnico (2026-11-05): qué falló, para reforzarlo. Mismo alcance de zona que el dashboard. ----------
+    if ($action === 'examen_tecnico') {
+        $st = $pdo->prepare("SELECT ct.*, c.examen, c.titulo, t.nombre_tecnico, t.dni, p.nombre_partner,
+                COALESCE(NULLIF(t.departamento, ''), (SELECT l.departamento FROM tecnicos l WHERE l.apoyo_id = t.id AND COALESCE(l.tipo_tecnico, 1) = 1 LIMIT 1)) AS departamento
+            FROM examen_convocatoria_tecnicos ct JOIN examen_convocatorias c ON c.id = ct.convocatoria_id JOIN tecnicos t ON t.id = ct.tecnico_id
+            LEFT JOIN partners p ON p.id = t.partner_id WHERE ct.id = :id");
+        $st->execute([':id' => (int)($_GET['id'] ?? 0)]);
+        $part = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$part || !$visibleZona($part)) throw new Exception('Ese examen no existe o es de otra zona.');
+        $banco = sgsExamenBanco((string)$part['examen']);
+        if (!$banco || empty($part['usado_en'])) throw new Exception('El técnico todavía no terminó este examen.');
+        $responder(['status' => 'success', 'data' => [
+            'tecnico' => sgsNombrePersonaTecnico((string)$part['nombre_tecnico'], (int)$part['tipo']), 'tipo' => (int)$part['tipo'], 'dni' => $part['dni'],
+            'partner' => $part['nombre_partner'], 'examen' => $part['titulo'], 'rendido' => $part['usado_en'],
+            'resultado' => sgsResultadoGuardado($pdo, $part, $banco), 'preguntas' => sgsDetalleExamenTecnico($part, $banco),
+        ]]);
+    }
+
     // ---------- Dashboard (piezas comunes de config/dashboard.php) ----------
     if (in_array($action, ['dashboard', 'dashboard_tabla', 'dashboard_excel'], true)) {
         $dep = "COALESCE(NULLIF(t.departamento, ''), l.departamento)"; // el T2 sin zona toma la de su líder
@@ -150,10 +193,10 @@ try {
 
         // Tabla (por páginas) y Excel (todo): mismo filtro de resultado y búsqueda.
         [$extra, $mas] = sgsFiltroTablaDashboard($estadoSql, $grupos, ['t.nombre_tecnico', 't.dni', 'p.nombre_partner']);
-        $columnas = "ct.tipo, ct.usado_en, ct.nota, ct.correctas, ct.total_preguntas, ct.segundos, t.nombre_tecnico, t.dni, p.nombre_partner, {$dep} AS zona,
+        $columnas = "ct.id, ct.tipo, ct.usado_en, ct.nota, ct.correctas, ct.total_preguntas, ct.segundos, t.nombre_tecnico, t.dni, p.nombre_partner, {$dep} AS zona,
             c.titulo, c.creado_en, {$estadoSql} AS estado";
         $orden = 'COALESCE(ct.usado_en, c.creado_en) DESC, ct.id DESC';
-        $fila = static fn(array $x): array => ['tecnico' => sgsNombrePersonaTecnico((string)$x['nombre_tecnico'], (int)$x['tipo']), 'nombre_tecnico' => $x['nombre_tecnico'],
+        $fila = static fn(array $x): array => ['id' => (int)$x['id'], 'tecnico' => sgsNombrePersonaTecnico((string)$x['nombre_tecnico'], (int)$x['tipo']), 'nombre_tecnico' => $x['nombre_tecnico'],
             'tipo' => (int)$x['tipo'], 'dni' => $x['dni'], 'partner' => $x['nombre_partner'] ?: 'Sin partner', 'zona' => $x['zona'] ?: 'Sin zona',
             'examen' => $x['titulo'], 'link' => $x['creado_en'], 'rendido' => $x['usado_en'], 'nota' => $x['nota'] !== null ? (float)$x['nota'] : null,
             'correctas' => $x['correctas'] !== null ? (int)$x['correctas'] : null, 'total' => $x['total_preguntas'] !== null ? (int)$x['total_preguntas'] : null,

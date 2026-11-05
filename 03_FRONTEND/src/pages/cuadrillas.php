@@ -532,7 +532,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
 <?php endif; ?>
 
 <!-- ===== Link general de examen (2026-10-20) ===== -->
-<div class="modal fade" id="mExamen" data-puede-anular="<?= $puedeAnularExamen ? '1' : '0' ?>" tabindex="-1" aria-labelledby="mExamenTitulo" aria-hidden="true">
+<div class="modal fade" id="mExamen" data-puede-anular="<?= $puedeAnularExamen ? '1' : '0' ?>" data-puede-borrar="<?= Auth::puede(Auth::PERM_EXAMENES_PURGE, $user) ? '1' : '0' ?>" tabindex="-1" aria-labelledby="mExamenTitulo" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg"><div class="modal-content">
     <div class="modal-header"><h5 class="modal-title" id="mExamenTitulo"><i class="bi bi-link-45deg me-2"></i><span id="exTitulo">Link de examen para las cuadrillas filtradas</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
     <div class="modal-body">
