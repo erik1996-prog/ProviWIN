@@ -4,10 +4,10 @@
 // Link general: un link para los técnicos (T1 y T2) de las cuadrillas filtradas en Cuadrillas; cada uno entra con su DNI
 // (examen.php?g=…). Solo se genera si todos tienen DNI. Lógica en config/examen_enlaces.php y config/examen_motor.php.
 //   POST ?action=grupo_preparar  → lider_ids[] → cuántos técnicos entran, quiénes no tienen DNI y exámenes disponibles
-//   POST ?action=grupo_generar   → lider_ids[], examen, horas, filtro → link para enviar (el código se muestra una sola vez)
+//   POST ?action=grupo_generar   → lider_ids[], examen, minutos (vigencia), filtro → link para enviar (el código se muestra una sola vez)
 //   GET  ?action=grupos          → links generados (los del usuario; la administración ve todos)
-//   GET  ?action=grupo&id=N      → técnicos del link con su resultado
-//   POST ?action=grupo_anular    → id del link
+//   GET  ?action=grupo&id=N      → seguimiento en vivo: técnicos del link en curso / terminados / faltan (la pantalla lo pide cada 30 s)
+//   POST ?action=grupo_anular    → id del link: "Cerrar link" (nadie más entra; quien ya está rindiendo termina)
 // Dashboard (pantalla Exámenes). Filtros: desde, hasta (fecha del link), partner_id, zona, examen.
 //   GET  ?action=dashboard        → indicadores, aprobación por partner y zona, notas, temas más fallados y por día
 //   GET  ?action=dashboard_tabla  → resultados por técnico, de 50 en 50 (estado, q, pagina)
@@ -71,13 +71,13 @@ try {
         // El banco de preguntas elegido define el título, las preguntas, el tiempo y la nota mínima.
         $banco = sgsExamenBanco((string)($_POST['examen'] ?? ''));
         if (!$banco) throw new Exception('Elija el examen de la lista.');
-        $horas = (int)($_POST['horas'] ?? 24);
+        $minutos = (int)($_POST['minutos'] ?? SGS_EXAMEN_VIGENCIA_DEFECTO);
         $filtro = mb_substr(trim(preg_replace('/\s+/u', ' ', (string)($_POST['filtro'] ?? ''))), 0, 255);
-        $c = sgsGenerarConvocatoria($pdo, $tec, $horas, $banco['titulo'], $filtro, (int)$usuario['id'], $banco['codigo']);
+        $c = sgsGenerarConvocatoria($pdo, $tec, $minutos, $banco['titulo'], $filtro, (int)$usuario['id'], $banco['codigo']);
         $url = sgsUrlSistema() . '/examen.php?g=' . $c['codigo'];
         $vence = date('d/m/Y H:i', strtotime($c['vence_en']));
-        $mensaje = "Hola, este es el link para rendir \"{$banco['titulo']}\" de WIN:\n{$url}\n\nIngresa con tu DNI. Son {$banco['preguntas_por_examen']} preguntas en {$banco['minutos']} minutos; tienes una sola oportunidad. Vence el {$vence}.";
-        win_log_error('audit_exam_group_link_created', 'Link general de examen generado', ['actor_id' => (int)$usuario['id'], 'convocatoria_id' => $c['id'], 'tecnicos' => count($tec), 'horas' => $horas]);
+        $mensaje = "Hola, este es el link para rendir \"{$banco['titulo']}\" de WIN:\n{$url}\n\nIngresa con tu DNI. Son {$banco['preguntas_por_examen']} preguntas en {$banco['minutos']} minutos; tienes una sola oportunidad. El link se cierra el {$vence}.";
+        win_log_error('audit_exam_group_link_created', 'Link general de examen generado', ['actor_id' => (int)$usuario['id'], 'convocatoria_id' => $c['id'], 'tecnicos' => count($tec), 'minutos' => $minutos]);
         $responder(['status' => 'success', 'message' => 'Link generado.', 'data' => [
             'id' => $c['id'], 'url' => $url, 'mensaje' => $mensaje, 'vence' => $vence, 'total' => count($tec), 'historial' => sgsListarConvocatorias($pdo, $generadoPor),
         ]]);
@@ -87,17 +87,20 @@ try {
 
     if ($action === 'grupo') {
         $c = $convocatoria((int)($_GET['id'] ?? 0));
-        $responder(['status' => 'success', 'data' => ['titulo' => $c['titulo'], 'estado' => sgsEstadoConvocatoria($c), 'tecnicos' => sgsTecnicosConvocatoria($pdo, (int)$c['id'])]]);
+        $tecnicos = sgsSeguimientoConvocatoria($pdo, $c);
+        $estado = sgsEstadoConvocatoria($c);
+        if ($estado === 'activo' && $tecnicos && !array_filter($tecnicos, static fn($t) => $t['estado'] !== 'terminado')) $estado = 'completo';
+        $responder(['status' => 'success', 'data' => ['titulo' => $c['titulo'], 'filtro' => $c['filtro'], 'estado' => $estado, 'tecnicos' => $tecnicos]]);
     }
 
     if ($esPost && $action === 'grupo_anular') {
-        if (!Auth::puede(Auth::PERM_EXAMENES_DELETE, $usuario)) $responder(['status' => 'error', 'message' => 'No tiene permiso para anular links de examen.'], 403);
+        if (!Auth::puede(Auth::PERM_EXAMENES_DELETE, $usuario)) $responder(['status' => 'error', 'message' => 'No tiene permiso para cerrar links de examen.'], 403);
         $c = $convocatoria((int)($_POST['id'] ?? 0));
-        if (sgsEstadoConvocatoria($c) !== 'activo') throw new Exception('Ese link ya no está vigente.');
+        if (sgsEstadoConvocatoria($c) !== 'activo') throw new Exception('Ese link ya está cerrado.');
         $pdo->prepare('UPDATE examen_convocatorias SET anulado_en = NOW(), anulado_por = :u WHERE id = :id AND anulado_en IS NULL')
             ->execute([':u' => (int)$usuario['id'], ':id' => (int)$c['id']]);
-        win_log_error('audit_exam_group_link_revoked', 'Link general de examen anulado', ['actor_id' => (int)$usuario['id'], 'convocatoria_id' => (int)$c['id']]);
-        $responder(['status' => 'success', 'message' => 'Link anulado: ya nadie puede entrar con él.', 'data' => sgsListarConvocatorias($pdo, $generadoPor)]);
+        win_log_error('audit_exam_group_link_revoked', 'Link general de examen cerrado', ['actor_id' => (int)$usuario['id'], 'convocatoria_id' => (int)$c['id']]);
+        $responder(['status' => 'success', 'message' => 'Link cerrado: ya nadie puede entrar con él. Quien estaba rindiendo termina su examen.', 'data' => sgsListarConvocatorias($pdo, $generadoPor)]);
     }
 
     // ---------- Dashboard (piezas comunes de config/dashboard.php) ----------
@@ -109,9 +112,9 @@ try {
         $consulta = sgsConsultaDashboard($pdo, "FROM examen_convocatoria_tecnicos ct JOIN examen_convocatorias c ON c.id = ct.convocatoria_id
             JOIN tecnicos t ON t.id = ct.tecnico_id LEFT JOIN tecnicos l ON l.apoyo_id = t.id AND COALESCE(l.tipo_tecnico, 1) = 1
             LEFT JOIN partners p ON p.id = t.partner_id", $where, $params);
-        $estadoSql = "CASE WHEN ct.usado_en IS NOT NULL THEN IF(ct.aprobado = 1, 'aprobado', 'desaprobado') WHEN c.anulado_en IS NOT NULL THEN 'anulado'
-            WHEN c.vence_en <= NOW() THEN 'no_rindio' WHEN ct.inicio_en IS NOT NULL THEN 'rindiendo' ELSE 'pendiente' END";
-        $etiquetas = ['aprobado' => 'Aprobado', 'desaprobado' => 'No aprobado', 'pendiente' => 'Pendiente', 'rindiendo' => 'Rindiendo', 'no_rindio' => 'No rindió', 'anulado' => 'Link anulado'];
+        $estadoSql = "CASE WHEN ct.usado_en IS NOT NULL THEN IF(ct.aprobado = 1, 'aprobado', 'desaprobado') WHEN ct.inicio_en IS NOT NULL THEN 'rindiendo'
+            WHEN c.anulado_en IS NOT NULL OR c.vence_en <= NOW() THEN 'no_rindio' ELSE 'pendiente' END";
+        $etiquetas = ['aprobado' => 'Aprobado', 'desaprobado' => 'No aprobado', 'pendiente' => 'Pendiente', 'rindiendo' => 'Rindiendo', 'no_rindio' => 'No rindió'];
         $grupos = ['aprobado' => ['aprobado'], 'desaprobado' => ['desaprobado'], 'por_rendir' => ['pendiente', 'rindiendo'], 'no_rindio' => ['no_rindio']];
 
         if ($action === 'dashboard') {

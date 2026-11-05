@@ -4,6 +4,30 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Examen: preguntas con imagen, link corto, link por cuadrilla y seguimiento en vivo (2026-11-05)
+- **Añadido**: 5 preguntas nuevas en "Seguridad: trabajo en altura" (ALT51 a ALT55). Salen en **todos** los exámenes (`'siempre' => true`); las otras 15 siguen al azar:
+  - ¿Quién es el primer responsable de tu seguridad?, con una foto por alternativa;
+  - ordenar los pasos del tendido de un cable que cruza la calle;
+  - tres casos con foto: quién puede accidentarse, la causa raíz del motociclista y los errores en el balcón.
+- Las fotos son las originales que envió el usuario, pasadas a JPEG (23 a 109 KB cada una). Están en `03_FRONTEND/src/assets/img/examenes/`. Para cambiar una basta reemplazar el archivo con el mismo nombre: llevan `?v=` con su fecha, así que Cloudflare toma la nueva.
+- **Cambiado**: el link de examen es corto y limpio: `examen.php?g=` + 12 letras y números (antes 48 caracteres). Los links ya enviados siguen sirviendo.
+- **Cambiado**: el botón **Copiar link** copia solo el link. El mensaje completo va por WhatsApp u Otras apps.
+- **Añadido**: botón de link de examen en cada cuadrilla (T1 y su T2), además del link de las cuadrillas filtradas.
+- **Añadido**: quien ya rindió y vuelve a poner su DNI ve "Usted ya rindió este examen".
+- **Añadido**: cuando todos los técnicos del link terminaron, el link se cierra solo ("Examen cerrado"). En el historial aparece "Todos rindieron".
+- **Añadido**: **Seguimiento** en vivo de cada link, que se actualiza cada 30 s con la ventana abierta y la pestaña visible:
+  - indicadores En curso, Terminaron, Aprobados y Faltan;
+  - Examen en curso, con las preguntas respondidas y el tiempo que queda;
+  - Examen terminado, con la nota;
+  - Faltan: no entró, o entró pero no empezó.
+- **Cambiado**: el link se cierra solo a los **30 minutos** (por defecto). En "Se cierra en" también se puede elegir 1 hora, 2 horas o 24 horas.
+- **Cambiado**: "Anular" pasa a ser **Cerrar link**, en el historial y en Seguimiento; el permiso se llama "Cerrar links". Al cerrarse el link:
+  - nadie más entra;
+  - quien está rindiendo termina su examen;
+  - el técnico que abre el link ve "Link cerrado".
+- **Cambiado**: con el link cerrado o vencido, quien no rindió aparece como **No rindió el examen**, en Seguimiento y en el dashboard de Exámenes (antes "Link anulado").
+- Sin cambio de base. Prueba: `examen_general_test` (42 verificaciones).
+
 ### Vacaciones y licencias y "Agregar T2" en los permisos (2026-11-04)
 - **Añadido**: "Vacaciones y licencias" (sección Asistencia) en la pestaña Permisos, con tres permisos:
   - **Ver**;

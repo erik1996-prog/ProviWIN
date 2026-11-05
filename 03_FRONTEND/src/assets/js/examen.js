@@ -1,6 +1,6 @@
 // 03_FRONTEND/src/assets/js/examen.js - Pantalla del examen del técnico (link general, 2026-10-20).
 // Una pregunta por pantalla, con avance, tiempo y mapa de preguntas. Tipos: unica / caso (una), multiple (varias),
-// vf (verdadero o falso) y orden (tocar los pasos en orden). Cada respuesta se guarda al momento en el servidor; si se
+// vf (verdadero o falso) y orden (tocar los pasos en orden). 2026-11-05: la pregunta o cada alternativa pueden traer foto. Cada respuesta se guarda al momento en el servidor; si se
 // corta, al volver a entrar retoma donde quedó (el tiempo sigue). Al terminar o al acabarse el tiempo se califica en el
 // servidor y se muestra la nota, si aprobó y los temas a reforzar (nunca las respuestas correctas).
 // Página: 03_FRONTEND/src/pages/examen_general.php (data-* de #examenApp). Estilos: sgs-login.css (sección examen).
@@ -107,12 +107,13 @@
         const r = respuestas[p.n] || [];
         const total = preguntas.length;
         const hechas = preguntas.filter((q) => (respuestas[q.n] || []).length).length;
+        const conFotos = p.opciones.some((o) => o.imagen);
         const opciones = p.opciones.map((o) => {
             const pos = r.indexOf(o.k);
             const marcada = pos >= 0;
             const marca = p.tipo === 'orden' ? (marcada ? pos + 1 : '') : (p.tipo === 'multiple' ? (marcada ? '<i class="bi bi-check-lg"></i>' : '') : '');
             return `<button type="button" class="ex-opcion ex-opcion--${p.tipo}${marcada ? ' is-marcada' : ''}" data-k="${o.k}" aria-pressed="${marcada}">
-                <span class="ex-opcion-marca" aria-hidden="true">${marca}</span><span class="ex-opcion-texto">${esc(o.texto)}</span></button>`;
+                ${o.imagen ? `<img class="ex-opcion-foto" src="${esc(o.imagen)}" alt="" loading="lazy">` : ''}<span class="ex-opcion-pie"><span class="ex-opcion-marca" aria-hidden="true">${marca}</span><span class="ex-opcion-texto">${esc(o.texto)}</span></span></button>`;
         }).join('');
         app.innerHTML = `<div class="ex-cabecera">
               <span class="ex-contador">Pregunta <strong>${actual + 1}</strong> de ${total}</span>
@@ -123,7 +124,8 @@
               <div class="ex-etiquetas"><span class="ex-tema">${esc(p.tema)}</span><span class="ex-tipo">${esc(tipos[p.tipo] || '')}</span></div>
               ${p.tipo === 'caso' ? '<div class="ex-caso-titulo"><i class="bi bi-cone-striped" aria-hidden="true"></i>Situación en campo</div>' : ''}
               <h2 class="ex-texto">${esc(p.texto)}</h2>
-              <div class="ex-opciones ${p.tipo === 'vf' ? 'ex-opciones--vf' : ''}">${opciones}</div>
+              ${p.imagen ? `<img class="ex-imagen" src="${esc(p.imagen)}" alt="Imagen de la situación">` : ''}
+              <div class="ex-opciones ${p.tipo === 'vf' ? 'ex-opciones--vf' : ''}${conFotos ? ' ex-opciones--fotos' : ''}">${opciones}</div>
               ${p.tipo === 'orden' && r.length ? '<button type="button" class="btn btn-link btn-sm p-0 mt-2" id="exReiniciar"><i class="bi bi-arrow-counterclockwise me-1"></i>Volver a ordenar</button>' : ''}
             </div>
             <div class="ex-navegacion">

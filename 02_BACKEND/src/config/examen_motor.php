@@ -38,7 +38,8 @@ function sgsArmarExamen(array $banco): array {
         $elegidas[$p['id']] = $p;
         $usadosPorTipo[$p['tipo']] = ($usadosPorTipo[$p['tipo']] ?? 0) + 1;
     };
-    // Una de cada tema (en orden de temas al azar), luego el resto al azar.
+    // Primero las marcadas 'siempre', luego una de cada tema (en orden de temas al azar) y el resto al azar.
+    foreach ($banco['preguntas'] as $p) if (!empty($p['siempre']) && count($elegidas) < $cantidad) $tomar($p);
     $temas = array_keys($porTema);
     shuffle($temas);
     foreach ($temas as $tema) {
@@ -71,14 +72,21 @@ function sgsPreguntaDelBanco(array $banco, string $id): ?array {
     return null;
 }
 
-/** Lo que ve el técnico: sin las respuestas correctas. Cada alternativa lleva su índice original (k). */
+/** Dirección de una imagen del examen (relativa a examen.php), con su fecha para que Cloudflare tome la nueva si se reemplaza. */
+function sgsImagenExamen(?string $archivo): ?string {
+    if (!$archivo) return null;
+    $ruta = 'img/examenes/' . basename($archivo);
+    return '03_FRONTEND/src/assets/' . $ruta . '?v=' . (int)@filemtime(FRONTEND_PATH . '/assets/' . $ruta);
+}
+
+/** Lo que ve el técnico: sin las respuestas correctas. Cada alternativa lleva su índice original (k) y su foto, si tiene. */
 function sgsPreguntasParaTecnico(array $banco, array $armado): array {
     $salida = [];
     foreach ($armado as $n => $a) {
         $p = sgsPreguntaDelBanco($banco, $a['id']);
         if (!$p) continue;
-        $salida[] = ['n' => $n, 'tipo' => $p['tipo'], 'tema' => $p['tema'], 'texto' => $p['texto'],
-            'opciones' => array_map(static fn($k) => ['k' => (int)$k, 'texto' => $p['opciones'][$k]], $a['orden'])];
+        $salida[] = ['n' => $n, 'tipo' => $p['tipo'], 'tema' => $p['tema'], 'texto' => $p['texto'], 'imagen' => sgsImagenExamen($p['imagen'] ?? null),
+            'opciones' => array_map(static fn($k) => ['k' => (int)$k, 'texto' => $p['opciones'][$k], 'imagen' => sgsImagenExamen($p['imagenes'][$k] ?? null)], $a['orden'])];
     }
     return $salida;
 }
@@ -167,11 +175,12 @@ function sgsResultadoGuardado(PDO $pdo, array $part, array $banco): array {
         'aprobado' => (bool)$part['aprobado'], 'reforzar' => array_column($st->fetchAll(PDO::FETCH_ASSOC), 'tema'), 'minimo' => (int)$banco['aprueba']];
 }
 
-/** Cierra (califica) los exámenes empezados cuyo tiempo ya venció y nadie terminó (se cerró el navegador). */
-function sgsCerrarExamenesVencidos(PDO $pdo): int {
+/** Cierra (califica) los exámenes empezados cuyo tiempo ya venció y nadie terminó (se cerró el navegador). Con $convocatoriaId, solo los de ese link. */
+function sgsCerrarExamenesVencidos(PDO $pdo, ?int $convocatoriaId = null): int {
     $cerrados = 0;
-    $st = $pdo->query('SELECT ct.id, ct.inicio_en, c.examen FROM examen_convocatoria_tecnicos ct JOIN examen_convocatorias c ON c.id = ct.convocatoria_id
-        WHERE ct.inicio_en IS NOT NULL AND ct.usado_en IS NULL LIMIT 500');
+    $st = $pdo->prepare('SELECT ct.id, ct.inicio_en, c.examen FROM examen_convocatoria_tecnicos ct JOIN examen_convocatorias c ON c.id = ct.convocatoria_id
+        WHERE ct.inicio_en IS NOT NULL AND ct.usado_en IS NULL' . ($convocatoriaId ? ' AND ct.convocatoria_id = :c' : '') . ' LIMIT 500');
+    $st->execute($convocatoriaId ? [':c' => $convocatoriaId] : []);
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $p) {
         $banco = sgsExamenBanco((string)$p['examen']);
         if (!$banco) continue;
@@ -180,4 +189,28 @@ function sgsCerrarExamenesVencidos(PDO $pdo): int {
         }
     }
     return $cerrados;
+}
+
+/**
+ * Seguimiento en vivo de un link (2026-11-05): cada técnico con su estado (falta / entró / en curso / terminado), cuántas
+ * preguntas respondió y cuánto tiempo le queda si está en curso. Antes cierra los que se quedaron sin tiempo.
+ */
+function sgsSeguimientoConvocatoria(PDO $pdo, array $conv): array {
+    sgsCerrarExamenesVencidos($pdo, (int)$conv['id']);
+    $banco = sgsExamenBanco((string)$conv['examen']);
+    $st = $pdo->prepare('SELECT ct.tipo, ct.ingreso_en, ct.inicio_en, ct.usado_en, ct.nota, ct.aprobado, ct.preguntas, ct.respuestas, t.nombre_tecnico, t.dni, p.nombre_partner
+        FROM examen_convocatoria_tecnicos ct JOIN tecnicos t ON t.id = ct.tecnico_id LEFT JOIN partners p ON p.id = t.partner_id
+        WHERE ct.convocatoria_id = :c ORDER BY ct.usado_en IS NOT NULL, ct.inicio_en IS NULL, ct.ingreso_en IS NULL, p.nombre_partner, t.nombre_tecnico');
+    $st->execute([':c' => (int)$conv['id']]);
+    $salida = [];
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $t) {
+        $estado = $t['usado_en'] ? 'terminado' : ($t['inicio_en'] ? 'en_curso' : ($t['ingreso_en'] ? 'entro' : 'falta'));
+        $respondidas = count(array_filter(json_decode((string)$t['respuestas'], true) ?: [], static fn($r) => (array)$r !== []));
+        $salida[] = ['persona' => sgsNombrePersonaTecnico((string)$t['nombre_tecnico'], (int)$t['tipo']), 'tipo' => (int)$t['tipo'], 'dni' => $t['dni'],
+            'partner' => $t['nombre_partner'], 'estado' => $estado, 'ingreso_en' => $t['ingreso_en'], 'inicio_en' => $t['inicio_en'], 'usado_en' => $t['usado_en'],
+            'nota' => $t['nota'] !== null ? (float)$t['nota'] : null, 'aprobado' => (bool)$t['aprobado'],
+            'respondidas' => $respondidas, 'preguntas' => count(json_decode((string)$t['preguntas'], true) ?: []),
+            'restan' => $estado === 'en_curso' && $banco ? sgsSegundosRestantes($t, $banco) : null];
+    }
+    return $salida;
 }

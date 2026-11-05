@@ -6,6 +6,9 @@
 // 2) Instrucciones → "Empezar": se arma SU examen (20 preguntas al azar, alternativas mezcladas) y corre el tiempo (10 min).
 // 3) Cada respuesta se guarda al momento (si se corta, retoma donde quedó; el reloj sigue). Al terminar o al vencer el
 //    tiempo se califica en el servidor: una sola oportunidad. Ve su nota, si aprobó y qué temas reforzar (no las respuestas).
+// 4) (2026-11-05) Quien ya rindió y vuelve a poner su DNI ve "Usted ya rindió este examen". Cuando todos los técnicos del
+//    link (de una cuadrilla o de varias) terminaron, el link queda cerrado ("completo") para todos. También se cierra al
+//    vencer (30 minutos por defecto) o cuando el supervisor lo cierra; quien ya estaba rindiendo termina su examen.
 // Se entra por examen.php?g=…; las llamadas del examen (?g=…&accion=…) responden JSON. Pantalla: assets/js/examen.js.
 // Lógica: config/examen_enlaces.php (link e intentos) y config/examen_motor.php (preguntas y nota).
 require_once BACKEND_PATH . '/config/database.php';
@@ -48,6 +51,7 @@ try {
     $banco = $conv ? sgsExamenBanco((string)($conv['examen'] ?? 'altura')) : null;
     if ($conv && $banco) {
         $estadoLink = sgsEstadoConvocatoria($conv);
+        if ($estadoLink === 'activo' && sgsConvocatoriaCompleta($pdo, (int)$conv['id'])) $estadoLink = 'completo';
         $part = $participacionPorLlave($pdo, (int)$conv['id']);
 
         // ---------- Llamadas del examen (JSON) ----------
@@ -109,6 +113,9 @@ try {
             } elseif (!($tecnico = sgsTecnicoConvocatoriaPorDni($pdo, (int)$conv['id'], $dni))) {
                 sgsRegistrarIntentoExamen($pdo, (int)$conv['id']);
                 $error = 'Tu DNI no está en esta convocatoria. Revisa que esté bien escrito o consulta con tu supervisor.';
+            } elseif (!empty($tecnico['usado_en'])) {
+                sgsLimpiarIntentosExamen($pdo, (int)$conv['id']);
+                $error = 'Usted ya rindió este examen el ' . date('d/m/Y \a \l\a\s H:i', strtotime((string)$tecnico['usado_en'])) . '. Solo hay una oportunidad: si necesita otra, consulte con su supervisor.';
             } else {
                 sgsLimpiarIntentosExamen($pdo, (int)$conv['id']);
                 // Llave de este navegador (si entra desde otro equipo, la anterior deja de servir).
@@ -135,8 +142,9 @@ $nombre = $part ? mb_convert_case(mb_strtolower(sgsNombrePersonaTecnico((string)
 $resultado = $vista === 'resultado' ? sgsResultadoGuardado($pdo, $part, $banco) : null;
 $mensajes = [
     'invalido' => ['bi-x-circle', 'Link no válido', 'Este link no existe o está incompleto. Pide a tu supervisor que te lo envíe otra vez.'],
-    'vencido' => ['bi-clock-history', 'Link vencido', 'Este link ya venció. Consulta con tu supervisor.'],
-    'anulado' => ['bi-slash-circle', 'Link anulado', 'Este link fue anulado. Usa el último link que te envió tu supervisor.'],
+    'vencido' => ['bi-clock-history', 'Link cerrado', 'El tiempo para ingresar al examen terminó. Si no lo rendiste, consulta con tu supervisor.'],
+    'anulado' => ['bi-slash-circle', 'Link cerrado', 'Tu supervisor cerró este link. Si no rendiste el examen, consulta con él.'],
+    'completo' => ['bi-check2-circle', 'Examen cerrado', 'Todos los técnicos de este link ya rindieron su examen. El link está cerrado.'],
     'error' => ['bi-exclamation-triangle', 'No se pudo abrir el examen', 'Inténtalo de nuevo en unos minutos.'],
 ];
 $verLogin = static fn(string $archivo): string => rawurlencode(ASSET_VERSION) . '.' . (int)@filemtime(FRONTEND_PATH . '/assets/' . $archivo);

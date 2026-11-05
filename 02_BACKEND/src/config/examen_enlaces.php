@@ -1,19 +1,31 @@
 <?php
 // 02_BACKEND/src/config/examen_enlaces.php - Links de examen para los técnicos.
-// El código del link es aleatorio (48 caracteres); en la base solo se guarda su huella SHA-256: quien vea la tabla no puede
+// El código del link es aleatorio (12 caracteres desde 2026-11-05; antes 48); en la base solo se guarda su huella SHA-256: quien vea la tabla no puede
 // armar links. Link individual (2026-10-15, examen_enlaces): ya no se generan; los enviados siguen abriendo hasta vencer
 // (estados activo → abierto → usado, o vencido / anulado). Link general (2026-10-20): ver más abajo.
 require_once __DIR__ . '/tecnicos_lideres.php'; // sgsPersonaLider
 
-const SGS_EXAMEN_VIGENCIAS = [2 => '2 horas', 24 => '24 horas', 72 => '3 días'];
+// Vigencia del link general en minutos (2026-11-05: 30 minutos por defecto; al vencer se cierra solo y quien no rindió
+// queda como "No rindió"; los que ya estaban rindiendo terminan su examen).
+const SGS_EXAMEN_VIGENCIAS = [30 => '30 minutos', 60 => '1 hora', 120 => '2 horas', 1440 => '24 horas'];
+const SGS_EXAMEN_VIGENCIA_DEFECTO = 30;
 
 /** Nombre de la persona sin la nomenclatura ("P 4 DOMINION SGI JUAN PEREZ" → "JUAN PEREZ"); los T2 no la tienen. */
 function sgsNombrePersonaTecnico(string $nombre, int $tipo): string {
     return $tipo === 1 ? sgsPersonaLider($nombre) : normalizeImportText($nombre);
 }
 
+/** Código del link: 12 letras y números (link corto, 2026-11-05) o 48 hexadecimales (links anteriores, siguen sirviendo). */
 function sgsCodigoExamenValido(string $codigo): bool {
-    return (bool)preg_match('/^[a-f0-9]{48}$/', $codigo);
+    return (bool)preg_match('/^([a-z0-9]{12}|[a-f0-9]{48})$/', $codigo);
+}
+
+/** Código corto al azar para el link general: 12 caracteres de a-z y 0-9 (unas 4·10^18 combinaciones). */
+function sgsCodigoCortoExamen(): string {
+    $letras = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    $codigo = '';
+    for ($i = 0; $i < 12; $i++) $codigo .= $letras[random_int(0, 35)];
+    return $codigo;
 }
 
 function sgsEstadoEnlace(array $e, ?int $ahora = null): string {
@@ -91,10 +103,10 @@ function sgsParticipantesExamen(PDO $pdo, array $liderIds, callable $visible): a
 }
 
 /** Crea el link general. Devuelve ['id', 'codigo', 'vence_en']; el código solo existe aquí. */
-function sgsGenerarConvocatoria(PDO $pdo, array $tecnicos, int $horas, string $titulo, string $filtro, int $actorId, string $examen): array {
-    if (!isset(SGS_EXAMEN_VIGENCIAS[$horas])) $horas = 24;
-    $codigo = bin2hex(random_bytes(24));
-    $vence = date('Y-m-d H:i:s', time() + $horas * 3600);
+function sgsGenerarConvocatoria(PDO $pdo, array $tecnicos, int $minutos, string $titulo, string $filtro, int $actorId, string $examen): array {
+    if (!isset(SGS_EXAMEN_VIGENCIAS[$minutos])) $minutos = SGS_EXAMEN_VIGENCIA_DEFECTO;
+    $codigo = sgsCodigoCortoExamen();
+    $vence = date('Y-m-d H:i:s', time() + $minutos * 60);
     $pdo->beginTransaction();
     try {
         $pdo->prepare('INSERT INTO examen_convocatorias (token_hash, titulo, examen, filtro, generado_por, creado_en, vence_en) VALUES (:h, :ti, :ex, :f, :u, NOW(), :v)')
@@ -115,6 +127,13 @@ function sgsBuscarConvocatoria(PDO $pdo, string $codigo): ?array {
     $st = $pdo->prepare('SELECT * FROM examen_convocatorias WHERE token_hash = :h LIMIT 1');
     $st->execute([':h' => hash('sha256', $codigo)]);
     return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+/** true si todos los técnicos del link ya rindieron (el link se cierra solo, 2026-11-05). */
+function sgsConvocatoriaCompleta(PDO $pdo, int $convocatoriaId): bool {
+    $st = $pdo->prepare('SELECT COUNT(*) > 0 AND COALESCE(SUM(usado_en IS NULL), 0) = 0 FROM examen_convocatoria_tecnicos WHERE convocatoria_id = :c');
+    $st->execute([':c' => $convocatoriaId]);
+    return (bool)$st->fetchColumn();
 }
 
 /** Técnico del link con ese DNI, o null. */
@@ -173,14 +192,8 @@ function sgsListarConvocatorias(PDO $pdo, ?int $generadoPor): array {
         LEFT JOIN examen_convocatoria_tecnicos ct ON ct.convocatoria_id = c.id
         {$where} GROUP BY c.id ORDER BY c.creado_en DESC, c.id DESC LIMIT 30");
     $st->execute($generadoPor ? [':u' => $generadoPor] : []);
-    return array_map(static fn($c) => $c + ['estado' => sgsEstadoConvocatoria($c)], $st->fetchAll(PDO::FETCH_ASSOC));
-}
-
-/** Técnicos de un link general con su ingreso. */
-function sgsTecnicosConvocatoria(PDO $pdo, int $convocatoriaId): array {
-    $st = $pdo->prepare('SELECT ct.tipo, ct.ingreso_en, ct.inicio_en, ct.usado_en, ct.nota, ct.aprobado, t.nombre_tecnico, t.dni, p.nombre_partner
-        FROM examen_convocatoria_tecnicos ct JOIN tecnicos t ON t.id = ct.tecnico_id LEFT JOIN partners p ON p.id = t.partner_id
-        WHERE ct.convocatoria_id = :c ORDER BY ct.ingreso_en IS NULL, p.nombre_partner, t.nombre_tecnico');
-    $st->execute([':c' => $convocatoriaId]);
-    return array_map(static fn($t) => $t + ['persona' => sgsNombrePersonaTecnico((string)$t['nombre_tecnico'], (int)$t['tipo'])], $st->fetchAll(PDO::FETCH_ASSOC));
+    return array_map(static function ($c) {
+        $estado = sgsEstadoConvocatoria($c);
+        return $c + ['estado' => $estado === 'activo' && (int)$c['total'] > 0 && (int)$c['rindieron'] === (int)$c['total'] ? 'completo' : $estado];
+    }, $st->fetchAll(PDO::FETCH_ASSOC));
 }

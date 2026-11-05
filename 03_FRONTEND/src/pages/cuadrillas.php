@@ -28,6 +28,7 @@ if (!Auth::puede(Auth::PERM_CUADRILLAS_VIEW, $user)) {
     return;
 }
 $pdo = Database::getConnection();
+require_once BACKEND_PATH . '/config/examen_enlaces.php'; // SGS_EXAMEN_VIGENCIAS (cuándo se cierra el link)
 $partnerFiltro = (int)($_GET['partner_id'] ?? 0);
 $busqueda = mb_substr(trim((string)($_GET['q'] ?? '')), 0, 60);
 $estadoFiltro = in_array($_GET['estado'] ?? '', ['completas', 'incompletas'], true) ? $_GET['estado'] : '';
@@ -305,6 +306,9 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
         . ' data-dni="' . $e($f['dni']) . '" data-celular="' . $e($f['celular']) . '" data-apoyo="' . (int)$f['apoyo_id'] . '" data-placa="' . $e($f['placa']) . '"'
         . ' data-tipo="' . $e($f['vehiculo_tipo']) . '" data-estado="' . $e($f['vehiculo_estado']) . '" data-operativo="' . $e($f['estado_operativo']) . '"'
         . ' data-provincia="' . $e($f['provincia'] ?: $f['departamento']) . '"><i class="bi bi-pencil"></i></button>' : '';
+    // Link de examen solo para esta cuadrilla (T1 y su T2), 2026-11-05.
+    $botonLinkExamen = static fn(array $f): string => $puedeExamen ? '<button type="button" class="sgs-icon-action" title="Link de examen para esta cuadrilla" aria-label="Link de examen para la cuadrilla de ' . $e($f['nombre_tecnico']) . '"'
+        . ' data-link-examen="' . (int)$f['id'] . '" data-nombre="' . $e($f['nombre_tecnico']) . '"><i class="bi bi-link-45deg"></i></button>' : '';
     $zonaTexto = static fn(?string $prov, ?string $dep): string => trim((string)$dep) === '' ? '<span class="text-warning-emphasis">Sin zona</span>' : $e(sgsTextoZona($prov, $dep));
     $estadoBadge = static fn(?string $estado): string => ($estado ?? 'Habilitado') !== 'Habilitado' ? ' <span class="badge ' . ($claseOperativo[$estado] ?? 'bg-secondary') . '">' . $e($estado) . '</span>' : '';
     ?>
@@ -320,7 +324,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
           <td data-label="Partner y zona"><div><div><?= $e($partnerCuadrilla($f['nombre_partner'], $f['departamento'], $f['nombre_tecnico'])) ?></div><small class="text-muted"><i class="bi bi-geo-alt me-1"></i><?= $zonaTexto($f['provincia'], $f['departamento']) ?></small></div></td>
           <td data-label="Su cuadrilla"><div><div><?= $f['apoyo_nombre'] ? 'T2: ' . $e($f['apoyo_nombre']) : '<span class="text-muted">Sin T2</span>' ?></div><small class="text-muted"><?= $f['placa'] ? 'Vehículo ' . $e($f['placa']) : 'Sin vehículo' ?></small></div></td>
           <td data-label="Último examen"><?= $badgeExamen((int)$f['id']) ?></td>
-          <td class="text-end"><div class="sgs-row-actions justify-content-end"><?= $botonEditar($f) ?></div></td>
+          <td class="text-end"><div class="sgs-row-actions justify-content-end"><?= $botonLinkExamen($f) ?><?= $botonEditar($f) ?></div></td>
         </tr>
       <?php endforeach; ?>
       </tbody>
@@ -375,7 +379,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
           <td data-label="Supervisiones"><div class="cuad-celda"><span class="fw-bold"><?= (int)$f['supervisiones'] ?></span>
             <?php if ($f['ultima_supervision']): ?><small class="text-muted text-nowrap" title="Última supervisión">Última: <?= date('d/m/Y', strtotime($f['ultima_supervision'])) ?></small><?php endif; ?></div></td>
           <td class="text-end"><div class="sgs-row-actions justify-content-end">
-            <?= $botonEditar($f) ?>
+            <?= $botonLinkExamen($f) ?><?= $botonEditar($f) ?>
           </div></td>
         </tr>
       <?php endforeach; ?>
@@ -530,7 +534,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
 <!-- ===== Link general de examen (2026-10-20) ===== -->
 <div class="modal fade" id="mExamen" data-puede-anular="<?= $puedeAnularExamen ? '1' : '0' ?>" tabindex="-1" aria-labelledby="mExamenTitulo" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg"><div class="modal-content">
-    <div class="modal-header"><h5 class="modal-title" id="mExamenTitulo"><i class="bi bi-link-45deg me-2"></i>Link de examen para las cuadrillas filtradas</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+    <div class="modal-header"><h5 class="modal-title" id="mExamenTitulo"><i class="bi bi-link-45deg me-2"></i><span id="exTitulo">Link de examen para las cuadrillas filtradas</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
     <div class="modal-body">
       <div id="exCargando" class="text-muted small">Revisando a los técnicos…</div>
       <div id="exContenido" class="d-none">
@@ -540,7 +544,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
         <div id="exExcluidos"></div>
         <div class="row g-3 mb-3">
           <div class="col-sm-7"><label class="form-label" for="exExamen">Examen</label><select class="form-select" id="exExamen"></select><small class="text-muted" id="exExamenAyuda"></small></div>
-          <div class="col-sm-5"><label class="form-label" for="exHoras">Vigencia</label><select class="form-select" id="exHoras"><option value="2">2 horas</option><option value="24" selected>24 horas</option><option value="72">3 días</option></select></div>
+          <div class="col-sm-5"><label class="form-label" for="exMinutos">Se cierra en</label><select class="form-select" id="exMinutos"><?php foreach (SGS_EXAMEN_VIGENCIAS as $min => $texto): ?><option value="<?= $min ?>"<?= $min === SGS_EXAMEN_VIGENCIA_DEFECTO ? ' selected' : '' ?>><?= $texto ?></option><?php endforeach; ?></select></div>
         </div>
         <button type="button" class="btn btn-win w-100" id="exGenerar"><i class="bi bi-link-45deg me-1"></i>Generar link</button>
         <div class="alert alert-danger d-none mt-3 mb-0" id="exError" role="alert"></div>
@@ -550,10 +554,10 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
           <small class="text-muted d-block mb-3" id="exVence"></small>
           <div class="ex-enviar">
             <a class="btn btn-win" id="exWhatsapp" target="_blank" rel="noopener"><i class="bi bi-whatsapp me-1"></i>Enviar por WhatsApp</a>
-            <button type="button" class="btn btn-outline-secondary" id="exCopiar"><i class="bi bi-clipboard me-1"></i>Copiar</button>
+            <button type="button" class="btn btn-outline-secondary" id="exCopiar"><i class="bi bi-clipboard me-1"></i>Copiar link</button>
             <button type="button" class="btn btn-outline-secondary d-none" id="exCompartir"><i class="bi bi-share me-1"></i>Otras apps</button>
           </div>
-          <small class="text-muted d-block mt-2">Envíelo ahora: por seguridad el link no se vuelve a mostrar. Cada técnico entra con su DNI.</small>
+          <small class="text-muted d-block mt-2">Envíelo ahora: por seguridad el link no se vuelve a mostrar. Cada técnico entra con su DNI. Al cerrarse, quien no entró queda como "No rindió".</small>
         </div>
       </div>
       <h6 class="cuad-seccion mt-4"><i class="bi bi-clock-history me-2" aria-hidden="true"></i>Links generados</h6>
@@ -564,10 +568,10 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
 
 <!-- ===== Técnicos de un link (quién ya entró) ===== -->
 <div class="modal fade" id="mExamenDetalle" tabindex="-1" aria-labelledby="mExamenDetalleTitulo" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
-    <div class="modal-header"><h5 class="modal-title" id="mExamenDetalleTitulo"><i class="bi bi-people me-2"></i><span id="exDetTitulo">Técnicos del link</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title" id="mExamenDetalleTitulo"><i class="bi bi-broadcast me-2"></i><span id="exDetTitulo">Técnicos del link</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
     <div class="modal-body" id="exDetalle"></div>
-    <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button></div>
+    <div class="modal-footer"><?php if ($puedeAnularExamen): ?><button type="button" class="btn btn-outline-danger d-none me-auto" id="exCerrarLink"><i class="bi bi-lock me-1"></i>Cerrar link</button><?php endif; ?><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Salir</button></div>
   </div></div>
 </div>
 

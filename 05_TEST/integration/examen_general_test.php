@@ -76,12 +76,15 @@ try {
     echo "Pantalla Cuadrillas — $base\n";
     $check('el supervisor directo ve el botón del link general y el lápiz para editar', str_contains($pagina, 'id="btnLinkExamen"') && str_contains($pagina, 'data-editar=') && !str_contains($pagina, 'data-examen='), null);
     $check('no ve la carga de técnicos líderes (solo administración)', !str_contains($pagina, 'id="btnCargarLideres"'), null);
+    $check('cada cuadrilla tiene su botón de link de examen', str_contains($pagina, 'data-link-examen='), null);
 
     echo "Preparar el link\n";
     [, $j] = $http("$api?action=grupo_preparar", ['lider_ids' => [$t1A, $t1C, $t1D]]);
     $sinDni = array_column($j['data']['sin_dni'] ?? [], 'id');
     $check('entran el T1 y su T2; la cuadrilla de otra zona no', ($j['status'] ?? '') === 'success' && ($j['data']['total'] ?? 0) === 3 && ($j['data']['t2'] ?? 0) === 1, $j);
     $check('avisa quién no tiene DNI', $sinDni === [$t1C], $j['data']['sin_dni'] ?? null);
+    [, $j] = $http("$api?action=grupo_preparar", ['lider_ids' => [$t1A]]);
+    $check('link de una sola cuadrilla: su T1 y su T2', ($j['data']['total'] ?? 0) === 2 && ($j['data']['cuadrillas'] ?? 0) === 1, $j);
     [, $j] = $http("$api?action=grupo_generar", ['lider_ids' => [$t1A, $t1C], 'titulo' => 'Examen de prueba', 'horas' => 24]);
     $check('con un técnico sin DNI NO se genera el link', ($j['status'] ?? '') === 'error' && str_contains($j['message'] ?? '', 'DNI') && count($j['sin_dni'] ?? []) === 1, $j);
 
@@ -98,14 +101,17 @@ try {
     echo "Generar el link\n";
     [, $j] = $http("$api?action=grupo_generar", ['lider_ids' => [$t1A, $t1C, $t1D], 'titulo' => 'Escrito a mano', 'horas' => 24, 'filtro' => 'Prueba']);
     $check('sin elegir un examen de la lista no se genera', ($j['status'] ?? '') === 'error' && str_contains($j['message'] ?? '', 'lista'), $j);
-    [, $j] = $http("$api?action=grupo_generar", ['lider_ids' => [$t1A, $t1C, $t1D], 'examen' => 'altura', 'horas' => 24, 'filtro' => 'Prueba']);
+    [, $j] = $http("$api?action=grupo_generar", ['lider_ids' => [$t1A, $t1C, $t1D], 'examen' => 'altura', 'filtro' => 'Prueba']);
     $url = (string)($j['data']['url'] ?? '');
     $check('con todos con DNI se genera un solo link para el grupo', ($j['status'] ?? '') === 'success' && str_contains($url, '/examen.php?g=') && ($j['data']['total'] ?? 0) === 3, $j);
+    $check('el link es corto y limpio (12 letras y números)', (bool)preg_match('#/examen\.php\?g=[a-z0-9]{12}$#', $url), $url);
+    $minutosVigencia = (int)round((strtotime((string)$pdo->query("SELECT vence_en FROM examen_convocatorias WHERE id = " . (int)($j['data']['id'] ?? 0))->fetchColumn()) - time()) / 60);
+    $check('por defecto el link se cierra a los 30 minutos', $minutosVigencia >= 29 && $minutosVigencia <= 30, $minutosVigencia);
     $conv = (int)($j['data']['id'] ?? 0);
     $check('el link guarda el examen elegido, la huella del código y a los 3 técnicos', $conv
         && (int)$pdo->query("SELECT COUNT(*) FROM examen_convocatoria_tecnicos WHERE convocatoria_id = $conv")->fetchColumn() === 3
         && $pdo->query("SELECT CONCAT(examen, '|', titulo) FROM examen_convocatorias WHERE id = $conv")->fetchColumn() === 'altura|Seguridad: trabajo en altura'
-        && !str_contains((string)$pdo->query("SELECT token_hash FROM examen_convocatorias WHERE id = $conv")->fetchColumn(), substr($url, -48)), null);
+        && !str_contains((string)$pdo->query("SELECT token_hash FROM examen_convocatorias WHERE id = $conv")->fetchColumn(), substr($url, -12)), null);
 
     // Cada técnico con su propio navegador (cookies) y siguiendo la redirección después del DNI.
     $tec = function (string $quien, string $url, ?array $post = null) use (&$jarsTec): array {
@@ -139,6 +145,11 @@ try {
     array_walk_recursive($j['preguntas'], function ($v, $k) use (&$claves) { $claves[$k] = true; });
     $check('al empezar recibe 20 preguntas y 10 minutos, sin las respuestas correctas', ($j['status'] ?? '') === 'success' && count($j['preguntas'] ?? []) === 20
         && ($j['segundos'] ?? 0) > 590 && !isset($claves['correcta']), ['status' => $j['status'] ?? null, 'campos' => array_keys($claves)]);
+    $ids = array_column($armadoDe($t2B), 'id');
+    $check('las 5 preguntas con imagen salen siempre', !array_diff(['ALT51', 'ALT52', 'ALT53', 'ALT54', 'ALT55'], $ids), $ids);
+    $conFoto = array_values(array_filter($j['preguntas'] ?? [], fn($q) => $q['imagen'] || array_filter(array_column($q['opciones'], 'imagen'))));
+    $check('llegan las fotos de la pregunta y de las alternativas', count($conFoto) === 4
+        && str_contains((string)($conFoto[0]['imagen'] ?? $conFoto[0]['opciones'][0]['imagen'] ?? ''), 'img/examenes/'), array_column($conFoto, 'imagen'));
     foreach ($armadoDe($t2B) as $n => $a) {
         $p = $pregunta($a['id']);
         $tec('B', "$url&accion=responder", ['n' => $n, 'r' => $p['tipo'] === 'orden' ? array_keys($p['opciones']) : $p['correcta']]);
@@ -150,6 +161,8 @@ try {
     [, $j] = $tec('B', "$url&accion=empezar", []);
     [$b] = $tec('B', $url);
     $check('una sola oportunidad: ya no puede volver a rendirlo; al entrar ve su resultado', ($j['status'] ?? '') === 'terminado' && str_contains($b, 'data-vista="resultado"'), $j);
+    [$b] = $tec('B-otro-equipo', $url, ['dni' => '99999962']);
+    $check('si vuelve a poner su DNI: "Usted ya rindió este examen"', str_contains($b, 'Usted ya rindió este examen') && str_contains($b, 'name="dni"'), substr(strip_tags($b), 0, 300));
 
     echo "Examen: no aprobado y tiempo vencido\n";
     $tec('A', $url, ['dni' => '99999961']);
@@ -157,23 +170,34 @@ try {
     $primera = $armadoDe($t1A)[0];
     $p = $pregunta($primera['id']);
     $tec('A', "$url&accion=responder", ['n' => 0, 'r' => $p['tipo'] === 'orden' ? array_keys($p['opciones']) : $p['correcta']]);
+    [, $j] = $http("$api?action=grupo&id=$conv");
+    $vivo = array_column($j['data']['tecnicos'] ?? [], null, 'dni');
+    $check('seguimiento en vivo: A en curso (1 de 20, con tiempo), B terminado, C falta', ($vivo['99999961']['estado'] ?? '') === 'en_curso'
+        && ($vivo['99999961']['respondidas'] ?? 0) === 1 && ($vivo['99999961']['preguntas'] ?? 0) === 20 && ($vivo['99999961']['restan'] ?? 0) > 500
+        && ($vivo['99999962']['estado'] ?? '') === 'terminado' && ($vivo['99999964']['estado'] ?? '') === 'falta' && ($j['data']['estado'] ?? '') === 'activo', $vivo);
     [, $j] = $tec('A', "$url&accion=terminar", []);
     $check('con 1 de 20: 5 % y no aprobado, con temas para reforzar', ($j['status'] ?? '') === 'terminado' && (float)($j['resultado']['nota'] ?? -1) === 5.0
         && empty($j['resultado']['aprobado']) && count($j['resultado']['reforzar'] ?? []) > 0, $j);
+
+    for ($i = 0; $i < 5; $i++) $tec('intruso', $url, ['dni' => '1111111' . $i]);
+    [$b] = $tec('intruso', $url, ['dni' => '99999961']);
+    $check('tras 5 DNI equivocados se bloquea por 15 minutos (aunque luego sea correcto)', str_contains($b, 'Espera 15 minutos'), substr(strip_tags($b), 0, 300));
+    // Se quita el bloqueo (mismo equipo) para que entre C.
+    foreach (["sgs-examen|{$conv}|::1", "sgs-examen|{$conv}|127.0.0.1", "sgs-examen|{$conv}"] as $huella) $pdo->prepare('DELETE FROM login_attempts WHERE fingerprint = :f')->execute([':f' => hash('sha256', $huella)]);
     $tec('C', $url, ['dni' => '99999964']);
     $tec('C', "$url&accion=empezar", []);
     $pdo->exec("UPDATE examen_convocatoria_tecnicos SET inicio_en = NOW() - INTERVAL 11 MINUTE WHERE convocatoria_id = $conv AND tecnico_id = $t1C");
     [, $j] = $tec('C', "$url&accion=responder", ['n' => 0, 'r' => [0]]);
     $check('pasado el tiempo ya no acepta respuestas: se califica lo que había', ($j['status'] ?? '') === 'terminado' && (float)($j['resultado']['nota'] ?? -1) === 0.0, $j);
+    [$b] = $tec('nuevo-equipo', $url);
+    $check('cuando todos rindieron, el link queda cerrado', str_contains($b, 'Examen cerrado') && !str_contains($b, 'name="dni"'), substr(strip_tags($b), 0, 300));
 
-    for ($i = 0; $i < 5; $i++) $tec('intruso', $url, ['dni' => '1111111' . $i]);
-    [$b] = $tec('intruso', $url, ['dni' => '99999961']);
-    $check('tras 5 DNI equivocados se bloquea por 15 minutos (aunque luego sea correcto)', str_contains($b, 'Espera 15 minutos'), substr(strip_tags($b), 0, 300));
 
     echo "Seguimiento y anulación\n";
     [, $j] = $http("$api?action=grupos");
     $fila = array_values(array_filter($j['data'] ?? [], fn($c) => (int)$c['id'] === $conv))[0] ?? [];
-    $check('el historial muestra cuántos rindieron y aprobaron', (int)($fila['total'] ?? 0) === 3 && (int)($fila['rindieron'] ?? 0) === 3 && (int)($fila['aprobados'] ?? 0) === 1, $fila);
+    $check('el historial muestra cuántos rindieron y aprobaron, y "Todos rindieron"', (int)($fila['total'] ?? 0) === 3 && (int)($fila['rindieron'] ?? 0) === 3
+        && (int)($fila['aprobados'] ?? 0) === 1 && ($fila['estado'] ?? '') === 'completo', $fila);
     [, $j] = $http("$api?action=grupo&id=$conv");
     $check('el detalle lista a los técnicos con su nota', count($j['data']['tecnicos'] ?? []) === 3 && count(array_filter($j['data']['tecnicos'] ?? [], fn($t) => $t['nota'] !== null)) === 3, $j);
     echo "Dashboard de exámenes\n";
@@ -197,7 +221,15 @@ try {
 
     [, $j] = $http("$api?action=grupo_anular", ['id' => $conv]);
     [$b] = $tec('nuevo', $url);
-    $check('anulado: el link ya no deja entrar', ($j['status'] ?? '') === 'success' && str_contains($b, 'Link anulado'), $j);
+    $check('cerrado por el supervisor: el link ya no deja entrar', ($j['status'] ?? '') === 'success' && str_contains($b, 'Tu supervisor cerró este link'), $j);
+    // Otro link de una cuadrilla: el supervisor lo cierra sin que nadie rinda → "No rindió".
+    [, $j] = $http("$api?action=grupo_generar", ['lider_ids' => [$t1C], 'examen' => 'altura']);
+    $conv2 = (int)($j['data']['id'] ?? 0);
+    $http("$api?action=grupo_anular", ['id' => $conv2]);
+    [, $j] = $http("$api?action=grupo&id=$conv2");
+    [, $j2] = $http("$api?action=dashboard_tabla&zona=PIURA&estado=no_rindio");
+    $check('link cerrado: quien no entró queda como "No rindió"', ($j['data']['estado'] ?? '') === 'anulado' && ($j['data']['tecnicos'][0]['estado'] ?? '') === 'falta'
+        && ($j2['data']['total'] ?? 0) === 1 && ($j2['data']['filas'][0]['estado'] ?? '') === 'no_rindio', [$j['data']['estado'] ?? null, $j2['data']['total'] ?? null]);
 } catch (Throwable $e) {
     $check('sin excepciones', false, $e->getMessage() . ' @' . $e->getLine());
 } finally {

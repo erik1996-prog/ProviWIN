@@ -174,3 +174,10 @@ body.sgs-login{
 .ex-reforzar{border:1px solid var(--win-border);border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:13.5px;color:var(--win-brown)}
 .ex-reforzar ul{margin:6px 0 0;padding-left:18px}
 @media (max-width:420px){ .ex-texto{font-size:15.5px} .ex-opcion{font-size:14px;min-height:48px} }
+/* 2026-11-05: foto de la pregunta y alternativas con foto (en dos columnas, también en celular) */
+.ex-opcion-pie{display:flex;align-items:center;gap:12px;min-width:0}
+.ex-imagen{display:block;width:100%;max-height:52vh;object-fit:contain;border-radius:12px;background:#F6F4F2;margin:0 0 14px}
+.ex-opciones--fotos{grid-template-columns:1fr 1fr}
+.ex-opciones--fotos .ex-opcion{flex-direction:column;align-items:stretch;gap:8px;padding:8px}
+.ex-opcion-foto{display:block;width:100%;aspect-ratio:3/4;object-fit:contain;border-radius:8px;background:#F6F4F2}
+.ex-opciones--fotos .ex-opcion-pie{gap:8px}

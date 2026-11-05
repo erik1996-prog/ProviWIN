@@ -4077,3 +4077,8 @@ body { font-size: 13px; font-weight: 400; }
 .perf-asignable small { color: var(--sgs-muted); font-size: 11.5px; }
 .perf-asignable:has(input:checked) { border-color: var(--sgs-orange); background: var(--sgs-orange-soft); }
 .perf-asignable:has(input:disabled) { opacity: .5; cursor: not-allowed; }
+
+/* 66. Seguimiento en vivo de un link de examen (2026-11-05): estado del link, indicadores y grupos "Examen en curso",
+   "Examen terminado" y "Faltan" (Cuadrillas → Link de examen → Seguimiento). */
+.ex-vivo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.ex-vivo-hora { margin-left: auto; }

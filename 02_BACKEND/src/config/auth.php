@@ -230,7 +230,7 @@ class Auth {
             self::PERM_CLIMA_DELETE => ['group'=>'Clima','label'=>'Eliminar registros de lluvia','action'=>'eliminar'],
             self::PERM_EXAMENES_VIEW => ['group'=>'Exámenes','label'=>'Ver: resultados y links de examen','action'=>'ver'],
             self::PERM_EXAMENES_EDIT => ['boton'=>'Generar links','group'=>'Exámenes','label'=>'Editar: generar links de examen','action'=>'editar'],
-            self::PERM_EXAMENES_DELETE => ['boton'=>'Anular links','group'=>'Exámenes','label'=>'Eliminar: anular links de examen','action'=>'eliminar'],
+            self::PERM_EXAMENES_DELETE => ['boton'=>'Cerrar links','group'=>'Exámenes','label'=>'Eliminar: cerrar links de examen','action'=>'eliminar'],
             self::PERM_CUADRILLAS_VIEW => ['group'=>'Técnicos y cuadrillas','label'=>'Ver: técnicos, cuadrillas y vencimientos','action'=>'ver'],
             self::PERM_CUADRILLAS_EDIT => ['group'=>'Técnicos y cuadrillas','label'=>'Editar: cuadrillas y fechas de vencimiento','action'=>'editar'],
             self::PERM_CUADRILLAS_IMPORT => ['boton'=>'Cargar Excel y agregar T1','group'=>'Técnicos y cuadrillas','label'=>'Cargar y descargar técnicos líderes (Excel) y agregar un técnico líder (T1)','action'=>'editar'],

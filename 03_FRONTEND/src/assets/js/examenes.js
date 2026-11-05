@@ -6,7 +6,7 @@
     if (!raiz || !window.SgsDashboard) return;
     const D = window.SgsDashboard;
     const $ = (id) => document.getElementById(id);
-    const clases = { aprobado: 'bg-success', desaprobado: 'bg-danger', pendiente: 'bg-secondary', rindiendo: 'bg-warning', no_rindio: 'bg-secondary', anulado: 'bg-secondary' };
+    const clases = { aprobado: 'bg-success', desaprobado: 'bg-danger', pendiente: 'bg-secondary', rindiendo: 'bg-warning', no_rindio: 'bg-secondary' };
     const aprobacion = { valor: (x) => x.pct, texto: (x) => `${x.pct} % <small>${x.aprobados} de ${x.rindieron}</small>`,
         ayuda: (x) => `${x.nombre}: ${x.aprobados} de ${x.rindieron} aprobaron (${x.pct} %)`, vacio: 'Todavía no hay exámenes rendidos con estos filtros.' };
 
