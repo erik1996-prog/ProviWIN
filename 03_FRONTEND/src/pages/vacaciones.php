@@ -4,10 +4,11 @@
 // reglas (no dejar dos zonas sin supervisor, etc.): api/ausencias.php y config/ausencias.php.
 //   Supervisor directo: registra sus vacaciones, descansos médicos y licencias y ve su estado.
 //   Administración, Consulta y Gestión: aprueban, rechazan o anulan las de los supervisores.
+// 2026-11-04: por permisos (Ver, Solicitar y Aprobar de "Vacaciones y licencias"), ya no por rol.
 Auth::requireLogin();
 $user = Auth::getLoggedInUser();
-$isAdmin = Auth::isAdministrative();
-$isReadOnlyWinSupervisor = ($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($user['is_win_directo']);
+$isAdmin = Auth::puede(Auth::PERM_VACACIONES_APPROVE, $user);
+$isReadOnlyWinSupervisor = ($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($user['is_win_directo']) && Auth::puede(Auth::PERM_VACACIONES_REQUEST, $user);
 if (!$isAdmin && !$isReadOnlyWinSupervisor) {
     echo '<div class="alert alert-danger m-4">Esta pantalla es para los supervisores directos y sus jefes.</div>';
     return;

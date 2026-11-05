@@ -63,6 +63,10 @@ class Auth {
     public const PERM_CUADRILLAS_EDIT = 'cuadrillas.edit';
     public const PERM_CUADRILLAS_IMPORT = 'cuadrillas.import';
     public const PERM_CUADRILLAS_DELETE = 'cuadrillas.delete';
+    public const PERM_CUADRILLAS_CREATE_T2 = 'cuadrillas.create_t2'; // agregar técnicos de apoyo (2026-11-04); el T1 va con cuadrillas.import
+    public const PERM_VACACIONES_VIEW = 'vacaciones.view';       // Vacaciones y licencias (2026-11-04)
+    public const PERM_VACACIONES_REQUEST = 'vacaciones.request';
+    public const PERM_VACACIONES_APPROVE = 'vacaciones.approve';
     public const PERM_PARTNERS_VIEW = 'partners.view';
     public const PERM_PARTNERS_EDIT = 'partners.edit';
     public const PERM_PARTNERS_DELETE = 'partners.delete';
@@ -91,7 +95,8 @@ class Auth {
             self::PERM_PARTNERS_DASHBOARD, self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW, self::PERM_CLIMA_DELETE,
             self::PERM_ASISTENCIA_MATRIZ_VIEW, self::PERM_ASISTENCIA_MATRIZ_EDIT,
             self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
-            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT, self::PERM_CUADRILLAS_DELETE,
+            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT, self::PERM_CUADRILLAS_DELETE, self::PERM_CUADRILLAS_CREATE_T2,
+            self::PERM_VACACIONES_VIEW, self::PERM_VACACIONES_APPROVE,
             self::PERM_PARTNERS_VIEW, self::PERM_PARTNERS_EDIT, self::PERM_PARTNERS_DELETE, self::PERM_OBSERVATION_DELETE,
         ],
         self::ROLE_GERENTE => [
@@ -102,7 +107,8 @@ class Auth {
             self::PERM_OBSERVATION_FILTER_DATE, self::PERM_OBSERVATION_FILTER_ADVANCED,
             self::PERM_PARTNERS_DASHBOARD, self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW, self::PERM_ASISTENCIA_MATRIZ_VIEW,
             self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
-            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT, self::PERM_CUADRILLAS_DELETE,
+            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT, self::PERM_CUADRILLAS_DELETE, self::PERM_CUADRILLAS_CREATE_T2,
+            self::PERM_VACACIONES_VIEW, self::PERM_VACACIONES_APPROVE,
         ],
         self::ROLE_COORDINADOR => [
             self::PERM_SUPERVISION_VIEW, self::PERM_SUPERVISION_VIEW_ALL,
@@ -114,7 +120,8 @@ class Auth {
             self::PERM_OBSERVATION_FILTER_DATE, self::PERM_OBSERVATION_FILTER_ADVANCED,
             self::PERM_PARTNERS_DASHBOARD, self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW, self::PERM_ASISTENCIA_MATRIZ_VIEW,
             self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
-            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT, self::PERM_CUADRILLAS_DELETE,
+            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT, self::PERM_CUADRILLAS_DELETE, self::PERM_CUADRILLAS_CREATE_T2,
+            self::PERM_VACACIONES_VIEW, self::PERM_VACACIONES_APPROVE,
             self::PERM_USERS_TEAM, // 2026-10-27: el líder (Gestión) registra a sus supervisores de su zona y área
         ],
         self::ROLE_SUPERVISOR => [
@@ -128,7 +135,8 @@ class Auth {
             self::PERM_SUPERVISION_FILTER_COLUMNS, self::PERM_OBSERVATION_FILTER_DATE,
             self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW, self::PERM_CLIMA_EDIT,
             self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
-            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT,
+            self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_CREATE_T2,
+            self::PERM_VACACIONES_VIEW, self::PERM_VACACIONES_REQUEST,
         ],
         self::ROLE_JEFE_OPERACIONES => [self::PERM_SUPERVISION_VIEW, self::PERM_OBSERVATION_VIEW, self::PERM_OBSERVATION_FILTER_DATE, self::PERM_USERS_VIEW],
     ];
@@ -138,7 +146,8 @@ class Auth {
 
     /** Acciones de campo (2026-11-01): un perfil administrador no las tiene aunque tenga acceso total (no registra supervisiones,
      *  ni su turno, ni avisa lluvias, ni responde observaciones como partner). Se dan marcándolas en otros perfiles. */
-    public const PERMISOS_DE_CAMPO = [self::PERM_SUPERVISION_CREATE, self::PERM_ATTENDANCE_SELF, self::PERM_CLIMA_EDIT, self::PERM_OBSERVATION_RESPOND];
+    public const PERMISOS_DE_CAMPO = [self::PERM_SUPERVISION_CREATE, self::PERM_ATTENDANCE_SELF, self::PERM_CLIMA_EDIT, self::PERM_OBSERVATION_RESPOND,
+        self::PERM_VACACIONES_REQUEST];
 
     /**
      * Perfiles (2026-10-31): los permisos salen del perfil del usuario (sin perfil: el perfil base de su rol). Desde
@@ -224,7 +233,11 @@ class Auth {
             self::PERM_EXAMENES_DELETE => ['boton'=>'Anular links','group'=>'Exámenes','label'=>'Eliminar: anular links de examen','action'=>'eliminar'],
             self::PERM_CUADRILLAS_VIEW => ['group'=>'Técnicos y cuadrillas','label'=>'Ver: técnicos, cuadrillas y vencimientos','action'=>'ver'],
             self::PERM_CUADRILLAS_EDIT => ['group'=>'Técnicos y cuadrillas','label'=>'Editar: cuadrillas y fechas de vencimiento','action'=>'editar'],
-            self::PERM_CUADRILLAS_IMPORT => ['boton'=>'Cargar Excel','group'=>'Técnicos y cuadrillas','label'=>'Cargar y descargar técnicos líderes (Excel)','action'=>'editar'],
+            self::PERM_CUADRILLAS_IMPORT => ['boton'=>'Cargar Excel y agregar T1','group'=>'Técnicos y cuadrillas','label'=>'Cargar y descargar técnicos líderes (Excel) y agregar un técnico líder (T1)','action'=>'editar'],
+            self::PERM_CUADRILLAS_CREATE_T2 => ['boton'=>'Agregar T2','group'=>'Técnicos y cuadrillas','label'=>'Agregar técnicos de apoyo (T2) (con zona propia, solo en su zona)','action'=>'editar'],
+            self::PERM_VACACIONES_VIEW => ['group'=>'Vacaciones y licencias','label'=>'Ver: vacaciones, descansos médicos y licencias','action'=>'ver'],
+            self::PERM_VACACIONES_REQUEST => ['boton'=>'Solicitar','group'=>'Vacaciones y licencias','label'=>'Solicitar sus vacaciones, descansos médicos y licencias (supervisor directo)','action'=>'editar'],
+            self::PERM_VACACIONES_APPROVE => ['boton'=>'Aprobar','group'=>'Vacaciones y licencias','label'=>'Aprobar, rechazar o anular las de los supervisores (con "Sus zonas a cargo", solo las de sus zonas)','action'=>'editar'],
             self::PERM_CUADRILLAS_DELETE => ['group'=>'Técnicos y cuadrillas','label'=>'Eliminar técnicos de apoyo (T2); si ya salen en supervisiones quedan Inhabilitados y fuera de su cuadrilla','action'=>'eliminar'],
             self::PERM_PARTNERS_VIEW => ['group'=>'Partners','label'=>'Ver partners','action'=>'ver'],
             self::PERM_PARTNERS_EDIT => ['group'=>'Partners','label'=>'Editar: crear, renombrar, activar y desactivar partners','action'=>'editar'],

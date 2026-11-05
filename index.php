@@ -42,7 +42,7 @@ $allowedViews = [
     'dashboard_lluvias'      => ['file' => 'dashboard_lluvias.php',      'title' => 'Clima',                    'perm' => Auth::PERM_CLIMA_VIEW],
     'dashboard_pendientes'   => ['file' => 'dashboard_pendientes.php',   'title' => 'Pendientes y rescates',    'perm' => Auth::PERM_PENDIENTES_VIEW],
     'matriz_asistencia'      => ['file' => 'matriz_asistencia.php',      'title' => 'Matriz de asistencia',     'perm' => Auth::PERM_ASISTENCIA_MATRIZ_VIEW],
-    'vacaciones'             => ['file' => 'vacaciones.php',             'title' => 'Vacaciones y licencias',   'perm' => null],
+    'vacaciones'             => ['file' => 'vacaciones.php',             'title' => 'Vacaciones y licencias',   'perm' => Auth::PERM_VACACIONES_VIEW],
     'timeline_supervisores'  => ['file' => 'timeline_supervisores.php',  'title' => 'Línea de tiempo',          'perm' => Auth::PERM_TIMELINE_VIEW],
     'registro_observaciones' => ['file' => 'registro_observaciones.php', 'title' => 'Observaciones',            'perm' => Auth::PERM_OBSERVATION_VIEW],
     'observaciones_partner'  => ['file' => 'registro_observaciones.php', 'title' => 'Observaciones',            'perm' => Auth::PERM_OBSERVATION_VIEW],

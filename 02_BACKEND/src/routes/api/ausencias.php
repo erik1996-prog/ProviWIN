@@ -9,17 +9,25 @@
 //   GET  ?action=lista&estado=Pendiente|vigentes|todas
 //   POST ?action=decidir  id, decision=Aprobada|Rechazada|Anulada, motivo (obligatorio al rechazar o anular)
 // Ambos: GET ?action=sustento&id → abre el archivo (solo el dueño o un jefe).
+// 2026-11-04: por permisos. Solicitar = "Solicitar" (supervisor directo); jefe = "Aprobar"; con "Sus zonas a cargo" el jefe solo
+// ve y decide las de los supervisores de sus zonas y su área (sgsSupervisoresVisibles).
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/auth.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/uploads.php';
 require_once __DIR__ . '/../../config/ausencias.php';
+require_once __DIR__ . '/../../config/territorial.php';
 
 Auth::requireLogin();
 $usuario = Auth::getLoggedInUser();
 $uid = (int)$usuario['id'];
-$esJefe = Auth::isAdministrative();
-$esSupervisorDirecto = ($usuario['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($usuario['is_win_directo']);
+$esJefe = Auth::puede(Auth::PERM_VACACIONES_APPROVE, $usuario);
+$esSupervisorDirecto = ($usuario['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($usuario['is_win_directo']) && Auth::puede(Auth::PERM_VACACIONES_REQUEST, $usuario);
+// Supervisores cuyas ausencias ve y decide el jefe (todos, o los de sus zonas y su área)
+$deSuEquipo = static function (array $ids) use ($usuario): array {
+    if (!sgsAlcanceLimitado($usuario)) return $ids;
+    return array_map('intval', array_column(sgsSupervisoresVisibles($usuario, array_map(static fn($id) => ['id' => $id], array_unique($ids))), 'id'));
+};
 $action = (string)($_GET['action'] ?? '');
 $pdo = Database::getConnection();
 $responder = static function (array $datos, int $codigo = 200): void {
@@ -99,8 +107,11 @@ if ($action === 'registrar' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $pdo->prepare('INSERT INTO ausencias_supervisores (supervisor_id, tipo, fecha_inicio, fecha_fin, comentario, sustento) VALUES (:u, :t, :i, :f, :c, :s)')
         ->execute([':u' => $uid, ':t' => $tipo, ':i' => $ini, ':f' => $fin, ':c' => $comentario ?: null, ':s' => $nombre]);
     $texto = sgsTextoAusencia(['tipo' => $tipo, 'fecha_inicio' => $ini, 'fecha_fin' => $fin]);
-    $jefes = $pdo->query("SELECT id FROM usuarios WHERE activo = 1 AND rol IN ('Administrador', 'Gerente', 'Coordinador')")->fetchAll(PDO::FETCH_COLUMN);
-    sgsAvisarAusencia($pdo, $jefes, 'Solicitud de ausencia', "{$usuario['nombre']} solicita {$texto}. Revísela en el Monitor de turnos.", 'index.php?page=asistencia');
+    // Avisa a quien la puede aprobar: perfil administrador o con el permiso "Aprobar" (2026-11-04); con zonas, solo los de su zona
+    $jefes = $pdo->query("SELECT u.id, u.rol FROM usuarios u JOIN perfiles p ON p.id = COALESCE(u.perfil_id, (SELECT b.id FROM perfiles b WHERE b.rol_base = u.rol ORDER BY b.id LIMIT 1))
+        WHERE u.activo = 1 AND (p.rol_base = 'Administrador' OR EXISTS (SELECT 1 FROM perfil_permisos pp WHERE pp.perfil_id = p.id AND pp.permiso = 'vacaciones.approve'))")->fetchAll(PDO::FETCH_ASSOC);
+    $jefes = array_column(array_filter($jefes, static fn($j) => in_array($uid, array_column(sgsSupervisoresVisibles($j, [['id' => $uid]]), 'id'), false)), 'id');
+    sgsAvisarAusencia($pdo, $jefes, 'Solicitud de ausencia', "{$usuario['nombre']} solicita {$texto}. Revísela en Vacaciones y licencias.", 'index.php?page=vacaciones');
     win_log_error('audit_absence_requested', 'Ausencia solicitada', ['actor_id' => $uid, 'tipo' => $tipo, 'dias' => $dias]);
     $responder(['status' => 'success', 'message' => "Solicitud registrada: {$texto}. Queda pendiente de aprobación."]);
 }
@@ -124,7 +135,11 @@ if ($action === 'lista') {
         default => "a.estado = 'Pendiente'",
     };
     $filas = $pdo->query("SELECT $columnas $desde WHERE $donde ORDER BY a.fecha_inicio, a.id LIMIT 200")->fetchAll(PDO::FETCH_ASSOC);
-    $pendientes = (int)$pdo->query("SELECT COUNT(*) FROM ausencias_supervisores WHERE estado = 'Pendiente'")->fetchColumn();
+    $suyos = $deSuEquipo(array_map('intval', array_column($filas, 'supervisor_id')));
+    $filas = array_values(array_filter($filas, static fn($f) => in_array((int)$f['supervisor_id'], $suyos, true)));
+    $idsPendientes = array_map('intval', $pdo->query("SELECT supervisor_id FROM ausencias_supervisores WHERE estado = 'Pendiente'")->fetchAll(PDO::FETCH_COLUMN));
+    $suyosPendientes = $deSuEquipo($idsPendientes);
+    $pendientes = count(array_filter($idsPendientes, static fn($id) => in_array($id, $suyosPendientes, true)));
     $responder(['status' => 'success', 'data' => $filas, 'pendientes' => $pendientes]);
 }
 
@@ -132,7 +147,7 @@ if ($action === 'decidir' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $a = $buscar((int)($_POST['id'] ?? 0));
     $decision = (string)($_POST['decision'] ?? '');
     $motivo = trim(preg_replace('/\s+/u', ' ', (string)($_POST['motivo'] ?? '')));
-    if (!$a) $responder(['status' => 'error', 'message' => 'Esa solicitud ya no existe.'], 404);
+    if (!$a || !in_array((int)$a['supervisor_id'], $deSuEquipo([(int)$a['supervisor_id']]), true)) $responder(['status' => 'error', 'message' => 'Esa solicitud ya no existe.'], 404);
     $valida = ($a['estado'] === 'Pendiente' && in_array($decision, ['Aprobada', 'Rechazada'], true)) || ($a['estado'] === 'Aprobada' && $decision === 'Anulada');
     if (!$valida) $responder(['status' => 'error', 'message' => 'La solicitud cambió de estado. Actualice la lista.'], 409);
     if ($decision !== 'Aprobada' && ($motivo === '' || mb_strlen($motivo) > 300)) $responder(['status' => 'error', 'message' => 'Escriba el motivo (hasta 300 caracteres).'], 422);
@@ -140,7 +155,7 @@ if ($action === 'decidir' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         ->execute([':e' => $decision, ':u' => $uid, ':m' => $motivo ?: null, ':id' => $a['id'], ':antes' => $a['estado']]);
     $texto = sgsTextoAusencia($a);
     $verbo = ['Aprobada' => 'aprobó', 'Rechazada' => 'rechazó', 'Anulada' => 'anuló'][$decision];
-    sgsAvisarAusencia($pdo, [(int)$a['supervisor_id']], "Ausencia {$decision}", "{$usuario['nombre']} {$verbo} su solicitud: {$texto}" . ($motivo ? ". Motivo: {$motivo}" : '') . '.', 'index.php?page=asistencia');
+    sgsAvisarAusencia($pdo, [(int)$a['supervisor_id']], "Ausencia {$decision}", "{$usuario['nombre']} {$verbo} su solicitud: {$texto}" . ($motivo ? ". Motivo: {$motivo}" : '') . '.', 'index.php?page=vacaciones');
     win_log_error('audit_absence_decided', "Ausencia {$decision}", ['actor_id' => $uid, 'ausencia_id' => (int)$a['id']]);
     $responder(['status' => 'success', 'message' => "Solicitud {$decision}."]);
 }

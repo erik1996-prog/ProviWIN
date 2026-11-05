@@ -4,6 +4,19 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Vacaciones y licencias y "Agregar T2" en los permisos (2026-11-04)
+- **Añadido**: "Vacaciones y licencias" (sección Asistencia) en la pestaña Permisos, con tres permisos:
+  - **Ver**;
+  - **Solicitar**: el supervisor directo pide las suyas. Es de campo: el perfil administrador no lo tiene sin marcarlo;
+  - **Aprobar**: aprobar, rechazar o anular. Con "Sus zonas a cargo", solo las de los supervisores de sus zonas y su área.
+- Antes todo esto era fijo por rol. El aviso de cada solicitud llega a quien la puede aprobar y lleva a Vacaciones y licencias (antes decía "Monitor de turnos").
+- **Añadido**: en Técnicos y cuadrillas, el permiso **Agregar T2** (técnicos de apoyo, en su zona). "Cargar Excel" pasa a ser **Cargar Excel y agregar T1**: el T1 solo lo agrega quien carga el Excel. En "Nuevo técnico" cada uno ve solo los tipos que puede agregar.
+- Cambio de base `2026-11-04_01_permisos_vacaciones_y_agregar_t2`, para que nadie pierda lo que tenía:
+  - Gerente y Coordinador: Ver y Aprobar;
+  - perfiles de tipo Supervisor: Ver y Solicitar;
+  - quienes editaban cuadrillas: Agregar T2.
+- Prueba: `nuevo_tecnico_test` (el supervisor agrega un T2, pero no un T1).
+
 ### Foto de la lluvia: tomarla o subirla (2026-11-03)
 - **Cambiado**: al avisar una lluvia (Mi turno), la foto ya no obliga a usar la cámara. Hay dos botones:
   - **Tomar foto**: abre la cámara;

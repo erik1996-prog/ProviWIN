@@ -35,7 +35,7 @@ final class UsuarioService
 
     /** Sección del menú de cada pantalla (2026-10-26): el editor de permisos y la matriz las ordenan igual que el menú. */
     public const SECCION_PANTALLA = [
-        'Dashboard de supervisiones' => 'Indicadores', 'Dashboard de partners' => 'Indicadores', 'Pendientes y rescates' => 'Indicadores', 'Matriz de asistencia' => 'Asistencia',
+        'Dashboard de supervisiones' => 'Indicadores', 'Dashboard de partners' => 'Indicadores', 'Pendientes y rescates' => 'Indicadores', 'Matriz de asistencia' => 'Asistencia', 'Vacaciones y licencias' => 'Asistencia',
         'Clima' => 'Indicadores', 'Exámenes' => 'Indicadores', 'Supervisiones' => 'Supervisiones', 'Línea de tiempo' => 'Seguimiento',
         'Mi turno' => 'Seguimiento', 'Observaciones' => 'Observaciones', 'Usuarios y perfiles' => 'Personal', 'Técnicos y cuadrillas' => 'Personal',
         'Partners' => 'Personal', 'Guía de diseño' => 'Otros',

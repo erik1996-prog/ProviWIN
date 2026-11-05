@@ -157,10 +157,13 @@ try {
     // el Excel. Quien puede editar cuadrillas; con zona propia, solo en una provincia de su zona. Sin provincia (sin zona)
     // solo el administrador general, que es el único que ve a los técnicos sin zona.
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'crear_tecnico') {
-        if (!Auth::puede(Auth::PERM_CUADRILLAS_EDIT, $usuario)) { http_response_code(403); throw new Exception('No tiene permiso para registrar técnicos.'); }
         require_once __DIR__ . '/../../config/tecnicos_lideres.php';
         $tipo = (int)($_POST['tipo_tecnico'] ?? 0);
         if (!in_array($tipo, [1, 2], true)) throw new Exception('Elija si es técnico líder (T1) o de apoyo (T2).');
+        // 2026-11-04: el T1 con "Cargar Excel y agregar T1"; el T2 con "Agregar T2"
+        if (!Auth::puede($tipo === 1 ? Auth::PERM_CUADRILLAS_IMPORT : Auth::PERM_CUADRILLAS_CREATE_T2, $usuario)) {
+            http_response_code(403); throw new Exception($tipo === 1 ? 'No tiene permiso para agregar técnicos líderes (T1).' : 'No tiene permiso para agregar técnicos de apoyo (T2).');
+        }
         $provinciaTexto = mb_substr(trim((string)($_POST['provincia'] ?? '')), 0, 100);
         $zona = $provinciaTexto !== '' ? sgsZonaDesdeProvincia($provinciaTexto, $pdo) : ['provincia' => null, 'departamento' => null];
         if (!$zona) throw new Exception("No se reconoce la provincia \"{$provinciaTexto}\". Escríbala como en el mapa del Perú (p. ej. TRUJILLO, SANTA, CHICLAYO).");

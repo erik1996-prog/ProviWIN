@@ -115,7 +115,7 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
         ]],
         // 2026-10-29: "Asistencia" junta las vacaciones y licencias (antes en Mi turno y en el Monitor de turnos) y la matriz.
         ['Asistencia', 'bi-calendar-check', [
-            [$isDirectMenu || $showAdministrativeMenu, 'index.php?page=vacaciones', ['vacaciones'], 'bi-calendar2-x', 'Vacaciones y licencias'],
+            [$ve(Auth::PERM_VACACIONES_VIEW), 'index.php?page=vacaciones', ['vacaciones'], 'bi-calendar2-x', 'Vacaciones y licencias'],
             [$ve(Auth::PERM_ASISTENCIA_MATRIZ_VIEW), 'index.php?page=matriz_asistencia', ['matriz_asistencia'], 'bi-calendar3', 'Matriz de asistencia'],
         ]],
         ['Personal', 'bi-people', [

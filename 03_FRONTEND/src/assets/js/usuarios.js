@@ -303,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const ORDEN_ACCION = { ver: 0, editar: 1, eliminar: 3 };
   // Ícono de cada pantalla: el mismo del menú
   const ICONO_PANTALLA = { 'Supervisiones': 'bi-journal-check', 'Línea de tiempo': 'bi-diagram-3', 'Mi turno': 'bi-play-circle', 'Observaciones': 'bi-clipboard2-pulse',
-    'Matriz de asistencia': 'bi-calendar3', 'Usuarios y perfiles': 'bi-person-badge', 'Técnicos y cuadrillas': 'bi-people-fill', 'Partners': 'bi-buildings',
+    'Matriz de asistencia': 'bi-calendar3', 'Vacaciones y licencias': 'bi-calendar2-x', 'Usuarios y perfiles': 'bi-person-badge', 'Técnicos y cuadrillas': 'bi-people-fill', 'Partners': 'bi-buildings',
     'Dashboard de supervisiones': 'bi-speedometer2', 'Dashboard de partners': 'bi-buildings', 'Pendientes y rescates': 'bi-arrow-repeat', 'Clima': 'bi-cloud-sun',
     'Exámenes': 'bi-clipboard-check' };
   let perfilPermisos = 0; // perfil elegido

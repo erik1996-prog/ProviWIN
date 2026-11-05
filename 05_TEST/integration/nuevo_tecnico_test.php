@@ -75,8 +75,10 @@ try {
     $r = $sup(['tipo_tecnico' => 2, 'partner_id' => $partner, 'nombre_tecnico' => 'Luis Prueba Nuevo Piura', 'dni' => '99999980', 'provincia' => 'PIURA']);
     $check('un supervisor no registra técnicos de otra zona', ($r['status'] ?? '') === 'error', $r);
     $r = $sup(['tipo_tecnico' => 2, 'partner_id' => $partner, 'nombre_tecnico' => 'Luis Prueba Nuevo Arequipa', 'dni' => '99999980', 'provincia' => 'AREQUIPA']);
-    $puedeEditar = Auth::can(Auth::PERM_CUADRILLAS_EDIT, ['rol' => 'Supervisor', 'id' => 0]);
-    $check($puedeEditar ? 'un supervisor registra en su zona' : 'un supervisor sin permiso de editar cuadrillas no registra', $puedeEditar ? ($r['status'] ?? '') === 'success' : ($r['status'] ?? '') === 'error', $r);
+    $check('un supervisor (con "Agregar T2") registra un T2 en su zona', ($r['status'] ?? '') === 'success', $r);
+    // 2026-11-04: el T1 solo con "Cargar Excel y agregar T1" (el supervisor no lo tiene)
+    $r = $sup(['tipo_tecnico' => 1, 'partner_id' => $partner, 'nombre_tecnico' => 'P 9 PRUEBA NUEVO SGI SUP LIDER', 'dni' => '99999983', 'provincia' => 'AREQUIPA']);
+    $check('un supervisor no agrega un técnico líder (T1)', ($r['status'] ?? '') === 'error' && str_contains($r['message'] ?? '', 'T1'), $r);
 
     // Editar un T2 (2026-11-03, como el T1): datos, zona y partner; si cambia de partner o de zona deja su cuadrilla
     $partner2 = (int)$pdo->query("SELECT id FROM partners WHERE estado=1 AND UPPER(TRIM(nombre_partner)) NOT IN ('WIN','WIN DIRECTO') AND id <> $partner ORDER BY id LIMIT 1")->fetchColumn();

@@ -20,6 +20,7 @@ $esAdmin = Auth::isAdministrative() && !sgsAlcanceLimitado($user); // líder con
 $puedeEditar = Auth::puede(Auth::PERM_CUADRILLAS_EDIT, $user);
 $puedeImportar = Auth::puede(Auth::PERM_CUADRILLAS_IMPORT, $user);
 $puedeEliminar = Auth::puede(Auth::PERM_CUADRILLAS_DELETE, $user); // técnicos de apoyo (T2), 2026-11-03
+$puedeAgregarT2 = Auth::puede(Auth::PERM_CUADRILLAS_CREATE_T2, $user); // Nuevo técnico (2026-11-04): T2 con este permiso, T1 con Cargar Excel
 $puedeExamen = Auth::puede(Auth::PERM_EXAMENES_EDIT, $user);
 $puedeAnularExamen = Auth::puede(Auth::PERM_EXAMENES_DELETE, $user);
 if (!Auth::puede(Auth::PERM_CUADRILLAS_VIEW, $user)) {
@@ -209,7 +210,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
     <button type="button" class="btn <?= $puedeImportar ? 'btn-outline-secondary' : 'btn-win' ?>" id="btnLinkExamen" data-filtro="<?= $e($descripcionFiltro) ?>" data-lideres="<?= $e(implode(',', array_column($filas, 'id'))) ?>" <?= $filas && $vista !== 'apoyo' ? '' : 'disabled' ?>
       title="<?= $vista === 'apoyo' ? 'El link se arma por cuadrillas: use la vista Cuadrillas o Técnicos líderes' : 'Un link para los técnicos (T1 y T2) de las cuadrillas que se ven con estos filtros' ?>"><i class="bi bi-link-45deg me-1"></i>Link de examen (<?= count($filas) ?> <?= count($filas) === 1 ? 'cuadrilla' : 'cuadrillas' ?>)</button>
     <?php endif; ?>
-    <?php if ($puedeEditar): ?><button type="button" class="btn btn-outline-secondary" id="btnNuevoTecnico"><i class="bi bi-person-plus me-1"></i>Nuevo técnico</button><?php endif; ?>
+    <?php if ($puedeAgregarT2 || $puedeImportar): ?><button type="button" class="btn btn-outline-secondary" id="btnNuevoTecnico"><i class="bi bi-person-plus me-1"></i>Nuevo técnico</button><?php endif; ?>
     <?php if ($puedeImportar): ?>
     <a class="btn btn-outline-secondary" href="api/tecnicos.php?action=exportar_lideres"><i class="bi bi-file-earmark-arrow-down me-1"></i>Descargar lista (Excel)</a>
     <button type="button" class="btn btn-win" id="btnCargarLideres"><i class="bi bi-file-earmark-arrow-up me-1"></i>Cargar técnicos líderes</button>
@@ -481,7 +482,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
       <div class="modal-body">
         <div class="row g-3">
           <div class="col-sm-6"><label class="form-label" for="ntTipo">Tipo de técnico</label>
-            <select class="form-select" id="ntTipo" name="tipo_tecnico" required><option value="">Seleccione</option><option value="1">Técnico líder (T1)</option><option value="2">Técnico de apoyo (T2)</option></select></div>
+            <select class="form-select" id="ntTipo" name="tipo_tecnico" required><option value="">Seleccione</option><?php if ($puedeImportar): ?><option value="1">Técnico líder (T1)</option><?php endif; ?><?php if ($puedeAgregarT2): ?><option value="2">Técnico de apoyo (T2)</option><?php endif; ?></select></div>
           <div class="col-sm-6"><label class="form-label" for="ntPartner">Partner</label>
             <select class="form-select" id="ntPartner" name="partner_id" required><option value="">Seleccione</option>
               <?php foreach ($partners as $p): ?><option value="<?= (int)$p['id'] ?>"><?= $e($p['nombre_partner']) ?></option><?php endforeach; ?></select></div>
