@@ -198,6 +198,12 @@ $needsLeaflet = $page === 'admin_dashboard'
     <?php if ($abreApp): ?><script src="<?= $assets ?>/js/bienvenida.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
     <?php if (in_array($page, ['mi_informacion', 'usuarios'], true)): ?><script src="<?= $assets ?>/js/password-meter.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><script src="<?= $assets ?>/js/aviso-mayusculas.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
     <?php if (in_array($page, ['cuadrillas', 'supervision_lista'], true)): ?><script src="<?= $assets ?>/js/vencimientos.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
+    <?php
+    // Recorrido "El sistema se actualizó" (2026-11-08): al iniciar sesión, solo lo que este usuario puede usar; nunca en "Ver como".
+    require_once BACKEND_PATH . '/config/novedades.php';
+    $novedades = !empty($_SESSION['novedades_al_ingresar']) && !Auth::verComoActivo() ? sgsNovedadesPendientes(Database::getConnection(), $user) : [];
+    unset($_SESSION['novedades_al_ingresar']);
+    if ($novedades): require FRONTEND_PATH . '/layouts/novedades.php'; ?><script src="<?= $assets ?>/js/novedades.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
     <script src="<?= $assets ?>/js/error-monitor.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
 </body>
 </html>

@@ -5,8 +5,13 @@
     const raiz = document.getElementById('exd');
     if (!raiz || !window.SgsDashboard) return;
     const D = window.SgsDashboard;
-    const puedeBorrar = raiz.dataset.puedeBorrar === '1'; // permiso "Borrar exámenes" (2026-11-05)
     const $ = (id) => document.getElementById(id);
+    const puedeBorrar = raiz.dataset.puedeBorrar === '1'; // permiso "Borrar exámenes" (2026-11-05)
+    // Links generados con su Seguimiento en vivo (assets/js/examen_links.js, 2026-11-05).
+    const cargarLinks = () => window.SgsExamenLinks?.cargar($('exdLinks'));
+    $('exdLinksActualizar').addEventListener('click', cargarLinks);
+    document.addEventListener('sgs:examen-borrado', () => $('exdFiltros').dispatchEvent(new Event('submit', { cancelable: true })));
+    cargarLinks();
     const clases = { aprobado: 'bg-success', desaprobado: 'bg-danger', pendiente: 'bg-secondary', rindiendo: 'bg-warning', no_rindio: 'bg-secondary' };
     const aprobacion = { valor: (x) => x.pct, texto: (x) => `${x.pct} % <small>${x.aprobados} de ${x.rindieron}</small>`,
         ayuda: (x) => `${x.nombre}: ${x.aprobados} de ${x.rindieron} aprobaron (${x.pct} %)`, vacio: 'Todavía no hay exámenes rendidos con estos filtros.' };
@@ -75,6 +80,7 @@
             if (r.status !== 'success') throw new Error(r.message || 'No se pudo borrar.');
             window.showToast?.(r.message, 'success');
             $('exdFiltros').dispatchEvent(new Event('submit', { cancelable: true })); // vuelve a calcular totales y tabla
+            cargarLinks();
         } catch (e) { window.showToast?.(e.message, 'error'); b.disabled = false; }
     });
 

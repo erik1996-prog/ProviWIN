@@ -532,7 +532,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
 <?php endif; ?>
 
 <!-- ===== Link general de examen (2026-10-20) ===== -->
-<div class="modal fade" id="mExamen" data-puede-anular="<?= $puedeAnularExamen ? '1' : '0' ?>" data-puede-borrar="<?= Auth::puede(Auth::PERM_EXAMENES_PURGE, $user) ? '1' : '0' ?>" tabindex="-1" aria-labelledby="mExamenTitulo" aria-hidden="true">
+<div class="modal fade" id="mExamen" tabindex="-1" aria-labelledby="mExamenTitulo" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg"><div class="modal-content">
     <div class="modal-header"><h5 class="modal-title" id="mExamenTitulo"><i class="bi bi-link-45deg me-2"></i><span id="exTitulo">Link de examen para las cuadrillas filtradas</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
     <div class="modal-body">
@@ -542,8 +542,12 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
         <div class="row g-2 mb-3" id="exResumen"></div>
         <div id="exSinDni"></div>
         <div id="exExcluidos"></div>
+        <fieldset class="mb-3">
+          <legend class="form-label mb-1">¿Con qué referentes sale el examen?</legend>
+          <div class="ex-referentes" id="exReferentes"></div>
+          <small class="text-muted" id="exExamenAyuda"></small>
+        </fieldset>
         <div class="row g-3 mb-3">
-          <div class="col-sm-7"><label class="form-label" for="exExamen">Examen</label><select class="form-select" id="exExamen"></select><small class="text-muted" id="exExamenAyuda"></small></div>
           <div class="col-sm-5"><label class="form-label" for="exMinutos">Se cierra en</label><select class="form-select" id="exMinutos"><?php foreach (SGS_EXAMEN_VIGENCIAS as $min => $texto): ?><option value="<?= $min ?>"<?= $min === SGS_EXAMEN_VIGENCIA_DEFECTO ? ' selected' : '' ?>><?= $texto ?></option><?php endforeach; ?></select></div>
         </div>
         <button type="button" class="btn btn-win w-100" id="exGenerar"><i class="bi bi-link-45deg me-1"></i>Generar link</button>
@@ -561,18 +565,10 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
         </div>
       </div>
       <h6 class="cuad-seccion mt-4"><i class="bi bi-clock-history me-2" aria-hidden="true"></i>Links generados</h6>
-      <div id="exHistorial"><p class="text-muted small mb-0">Cargando…</p></div>
+      <div id="exHistorial" data-puede-anular="<?= $puedeAnularExamen ? '1' : '0' ?>" data-puede-borrar="<?= Auth::puede(Auth::PERM_EXAMENES_PURGE, $user) ? '1' : '0' ?>"><p class="text-muted small mb-0">Cargando…</p></div>
     </div>
   </div></div>
 </div>
 
-<!-- ===== Técnicos de un link (quién ya entró) ===== -->
-<div class="modal fade" id="mExamenDetalle" tabindex="-1" aria-labelledby="mExamenDetalleTitulo" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg"><div class="modal-content">
-    <div class="modal-header"><h5 class="modal-title" id="mExamenDetalleTitulo"><i class="bi bi-broadcast me-2"></i><span id="exDetTitulo">Técnicos del link</span></h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
-    <div class="modal-body" id="exDetalle"></div>
-    <div class="modal-footer"><?php if ($puedeAnularExamen): ?><button type="button" class="btn btn-outline-danger d-none me-auto" id="exCerrarLink"><i class="bi bi-lock me-1"></i>Cerrar link</button><?php endif; ?><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Salir</button></div>
-  </div></div>
-</div>
-
+<?php require FRONTEND_PATH . '/layouts/examen_seguimiento.php'; // Seguimiento en vivo (común con Exámenes) ?>
 <script src="03_FRONTEND/src/assets/js/cuadrillas.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>

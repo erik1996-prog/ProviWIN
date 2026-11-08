@@ -1,6 +1,6 @@
 # Diccionario de datos — SGS
 
-Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-11-04 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
+Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-11-08 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
 Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 
 | # | Tabla | Para qué sirve | En la instalación |
@@ -193,6 +193,7 @@ Usuarios del sistema (personal WIN y de partners) · Depende de: `partners`, `pe
 | `debe_cambiar_password` | tinyint(1) | no |  | 1 = al ingresar debe cambiar su contraseña (temporal) |
 | `fecha_creacion` | datetime | sí |  |  |
 | `avatar` | varchar(255) | sí |  |  |
+| `novedad_vista` | int(11) | no |  | Última novedad del sistema que el usuario ya vio (config/novedades.php) |
 
 ### `asistencia_ajustes`
 Correcciones del administrador en la matriz de asistencia · Depende de: `usuarios`

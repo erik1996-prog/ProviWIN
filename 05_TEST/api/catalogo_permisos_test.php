@@ -40,7 +40,12 @@ foreach ($roles as $rol => $permisos) foreach ($permisos as $p) {
     if ($r !== null && !in_array($r, $permisos, true)) $incoherentes[] = "$rol: $p sin $r";
 }
 $check('ningún rol trae editar o eliminar de una pantalla que no puede ver', !$incoherentes, $incoherentes);
-$check('al guardar, se quita lo que depende de un "Ver" desmarcado', Auth::conDependencias(['clima.edit', 'clima.delete', 'partners.view', 'partners.edit']) === ['partners.view', 'partners.edit']);
+$check('al guardar, se quita lo que depende de un "Ver" desmarcado', Auth::conDependencias(['clima.delete', 'partners.view', 'partners.edit']) === ['partners.view', 'partners.edit']);
+// 2026-11-08: una acción que se hace en otra pantalla no depende del "Ver" del indicador.
+$check('Avisar lluvias no pide ver el indicador Clima (pide Registrar turno)', Auth::permisoRequerido(Auth::PERM_CLIMA_EDIT) === Auth::PERM_ATTENDANCE_SELF);
+$check('Generar links no pide ver los resultados de Exámenes (pide Técnicos y cuadrillas)', Auth::permisoRequerido(Auth::PERM_EXAMENES_EDIT) === Auth::PERM_CUADRILLAS_VIEW);
+$check('se puede dar Avisar lluvias sin el indicador Clima', Auth::conDependencias(['attendance.self', 'clima.edit']) === ['attendance.self', 'clima.edit']);
+$check('Avisar lluvias sin Registrar turno no se guarda', Auth::conDependencias(['clima.edit']) === []);
 
 echo "\n$ok correctas, $fail con error.\n";
 exit($fail ? 1 : 0);

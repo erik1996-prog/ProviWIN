@@ -72,6 +72,8 @@ function sgsEstadoConvocatoria(array $c, ?int $ahora = null): string {
 /**
  * Participantes del link a partir de los técnicos líderes elegidos: cada líder (T1) y su técnico de apoyo (T2).
  * Los de lista negra no rinden examen. $visible(fila) decide la zona del usuario. Devuelve [tecnicos, sin_dni, excluidos].
+ * DNI (2026-11-05): un T1 sin DNI va a sin_dni (bloquea el link); un T2 sin DNI es opcional: queda fuera del examen
+ * (excluidos, "Sin DNI") y el link se genera igual.
  */
 function sgsParticipantesExamen(PDO $pdo, array $liderIds, callable $visible): array {
     $liderIds = array_values(array_unique(array_filter(array_map('intval', $liderIds))));
@@ -94,7 +96,10 @@ function sgsParticipantesExamen(PDO $pdo, array $liderIds, callable $visible): a
             $dato = ['id' => $id, 'tipo' => $tipo, 'nombre' => $nombre, 'persona' => sgsNombrePersonaTecnico((string)$nombre, $tipo),
                 'cuadrilla' => $f['nombre_tecnico'], 'lider_id' => (int)$f['id'], 'partner' => $f['nombre_partner']];
             if ($estado === 'Blacklist') { $excluidos[] = $dato + ['motivo' => 'Lista negra']; continue; }
-            if (!preg_match('/^\d{8}$/', trim((string)$dni))) $sinDni[] = $dato;
+            if (!preg_match('/^\d{8}$/', trim((string)$dni))) {
+                if ($tipo === 2) { $excluidos[] = $dato + ['motivo' => 'Sin DNI: no rinde el examen']; continue; }
+                $sinDni[] = $dato;
+            }
             $tecnicos[] = $dato;
         }
     }
@@ -102,7 +107,7 @@ function sgsParticipantesExamen(PDO $pdo, array $liderIds, callable $visible): a
     return [$tecnicos, $sinDni, $excluidos];
 }
 
-/** Crea el link general. Devuelve ['id', 'codigo', 'vence_en']; el código solo existe aquí. */
+/** Crea el link general. Devuelve ['id', 'codigo', 'vence_en', 'reemplazados' (links anteriores que cerró)]; el código solo existe aquí. */
 function sgsGenerarConvocatoria(PDO $pdo, array $tecnicos, int $minutos, string $titulo, string $filtro, int $actorId, string $examen): array {
     if (!isset(SGS_EXAMEN_VIGENCIAS[$minutos])) $minutos = SGS_EXAMEN_VIGENCIA_DEFECTO;
     $codigo = sgsCodigoCortoExamen();
@@ -114,12 +119,20 @@ function sgsGenerarConvocatoria(PDO $pdo, array $tecnicos, int $minutos, string 
         $id = (int)$pdo->lastInsertId();
         $ins = $pdo->prepare('INSERT INTO examen_convocatoria_tecnicos (convocatoria_id, tecnico_id, tipo) VALUES (:c, :t, :tipo)');
         foreach ($tecnicos as $t) $ins->execute([':c' => $id, ':t' => (int)$t['id'], ':tipo' => (int)$t['tipo']]);
+        // 2026-11-05: el link nuevo reemplaza a los vigentes del mismo examen cuyos técnicos están todos en él (p. ej. se
+        // corrigió un DNI y se generó otra vez el de esa cuadrilla): esos se cierran. Un link más grande sigue abierto.
+        $cerrar = $pdo->prepare('UPDATE examen_convocatorias c SET c.anulado_en = NOW(), c.anulado_por = :u
+            WHERE c.id <> :id AND c.examen = :ex AND c.anulado_en IS NULL AND c.vence_en > NOW()
+              AND NOT EXISTS (SELECT 1 FROM examen_convocatoria_tecnicos o WHERE o.convocatoria_id = c.id
+                  AND o.tecnico_id NOT IN (SELECT n.tecnico_id FROM examen_convocatoria_tecnicos n WHERE n.convocatoria_id = :id2))');
+        $cerrar->execute([':u' => $actorId ?: null, ':id' => $id, ':ex' => $examen, ':id2' => $id]);
+        $reemplazados = $cerrar->rowCount();
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         throw $e;
     }
-    return ['id' => $id, 'codigo' => $codigo, 'vence_en' => $vence];
+    return ['id' => $id, 'codigo' => $codigo, 'vence_en' => $vence, 'reemplazados' => $reemplazados];
 }
 
 function sgsBuscarConvocatoria(PDO $pdo, string $codigo): ?array {

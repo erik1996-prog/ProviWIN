@@ -82,7 +82,7 @@ try {
     $p = $perfiles->guardar(['nombre' => 'Prueba Activacion', 'codigo' => 'PRUEBAACT', 'datos' => 'propio'], 0);
     $perfiles->guardarPermisos($p['id'], ['clima.edit', 'clima.delete', 'partners.view', 'partners.edit', 'supervision.view'], $principal);
     $guardados = $pdo->query("SELECT permiso FROM perfil_permisos WHERE perfil_id = {$p['id']}")->fetchAll(PDO::FETCH_COLUMN);
-    $check('sin "Ver Clima" no se guarda editar ni eliminar de Clima', !array_intersect(['clima.edit', 'clima.delete'], $guardados) && in_array('partners.edit', $guardados, true), $guardados);
+    $check('sin "Ver Clima" no se guarda eliminar de Clima; Avisar lluvias sin Registrar turno tampoco', !array_intersect(['clima.edit', 'clima.delete'], $guardados) && in_array('partners.edit', $guardados, true), $guardados);
     $pdo->exec("INSERT INTO perfil_permisos (perfil_id, permiso) VALUES ({$p['id']}, 'cuadrillas.edit')");
     $pdo->exec("UPDATE usuarios SET perfil_id = {$p['id']} WHERE id = {$nuevo['id']}");
     $check('un permiso "editar" guardado sin "ver" no da acceso', !Auth::can('cuadrillas.edit', ['id' => (int)$nuevo['id'], 'rol' => 'Supervisor']));

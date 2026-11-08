@@ -1,14 +1,23 @@
 <?php
 // 02_BACKEND/src/config/examen_motor.php - Motor de los exámenes del link general (2026-10-20).
-// Bancos de preguntas en config/examenes/*.php (uno por examen). A cada técnico se le arma su examen: N preguntas al azar
-// (al menos una por tema, con tope por tipo) y alternativas mezcladas. Se califica en el servidor; el navegador nunca
-// recibe las respuestas correctas. Una sola oportunidad: al terminar (o al vencer el tiempo) queda "usado".
+// Referentes (2026-11-05): cada archivo de config/examenes/*.php es un tema ("Trabajo en altura", "Manejo defensivo y
+// seguridad vial"…). Al generar el link se marcan uno o varios; el examen del link se guarda con sus códigos unidos por "+"
+// en examen_convocatorias.examen (p. ej. "altura+manejo") y sgsExamenBanco() junta sus preguntas.
+// A cada técnico se le arma su examen: SGS_EXAMEN_PREGUNTAS preguntas al azar, repartidas entre los referentes, al menos
+// SGS_EXAMEN_MIN_IMAGEN con foto (si los referentes tienen), una por tema mientras se pueda y con tope por tipo; las
+// alternativas se mezclan. Se califica en el servidor; el navegador nunca recibe las respuestas correctas. Una sola
+// oportunidad: al terminar (o al vencer el tiempo) queda "usado".
 // Tablas: examen_convocatoria_tecnicos (avance y nota) y examen_respuestas (tema y acierto por pregunta, para el dashboard).
 require_once __DIR__ . '/examen_enlaces.php';
 
 const SGS_EXAMEN_GRACIA_SEG = 10; // margen por la demora de la red al enviar la última respuesta
+const SGS_EXAMEN_PREGUNTAS = 10;   // 2026-11-05: antes 20
+const SGS_EXAMEN_MINUTOS = 10;
+const SGS_EXAMEN_APRUEBA = 90;     // % mínimo para aprobar
+const SGS_EXAMEN_MIN_IMAGEN = 2;   // preguntas con foto en cada examen (como mínimo)
+const SGS_EXAMEN_TOPE_TIPO = ['orden' => 2, 'caso' => 4];
 
-/** Exámenes disponibles: codigo => banco completo. */
+/** Referentes disponibles (un archivo por tema): codigo => banco ['codigo', 'nombre', 'descripcion', 'preguntas']. */
 function sgsExamenesDisponibles(): array {
     static $lista = null;
     if ($lista !== null) return $lista;
@@ -20,34 +29,80 @@ function sgsExamenesDisponibles(): array {
     return $lista;
 }
 
+/** Código del examen a partir de los referentes marcados ("altura+manejo", en orden fijo), o null si no hay ninguno válido. */
+function sgsCodigoExamen(array $referentes): ?string {
+    $validos = array_values(array_intersect(array_keys(sgsExamenesDisponibles()), array_map('strval', $referentes)));
+    return $validos ? implode('+', $validos) : null;
+}
+
+/**
+ * Examen de un link: junta las preguntas de sus referentes. Devuelve ['codigo', 'titulo', 'referentes', 'preguntas',
+ * 'preguntas_por_examen', 'minutos', 'aprueba'], o null si algún referente ya no existe.
+ */
 function sgsExamenBanco(string $codigo): ?array {
-    return sgsExamenesDisponibles()[$codigo] ?? null;
+    $disponibles = sgsExamenesDisponibles();
+    $bancos = [];
+    foreach (array_filter(explode('+', $codigo)) as $c) {
+        if (!isset($disponibles[$c])) return null;
+        $bancos[$c] = $disponibles[$c];
+    }
+    if (!$bancos) return null;
+    $nombres = array_map(static fn($b) => mb_strtolower($b['nombre'], 'UTF-8'), array_values($bancos));
+    $ultimo = array_pop($nombres);
+    $preguntas = [];
+    foreach ($bancos as $c => $b) foreach ($b['preguntas'] as $p) $preguntas[] = $p + ['referente' => $c];
+    return ['codigo' => $codigo, 'titulo' => 'Seguridad: ' . ($nombres ? implode(', ', $nombres) . ' y ' : '') . $ultimo,
+        'referentes' => array_keys($bancos), 'preguntas' => $preguntas,
+        'preguntas_por_examen' => SGS_EXAMEN_PREGUNTAS, 'minutos' => SGS_EXAMEN_MINUTOS, 'aprueba' => SGS_EXAMEN_APRUEBA];
+}
+
+function sgsPreguntaTieneImagen(array $p): bool {
+    return !empty($p['imagen']) || !empty($p['imagenes']);
 }
 
 /** Arma el examen de un técnico: [['id' => 'ALT01', 'orden' => [índices de alternativas en el orden mostrado]], …]. */
 function sgsArmarExamen(array $banco): array {
-    $porTema = [];
-    foreach ($banco['preguntas'] as $p) $porTema[$p['tema']][] = $p;
     $cantidad = min((int)$banco['preguntas_por_examen'], count($banco['preguntas']));
-    $topes = $banco['maximo_por_tipo'] ?? [];
-    $elegidas = []; $usadosPorTipo = [];
-    $puede = static function (array $p) use (&$usadosPorTipo, $topes, &$elegidas): bool {
-        return !isset($elegidas[$p['id']]) && (!isset($topes[$p['tipo']]) || ($usadosPorTipo[$p['tipo']] ?? 0) < $topes[$p['tipo']]);
+    $elegidas = []; $usadosPorTipo = []; $porReferente = [];
+    $puede = static function (array $p) use (&$usadosPorTipo, &$elegidas): bool {
+        $tope = SGS_EXAMEN_TOPE_TIPO[$p['tipo']] ?? null;
+        return !isset($elegidas[$p['id']]) && ($tope === null || ($usadosPorTipo[$p['tipo']] ?? 0) < $tope);
     };
-    $tomar = static function (array $p) use (&$usadosPorTipo, &$elegidas): void {
+    $tomar = static function (array $p) use (&$usadosPorTipo, &$elegidas, &$porReferente): void {
         $elegidas[$p['id']] = $p;
         $usadosPorTipo[$p['tipo']] = ($usadosPorTipo[$p['tipo']] ?? 0) + 1;
+        $porReferente[$p['referente']] = ($porReferente[$p['referente']] ?? 0) + 1;
     };
-    // Primero las marcadas 'siempre', luego una de cada tema (en orden de temas al azar) y el resto al azar.
-    foreach ($banco['preguntas'] as $p) if (!empty($p['siempre']) && count($elegidas) < $cantidad) $tomar($p);
-    $temas = array_keys($porTema);
-    shuffle($temas);
-    foreach ($temas as $tema) {
-        if (count($elegidas) >= $cantidad) break;
-        $candidatas = $porTema[$tema];
-        shuffle($candidatas);
-        foreach ($candidatas as $p) if ($puede($p)) { $tomar($p); break; }
+    // Cupo de cada referente: partes iguales (el sobrante, al azar).
+    $refs = $banco['referentes'];
+    shuffle($refs);
+    $cupo = [];
+    foreach ($refs as $i => $r) $cupo[$r] = intdiv($cantidad, count($refs)) + ($i < $cantidad % count($refs) ? 1 : 0);
+    $hayCupo = static function (array $p) use (&$porReferente, $cupo): bool { return ($porReferente[$p['referente']] ?? 0) < $cupo[$p['referente']]; };
+    // 1) Al menos SGS_EXAMEN_MIN_IMAGEN con foto (de los referentes que tengan).
+    $conImagen = array_values(array_filter($banco['preguntas'], 'sgsPreguntaTieneImagen'));
+    shuffle($conImagen);
+    $fotos = 0;
+    foreach ($conImagen as $p) {
+        if ($fotos >= SGS_EXAMEN_MIN_IMAGEN) break;
+        if ($puede($p) && $hayCupo($p)) { $tomar($p); $fotos++; }
     }
+    // 2) En cada referente: una por tema (temas al azar) y luego el resto al azar, hasta su cupo.
+    foreach ($refs as $r) {
+        $suyas = array_values(array_filter($banco['preguntas'], static fn($p) => $p['referente'] === $r));
+        $porTema = [];
+        foreach ($suyas as $p) $porTema[$p['tema']][] = $p;
+        $temas = array_keys($porTema);
+        shuffle($temas);
+        foreach ($temas as $tema) {
+            $candidatas = $porTema[$tema];
+            shuffle($candidatas);
+            foreach ($candidatas as $p) if ($hayCupo($p) && $puede($p)) { $tomar($p); break; }
+        }
+        shuffle($suyas);
+        foreach ($suyas as $p) if ($hayCupo($p) && $puede($p)) $tomar($p);
+    }
+    // 3) Si algún referente no alcanzó su cupo, se completa con cualquiera.
     $resto = $banco['preguntas'];
     shuffle($resto);
     foreach ($resto as $p) {
@@ -66,7 +121,6 @@ function sgsArmarExamen(array $banco): array {
     shuffle($armado);
     return $armado;
 }
-
 function sgsPreguntaDelBanco(array $banco, string $id): ?array {
     foreach ($banco['preguntas'] as $p) if ($p['id'] === $id) return $p;
     return null;
@@ -85,7 +139,9 @@ function sgsPreguntasParaTecnico(array $banco, array $armado): array {
     foreach ($armado as $n => $a) {
         $p = sgsPreguntaDelBanco($banco, $a['id']);
         if (!$p) continue;
+        // 'marcar' (2026-11-05): en "marcar varias" se le dice cuántas marcar y debe marcar exactamente esas para seguir.
         $salida[] = ['n' => $n, 'tipo' => $p['tipo'], 'tema' => $p['tema'], 'texto' => $p['texto'], 'imagen' => sgsImagenExamen($p['imagen'] ?? null),
+            'marcar' => $p['tipo'] === 'multiple' ? count($p['correcta']) : null,
             'opciones' => array_map(static fn($k) => ['k' => (int)$k, 'texto' => $p['opciones'][$k], 'imagen' => sgsImagenExamen($p['imagenes'][$k] ?? null)], $a['orden'])];
     }
     return $salida;
@@ -101,6 +157,7 @@ function sgsNormalizarRespuesta(array $pregunta, $valor): array {
         if (in_array($k, $validos, true) && !in_array($k, $r, true)) $r[] = $k;
     }
     if (in_array($pregunta['tipo'], ['unica', 'caso', 'vf'], true)) $r = array_slice($r, 0, 1);
+    if ($pregunta['tipo'] === 'multiple') $r = array_slice($r, 0, count($pregunta['correcta']));
     return $r;
 }
 

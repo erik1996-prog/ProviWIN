@@ -54,3 +54,9 @@ Content-Type: application/json
 ```json
 {"status":"error","message":"Usuario o contraseña incorrectos."}
 ```
+
+## api/ordenes_cercanas.php (solo WIN: administración y supervisor directo)
+
+- `GET ?action=fecha`: fecha de hoy tomada de internet (503 si no hay conexión).
+- `GET ?action=inicio`: primera página de órdenes iniciadas de hoy: `fecha`, `total`, `paginas`, `puntos`.
+- `GET ?action=pagina&n=2&fecha=dd/mm/aaaa`: una página siguiente: `puntos` (`id`, `csc`, `cs`, `lat`, `lon`).

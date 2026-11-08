@@ -1,6 +1,6 @@
 -- 04_DATABASE/03_ESTRUCTURA/esquema_completo.sql
 -- Estructura de SGS: 33 tablas en orden de dependencias, sin datos ni DROP.
--- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-11-04. No editar a mano: los cambios van como migración en 02_CAMBIOS.
+-- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-11-08. No editar a mano: los cambios van como migración en 02_CAMBIOS.
 
 SET NAMES utf8mb4;
 
@@ -157,6 +157,7 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
   `debe_cambiar_password` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1 = al ingresar debe cambiar su contraseña (temporal)',
   `fecha_creacion` datetime DEFAULT current_timestamp(),
   `avatar` varchar(255) DEFAULT NULL,
+  `novedad_vista` int(11) NOT NULL DEFAULT 0 COMMENT 'Última novedad del sistema que el usuario ya vio (config/novedades.php)',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_usuarios_dni` (`dni`),
   UNIQUE KEY `uq_usuarios_email` (`email`),

@@ -1,21 +1,18 @@
 <?php
-// 02_BACKEND/src/config/examenes/altura.php - Banco de preguntas: "Seguridad: trabajo en altura" (2026-10-20).
+// 02_BACKEND/src/config/examenes/altura.php - Referente "Trabajo en altura" (2026-10-20).
 // Rubro telecomunicaciones: postes, escaleras telescópicas, arnés y línea de vida, cercanía a redes eléctricas.
-// A cada técnico le tocan 20: las marcadas 'siempre' y el resto al azar (al menos una por tema), con las alternativas mezcladas. 10 minutos; aprueba con 90 %.
-// Tipos: unica (una correcta), multiple (marcar todas las correctas), vf (verdadero o falso), orden (ordenar pasos; las
-// opciones se escriben EN EL ORDEN CORRECTO) y caso (situación de campo con una correcta).
+// Cuántas preguntas, el tiempo, la nota mínima y el mínimo con foto son de todo el examen: config/examen_motor.php
+// (2026-11-05: 10 preguntas al azar de los referentes marcados al generar el link, al menos 2 con foto).
+// Tipos: unica (una correcta), multiple (marcar varias: se le dice cuántas), vf (verdadero o falso), orden (ordenar pasos;
+// las opciones se escriben EN EL ORDEN CORRECTO) y caso (situación de campo con una correcta).
 // 'correcta' = índices de las opciones correctas (orden: no se usa). Textos cortos: ~30 segundos por pregunta.
-// Opcionales: 'imagen' (foto de la pregunta), 'imagenes' (una foto por alternativa, en el mismo orden), con los archivos en
-// 03_FRONTEND/src/assets/img/examenes/, y 'siempre' => true (sale en todos los exámenes).
-// Para agregar otro examen: crear otro archivo en esta carpeta con la misma forma (se lista solo en Cuadrillas).
+// Opcionales: 'imagen' (foto de la pregunta) e 'imagenes' (una foto por alternativa, en el mismo orden), con los archivos
+// en 03_FRONTEND/src/assets/img/examenes/.
+// Para agregar otro referente: crear otro archivo en esta carpeta con la misma forma (sale solo al generar el link).
 return [
     'codigo' => 'altura',
-    'titulo' => 'Seguridad: trabajo en altura',
-    'descripcion' => 'Trabajo en postes y escaleras en redes de telecomunicaciones.',
-    'preguntas_por_examen' => 20,
-    'minutos' => 10,
-    'aprueba' => 90,
-    'maximo_por_tipo' => ['orden' => 2, 'caso' => 5],
+    'nombre' => 'Trabajo en altura',
+    'descripcion' => 'Postes, escaleras, arnés, riesgo eléctrico y tendido de cable en la vía.',
     'preguntas' => [
         // ---------- Conceptos y normas ----------
         ['id' => 'ALT01', 'tema' => 'Conceptos y normas', 'tipo' => 'unica',
@@ -36,7 +33,7 @@ return [
          'texto' => '¿Cuándo se llena el permiso de trabajo en altura?',
          'opciones' => ['Antes de subir, en el lugar del trabajo', 'Al terminar el trabajo', 'Solo si hay un supervisor presente', 'Una vez por semana'], 'correcta' => [0]],
         ['id' => 'ALT06', 'tema' => 'Permiso y ATS', 'tipo' => 'multiple',
-         'texto' => '¿Qué debe identificar el ATS (análisis de trabajo seguro) antes de subir? Marca todas las correctas.',
+         'texto' => '¿Qué debe identificar el ATS (análisis de trabajo seguro) antes de subir?',
          'opciones' => ['Los peligros del lugar (cables eléctricos, tránsito, clima)', 'Las medidas de control para cada peligro', 'Quién hace cada tarea en la cuadrilla', 'La marca del celular del técnico'], 'correcta' => [0, 1, 2]],
         ['id' => 'ALT07', 'tema' => 'Permiso y ATS', 'tipo' => 'orden',
          'texto' => 'Ordena los pasos al llegar a la ubicación del cliente, del primero al último.',
@@ -53,7 +50,7 @@ return [
          'texto' => '¿En qué anillo del arnés se conecta la línea para detener una caída?',
          'opciones' => ['En el anillo dorsal (en la espalda, entre los omóplatos)', 'En los anillos de la cintura', 'En cualquier anillo, da igual', 'En la hebilla de la pierna'], 'correcta' => [0]],
         ['id' => 'ALT11', 'tema' => 'Arnés y EPP', 'tipo' => 'multiple',
-         'texto' => '¿Qué EPP es obligatorio para subir a un poste? Marca todas las correctas.',
+         'texto' => '¿Qué EPP es obligatorio para subir a un poste?',
          'opciones' => ['Casco con barbiquejo', 'Arnés de cuerpo completo con su línea de vida', 'Guantes y calzado de seguridad', 'Lentes oscuros de moda'], 'correcta' => [0, 1, 2]],
         ['id' => 'ALT12', 'tema' => 'Arnés y EPP', 'tipo' => 'vf',
          'texto' => 'El casco en altura debe llevar el barbiquejo puesto para que no se caiga.',
@@ -67,7 +64,7 @@ return [
          'texto' => '¿Cada cuánto se inspecciona el arnés y la línea de vida?',
          'opciones' => ['Antes de cada uso', 'Una vez al mes', 'Una vez al año', 'Solo cuando se ve sucio'], 'correcta' => [0]],
         ['id' => 'ALT15', 'tema' => 'Inspección del equipo', 'tipo' => 'multiple',
-         'texto' => '¿Qué defectos obligan a retirar un arnés de uso? Marca todas las correctas.',
+         'texto' => '¿Qué defectos obligan a retirar un arnés de uso?',
          'opciones' => ['Cortes, quemaduras o costuras rotas', 'Hebillas o anillos deformados u oxidados', 'Que ya detuvo una caída', 'Que tenga polvo'], 'correcta' => [0, 1, 2]],
         ['id' => 'ALT16', 'tema' => 'Inspección del equipo', 'tipo' => 'vf',
          'texto' => 'Un arnés que ya detuvo una caída se puede seguir usando si no se ve dañado.',
@@ -76,7 +73,7 @@ return [
          'texto' => 'Al revisar tu eslinga ves que el absorbedor de impacto está abierto (el forro roto y la cinta estirada). ¿Qué haces?',
          'opciones' => ['La retiro de uso, la marco como dañada y pido otra', 'La uso con cuidado solo por hoy', 'Le hago un nudo para acortarla', 'La cubro con cinta aislante'], 'correcta' => [0]],
         ['id' => 'ALT18', 'tema' => 'Inspección del equipo', 'tipo' => 'multiple',
-         'texto' => 'Al revisar la escalera telescópica, ¿qué debes verificar? Marca todas las correctas.',
+         'texto' => 'Al revisar la escalera telescópica, ¿qué debes verificar?',
          'opciones' => ['Peldaños completos, firmes y sin grasa', 'Seguros de los tramos que traben bien', 'Zapatas antideslizantes en buen estado', 'Que sea del color de la empresa'], 'correcta' => [0, 1, 2]],
 
         // ---------- Anclaje y línea de vida ----------
@@ -127,7 +124,7 @@ return [
 
         // ---------- Postes ----------
         ['id' => 'ALT33', 'tema' => 'Postes', 'tipo' => 'multiple',
-         'texto' => '¿Qué revisas del poste antes de subir o apoyar la escalera? Marca todas las correctas.',
+         'texto' => '¿Qué revisas del poste antes de subir o apoyar la escalera?',
          'opciones' => ['Que no esté inclinado, rajado ni podrido en la base', 'Que no tenga cables o retenidas sueltos', 'Si hay avisperos u otros animales', 'Que esté recién pintado'], 'correcta' => [0, 1, 2]],
         ['id' => 'ALT34', 'tema' => 'Postes', 'tipo' => 'caso',
          'texto' => 'Llegas al poste y ves que está rajado y se mueve al empujarlo. ¿Qué haces?',
@@ -155,7 +152,7 @@ return [
          'texto' => 'Estás en el poste y empieza una tormenta con truenos. ¿Qué haces?',
          'opciones' => ['Bajo de inmediato de forma segura y suspendo el trabajo hasta que pase', 'Termino la conexión, ya falta poco', 'Me quedo arriba hasta que pase', 'Sigo si tengo casco'], 'correcta' => [0]],
         ['id' => 'ALT41', 'tema' => 'Clima y entorno', 'tipo' => 'multiple',
-         'texto' => '¿En qué condiciones se suspende el trabajo en altura? Marca todas las correctas.',
+         'texto' => '¿En qué condiciones se suspende el trabajo en altura?',
          'opciones' => ['Tormenta eléctrica', 'Lluvia intensa que vuelve resbaladizos el poste o la escalera', 'Viento fuerte que mueve la escalera', 'Cielo nublado sin lluvia'], 'correcta' => [0, 1, 2]],
         ['id' => 'ALT42', 'tema' => 'Clima y entorno', 'tipo' => 'vf',
          'texto' => 'Con poca luz (de noche) se puede subir al poste sin iluminación si el técnico conoce bien el lugar.',
@@ -166,7 +163,7 @@ return [
          'texto' => '¿Por qué se delimita la zona debajo del poste?',
          'opciones' => ['Para que nadie pase donde pueden caer herramientas o materiales', 'Para estacionar el vehículo', 'Solo por orden del cliente', 'Para que no roben la escalera'], 'correcta' => [0]],
         ['id' => 'ALT44', 'tema' => 'Señalización', 'tipo' => 'multiple',
-         'texto' => '¿Cómo se evita que caigan objetos desde el poste? Marca todas las correctas.',
+         'texto' => '¿Cómo se evita que caigan objetos desde el poste?',
          'opciones' => ['Herramientas amarradas o en bolsa porta-herramientas', 'Subir y bajar materiales con soga o balde', 'Zona de abajo señalizada con conos y cinta', 'Lanzar las herramientas al compañero'], 'correcta' => [0, 1, 2]],
         ['id' => 'ALT45', 'tema' => 'Señalización', 'tipo' => 'caso',
          'texto' => 'Trabajas en un poste junto a una vereda con mucha gente y un paradero. ¿Qué haces primero?',
@@ -189,23 +186,23 @@ return [
          'texto' => 'El plan de rescate se define antes de subir, no cuando ocurre la caída.',
          'opciones' => ['Verdadero', 'Falso'], 'correcta' => [0]],
 
-        // ---------- Tendido de cable en la vía (2026-11-05: preguntas con imagen; 'siempre' = salen en todos los exámenes) ----------
-        ['id' => 'ALT51', 'tema' => 'Conceptos y normas', 'tipo' => 'unica', 'siempre' => true,
+        // ---------- Tendido de cable en la vía (2026-11-05, preguntas con imagen) ----------
+        ['id' => 'ALT51', 'tema' => 'Conceptos y normas', 'tipo' => 'unica',
          'texto' => '¿Quién es el primer responsable de proteger tu integridad física y velar por tu seguridad durante actividades como el tendido de cable, el traslado de escaleras o cualquier otra labor en campo?',
          'opciones' => ['Yo mismo', 'Mi compañero', 'El cliente', 'El supervisor'], 'correcta' => [0],
          'imagenes' => ['alt51_yo_mismo.jpg', 'alt51_companero.jpg', 'alt51_cliente.jpg', 'alt51_supervisor.jpg']],
-        ['id' => 'ALT52', 'tema' => 'Tendido de cable en la vía', 'tipo' => 'orden', 'siempre' => true,
+        ['id' => 'ALT52', 'tema' => 'Tendido de cable en la vía', 'tipo' => 'orden',
          'texto' => 'Ordena las acciones para tender de forma segura un cable de acometida que cruza una calle entre dos postes.',
          'opciones' => ['Verificar que no circulen vehículos ni peatones, colocar conos de seguridad y contar con el apoyo de un compañero o supervisor para controlar el tránsito y alertar a los usuarios de la vía',
              'Realizar el cruce del cable, manteniéndolo siempre elevado y bajo control para evitar el contacto con la calzada o con los usuarios de la vía',
              'Cuando el cable cruzó la calle y el técnico lo tiene desde la parte alta del poste, mantenerlo elevado hasta asegurarlo con el templador al clevis del poste, evitando que descienda hacia la vía'], 'correcta' => []],
-        ['id' => 'ALT53', 'tema' => 'Tendido de cable en la vía', 'tipo' => 'caso', 'siempre' => true, 'imagen' => 'alt53_escenario.jpg',
+        ['id' => 'ALT53', 'tema' => 'Tendido de cable en la vía', 'tipo' => 'caso', 'imagen' => 'alt53_escenario.jpg',
          'texto' => 'Según el escenario de la imagen, ¿quién puede sufrir un accidente?',
          'opciones' => ['Las movilidades', 'Los peatones', 'El técnico', 'Todas las opciones son correctas'], 'correcta' => [3]],
-        ['id' => 'ALT54', 'tema' => 'Tendido de cable en la vía', 'tipo' => 'caso', 'siempre' => true, 'imagen' => 'alt54_motociclista.jpg',
+        ['id' => 'ALT54', 'tema' => 'Tendido de cable en la vía', 'tipo' => 'caso', 'imagen' => 'alt54_motociclista.jpg',
          'texto' => 'Un técnico tiende un cable cruzando una avenida y un motociclista se enreda con el cable y sufre un accidente. ¿Cuál es la causa raíz?',
          'opciones' => ['El cable fue dejado suelto y cruzando la avenida de manera descuidada', 'El motociclista no observó el cable en la vía', 'Los peatones no advirtieron al motociclista', 'Ninguna opción es correcta'], 'correcta' => [0]],
-        ['id' => 'ALT55', 'tema' => 'Tendido de cable en la vía', 'tipo' => 'caso', 'siempre' => true, 'imagen' => 'alt55_balcon.jpg',
+        ['id' => 'ALT55', 'tema' => 'Tendido de cable en la vía', 'tipo' => 'caso', 'imagen' => 'alt55_balcon.jpg',
          'texto' => 'Al observar la imagen, ¿qué errores se identifican durante la ejecución del trabajo?',
          'opciones' => ['Ambos técnicos no usan barbiquejo', 'El técnico del primer piso no mantiene la atención en la maniobra', 'El cable de trabajo representa un riesgo para los peatones', 'Todas las opciones presentan error'], 'correcta' => [3]],
     ],

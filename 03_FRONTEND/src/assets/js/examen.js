@@ -3,13 +3,15 @@
 // vf (verdadero o falso) y orden (tocar los pasos en orden). 2026-11-05: la pregunta o cada alternativa pueden traer foto. Cada respuesta se guarda al momento en el servidor; si se
 // corta, al volver a entrar retoma donde quedó (el tiempo sigue). Al terminar o al acabarse el tiempo se califica en el
 // servidor y se muestra la nota, si aprobó y los temas a reforzar (nunca las respuestas correctas).
+// 2026-11-05: no se puede avanzar sin responder (en "marcar varias", exactamente las que se piden; en "ordenar", todos los
+// pasos); el mapa solo deja volver a las ya respondidas. Las fotos se amplían a pantalla completa (lupa).
 // Página: 03_FRONTEND/src/pages/examen_general.php (data-* de #examenApp). Estilos: sgs-login.css (sección examen).
 (() => {
     const app = document.getElementById('examenApp');
     if (!app) return;
     const d = app.dataset;
     const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    const tipos = { unica: 'Elige una', caso: 'Caso de campo · elige una', multiple: 'Marca todas las correctas', vf: 'Verdadero o falso', orden: 'Toca los pasos en orden' };
+    const tipos = { unica: 'Elige una', caso: 'Caso de campo · elige una', vf: 'Verdadero o falso', orden: 'Toca los pasos en orden' };
     let preguntas = [], respuestas = {}, actual = 0, fin = 0, reloj = null, terminando = false;
 
     const llamar = async (accion, datos = null) => {
@@ -91,9 +93,18 @@
             }
         }, 250));
     };
+    // Respondida por completo: lo que hace falta para seguir.
+    const completa = (q) => {
+        const r = respuestas[q.n] || [];
+        return q.tipo === 'multiple' ? r.length === q.marcar : (q.tipo === 'orden' ? r.length === q.opciones.length : r.length > 0);
+    };
+    const primeraSinResponder = () => { const i = preguntas.findIndex((q) => !completa(q)); return i < 0 ? preguntas.length : i; };
     const responder = (p, k) => {
         let r = [...(respuestas[p.n] || [])];
-        if (p.tipo === 'multiple') r = r.includes(k) ? r.filter((x) => x !== k) : [...r, k];
+        if (p.tipo === 'multiple') {
+            if (!r.includes(k) && r.length >= p.marcar) return avisoPregunta(`Solo puedes marcar ${p.marcar}. Quita una para cambiarla.`);
+            r = r.includes(k) ? r.filter((x) => x !== k) : [...r, k];
+        }
         else if (p.tipo === 'orden') { if (!r.includes(k)) r.push(k); }
         else r = [k];
         respuestas[p.n] = r;
@@ -101,19 +112,45 @@
         pintar();
     };
 
+    // Aviso corto dentro de la pregunta (p. ej. ya marcó todas las que se piden).
+    const avisoPregunta = (texto) => {
+        const f = document.getElementById('exFalta');
+        if (!f) return;
+        f.querySelector('span').textContent = texto;
+        f.classList.remove('d-none');
+    };
+    // Foto a pantalla completa: se puede acercar con los dedos; se cierra tocando la X, fuera de la foto o con Esc.
+    const ampliar = (src) => {
+        const visor = document.createElement('div');
+        visor.className = 'ex-visor';
+        visor.setAttribute('role', 'dialog');
+        visor.setAttribute('aria-label', 'Foto ampliada');
+        visor.innerHTML = `<button type="button" class="ex-visor-cerrar" aria-label="Cerrar"><i class="bi bi-x-lg"></i></button><img src="${esc(src)}" alt="Foto ampliada">`;
+        const cerrar = () => { visor.remove(); document.removeEventListener('keydown', tecla); };
+        const tecla = (ev) => { if (ev.key === 'Escape') cerrar(); };
+        visor.addEventListener('click', (ev) => { if (ev.target === visor || ev.target.closest('.ex-visor-cerrar')) cerrar(); });
+        document.addEventListener('keydown', tecla);
+        document.body.appendChild(visor);
+        visor.querySelector('.ex-visor-cerrar').focus();
+    };
+
     // ---------- Pregunta ----------
     const pintar = () => {
         const p = preguntas[actual];
         const r = respuestas[p.n] || [];
         const total = preguntas.length;
-        const hechas = preguntas.filter((q) => (respuestas[q.n] || []).length).length;
+        const hechas = preguntas.filter(completa).length;
+        const lista = completa(p);
+        const falta = p.tipo === 'multiple' ? `Marca ${p.marcar} opciones para continuar (llevas ${r.length}).`
+            : (p.tipo === 'orden' ? 'Toca todos los pasos en orden para continuar.' : 'Elige una opción para continuar.');
+        const limite = primeraSinResponder();
         const conFotos = p.opciones.some((o) => o.imagen);
         const opciones = p.opciones.map((o) => {
             const pos = r.indexOf(o.k);
             const marcada = pos >= 0;
             const marca = p.tipo === 'orden' ? (marcada ? pos + 1 : '') : (p.tipo === 'multiple' ? (marcada ? '<i class="bi bi-check-lg"></i>' : '') : '');
             return `<button type="button" class="ex-opcion ex-opcion--${p.tipo}${marcada ? ' is-marcada' : ''}" data-k="${o.k}" aria-pressed="${marcada}">
-                ${o.imagen ? `<img class="ex-opcion-foto" src="${esc(o.imagen)}" alt="" loading="lazy">` : ''}<span class="ex-opcion-pie"><span class="ex-opcion-marca" aria-hidden="true">${marca}</span><span class="ex-opcion-texto">${esc(o.texto)}</span></span></button>`;
+                ${o.imagen ? `<span class="ex-opcion-foto-caja"><img class="ex-opcion-foto" src="${esc(o.imagen)}" alt="" loading="lazy"><span class="ex-ampliar" data-ampliar="${esc(o.imagen)}" title="Ampliar foto"><i class="bi bi-zoom-in" aria-hidden="true"></i></span></span>` : ''}<span class="ex-opcion-pie"><span class="ex-opcion-marca" aria-hidden="true">${marca}</span><span class="ex-opcion-texto">${esc(o.texto)}</span></span></button>`;
         }).join('');
         app.innerHTML = `<div class="ex-cabecera">
               <span class="ex-contador">Pregunta <strong>${actual + 1}</strong> de ${total}</span>
@@ -121,27 +158,33 @@
             </div>
             <div class="ex-progreso" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${hechas}" aria-label="Preguntas respondidas"><span style="width:${(hechas / total) * 100}%"></span></div>
             <div class="ex-pregunta${p.tipo === 'caso' ? ' ex-pregunta--caso' : ''}">
-              <div class="ex-etiquetas"><span class="ex-tema">${esc(p.tema)}</span><span class="ex-tipo">${esc(tipos[p.tipo] || '')}</span></div>
+              <div class="ex-etiquetas"><span class="ex-tema">${esc(p.tema)}</span><span class="ex-tipo">${esc(p.tipo === 'multiple' ? `Marca ${p.marcar} opciones` : (tipos[p.tipo] || ''))}</span></div>
               ${p.tipo === 'caso' ? '<div class="ex-caso-titulo"><i class="bi bi-cone-striped" aria-hidden="true"></i>Situación en campo</div>' : ''}
               <h2 class="ex-texto">${esc(p.texto)}</h2>
-              ${p.imagen ? `<img class="ex-imagen" src="${esc(p.imagen)}" alt="Imagen de la situación">` : ''}
+              ${p.imagen ? `<button type="button" class="ex-imagen-caja" data-ampliar="${esc(p.imagen)}" aria-label="Ampliar la foto"><img class="ex-imagen" src="${esc(p.imagen)}" alt="Imagen de la situación"><span class="ex-ampliar"><i class="bi bi-zoom-in me-1" aria-hidden="true"></i>Ampliar</span></button>` : ''}
               <div class="ex-opciones ${p.tipo === 'vf' ? 'ex-opciones--vf' : ''}${conFotos ? ' ex-opciones--fotos' : ''}">${opciones}</div>
               ${p.tipo === 'orden' && r.length ? '<button type="button" class="btn btn-link btn-sm p-0 mt-2" id="exReiniciar"><i class="bi bi-arrow-counterclockwise me-1"></i>Volver a ordenar</button>' : ''}
+              <p class="ex-falta${lista ? ' d-none' : ''}" id="exFalta" role="status"><i class="bi bi-info-circle me-1" aria-hidden="true"></i><span>${esc(falta)}</span></p>
             </div>
             <div class="ex-navegacion">
               <button type="button" class="btn btn-outline-secondary" id="exAnterior" ${actual === 0 ? 'disabled' : ''}><i class="bi bi-arrow-left"></i><span class="d-none d-sm-inline ms-1">Anterior</span></button>
               ${actual < total - 1
-                ? '<button type="button" class="btn btn-sgs" id="exSiguiente">Siguiente<i class="bi bi-arrow-right ms-1"></i></button>'
-                : '<button type="button" class="btn btn-sgs" id="exTerminar"><i class="bi bi-flag me-1"></i>Terminar examen</button>'}
+                ? `<button type="button" class="btn btn-sgs" id="exSiguiente" ${lista ? '' : 'disabled'}>Siguiente<i class="bi bi-arrow-right ms-1"></i></button>`
+                : `<button type="button" class="btn btn-sgs" id="exTerminar" ${limite >= total ? '' : 'disabled'}><i class="bi bi-flag me-1"></i>Terminar examen</button>`}
             </div>
             <div class="ex-mapa" aria-label="Ir a una pregunta">${preguntas.map((q, i) =>
-                `<button type="button" class="ex-punto${(respuestas[q.n] || []).length ? ' is-hecha' : ''}${i === actual ? ' is-actual' : ''}" data-ir="${i}" aria-label="Pregunta ${i + 1}">${i + 1}</button>`).join('')}</div>
+                `<button type="button" class="ex-punto${completa(q) ? ' is-hecha' : ''}${i === actual ? ' is-actual' : ''}" data-ir="${i}" aria-label="Pregunta ${i + 1}" ${i > limite ? 'disabled' : ''}>${i + 1}</button>`).join('')}</div>
             <small class="ex-guardado" id="exGuardado"><i class="bi bi-cloud-check me-1" aria-hidden="true"></i>Tus respuestas se guardan solas</small>`;
         tic();
-        app.querySelectorAll('.ex-opcion').forEach((b) => b.addEventListener('click', () => responder(p, Number(b.dataset.k))));
+        app.querySelectorAll('.ex-opcion').forEach((b) => b.addEventListener('click', (ev) => {
+            const lupa = ev.target.closest('[data-ampliar]');
+            if (lupa) return ampliar(lupa.dataset.ampliar); // la lupa amplía; el resto de la tarjeta elige la opción
+            responder(p, Number(b.dataset.k));
+        }));
+        app.querySelector('.ex-imagen-caja')?.addEventListener('click', (ev) => ampliar(ev.currentTarget.dataset.ampliar));
         document.getElementById('exReiniciar')?.addEventListener('click', () => { respuestas[p.n] = []; guardar(p.n); pintar(); });
         document.getElementById('exAnterior').addEventListener('click', () => { actual--; pintar(); });
-        document.getElementById('exSiguiente')?.addEventListener('click', () => { actual++; pintar(); });
+        document.getElementById('exSiguiente')?.addEventListener('click', () => { if (completa(p)) { actual++; pintar(); } });
         document.getElementById('exTerminar')?.addEventListener('click', () => terminar(false));
         app.querySelectorAll('[data-ir]').forEach((b) => b.addEventListener('click', () => { actual = Number(b.dataset.ir); pintar(); }));
         app.querySelector('.ex-pregunta')?.scrollIntoView({ block: 'nearest' });
@@ -150,10 +193,8 @@
     // ---------- Terminar ----------
     const terminar = async (porTiempo) => {
         if (terminando) return;
-        const sinResponder = preguntas.filter((q) => !(respuestas[q.n] || []).length).length;
-        if (!porTiempo && !confirm(sinResponder
-            ? `Tienes ${sinResponder} ${sinResponder === 1 ? 'pregunta' : 'preguntas'} sin responder. ¿Terminar el examen de todos modos? Ya no podrás cambiar tus respuestas.`
-            : '¿Terminar el examen? Ya no podrás cambiar tus respuestas.')) return;
+        if (!porTiempo && primeraSinResponder() < preguntas.length) { actual = primeraSinResponder(); pintar(); return; } // falta responder
+        if (!porTiempo && !confirm('¿Terminar el examen? Ya no podrás cambiar tus respuestas.')) return;
         terminando = true;
         clearInterval(reloj);
         // Primero se envía lo pendiente.

@@ -13,7 +13,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return r;
   };
   const enviar = (accion, datos) => llamar('tecnicos', accion, datos);
-  const fechaHora = (v) => { if (!v) return '—'; const d = new Date(String(v).replace(' ', 'T')); return d.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false }); };
   const tabla = document.querySelector('.cuad-tabla');
 
   // ---------- Vencimientos de la cuadrilla ----------
@@ -26,27 +25,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ---------- Link general de examen (2026-10-20): T1 y T2 de las cuadrillas filtradas ----------
   const mExamen = bootstrap.Modal.getOrCreateInstance($('mExamen'));
-  const mExamenDetalle = bootstrap.Modal.getOrCreateInstance($('mExamenDetalle'));
-  const estadosLink = { activo: ['bg-success', 'Vigente'], completo: ['bg-primary', 'Todos rindieron'], vencido: ['bg-secondary', 'Vencido'], anulado: ['bg-secondary', 'Cerrado'] };
   // Para quién es el link: todos los líderes del filtro (no solo los de la página que se ve; los trae el botón) o una sola
   // cuadrilla (botón de la fila, 2026-11-05).
   let lideresLink = [], filtroLink = '';
   const datosLideres = () => { const d = new FormData(); lideresLink.forEach((id) => d.append('lider_ids[]', id)); return d; };
-  const pintarHistorial = (lista) => {
-    $('exHistorial').innerHTML = !lista.length ? '<p class="text-muted small mb-0"><i class="bi bi-inbox me-1"></i>Todavía no se generó ningún link.</p>'
-      : '<ul class="ex-historial">' + lista.map((h) => {
-        const [clase, texto] = estadosLink[h.estado] || ['bg-secondary', h.estado];
-        return `<li><div class="ex-historial-texto"><strong>${esc(h.titulo)}</strong><small class="text-muted">${esc(h.filtro || '')}${h.filtro ? ' · ' : ''}Generado el ${fechaHora(h.creado_en)}${h.generado_por_nombre ? ' por ' + esc(h.generado_por_nombre) : ''} · vence ${fechaHora(h.vence_en)}</small>
-            <small><strong>${Number(h.rindieron)}</strong> de ${Number(h.total)} rindieron · ${Number(h.aprobados)} aprobados</small></div>
-          <div class="ex-historial-acciones"><span class="badge ${clase}">${texto}</span>
-            <button type="button" class="btn btn-sm btn-outline-secondary" data-ver-link="${h.id}"><i class="bi bi-broadcast me-1" aria-hidden="true"></i>Seguimiento</button>
-            ${h.estado === 'activo' && $('mExamen').dataset.puedeAnular === '1' ? `<button type="button" class="btn btn-sm btn-outline-danger" data-anular-link="${h.id}"><i class="bi bi-lock me-1" aria-hidden="true"></i>Cerrar link</button>` : ''}
-            ${$('mExamen').dataset.puedeBorrar === '1' ? `<button type="button" class="btn btn-sm btn-outline-danger sgs-btn-icono" data-borrar-link="${h.id}" title="Borrar link y resultados" aria-label="Borrar link y resultados"><i class="bi bi-trash"></i></button>` : ''}</div></li>`;
-      }).join('') + '</ul>';
-  };
+  // Lista de links generados con Seguimiento, Cerrar y Borrar: assets/js/examen_links.js (común con Exámenes).
+  const pintarHistorial = (lista) => window.SgsExamenLinks.pintar($('exHistorial'), lista);
   const listaTecnicos = (titulo, items, clase, conEditar) => !items.length ? '' :
     `<div class="alert ${clase} small"><strong>${esc(titulo)}</strong><ul class="mb-0 mt-1 ex-lista-tecnicos">${items.map((t) =>
-      `<li>${esc(t.persona)} <span class="text-muted">· ${t.tipo === 1 ? 'T1' + (t.partner ? ' · ' + esc(t.partner) : '') : 'T2 de ' + esc(t.cuadrilla)}${t.motivo ? ' · ' + esc(t.motivo) : ''}</span>${conEditar && document.querySelector(`[data-editar="${t.lider_id}"]`) ? ` <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-corregir-dni="${t.lider_id}">Registrar DNI</button>` : ''}</li>`).join('')}</ul></div>`;
+      `<li>${esc(t.persona)} <span class="text-muted">· ${t.tipo === 1 ? 'T1' + (t.partner ? ' · ' + esc(t.partner) : '') : 'T2 de ' + esc(t.cuadrilla)}${t.motivo ? ' · ' + esc(t.motivo) : ''}</span>${conEditar && (t.tipo === 1 || String(t.motivo || '').startsWith('Sin DNI')) ? corregirDni(t) : ''}</li>`).join('')}</ul></div>`;
+  // 2026-11-05: si la cuadrilla no está en esta página del listado, se ofrece ir a ella (antes no salía ninguna opción).
+  const corregirDni = (t) => !$('mCuadrilla') ? '' : document.querySelector(`[data-editar="${t.lider_id}"]`)
+    ? ` <button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-corregir-dni="${t.lider_id}">Registrar DNI</button>`
+    : ` <a class="btn btn-link btn-sm p-0 align-baseline" href="index.php?page=cuadrillas&q=${encodeURIComponent(t.cuadrilla)}">Ir a la cuadrilla</a>`;
   let sinDniActual = 0;
   const preparar = async () => {
     $('exCargando').classList.remove('d-none'); $('exCargando').textContent = 'Revisando a los técnicos…'; $('exContenido').classList.add('d-none');
@@ -57,24 +48,39 @@ document.addEventListener('DOMContentLoaded', () => {
       const d = r.data;
       const kpi = (etq, val, clase = '') => `<div class="col-6 col-md-3"><div class="sgs-kpi ${clase} p-2 h-100"><small class="sgs-kpi-label">${etq}</small><h3 class="mb-0 sgs-kpi-value">${val}</h3></div></div>`;
       $('exResumen').innerHTML = kpi('Cuadrillas', d.cuadrillas) + kpi('Técnicos líderes (T1)', d.t1) + kpi('Técnicos de apoyo (T2)', d.t2)
-        + kpi('Sin DNI', d.sin_dni.length, d.sin_dni.length ? 'sgs-kpi--danger' : 'sgs-kpi--success');
+        + kpi('T1 sin DNI', d.sin_dni.length, d.sin_dni.length ? 'sgs-kpi--danger' : 'sgs-kpi--success');
       sinDniActual = d.sin_dni.length;
-      $('exSinDni').innerHTML = listaTecnicos(`${d.sin_dni.length === 1 ? 'Este técnico no tiene' : 'Estos técnicos no tienen'} DNI: regístrelo para poder generar el link (cada técnico entra con su DNI).`, d.sin_dni, 'alert-danger', true);
-      $('exExcluidos').innerHTML = listaTecnicos('No entran al examen:', d.excluidos, 'alert-secondary', false);
-      const sel = $('exExamen'), antes = sel.value;
-      sel.innerHTML = (d.examenes || []).map((x) => `<option value="${esc(x.codigo)}" data-ayuda="${esc(`${x.preguntas} preguntas · ${x.minutos} minutos · aprueba con ${x.aprueba} %`)}">${esc(x.titulo)}</option>`).join('');
-      if (antes) sel.value = antes;
-      const ayuda = () => { $('exExamenAyuda').textContent = sel.selectedOptions[0]?.dataset.ayuda || ''; };
-      sel.onchange = ayuda; ayuda();
-      $('exGenerar').disabled = d.sin_dni.length > 0;
-      $('exGenerar').title = d.sin_dni.length ? 'Primero registre el DNI de todos los técnicos' : '';
+      $('exSinDni').innerHTML = listaTecnicos(`${d.sin_dni.length === 1 ? 'Este técnico líder (T1) no tiene' : 'Estos técnicos líderes (T1) no tienen'} DNI: regístrelo para poder generar el link (cada técnico entra con su DNI).`, d.sin_dni, 'alert-danger', true);
+      $('exExcluidos').innerHTML = listaTecnicos('No entran al examen:', d.excluidos, 'alert-secondary', true);
+      // Varias cuadrillas y algunas con el T1 sin DNI: se puede generar para las demás.
+      const bloqueadas = [...new Set(d.sin_dni.map((t) => String(t.lider_id)))];
+      if (bloqueadas.length && d.cuadrillas > bloqueadas.length) {
+        $('exSinDni').insertAdjacentHTML('beforeend', `<button type="button" class="btn btn-outline-secondary btn-sm mb-3" id="exSinBloqueadas"><i class="bi bi-funnel me-1" aria-hidden="true"></i>Generar sin ${bloqueadas.length === 1 ? 'esa cuadrilla' : `esas ${bloqueadas.length} cuadrillas`}</button>`);
+        $('exSinBloqueadas').onclick = () => {
+          lideresLink = lideresLink.filter((id) => !bloqueadas.includes(String(id)));
+          filtroLink += ` · sin ${bloqueadas.length} ${bloqueadas.length === 1 ? 'cuadrilla' : 'cuadrillas'} con T1 sin DNI`;
+          $('exFiltro').textContent = filtroLink;
+          preparar();
+        };
+      }
+      // Referentes (2026-11-05): uno o varios con casillas; el examen saca sus 10 preguntas de los marcados.
+      const marcados = [...document.querySelectorAll('#exReferentes input:checked')].map((c) => c.value);
+      $('exReferentes').innerHTML = d.referentes.map((x, i) => `<label class="ex-referente"><input class="form-check-input" type="checkbox" value="${esc(x.codigo)}"
+          ${(marcados.length ? marcados.includes(x.codigo) : i === 0) ? 'checked' : ''}><span><strong>${esc(x.nombre)}</strong><small>${esc(x.descripcion)}</small></span></label>`).join('');
+      const g = d.reglas;
+      const ayuda = () => {
+        const n = document.querySelectorAll('#exReferentes input:checked').length;
+        $('exExamenAyuda').textContent = n ? `${g.preguntas} preguntas al azar${n > 1 ? ', repartidas entre los referentes' : ''} · al menos ${g.min_foto} con foto si el referente tiene · ${g.minutos} minutos · aprueba con ${g.aprueba} %`
+          : 'Marque al menos un referente.';
+        $('exGenerar').disabled = d.sin_dni.length > 0 || !n;
+      };
+      $('exReferentes').onchange = ayuda; ayuda();
+      $('exGenerar').title = d.sin_dni.length ? 'Primero registre el DNI de los técnicos líderes (T1)' : '';
       $('exCargando').classList.add('d-none'); $('exContenido').classList.remove('d-none');
     } catch (e) { $('exCargando').textContent = e.message; }
   };
-  const cargarHistorial = async () => {
-    try { pintarHistorial((await llamar('examenes', 'grupos')).data); }
-    catch (e) { $('exHistorial').innerHTML = `<p class="text-danger small mb-0">${esc(e.message)}</p>`; }
-  };
+  const cargarHistorial = () => window.SgsExamenLinks.cargar($('exHistorial'));
+  let reabrirLink = null; // se guarda solo si se registra el DNI desde la ventana del link
   const abrirLink = (lideres, filtro, titulo) => {
     lideresLink = lideres; filtroLink = filtro;
     $('exTitulo').textContent = titulo; $('exFiltro').textContent = filtro;
@@ -86,12 +92,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const b = ev.target.closest('[data-link-examen]'); if (!b) return;
     abrirLink([b.dataset.linkExamen], 'Cuadrilla: ' + b.dataset.nombre, 'Link de examen para una cuadrilla');
   });
+  try { // vuelve de "Registrar DNI": abre otra vez la ventana del link
+    const r = JSON.parse(sessionStorage.getItem('sgsReabrirLink') || 'null');
+    sessionStorage.removeItem('sgsReabrirLink');
+    if (r?.lideres?.length) abrirLink(r.lideres, r.filtro, r.titulo);
+  } catch { /* sin almacenamiento del navegador: no se reabre */ }
   $('exGenerar').addEventListener('click', async () => {
     const btn = $('exGenerar'); btn.disabled = true; $('exError').classList.add('d-none');
     try {
-      const datos = datosLideres(); datos.append('minutos', $('exMinutos').value); datos.append('examen', $('exExamen').value); datos.append('filtro', filtroLink);
+      const datos = datosLideres(); datos.append('minutos', $('exMinutos').value); document.querySelectorAll('#exReferentes input:checked').forEach((c) => datos.append('referentes[]', c.value)); datos.append('filtro', filtroLink);
       const r = await llamar('examenes', 'grupo_generar', datos);
       const d = r.data;
+      if (r.message !== 'Link generado.') window.showToast?.(r.message, 'success'); // avisa si cerró el link anterior
       $('exPara').textContent = `${d.total} técnicos`;
       $('exLink').value = d.url;
       $('exVence').textContent = 'Se cierra el ' + d.vence + '. Cada técnico entra con su DNI y rinde una vez.';
@@ -107,79 +119,14 @@ document.addEventListener('DOMContentLoaded', () => {
       pintarHistorial(d.historial);
     } catch (e) {
       $('exError').textContent = e.message; $('exError').classList.remove('d-none');
-    } finally { btn.disabled = sinDniActual > 0; }
+    } finally { btn.disabled = sinDniActual > 0 || !document.querySelector('#exReferentes input:checked'); }
   });
   // "Registrar DNI": abre el editor de esa cuadrilla; al guardar se recarga la página y se vuelve a revisar.
   $('exSinDni').addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-corregir-dni]'); if (!b) return;
+    reabrirLink = { lideres: lideresLink, filtro: filtroLink, titulo: $('exTitulo').textContent };
     mExamen.hide();
     document.querySelector(`[data-editar="${b.dataset.corregirDni}"]`)?.click();
-  });
-  // Seguimiento en vivo de un link (2026-11-05): examen en curso / terminado / faltan. Se actualiza cada 30 s mientras la
-  // ventana está abierta y la pestaña visible (sistema liviano).
-  let linkEnVivo = null, relojVivo = null;
-  const reloj = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-  const hora = (v) => v ? new Date(String(v).replace(' ', 'T')).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
-  const quien = (t) => `<div class="ex-historial-texto"><strong>${esc(t.persona)}</strong><small class="text-muted">${t.tipo === 1 ? 'T1' : 'T2'}${t.partner ? ' · ' + esc(t.partner) : ''} · DNI ${esc(t.dni || '—')}</small></div>`;
-  const grupoVivo = (titulo, icono, lista, fila) => `<h6 class="cuad-seccion"><i class="bi ${icono} me-2" aria-hidden="true"></i>${titulo} (${lista.length})</h6>`
-    + (lista.length ? '<ul class="ex-historial mb-2">' + lista.map((t) => `<li>${quien(t)}<div class="ex-historial-acciones">${fila(t)}</div></li>`).join('') + '</ul>' : '<p class="text-muted small">Nadie por ahora.</p>');
-  const verEnVivo = async () => {
-    clearTimeout(relojVivo);
-    if (!linkEnVivo) return;
-    if (!document.hidden) {
-      try {
-        const d = (await llamar('examenes', 'grupo&id=' + encodeURIComponent(linkEnVivo))).data;
-        if (!linkEnVivo) return;
-        const de = (estados) => d.tecnicos.filter((t) => estados.includes(t.estado));
-        const enCurso = de(['en_curso']), terminados = de(['terminado']), faltan = de(['entro', 'falta']);
-        const cerrado = d.estado !== 'activo';
-        $('exCerrarLink')?.classList.toggle('d-none', cerrado);
-        const kpi = (etq, val, clase = '') => `<div class="col-6 col-md-3"><div class="sgs-kpi ${clase} p-2 h-100"><small class="sgs-kpi-label">${etq}</small><h3 class="mb-0 sgs-kpi-value">${val}</h3></div></div>`;
-        const [clase, texto] = estadosLink[d.estado] || ['bg-secondary', d.estado];
-        $('exDetTitulo').textContent = d.titulo;
-        $('exDetalle').innerHTML = `<div class="ex-vivo"><span class="badge ${clase}">${texto}</span>${d.filtro ? `<small class="text-muted">${esc(d.filtro)}</small>` : ''}
-            <small class="text-muted ex-vivo-hora"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Se actualiza solo · ${new Date().toLocaleTimeString('es-PE', { hour12: false })}</small></div>
-          <div class="row g-2 mb-3">${kpi('En curso', enCurso.length, enCurso.length ? 'sgs-kpi--warning' : '')}${kpi('Terminaron', terminados.length)}${kpi('Aprobados', terminados.filter((t) => t.aprobado).length, 'sgs-kpi--success')}${kpi(cerrado ? 'No rindieron' : 'Faltan', faltan.length, cerrado && faltan.length ? 'sgs-kpi--danger' : '')}</div>`
-          + grupoVivo('Examen en curso', 'bi-pencil-square', enCurso, (t) => `<small class="text-muted text-nowrap">${t.respondidas} de ${t.preguntas} respondidas</small><span class="badge bg-warning" title="Tiempo que le queda"><i class="bi bi-stopwatch me-1" aria-hidden="true"></i>${reloj(t.restan || 0)}</span>`)
-          + grupoVivo('Examen terminado', 'bi-check2-circle', terminados, (t) => `<small class="text-muted">${hora(t.usado_en)}</small><span class="badge ${t.aprobado ? 'bg-success' : 'bg-danger'}">${t.aprobado ? 'Aprobado' : 'No aprobado'} · ${Math.round(Number(t.nota))} %</span>`)
-          + (cerrado
-            ? grupoVivo('No rindieron', 'bi-x-circle', faltan, () => '<span class="badge bg-danger">No rindió el examen</span>')
-            : grupoVivo('Faltan', 'bi-hourglass', faltan, (t) => t.estado === 'entro' ? `<span class="badge bg-secondary" title="Entró a las ${hora(t.ingreso_en)}">Entró, no empezó</span>` : '<span class="badge bg-secondary">No entró</span>'));
-      } catch (e) { $('exDetalle').innerHTML = `<p class="text-danger small mb-0">${esc(e.message)}</p>`; }
-    }
-    relojVivo = setTimeout(verEnVivo, 30000);
-  };
-  $('mExamenDetalle').addEventListener('hidden.bs.modal', () => { linkEnVivo = null; clearTimeout(relojVivo); $('exCerrarLink')?.classList.add('d-none'); });
-  // Cerrar link (historial o seguimiento): nadie más entra; quien está rindiendo termina su examen.
-  const cerrarLink = async (id, boton) => {
-    if (!confirm('¿Cerrar este link? Ningún técnico podrá entrar; quien está rindiendo termina su examen y los demás quedan como "No rindió".')) return;
-    boton.disabled = true;
-    try {
-      const datos = new FormData(); datos.append('id', id);
-      const r = await llamar('examenes', 'grupo_anular', datos);
-      pintarHistorial(r.data); window.showToast?.(r.message, 'success');
-      if (linkEnVivo === String(id)) verEnVivo();
-    } catch (e) { window.showToast?.(e.message, 'error'); }
-    boton.disabled = false;
-  };
-  $('exCerrarLink')?.addEventListener('click', (ev) => cerrarLink(linkEnVivo, ev.currentTarget));
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && linkEnVivo) verEnVivo(); });
-  $('exHistorial').addEventListener('click', async (ev) => {
-    const ver = ev.target.closest('[data-ver-link]');
-    if (ver) { linkEnVivo = ver.dataset.verLink; $('exDetalle').innerHTML = '<p class="text-muted small mb-0">Cargando…</p>'; mExamenDetalle.show(); verEnVivo(); return; }
-    const borrar = ev.target.closest('[data-borrar-link]');
-    if (borrar) { // 2026-11-05: links de prueba (permiso "Borrar exámenes")
-      if (!confirm('¿Borrar este link con todos sus resultados? Desaparece también del dashboard de Exámenes. No se puede deshacer.')) return;
-      borrar.disabled = true;
-      try {
-        const datos = new FormData(); datos.append('id', borrar.dataset.borrarLink);
-        const r = await llamar('examenes', 'grupo_borrar', datos);
-        pintarHistorial(r.data); window.showToast?.(r.message, 'success');
-      } catch (e) { window.showToast?.(e.message, 'error'); borrar.disabled = false; }
-      return;
-    }
-    const b = ev.target.closest('[data-anular-link]'); if (!b) return;
-    cerrarLink(b.dataset.anularLink, b);
   });
 
   if (!$('mCuadrilla')) return; // lo que sigue es para quien edita cuadrillas (administración y supervisores directos)
@@ -223,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const r = await enviar('cuadrilla_guardar', new FormData(f));
       mCuadrilla.hide(); window.showToast?.(r.message, 'success');
+      if (reabrirLink) try { sessionStorage.setItem('sgsReabrirLink', JSON.stringify(reabrirLink)); } catch { /* no se reabre */ }
       setTimeout(() => location.reload(), 400);
     } catch (e) {
       $('cuadError').textContent = e.message; $('cuadError').classList.remove('d-none');

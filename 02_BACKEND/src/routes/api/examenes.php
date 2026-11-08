@@ -3,8 +3,9 @@
 // (los mismos que ven Cuadrillas); el supervisor, solo con técnicos de su zona (o que aún no tienen zona).
 // Link general: un link para los técnicos (T1 y T2) de las cuadrillas filtradas en Cuadrillas; cada uno entra con su DNI
 // (examen.php?g=…). Solo se genera si todos tienen DNI. Lógica en config/examen_enlaces.php y config/examen_motor.php.
-//   POST ?action=grupo_preparar  → lider_ids[] → cuántos técnicos entran, quiénes no tienen DNI y exámenes disponibles
-//   POST ?action=grupo_generar   → lider_ids[], examen, minutos (vigencia), filtro → link para enviar (el código se muestra una sola vez)
+//   POST ?action=grupo_preparar  → lider_ids[] → cuántos técnicos entran, qué T1 no tienen DNI (bloquean), qué T2 quedan fuera
+//                                   por no tener DNI y exámenes disponibles
+//   POST ?action=grupo_generar   → lider_ids[], referentes[], minutos (vigencia), filtro → link para enviar (el código se muestra una sola vez)
 //   GET  ?action=grupos          → links generados (los del usuario; la administración ve todos)
 //   GET  ?action=grupo&id=N      → seguimiento en vivo: técnicos del link en curso / terminados / faltan (la pantalla lo pide cada 30 s)
 //   POST ?action=grupo_anular    → id del link: "Cerrar link" (nadie más entra; quien ya está rindiendo termina)
@@ -33,9 +34,13 @@ $responder = static function (array $datos, int $codigo = 200): void {
     echo json_encode($datos, JSON_UNESCAPED_UNICODE);
     exit;
 };
-if (!Auth::puede(Auth::PERM_EXAMENES_VIEW, $usuario)) $responder(['status' => 'error', 'message' => 'Solo el personal administrativo y los supervisores directos ven los exámenes.'], 403);
-$pdo = Database::getConnection();
 $action = $_GET['action'] ?? '';
+// 2026-11-08: quien solo genera links (y sigue los suyos) no necesita ver los resultados de Exámenes.
+$soloConGenerar = ['grupo_preparar', 'grupo_generar', 'grupos', 'grupo'];
+if (!Auth::puede(Auth::PERM_EXAMENES_VIEW, $usuario) && !(in_array($action, $soloConGenerar, true) && Auth::puede(Auth::PERM_EXAMENES_EDIT, $usuario))) {
+    $responder(['status' => 'error', 'message' => 'No tiene permiso para ver los exámenes.'], 403);
+}
+$pdo = Database::getConnection();
 $esPost = $_SERVER['REQUEST_METHOD'] === 'POST';
 $generadoPor = $esAdmin ? null : (int)$usuario['id']; // historial: el supervisor ve los suyos
 
@@ -60,8 +65,10 @@ try {
             'cuadrillas' => count(array_unique(array_column($tec, 'lider_id'))), 'total' => count($tec),
             't1' => count(array_filter($tec, static fn($t) => $t['tipo'] === 1)), 't2' => count(array_filter($tec, static fn($t) => $t['tipo'] === 2)),
             'sin_dni' => $sinDni, 'excluidos' => $excluidos,
-            'examenes' => array_values(array_map(static fn($b) => ['codigo' => $b['codigo'], 'titulo' => $b['titulo'], 'preguntas' => $b['preguntas_por_examen'],
-                'minutos' => $b['minutos'], 'aprueba' => $b['aprueba']], sgsExamenesDisponibles())),
+            // Referentes (2026-11-05): se marcan uno o varios; el examen saca sus preguntas de los marcados.
+            'referentes' => array_values(array_map(static fn($b) => ['codigo' => $b['codigo'], 'nombre' => $b['nombre'], 'descripcion' => $b['descripcion'] ?? '',
+                'con_foto' => count(array_filter($b['preguntas'], 'sgsPreguntaTieneImagen'))], sgsExamenesDisponibles())),
+            'reglas' => ['preguntas' => SGS_EXAMEN_PREGUNTAS, 'minutos' => SGS_EXAMEN_MINUTOS, 'aprueba' => SGS_EXAMEN_APRUEBA, 'min_foto' => SGS_EXAMEN_MIN_IMAGEN],
         ]]);
     }
 
@@ -69,11 +76,13 @@ try {
         [$tec, $sinDni] = sgsParticipantesExamen($pdo, $lideres(), $visibleZona);
         if ($sinDni) {
             $responder(['status' => 'error', 'sin_dni' => $sinDni, 'message' => 'No se generó el link: ' . count($sinDni)
-                . (count($sinDni) === 1 ? ' técnico no tiene DNI' : ' técnicos no tienen DNI') . '. Regístrelo en "Editar cuadrilla" y vuelva a intentar.'], 422);
+                . (count($sinDni) === 1 ? ' técnico líder (T1) no tiene DNI' : ' técnicos líderes (T1) no tienen DNI') . ': ' . implode(', ', array_column($sinDni, 'persona'))
+                . '. Regístrelo en "Editar cuadrilla" y vuelva a intentar.'], 422);
         }
-        // El banco de preguntas elegido define el título, las preguntas, el tiempo y la nota mínima.
-        $banco = sgsExamenBanco((string)($_POST['examen'] ?? ''));
-        if (!$banco) throw new Exception('Elija el examen de la lista.');
+        // Los referentes marcados definen el título y de dónde salen las preguntas (examen "altura+manejo", 2026-11-05).
+        $codigoExamen = sgsCodigoExamen((array)($_POST['referentes'] ?? []));
+        $banco = $codigoExamen ? sgsExamenBanco($codigoExamen) : null;
+        if (!$banco) throw new Exception('Marque al menos un referente para el examen (por ejemplo, Trabajo en altura).');
         $minutos = (int)($_POST['minutos'] ?? SGS_EXAMEN_VIGENCIA_DEFECTO);
         $filtro = mb_substr(trim(preg_replace('/\s+/u', ' ', (string)($_POST['filtro'] ?? ''))), 0, 255);
         $c = sgsGenerarConvocatoria($pdo, $tec, $minutos, $banco['titulo'], $filtro, (int)$usuario['id'], $banco['codigo']);
@@ -81,7 +90,7 @@ try {
         $vence = date('d/m/Y H:i', strtotime($c['vence_en']));
         $mensaje = "Hola, este es el link para rendir \"{$banco['titulo']}\" de WIN:\n{$url}\n\nIngresa con tu DNI. Son {$banco['preguntas_por_examen']} preguntas en {$banco['minutos']} minutos; tienes una sola oportunidad. El link se cierra el {$vence}.";
         win_log_error('audit_exam_group_link_created', 'Link general de examen generado', ['actor_id' => (int)$usuario['id'], 'convocatoria_id' => $c['id'], 'tecnicos' => count($tec), 'minutos' => $minutos]);
-        $responder(['status' => 'success', 'message' => 'Link generado.', 'data' => [
+        $responder(['status' => 'success', 'message' => $c['reemplazados'] ? 'Link generado. Se cerró el link anterior de ' . ($c['reemplazados'] === 1 ? 'estos técnicos.' : "estos técnicos ({$c['reemplazados']} links).") : 'Link generado.', 'data' => [
             'id' => $c['id'], 'url' => $url, 'mensaje' => $mensaje, 'vence' => $vence, 'total' => count($tec), 'historial' => sgsListarConvocatorias($pdo, $generadoPor),
         ]]);
     }
@@ -151,7 +160,8 @@ try {
         $dep = "COALESCE(NULLIF(t.departamento, ''), l.departamento)"; // el T2 sin zona toma la de su líder
         [$where, $params] = sgsFiltrosDashboard(['fecha' => 'c.creado_en', 'partner' => 't.partner_id', 'zona' => $dep], $usuario, $esAdmin);
         if (!sgsVeTecnicosSinZona($usuario)) $where[] = sgsTecnicoConZonaSql($dep); // técnicos sin zona: solo el administrador general
-        if (($ex = (string)($_GET['examen'] ?? '')) !== '' && sgsExamenBanco($ex)) { $where[] = 'c.examen = :examen'; $params[':examen'] = $ex; }
+        // Filtro por referente: los links que lo incluyen (solo o junto con otros).
+        if (($ex = (string)($_GET['examen'] ?? '')) !== '' && isset(sgsExamenesDisponibles()[$ex])) { $where[] = "FIND_IN_SET(:examen, REPLACE(c.examen, '+', ','))"; $params[':examen'] = $ex; }
         $consulta = sgsConsultaDashboard($pdo, "FROM examen_convocatoria_tecnicos ct JOIN examen_convocatorias c ON c.id = ct.convocatoria_id
             JOIN tecnicos t ON t.id = ct.tecnico_id LEFT JOIN tecnicos l ON l.apoyo_id = t.id AND COALESCE(l.tipo_tecnico, 1) = 1
             LEFT JOIN partners p ON p.id = t.partner_id", $where, $params);

@@ -20,7 +20,7 @@ function sgs_module(): string
 {
     static $map = [
         'supervision_lista' => 'SUP', 'supervision_registro' => 'SUP', 'supervisiones' => 'SUP',
-        'tecnicos' => 'SUP', 'ubigeo' => 'SUP', 'cancelaciones_import' => 'SUP',
+        'tecnicos' => 'SUP', 'ubigeo' => 'SUP', 'ordenes_cercanas' => 'SUP', 'cancelaciones_import' => 'SUP',
         'admin_dashboard' => 'DSH', 'dashboard' => 'DSH',
         'timeline_supervisores' => 'TML', 'asistencia' => 'TUR',
         'registro_observaciones' => 'OBS', 'observaciones_partner' => 'OBS', 'control_observaciones' => 'OBS',

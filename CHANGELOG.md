@@ -4,6 +4,60 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Aviso "El sistema se actualizó" y permisos separados de los indicadores (2026-11-08)
+- **Añadido**: al **iniciar sesión**, un recorrido a pantalla completa **"El sistema se actualizó"**, con el fondo de la bienvenida. Cuenta lo nuevo paso a paso ("Ahora puedes…"), con enlace para ir a verlo; se avanza con botones, puntos, flechas del teclado o deslizando en el celular.
+  - Cada usuario ve solo lo que puede usar según sus permisos.
+  - No interrumpe mientras se trabaja. Sale en cada ingreso hasta que se termine u omita, y luego no vuelve.
+  - No avisa lo anterior a la creación del usuario ni lo de más de 30 días, y no sale durante "Ver como".
+  - Cada implementación nueva agrega su entrada en `config/novedades.php`.
+- **Cambiado**: una acción ya no depende de ver el indicador cuando se hace en otra pantalla:
+  - **Avisar lluvias** pasa a **Mi turno** y pide "Registrar turno", no "Ver" de Clima;
+  - **Generar links de examen** pasa a **Técnicos y cuadrillas** y pide "Ver" de esa pantalla, no los resultados de Exámenes. Quien solo genera links ve y sigue los suyos.
+- En Permisos, un botón se desactiva según lo que realmente necesita. Los perfiles conservan lo que tenían marcado.
+- Cambio de base `2026-11-08_01_ultima_novedad_del_sistema_vista_por_cada_usuario` (columna `usuarios.novedad_vista`).
+- Pruebas: `novedades_test` (17 verificaciones) y `catalogo_permisos_test`.
+
+### Órdenes cercanas (2026-11-08)
+- **Añadido**: en Supervisiones, botón **Órdenes cercanas** (solo administración y supervisores WIN directos). Toma la fecha de internet y la ubicación, y lista las órdenes **iniciadas hoy** en Winbo por distancia, con la ruta en Google Maps.
+- Acceso a Winbo en `.env` (`WINBO_*`), nunca en el navegador; la sesión se renueva sola. Resultado guardado 2 minutos para todos los usuarios y una sola página de Winbo por petición.
+
+### Examen de 10 preguntas y referentes a elegir (2026-11-05)
+- **Cambiado**: el examen tiene **10 preguntas** al azar (antes 20), con 10 minutos y nota mínima de 90 %. Trae **al menos 2 con foto** cuando el referente tiene fotos. Las 5 preguntas del tendido de cable ya no salen siempre: entran al azar como las demás.
+- **Añadido**: **referentes** del examen. Al generar el link se marcan con casillas uno o varios:
+  - **Trabajo en altura**: las 55 preguntas de antes;
+  - **Manejo defensivo**: banco nuevo de 30 preguntas para los accidentes al movilizarse entre zonas (inspección de la unidad, velocidad, celular y fatiga, alcohol, lluvia y neblina, escaleras en la camioneta, choques, moto y viajes a otras zonas).
+- Con varios referentes, las 10 preguntas se reparten entre ellos (5 y 5). El título dice cuáles son, por ejemplo "Seguridad: trabajo en altura y manejo defensivo".
+- Se guarda en `examen_convocatorias.examen` como "altura+manejo", sin cambio de base. Los links anteriores siguen sirviendo.
+- **Cambiado**: el filtro "Examen" del tablero pasa a **Referente**: muestra los links que lo incluyen.
+- Las reglas del examen (cantidad, minutos, nota y fotos) están en un solo lugar: `config/examen_motor.php`. Para otro referente basta otro archivo en `config/examenes/`.
+- Prueba: `examen_general_test` (55 verificaciones).
+
+### Examen: responder para avanzar y fotos ampliables (2026-11-05)
+- **Cambiado**: el técnico no puede seguir sin responder; "Siguiente" se activa solo con la respuesta completa:
+  - "elige una": una opción;
+  - "marcar varias": dice **"Marca N opciones"** y pide exactamente esas, sin dejar marcar más (el servidor también lo respeta);
+  - "ordenar": todos los pasos.
+- El mapa de preguntas solo deja volver a las ya respondidas, y "Terminar" se activa con todas respondidas. Si se acaba el tiempo, se califica lo que haya.
+- Se quitó "Marca todas las correctas" del texto de las 7 preguntas de marcar varias: ahora la etiqueta dice cuántas.
+- **Añadido**: las fotos se **amplían** a pantalla completa y se pueden acercar con los dedos:
+  - la foto de la pregunta, tocándola;
+  - la de cada alternativa, con su lupa (tocar el resto de la tarjeta elige la opción).
+
+### Seguimiento de exámenes a la vista (2026-11-05)
+- **Añadido**: en Indicadores → Exámenes, arriba, la sección **Links de examen y seguimiento en vivo**. Muestra los links generados con su estado y cuántos rindieron, más los botones **Seguimiento**, **Cerrar link** y borrar. Antes solo se llegaba desde la ventana del link en Técnicos y cuadrillas, y el usuario no lo encontraba.
+- La lista y el seguimiento pasaron a un archivo común, `assets/js/examen_links.js`, con la ventana en `layouts/examen_seguimiento.php`. Lo usan las dos pantallas, sin código repetido.
+
+### Link de examen: el T2 sin DNI ya no bloquea (2026-11-05)
+- **Cambiado**: el **T1 sin DNI** sigue bloqueando el link. Se avisa quién es y el mensaje de error lo nombra.
+- **Cambiado**: el **T2 sin DNI** (es opcional) ya no bloquea. Queda fuera del examen con el aviso "Sin DNI: no rinde el examen" y el link se genera para los demás.
+- **Añadido**: corregir un DNI desde la ventana del link:
+  - "Registrar DNI" abre el editor de la cuadrilla, también para el T2 sin DNI;
+  - si la cuadrilla está en otra página del listado, sale **Ir a la cuadrilla** (antes no salía ninguna opción);
+  - al guardar, la ventana del link se vuelve a abrir sola con las mismas cuadrillas.
+- **Añadido**: con varias cuadrillas filtradas y alguna con el T1 sin DNI, el botón **Generar sin esa(s) cuadrilla(s)** arma el link con las demás.
+- **Cambiado**: al generar un link, se cierran solos los links vigentes del mismo examen cuyos técnicos están todos en el nuevo, por ejemplo al volver a generar el de una cuadrilla. Se avisa "Se cerró el link anterior". Un link más grande, de varias cuadrillas, sigue abierto.
+- Prueba: `examen_general_test` (51 verificaciones).
+
 ### Exámenes: ver qué falló el técnico y borrar exámenes de prueba (2026-11-05)
 - **Añadido**: en Indicadores → Exámenes, el ojo de cada fila abre el **examen rendido** pregunta por pregunta:
   - nota y temas a reforzar;

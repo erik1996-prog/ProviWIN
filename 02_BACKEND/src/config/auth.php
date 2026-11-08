@@ -190,7 +190,7 @@ class Auth {
         }
         $d = self::permissionCatalog()[$permission] ?? null;
         if (!$d || ($d['action'] ?? '') === 'ver') return null;
-        return $ver[$d['group']] ?? null;
+        return $d['requiere'] ?? ($ver[$d['group']] ?? null);
     }
 
     /** Quita de una lista los permisos cuya pantalla no se puede ver (al guardar los permisos de un perfil). */
@@ -227,15 +227,15 @@ class Auth {
             self::PERM_ASISTENCIA_MATRIZ_VIEW => ['group'=>'Matriz de asistencia','label'=>'Ver la matriz de asistencia mensual','action'=>'ver'],
             self::PERM_ASISTENCIA_MATRIZ_EDIT => ['group'=>'Matriz de asistencia','label'=>'Editar: corregir el código de un día','action'=>'editar'],
             self::PERM_CLIMA_VIEW => ['group'=>'Clima','label'=>'Ver: indicador de clima y lluvias','action'=>'ver'],
-            self::PERM_CLIMA_EDIT => ['boton'=>'Avisar lluvias','group'=>'Clima','label'=>'Editar: avisar y cerrar lluvias en su zona (Mi turno)','action'=>'editar'],
             self::PERM_CLIMA_DELETE => ['group'=>'Clima','label'=>'Eliminar registros de lluvia','action'=>'eliminar'],
             self::PERM_EXAMENES_VIEW => ['group'=>'Exámenes','label'=>'Ver: resultados y links de examen','action'=>'ver'],
-            self::PERM_EXAMENES_EDIT => ['boton'=>'Generar links','group'=>'Exámenes','label'=>'Editar: generar links de examen','action'=>'editar'],
             self::PERM_EXAMENES_DELETE => ['boton'=>'Cerrar links','group'=>'Exámenes','label'=>'Eliminar: cerrar links de examen','action'=>'eliminar'],
             self::PERM_EXAMENES_PURGE => ['boton'=>'Borrar exámenes','group'=>'Exámenes','label'=>'Eliminar: borrar exámenes y sus resultados (por ejemplo, los de prueba)','action'=>'eliminar'],
             self::PERM_CUADRILLAS_VIEW => ['group'=>'Técnicos y cuadrillas','label'=>'Ver: técnicos, cuadrillas y vencimientos','action'=>'ver'],
             self::PERM_CUADRILLAS_EDIT => ['group'=>'Técnicos y cuadrillas','label'=>'Editar: cuadrillas y fechas de vencimiento','action'=>'editar'],
             self::PERM_CUADRILLAS_IMPORT => ['boton'=>'Cargar Excel y agregar T1','group'=>'Técnicos y cuadrillas','label'=>'Cargar y descargar técnicos líderes (Excel) y agregar un técnico líder (T1)','action'=>'editar'],
+            // 2026-11-08: cada acción va en la pantalla donde se hace, no en la del indicador: quien la registra no necesita ver el indicador.
+            self::PERM_EXAMENES_EDIT => ['boton'=>'Generar links de examen','group'=>'Técnicos y cuadrillas','label'=>'Generar links de examen (no necesita ver los resultados de Exámenes)','action'=>'editar'],
             self::PERM_CUADRILLAS_CREATE_T2 => ['boton'=>'Agregar T2','group'=>'Técnicos y cuadrillas','label'=>'Agregar técnicos de apoyo (T2) (con zona propia, solo en su zona)','action'=>'editar'],
             self::PERM_VACACIONES_VIEW => ['group'=>'Vacaciones y licencias','label'=>'Ver: vacaciones, descansos médicos y licencias','action'=>'ver'],
             self::PERM_VACACIONES_REQUEST => ['boton'=>'Solicitar','group'=>'Vacaciones y licencias','label'=>'Solicitar sus vacaciones, descansos médicos y licencias (supervisor directo)','action'=>'editar'],
@@ -246,6 +246,7 @@ class Auth {
             self::PERM_PARTNERS_DELETE => ['group'=>'Partners','label'=>'Eliminar partners (solo sin historial)','action'=>'eliminar'],
             self::PERM_TIMELINE_VIEW => ['group'=>'Línea de tiempo','label'=>'Ver línea de tiempo','action'=>'ver'],
             self::PERM_ATTENDANCE_SELF => ['boton'=>'Registrar turno','group'=>'Mi turno','label'=>'Registrar el propio turno','action'=>'editar'],
+            self::PERM_CLIMA_EDIT => ['boton'=>'Avisar lluvias','group'=>'Mi turno','requiere'=>self::PERM_ATTENDANCE_SELF,'label'=>'Avisar y cerrar lluvias en su zona, con el turno iniciado (no necesita ver el indicador Clima)','action'=>'editar'],
             // 2026-11-01: antes "reservados" (fijos del tipo Administrador); ahora se dan por perfil como los demás
             self::PERM_SUPERVISION_IMPORT => ['boton'=>'Subir pendientes','group'=>'Supervisiones','label'=>'Subir pendientes (Excel de cancelaciones), corregirlas y marcarlas con prioridad alta (con "Sus zonas y su área", solo las suyas)','action'=>'editar'],
             self::PERM_SUPERVISION_DELETE => ['group'=>'Supervisiones','label'=>'Eliminar supervisiones','action'=>'eliminar'],
@@ -441,6 +442,7 @@ class Auth {
         // Reiniciar el control visual de flyers en cada autenticación. De esta
         // manera el flyer vigente aparece una vez por ingreso al sistema.
         $_SESSION['flyers_mostrados_ingreso'] = [];
+        $_SESSION['novedades_al_ingresar'] = true; // recorrido "El sistema se actualizó" (config/novedades.php)
         // Contraseña puesta por el administrador: hasta cambiarla solo puede ver la pantalla de cambio (requireLogin).
         if (!empty($user['debe_cambiar_password'])) $_SESSION['debe_cambiar_password'] = true;
         else unset($_SESSION['debe_cambiar_password']);
@@ -574,6 +576,13 @@ class Auth {
     public static function registraTurno(?array $user = null): bool {
         $user ??= self::getLoggedInUser();
         return ($user['rol'] ?? '') === self::ROLE_SUPERVISOR && !empty($user['is_win_directo']) && self::can(self::PERM_ATTENDANCE_SELF, $user);
+    }
+
+    /** Órdenes cercanas (2026-11-08): trae órdenes de todos los partners, así que solo WIN (administración y supervisor directo). */
+    public static function puedeOrdenesCercanas(array $u): bool {
+        $rol = $u['rol'] ?? '';
+        return in_array($rol, [self::ROLE_ADMINISTRADOR, self::ROLE_GERENTE, self::ROLE_COORDINADOR], true)
+            || ($rol === self::ROLE_SUPERVISOR && !empty($u['is_win_directo']));
     }
 
     public static function isAdministrative(): bool {

@@ -181,3 +181,14 @@ body.sgs-login{
 .ex-opciones--fotos .ex-opcion{flex-direction:column;align-items:stretch;gap:8px;padding:8px}
 .ex-opcion-foto{display:block;width:100%;aspect-ratio:3/4;object-fit:contain;border-radius:8px;background:#F6F4F2}
 .ex-opciones--fotos .ex-opcion-pie{gap:8px}
+/* 2026-11-05: aviso de lo que falta para seguir, lupa para ampliar las fotos y visor a pantalla completa */
+.ex-falta{margin:10px 0 0;font-size:13px;font-weight:600;color:var(--win-orange-dark);text-align:left}
+.ex-navegacion .btn:disabled{opacity:.45}
+.ex-punto:disabled{opacity:.4;cursor:not-allowed}
+.ex-imagen-caja{position:relative;display:block;width:100%;padding:0;border:0;background:none;margin:0 0 14px;cursor:zoom-in}
+.ex-imagen-caja .ex-imagen{margin:0}
+.ex-opcion-foto-caja{position:relative;display:block}
+.ex-ampliar{position:absolute;right:6px;bottom:6px;display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:rgba(20,20,20,.72);color:#fff;font-size:12.5px;font-weight:600;cursor:zoom-in}
+.ex-visor{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;background:rgba(10,10,10,.92);padding:12px;touch-action:pinch-zoom}
+.ex-visor img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
+.ex-visor-cerrar{position:absolute;top:12px;right:12px;width:44px;height:44px;border:0;border-radius:50%;background:rgba(255,255,255,.18);color:#fff;font-size:20px}

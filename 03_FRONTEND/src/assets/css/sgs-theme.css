@@ -4103,3 +4103,48 @@ body { font-size: 13px; font-weight: 400; }
 .exr-opcion-foto { width: 40px; height: 54px; object-fit: contain; border-radius: 6px; background: var(--sgs-surface-alt); }
 .exr-pos { flex: 0 0 22px; height: 22px; display: grid; place-items: center; border-radius: 6px; background: var(--sgs-surface-alt); border: 1px solid var(--sgs-border); font-size: 12px; font-weight: 700; }
 @media (max-width: 575.98px) { .exr-opcion { flex-wrap: wrap; } }
+
+/* 68. Links de examen en la pantalla Exámenes (2026-11-05): lista con Seguimiento en vivo, con alto máximo y su propio
+   desplazamiento para no empujar el tablero hacia abajo. En celular los botones bajan a otra línea. */
+.ex-links-lista { max-height: 340px; overflow-y: auto; }
+/* Referentes del examen al generar el link (casillas con nombre y descripción). */
+.ex-referentes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-bottom: 4px; }
+.ex-referente { display: flex; align-items: flex-start; gap: 10px; padding: 9px 12px; border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); cursor: pointer; }
+.ex-referente .form-check-input { margin-top: 3px; flex: 0 0 auto; }
+.ex-referente strong { display: block; font-size: 13px; font-weight: 600; color: var(--sgs-ink); }
+.ex-referente small { color: var(--sgs-muted); font-size: 11.5px; }
+.ex-referente:has(input:checked) { border-color: var(--sgs-orange); background: var(--sgs-orange-soft); }
+@media (max-width: 575.98px) { .ex-historial-acciones { flex-wrap: wrap; } }
+
+/* 69. Recorrido "El sistema se actualizó" (2026-11-08): al iniciar sesión, a pantalla completa y paso a paso. Lleva el mismo
+   fondo de la bienvenida (excepción de degradado, como el ingreso). Queda debajo del aviso de GPS y de la bienvenida. */
+.sgs-nov { position: fixed; inset: 0; z-index: 1990; display: flex; flex-direction: column; align-items: center; justify-content: safe center; gap: 16px; padding: 16px; overflow-y: auto;
+    background: radial-gradient(120% 90% at 50% 40%, var(--sgs-orange) 0%, var(--sgs-orange-dark) 100%); animation: sgsNovEntra .3s ease-out both; }
+.sgs-nov[hidden] { display: none; }
+.sgs-nov.is-saliendo { opacity: 0; transition: opacity .3s ease; }
+body.sgs-nov-abierto { overflow: hidden; }
+.sgs-nov-logo { width: 96px; height: auto; flex: 0 0 auto; }
+.sgs-nov-tarjeta { width: 100%; max-width: 440px; padding: 24px; background: var(--sgs-surface); border-radius: var(--sgs-radius-lg); text-align: center; flex: 0 0 auto; }
+.sgs-nov-saludo { margin: 0; font-size: 13px; font-weight: 600; color: var(--sgs-orange-dark); }
+.sgs-nov-titulo { margin: 2px 0 0; font-size: 20px; font-weight: 700; color: var(--sgs-ink); }
+.sgs-nov-sub { margin: 2px 0 16px; font-size: 13px; color: var(--sgs-muted); }
+.sgs-nov-pasos { min-height: 212px; overflow: hidden; }
+.sgs-nov-paso[hidden] { display: none; }
+.sgs-nov-paso.entra-derecha { animation: sgsNovDerecha .25s ease-out both; }
+.sgs-nov-paso.entra-izquierda { animation: sgsNovIzquierda .25s ease-out both; }
+.sgs-nov-icono { display: inline-grid; place-items: center; width: 64px; height: 64px; margin-bottom: 12px; border-radius: 50%; background: var(--sgs-orange-soft); color: var(--sgs-orange-dark); font-size: 28px; }
+.sgs-nov-paso h2 { margin: 0 0 6px; font-size: 16.5px; font-weight: 700; color: var(--sgs-ink); }
+.sgs-nov-paso p { margin: 0 0 8px; font-size: 13.5px; line-height: 1.5; color: var(--sgs-brown); }
+.sgs-nov-paso a { font-size: 13px; font-weight: 600; }
+.sgs-nov-puntos { display: flex; justify-content: center; gap: 4px; margin: 12px 0 0; }
+.sgs-nov-puntos button { width: 24px; height: 24px; padding: 0; border: 0; background: none; display: grid; place-items: center; }
+.sgs-nov-puntos button::before { content: ""; width: 8px; height: 8px; border-radius: 999px; background: var(--sgs-border); transition: width .2s ease, background-color .2s ease; }
+.sgs-nov-puntos button.is-actual::before { width: 20px; background: var(--sgs-orange); }
+.sgs-nov-acciones { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+.sgs-nov-acciones .btn-win { margin-left: auto; }
+.sgs-nov-omitir { padding-left: 0; color: var(--sgs-muted); text-decoration: none; }
+.sgs-nov-acciones [hidden] { display: none; }
+@keyframes sgsNovEntra { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sgsNovDerecha { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes sgsNovIzquierda { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .sgs-nov, .sgs-nov-paso.entra-derecha, .sgs-nov-paso.entra-izquierda { animation: none; } }

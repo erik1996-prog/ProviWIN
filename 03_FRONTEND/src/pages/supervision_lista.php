@@ -23,6 +23,7 @@ $canChooseSupervisionColumns = $canUseSupervisionFilters && Auth::can(Auth::PERM
 $canUsePendingMap = Auth::can(Auth::PERM_SUPERVISION_MAP, $effectiveViewUser);
 $canUseFindingsForm = Auth::can(Auth::PERM_FORM_FINDINGS, $effectiveViewUser);
 $canUseChecklistForm = Auth::can(Auth::PERM_FORM_CHECKLIST, $effectiveViewUser);
+$canOrdenesCercanas = Auth::puedeOrdenesCercanas($effectiveViewUser);
 
 // Partners supervisables. WIN DIRECTO se conserva exclusivamente para registrar usuarios internos.
 $stmtPart = $pdo->query("
@@ -127,6 +128,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
         </div>
         <?php endif; ?>
         <div class="sgs-toolbar-actions">
+          <?php if ($canOrdenesCercanas): ?><button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#modalOrdenesCercanas"><i class="bi bi-geo-alt me-1"></i>Órdenes cercanas</button><?php endif; ?>
           <?php if ($canUsePendingMap): ?><button class="btn btn-outline-secondary" id="viewPendingRoutesBtn" type="button"><i class="bi bi-map me-1"></i>Ver rutas</button><?php endif; ?>
           <?php if ($canChooseSupervisionColumns): ?><div class="dropdown">
             <button type="button" class="btn btn-outline-secondary sgs-btn-icono" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" id="btnColumnSelector" title="Columnas visibles" aria-label="Columnas visibles"><i class="bi bi-layout-three-columns"></i></button>
@@ -801,3 +803,4 @@ window.SGS_SUPERVISION = <?= json_encode([
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
 </script>
 <script src="03_FRONTEND/src/assets/js/supervision_lista.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
+<?php if ($canOrdenesCercanas): require FRONTEND_PATH . '/layouts/ordenes_cercanas_modal.php'; ?><script src="03_FRONTEND/src/assets/js/ordenes_cercanas.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>

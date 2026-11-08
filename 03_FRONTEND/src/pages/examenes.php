@@ -29,13 +29,23 @@ $examenes = sgsExamenesDisponibles();
     <?php if (Auth::puede(Auth::PERM_EXAMENES_EDIT, $user) && Auth::puede(Auth::PERM_CUADRILLAS_VIEW, $user)): ?><a class="btn btn-win" href="index.php?page=cuadrillas"><i class="bi bi-link-45deg me-1"></i>Generar link de examen</a><?php endif; ?>
   </div>
 
+  <?php /* 2026-11-05: los links generados y su Seguimiento en vivo, a la vista (antes solo dentro de Técnicos y cuadrillas). */ ?>
+  <div class="card p-3 p-md-4 mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
+      <h5 class="mb-0"><i class="bi bi-broadcast me-2 text-primary"></i>Links de examen y seguimiento en vivo</h5>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="exdLinksActualizar"><i class="bi bi-arrow-repeat me-1"></i>Actualizar</button>
+    </div>
+    <p class="text-muted small mb-3">Presione <strong>Seguimiento</strong> para ver quién está rindiendo, quién terminó y quién falta. Se actualiza solo cada 30 segundos.</p>
+    <div class="ex-links-lista" id="exdLinks" data-puede-anular="<?= Auth::puede(Auth::PERM_EXAMENES_DELETE) ? '1' : '0' ?>" data-puede-borrar="<?= Auth::puede(Auth::PERM_EXAMENES_PURGE) ? '1' : '0' ?>"><p class="text-muted small mb-0">Cargando…</p></div>
+  </div>
+
   <form class="card sgs-toolbar-card p-3 mb-3" id="exdFiltros">
     <div class="sgs-filtros">
       <div class="sgs-filtro sgs-filtro--fecha"><label class="form-label" for="exdDesde">Link desde</label><input class="form-control" type="date" id="exdDesde" name="desde"></div>
       <div class="sgs-filtro sgs-filtro--fecha"><label class="form-label" for="exdHasta">Hasta</label><input class="form-control" type="date" id="exdHasta" name="hasta"></div>
-      <div class="sgs-filtro"><label class="form-label" for="exdExamen">Examen</label>
-        <select class="form-select" id="exdExamen" name="examen"><option value="">Todos los exámenes</option>
-          <?php foreach ($examenes as $codigo => $b): ?><option value="<?= $e($codigo) ?>"><?= $e($b['titulo']) ?></option><?php endforeach; ?>
+      <div class="sgs-filtro"><label class="form-label" for="exdExamen">Referente</label>
+        <select class="form-select" id="exdExamen" name="examen"><option value="">Todos los referentes</option>
+          <?php foreach ($examenes as $codigo => $b): ?><option value="<?= $e($codigo) ?>"><?= $e($b['nombre']) ?></option><?php endforeach; ?>
         </select></div>
       <div class="sgs-filtro"><label class="form-label" for="exdPartner">Partner</label>
         <select class="form-select" id="exdPartner" name="partner_id"><option value="">Todos los partners</option>
@@ -116,5 +126,6 @@ $examenes = sgsExamenesDisponibles();
     <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Salir</button></div>
   </div></div>
 </div>
+<?php require FRONTEND_PATH . '/layouts/examen_seguimiento.php'; // Seguimiento en vivo (común con Técnicos y cuadrillas) ?>
 <script src="03_FRONTEND/src/assets/js/sgs-dashboard.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
 <script src="03_FRONTEND/src/assets/js/examenes.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
