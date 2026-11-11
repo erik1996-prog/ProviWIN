@@ -4162,3 +4162,23 @@ body.sgs-nov-abierto { overflow: hidden; }
 .cuad-unir-lista { display: grid; gap: 4px; max-height: 180px; overflow-y: auto; }
 .cuad-unir-lista label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--sgs-border); border-radius: 8px; font-size: 13px; cursor: pointer; }
 .cuad-unir-lista label:has(input:checked) { border-color: var(--sgs-orange); background: var(--sgs-orange-soft); }
+
+/* 72. Consultar puertos de una CTO (2026-11-11, Supervisiones) y ventana del vínculo con Wincore (puente_wincore.php). */
+.pc-codigo { text-transform: uppercase; }
+.pc-vinculo { border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); padding: 10px 12px; }
+.pc-vinculo summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--sgs-ink); }
+/* Resultado compacto (2026-11-11, pedido del usuario: "ocupa mucho espacio, es para consultas"). */
+.pc-ficha { display: grid; gap: 2px; font-size: 13px; margin-bottom: 10px; }
+.pc-ficha-titulo { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 14px; }
+.pc-ubicacion { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.pc-ubicacion .btn { padding: 2px 8px; font-size: 12.5px; }
+.pc-resumen { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; font-size: 12px; color: var(--sgs-muted); }
+.pc-puertos { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 4px; }
+.pc-puerto { border-radius: 6px; padding: 3px 2px; text-align: center; display: grid; line-height: 1.15;
+  background: var(--sgs-surface-alt); color: var(--sgs-ink-2); border: 1px solid var(--sgs-border); }
+.pc-puerto strong { font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pc-puerto small { font-size: 9.5px; font-weight: 600; text-transform: lowercase; opacity: .85; }
+.pc-puerto.is-libre { background: var(--sgs-success-soft); color: var(--sgs-success-dark); border-color: transparent; }
+.pc-puerto.is-ocupado { background: var(--sgs-danger-soft); color: var(--sgs-danger-dark); border-color: transparent; }
+.pv-cuerpo { background: var(--sgs-bg); min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+.pv-tarjeta { width: 100%; max-width: 440px; }

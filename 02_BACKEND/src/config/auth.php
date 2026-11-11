@@ -69,6 +69,7 @@ class Auth {
     public const PERM_CLIMA_TEAMS = 'clima.teams';
     public const PERM_CUADRILLAS_MERGE = 'cuadrillas.merge'; // 2026-11-11: unir duplicados T1/T2 y pasar un T1 a T2
     public const PERM_ORDENES_CERCANAS = 'ordenes.cercanas';     // 2026-11-10: antes fijo por tipo de usuario
+    public const PERM_PUERTOS_CTO = 'puertos.cto';               // 2026-11-11: consultar puertos de una CTO en Wincore
     public const PERM_EXAMENES_PURGE = 'examenes.purge'; // borrar exámenes de prueba (2026-11-05): solo perfiles administradores, salvo que se marque
     public const PERM_CUADRILLAS_VIEW = 'cuadrillas.view';
     public const PERM_CUADRILLAS_EDIT = 'cuadrillas.edit';
@@ -109,7 +110,7 @@ class Auth {
             self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT, self::PERM_CUADRILLAS_DELETE, self::PERM_CUADRILLAS_CREATE_T2,
             self::PERM_VACACIONES_VIEW, self::PERM_VACACIONES_APPROVE,
             self::PERM_PARTNERS_VIEW, self::PERM_PARTNERS_EDIT, self::PERM_PARTNERS_DELETE, self::PERM_OBSERVATION_DELETE,
-            self::PERM_TURNOS_MONITOR, self::PERM_ORDENES_CERCANAS,
+            self::PERM_TURNOS_MONITOR, self::PERM_ORDENES_CERCANAS, self::PERM_PUERTOS_CTO,
         ],
         self::ROLE_GERENTE => [
             self::PERM_SUPERVISION_VIEW, self::PERM_SUPERVISION_VIEW_ALL,
@@ -270,6 +271,7 @@ class Auth {
             self::PERM_OBSERVATION_MANAGE => ['boton'=>'Observaciones de otros','group'=>'Observaciones','label'=>'Responder por el partner, evaluar y reabrir levantamientos de otros y ampliar plazos vencidos','action'=>'editar'],
             self::PERM_CLIMA_TEAMS => ['boton'=>'Enviar corte a Teams','group'=>'Clima','label'=>'Enviar ya el corte de lluvias al grupo de Teams','action'=>'editar'],
             self::PERM_ORDENES_CERCANAS => ['boton'=>'Órdenes cercanas','group'=>'Supervisiones','label'=>'Ver las órdenes de Winbo cercanas a su ubicación (solo personal de WIN)'],
+            self::PERM_PUERTOS_CTO => ['boton'=>'Consultar puertos','group'=>'Supervisiones','label'=>'Consultar los puertos de una CTO en Wincore mientras la cuenta principal tenga activo el vínculo con Wincore (solo personal de WIN)'],
             // 2026-11-01: antes "reservados" (fijos del tipo Administrador); ahora se dan por perfil como los demás
             self::PERM_SUPERVISION_IMPORT => ['boton'=>'Subir pendientes','group'=>'Supervisiones','label'=>'Subir pendientes (Excel de cancelaciones), corregirlas y marcarlas con prioridad alta (con "Sus zonas y su área", solo las suyas)','action'=>'editar'],
             self::PERM_SUPERVISION_DELETE => ['group'=>'Supervisiones','label'=>'Eliminar supervisiones','action'=>'eliminar'],
@@ -604,6 +606,16 @@ class Auth {
     /** Órdenes cercanas (2026-11-08): trae órdenes de todos los partners, así que solo WIN (administración y supervisor directo). */
     public static function puedeOrdenesCercanas(array $u): bool {
         return self::puede(self::PERM_ORDENES_CERCANAS, $u); // 2026-11-10: según Permisos; nunca el personal de partners
+    }
+
+    /** Consultar puertos de una CTO (2026-11-11): según Permisos; nunca el personal de partners. */
+    public static function puedeConsultarPuertos(array $u): bool {
+        return self::puede(self::PERM_PUERTOS_CTO, $u);
+    }
+
+    /** Activar y desactivar el vínculo con Wincore (2026-11-11): solo la cuenta principal, porque usa su sesión de Wincore. */
+    public static function puedeVincularWincore(array $u): bool {
+        return self::puedeConsultarPuertos($u) && self::cuentaPrincipalId() === (int)($u['id'] ?? 0);
     }
 
     public static function isAdministrative(): bool {

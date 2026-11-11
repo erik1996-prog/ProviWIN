@@ -4,6 +4,11 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Consultar puertos de una CTO con el vínculo con Wincore (2026-11-11)
+- Supervisiones tiene el botón **Consultar puertos** (permiso "Consultar puertos" del grupo Supervisiones; por ahora solo los perfiles administradores): se escribe la CTO y se ven sus puertos disponibles u ocupados, el estado del servicio, la dirección, las coordenadas y los botones "Ver en mapa" y "Cómo llegar".
+- Wincore solo se alcanza con la VPN, así que el servidor no lo llama: la cuenta principal pulsa en Wincore el favorito **Vincular SGS**, que abre la ventana del vínculo (`puente_wincore.php`). Las dos ventanas se hablan con postMessage y la pestaña de Wincore hace las consultas con su propia sesión; la cookie y el token no salen de la laptop y al SGS solo llega el estado de los puertos (nunca datos de clientes).
+- El vínculo dura 10 horas; se apaga antes con "Desactivar" (en la ventana del vínculo o en Consultar puertos) o a los 20 s si la ventana deja de preguntar. Wincore atiende una consulta a la vez y en orden de llegada; el supervisor ve cuántas hay antes que la suya (máximo 15 en espera). Sin base de datos: archivos en `08_LOGS/runtime/puertos` que se borran a los 10 minutos. Lógica en `config/puertos_cto.php`, API `api/puertos_cto.php`, prueba `05_TEST/integration/puertos_cto_test.php`.
+
 ### Unir técnicos duplicados y pasar un T1 a T2 (2026-11-11)
 - **Añadido**: permiso **Unir y cambiar T1/T2** (Técnicos y cuadrillas; los administradores lo tienen sin marcarlo).
   - En la ventana del T2, **¿Es la misma persona que un técnico líder?**: se busca el T1 y se unen en un solo registro, que queda como T1 o como T2. Recibe el historial del otro (supervisiones, exámenes y documentos) y su DNI y celular si le faltan; el otro registro se borra. No hace falta ponerle antes el DNI al T1: si los dos tienen DNI distintos, se elige con cuál se queda.

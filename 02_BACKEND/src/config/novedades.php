@@ -37,6 +37,9 @@ function sgsNovedades(): array {
         ['id' => 9, 'fecha' => '2026-11-11', 'icono' => 'bi-intersect', 'titulo' => 'Unir técnicos duplicados',
          'texto' => 'Ahora, si una persona quedó registrada como T1 y como T2, puedes unirla en un solo registro con todo su historial desde la ventana del T2, y pasar un T1 a T2.',
          'url' => 'index.php?page=cuadrillas&vista=apoyo', 'puede' => static fn(array $u): bool => Auth::puede(Auth::PERM_CUADRILLAS_MERGE, $u)],
+        ['id' => 10, 'fecha' => '2026-11-11', 'icono' => 'bi-hdd-network', 'titulo' => 'Consultar puertos de una CTO',
+         'texto' => 'Ahora, en Supervisiones, puedes consultar qué puertos de una CTO están disponibles u ocupados en Wincore, con su ubicación y la ruta en Google Maps, mientras el vínculo con Wincore esté activo.',
+         'url' => 'index.php?page=supervision_lista', 'puede' => static fn(array $u): bool => Auth::puedeConsultarPuertos($u)],
     ];
 }
 
