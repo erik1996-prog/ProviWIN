@@ -19,7 +19,10 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ### Órdenes cercanas (2026-11-08)
 - **Añadido**: en Supervisiones, botón **Órdenes cercanas** (solo administración y supervisores WIN directos). Toma la fecha de internet y la ubicación, y lista las órdenes **iniciadas hoy** en Winbo por distancia, con la ruta en Google Maps.
+- **Corregido**: si Winbo falla o falta su configuración, la ventana muestra el motivo; ya no sale la franja roja de "Conexión temporalmente interrumpida", que hacía parecer caído todo el sistema.
 - Acceso a Winbo en `.env` (`WINBO_*`), nunca en el navegador; la sesión se renueva sola. Resultado guardado 2 minutos para todos los usuarios y una sola página de Winbo por petición.
+- **Cambiado (2026-11-10)**: cada usuario ve su grupo de órdenes: provincia (Gestión provincia: instalaciones y visitas técnicas), Lima instalaciones (SGI) o Lima visitas técnicas (SGA), según su zona y área; administración elige. Elegir empresa en Winbo no filtra la grilla, así que se filtra por las columnas Provincia y Tipo trabajo. Reintento automático cuando Winbo corta la conexión.
+- **Cambiado (2026-11-10)**: filtro **Estado** (iniciadas, agendadas, finalizadas o canceladas). Cada orden cercana muestra tipo de trabajo, ubicación (distancia y ruta en Google Maps), N° de orden, cuadrilla, fecha y dirección; ya no se muestran los códigos de seguimiento.
 
 ### Examen de 10 preguntas y referentes a elegir (2026-11-05)
 - **Cambiado**: el examen tiene **10 preguntas** al azar (antes 20), con 10 minutos y nota mínima de 90 %. Trae **al menos 2 con foto** cuando el referente tiene fotos. Las 5 preguntas del tendido de cable ya no salen siempre: entran al azar como las demás.

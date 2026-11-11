@@ -50,7 +50,11 @@
     estado('ocFecha', 'buscando', 'Detectando la fecha de hoy desde internet…');
     estado('ocUbicacion', '', '');
     try {
-      A.fecha = (await api('action=fecha')).fecha;
+      const r = await api('action=fecha');
+      A.fecha = r.fecha;
+      // Grupo de órdenes según el usuario (provincia, Lima instalaciones, Lima visitas técnicas): selector solo si tiene más de uno.
+      $('ocGrupo').innerHTML = r.grupos.map(g => `<option value="${esc(g.codigo)}">${esc(g.nombre)}</option>`).join('');
+      $('ocGrupoFiltro').classList.toggle('d-none', r.grupos.length < 2);
       estado('ocFecha', 'ok', `Fecha de hoy: ${A.fecha}`);
       estado('ocUbicacion', 'buscando', 'Detectando tu ubicación…');
       try {
@@ -72,6 +76,7 @@
   const ruta = p => `https://www.google.com/maps/dir/?api=1${A.precision <= GPS_ACEPTABLE ? `&origin=${A.yo.lat},${A.yo.lon}` : ''}&destination=${p.lat},${p.lon}&travelmode=driving`;
 
   const vacio = texto => `<p class="text-muted text-center py-4 mb-0"><i class="bi bi-inbox d-block mb-1"></i>${texto}</p>`;
+  const estadoTexto = () => $('ocEstado').selectedOptions[0].textContent.toLowerCase();   // "iniciadas", "canceladas"…
   function pintar() {
     if (!A.yo) { $('ocLista').innerHTML = ''; return; }
     const radio = +$('ocRadio').value;
@@ -79,18 +84,19 @@
     if (radio) l = l.filter(p => p.km <= radio);
     l.sort((a, b) => a.km - b.km);
     if (!l.length) {
-      $('ocLista').innerHTML = vacio(A.escaneando ? 'Buscando órdenes…' : A.puntos.length ? 'Ninguna orden en ese radio. Prueba uno mayor.' : A.leido ? 'No hay órdenes iniciadas hoy.' : 'Pulsa «Escanear órdenes cercanas».');
+      $('ocLista').innerHTML = vacio(A.escaneando ? 'Buscando órdenes…' : A.puntos.length ? 'Ninguna orden en ese radio. Prueba uno mayor.' : A.leido ? `No hay órdenes ${estadoTexto()} hoy.` : 'Pulsa «Escanear órdenes cercanas».');
       return;
     }
     $('ocLista').innerHTML = `<div class="table-responsive"><table class="table table-hover mb-0 align-middle sgs-tabla-tarjetas"><thead><tr>
-      <th>Código de seguimiento cliente</th><th>Código de seguimiento</th><th>Coordenadas</th><th class="text-end">Distancia</th></tr></thead><tbody>${
-      l.map(p => `<tr><td data-label="Código de seguimiento cliente">${esc(p.csc || '—')}</td><td data-label="Código de seguimiento">${esc(p.cs || '—')}</td>
-        <td data-label="Coordenadas"><a class="text-nowrap" href="${ruta(p)}" target="_blank" rel="noopener" title="Ver la ruta en Google Maps"><i class="bi bi-sign-turn-right me-1"></i>${p.lat}, ${p.lon}</a></td>
-        <td data-label="Distancia" class="text-end text-nowrap">${p.km.toFixed(2)} km</td></tr>`).join('')
+      <th>Tipo de trabajo</th><th>Ubicación</th><th>N° de orden</th><th>Cuadrilla</th><th>Fecha</th><th>Dirección</th></tr></thead><tbody>${
+      l.map(p => `<tr><td data-label="Tipo de trabajo">${esc(p.tipo || '—')}</td>
+        <td data-label="Ubicación"><a class="text-nowrap" href="${ruta(p)}" target="_blank" rel="noopener" title="Ver la ruta en Google Maps"><i class="bi bi-sign-turn-right me-1"></i>${p.km.toFixed(2)} km</a></td>
+        <td data-label="N° de orden">${esc(p.id || '—')}</td><td data-label="Cuadrilla">${esc(p.cuadrilla || '—')}</td>
+        <td data-label="Fecha" class="text-nowrap">${esc(p.fecha || '—')}</td><td data-label="Dirección">${esc(p.direccion || '—')}</td></tr>`).join('')
     }</tbody></table></div>`;
   }
   const agregar = puntos => puntos.forEach(p => {
-    const k = p.id || `${p.csc}|${p.lat}|${p.lon}`;
+    const k = p.id || `${p.lat}|${p.lon}|${p.direccion}`;
     if (!A.vistos.has(k)) { A.vistos.add(k); A.puntos.push(p); }
   });
 
@@ -99,7 +105,8 @@
     A.escaneando = true; A.leido = false; A.puntos = []; A.vistos = new Set(); botones(); pintar();
     $('ocAvance').textContent = 'Conectando con Winbo…';
     try {
-      const r = await api('action=inicio');
+      const filtro = `grupo=${encodeURIComponent($('ocGrupo').value)}&estado=${encodeURIComponent($('ocEstado').value)}`;
+      const r = await api(`action=inicio&${filtro}`);
       if (!vigente()) return;
       agregar(r.puntos); pintar();
       let sig = 2, leidas = 1, fallos = 0;
@@ -108,7 +115,7 @@
       const trabajador = async () => {
         while (sig <= r.paginas && vigente()) {
           const n = sig++;
-          try { const d = await api(`action=pagina&n=${n}&fecha=${encodeURIComponent(r.fecha)}`); if (vigente()) { agregar(d.puntos); pintar(); } }
+          try { const d = await api(`action=pagina&n=${n}&fecha=${encodeURIComponent(r.fecha)}&${filtro}`); if (vigente()) { agregar(d.puntos); pintar(); } }
           catch { fallos++; }
           leidas++; if (vigente()) avance();
         }
@@ -116,7 +123,7 @@
       await Promise.all(Array.from({ length: HILOS }, trabajador));
       if (!vigente()) return;
       A.leido = true;
-      $('ocAvance').textContent = `${fmt(A.puntos.length)} órdenes iniciadas el ${r.fecha}${fallos ? ` · ${fmt(fallos)} páginas no se pudieron leer` : ''}`;
+      $('ocAvance').textContent = `${fmt(A.puntos.length)} órdenes ${estadoTexto()} el ${r.fecha}${fallos ? ` · ${fmt(fallos)} páginas no se pudieron leer` : ''}`;
     } catch (x) {
       if (vigente()) $('ocAvance').textContent = x.message;
     }
@@ -126,6 +133,13 @@
   $('ocEscanear').addEventListener('click', escanear);
   $('ocReintentar').addEventListener('click', preparar);
   $('ocRadio').addEventListener('change', pintar);
+  // Otro grupo u otro estado: lo escaneado ya no vale; se detiene lo que esté en curso y se vuelve a escanear a pedido.
+  const reiniciar = () => {
+    A.turno++; A.escaneando = false; A.leido = false; A.puntos = []; A.vistos = new Set();
+    $('ocAvance').textContent = ''; botones(); pintar();
+  };
+  $('ocGrupo').addEventListener('change', reiniciar);
+  $('ocEstado').addEventListener('change', reiniciar);
   modal.addEventListener('show.bs.modal', () => { if (!(A.fecha && A.yo)) preparar(); });
   modal.addEventListener('hidden.bs.modal', () => { A.turno++; A.escaneando = false; botones(); });
 })();

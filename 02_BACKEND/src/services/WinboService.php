@@ -2,6 +2,8 @@
 // 02_BACKEND/src/services/WinboService.php - Lectura de órdenes de Winbo para "Órdenes cercanas" (2026-11-08).
 // Credenciales solo en .env (WINBO_*): nunca salen al navegador. La sesión se reutiliza y se renueva sola.
 // Liviano: cada visita lee una sola página de Winbo y el resultado se guarda 2 minutos para todos los usuarios.
+// Grupos (2026-11-10): elegir empresa en Winbo no filtra la grilla (las tres empresas devuelven las mismas órdenes), así que
+// el grupo de cada usuario se aplica aquí con las columnas Provincia y Tipo trabajo de cada orden.
 class WinboService {
     private const BASE = 'https://winbo-phx.azurewebsites.net';
     private const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36';
@@ -9,6 +11,9 @@ class WinboService {
     private const PATRONES_ID = ['/abrirModal5_Formu\s*\(\s*[\'"]?\s*(\d+)/', '/abrirModal5\s*\(\s*[\'"]?\s*(\d+)/', '/resultadoSeleccciona5\s*\(\s*[\'"]?\s*(\d+)/'];
     private const SEGUNDOS_WINBO = 25;
     private const SEGUNDOS_CACHE = 120;
+    /** Grupos: GP = provincia (instalaciones y visitas técnicas) · SGI = Lima instalaciones · SGA = Lima visitas técnicas. */
+    public const GRUPOS = ['GP', 'SGI', 'SGA'];
+    private const PROVINCIAS_LIMA = ['lima', 'callao'];
 
     private string $dir, $cookie, $cols;
 
@@ -17,6 +22,26 @@ class WinboService {
         if (!is_dir($this->dir)) @mkdir($this->dir, 0775, true);
         $this->cookie = $this->dir . '/sesion.cookie';
         $this->cols = $this->dir . '/columnas.json';
+    }
+
+    /**
+     * Grupos que puede consultar un usuario (2026-11-10). Provincia (Piura, Lambayeque, La Libertad, Áncash, Junín, Cusco,
+     * Arequipa) → GP (Gestión provincia: instalaciones y visitas técnicas). Lima → SGI (instalaciones) o SGA (visitas técnicas)
+     * según su área de trabajo; si tiene las dos, elige en la ventana. Administración elige entre los tres.
+     */
+    public static function gruposDe(array $u): array {
+        if (in_array($u['rol'] ?? '', [Auth::ROLE_ADMINISTRADOR, Auth::ROLE_GERENTE, Auth::ROLE_COORDINADOR], true)) return self::GRUPOS;
+        $zonas = sgsUserZones((int)($u['id'] ?? 0));      // null = todas las provincias
+        $lima = ['LIMA', 'CALLAO', 'HUACHO', 'NORTE CHICO'];
+        $empresas = ($zonas === null || array_diff($zonas, $lima)) ? ['GP'] : [];
+        if ($zonas !== null && array_intersect($zonas, $lima)) {
+            $area = mb_strtolower(sgsUserArea((int)$u['id']), 'UTF-8');
+            $instalaciones = str_contains($area, 'instal');
+            $vt = (bool)preg_match('/\bvt\b|visita|aver/u', $area);
+            if ($instalaciones || !$vt) $empresas[] = 'SGI';
+            if ($vt || !$instalaciones) $empresas[] = 'SGA';
+        }
+        return $empresas ?: ['GP'];
     }
 
     public static function configurado(): bool {
@@ -42,21 +67,30 @@ class WinboService {
     }
 
     // ── Página de órdenes con caché compartida ──────────────
-    /** Primera página del día: total, páginas y puntos. */
-    public function inicio(string $estadoNombre, string $fecha): array {
-        return $this->conCache($this->clave($estadoNombre, $fecha, 1), function () use ($estadoNombre, $fecha) {
+    /** Primera página del día, solo con las órdenes del grupo: total, páginas y puntos. */
+    public function inicio(string $estadoNombre, string $fecha, string $grupo): array {
+        $p = $this->conCache($this->clave($estadoNombre, $fecha, 1), function () use ($estadoNombre, $fecha) {
             $codigo = $this->codigoEstado($estadoNombre);
             $p = $this->leerPagina($codigo, $fecha, 1);
             foreach (glob($this->dir . '/orden_*.json') ?: [] as $viejo) if (time() - (int)@filemtime($viejo) > 3600) @unlink($viejo);
             return ['fecha' => $fecha, 'codigo' => $codigo, 'total' => $p['total'], 'paginas' => (int)ceil($p['total'] / max($p['filas'], 1)), 'puntos' => $p['puntos']];
         });
+        return ['puntos' => self::delGrupo($p['puntos'], $grupo)] + $p;
     }
 
-    /** Una página siguiente; solo existe si antes se abrió la primera de ese día. */
-    public function pagina(string $estadoNombre, string $fecha, int $n): array {
+    /** Una página siguiente (solo existe si antes se abrió la primera de ese día), con las órdenes del grupo. */
+    public function pagina(string $estadoNombre, string $fecha, int $n, string $grupo): array {
         $base = json_decode((string)@file_get_contents($this->ruta($this->clave($estadoNombre, $fecha, 1))), true);
         if (!is_array($base) || $n < 2 || $n > (int)$base['paginas']) throw new InvalidArgumentException('Vuelve a escanear las órdenes.');
-        return $this->conCache($this->clave($estadoNombre, $fecha, $n), fn() => ['puntos' => $this->leerPagina((string)$base['codigo'], $fecha, $n)['puntos']]);
+        $p = $this->conCache($this->clave($estadoNombre, $fecha, $n), fn() => ['puntos' => $this->leerPagina((string)$base['codigo'], $fecha, $n)['puntos']]);
+        return ['puntos' => self::delGrupo($p['puntos'], $grupo)];
+    }
+
+    /** GP = fuera de Lima · SGI = Lima e instalación · SGA = Lima y visita técnica (todo lo que no es instalación). */
+    private static function delGrupo(array $puntos, string $grupo): array {
+        if (!in_array($grupo, self::GRUPOS, true)) throw new InvalidArgumentException('Grupo no válido.');
+        $quedan = array_filter($puntos, static fn($p) => $grupo === 'GP' ? !$p['lima'] : ($p['lima'] && $p['inst'] === ($grupo === 'SGI')));
+        return array_values(array_map(static fn($p) => array_diff_key($p, ['lima' => 0, 'inst' => 0]), $quedan));
     }
 
     private function clave(string $estado, string $fecha, int $n): string {
@@ -96,6 +130,7 @@ class WinboService {
         $op[CURLOPT_HTTPHEADER] = $cab;
         curl_setopt_array($ch, $op);
         $r = curl_exec($ch);
+        if ($r === false) { usleep(700000); $r = curl_exec($ch); }   // Winbo a veces corta la conexión: un reintento
         curl_close($ch);
         if ($r === false) throw new RuntimeException('No se pudo conectar con Winbo. Inténtalo en unos minutos.');
         return (string)$r;
@@ -145,7 +180,8 @@ class WinboService {
         $f = fopen($this->dir . '/login.lock', 'c');
         flock($f, LOCK_EX);
         try {
-            if (is_file($this->cookie) && time() - (int)filemtime($this->cookie) < 20) return;  // otra petición acaba de entrar
+            $marca = $this->dir . '/login.ok';         // hora del último ingreso correcto (las cookies cambian en cada consulta)
+            if (is_file($this->cookie) && is_file($marca) && time() - (int)filemtime($marca) < 20) return;  // otra petición acaba de entrar
             @unlink($this->cookie);
             $login = self::BASE . '/login.aspx';
             $this->http('/login.aspx', null, $login, true);
@@ -162,6 +198,7 @@ class WinboService {
             $are = self::opciones((string)(self::decodificar($this->post('/default.aspx/cargarAreas', ['DepartamentoId' => 0, 'lstAreas' => ''], true))['resul'] ?? ''));
             $this->post('/default.aspx/modificarUsuarioAE', ['CodiArea' => self::elegir($are, (string)getenv('WINBO_AREA'), 'el área'), 'EmpresaId' => 0, 'Tipo' => 'A'], true);
             $this->http(self::URL_GRILLA, null, self::BASE . '/default.aspx', true);
+            @touch($marca);
         } finally {
             flock($f, LOCK_UN); fclose($f);
         }
@@ -215,13 +252,16 @@ class WinboService {
             } else {
                 $cols = json_decode((string)@file_get_contents($this->cols), true);
             }
-            if (!is_array($cols) || $cols['geo'] === null) throw new RuntimeException('Winbo cambió el formato de sus órdenes.');
+            if (!is_array($cols) || in_array(null, $cols, true) || count($cols) < 6) throw new RuntimeException('Winbo cambió el formato de sus órdenes.');
             foreach ($tabla as $f) {
                 $c = $f['celdas'];
                 if (count($c) <= $cols['geo']) continue;
                 $filas++;
                 $xy = self::coords($c[$cols['geo']]);
-                if ($xy) $puntos[] = ['id' => $f['id'], 'csc' => $c[$cols['csc']] ?? '', 'cs' => $c[$cols['cs']] ?? '', 'lat' => $xy[0], 'lon' => $xy[1]];
+                if ($xy) $puntos[] = ['id' => $f['id'], 'tipo' => $c[$cols['tipo']] ?? '', 'cuadrilla' => $c[$cols['cuad']] ?? '',
+                    'fecha' => $c[$cols['fecha']] ?? '', 'direccion' => $c[$cols['dir']] ?? '', 'lat' => $xy[0], 'lon' => $xy[1],
+                    'lima' => in_array(self::norm($c[$cols['prov']] ?? ''), self::PROVINCIAS_LIMA, true),
+                    'inst' => str_starts_with(self::norm($c[$cols['tipo']] ?? ''), 'instalacion')];
             }
         }
         return ['total' => $total, 'filas' => $filas, 'puntos' => $puntos];
@@ -230,9 +270,12 @@ class WinboService {
     private static function columnas(array $h): array {
         $n = array_map([self::class, 'norm'], $h);
         $buscar = static function (callable $f) use ($n) { foreach ($n as $i => $x) if ($f($x)) return $i; return null; };
-        return ['csc' => $buscar(static fn($x) => str_starts_with($x, 'codigo de seguimiento') && str_contains($x, 'cliente')),
-                'cs'  => $buscar(static fn($x) => str_starts_with($x, 'codigo de seguimiento') && !str_contains($x, 'cliente')),
-                'geo' => $buscar(static fn($x) => str_starts_with($x, 'georeferencia') || str_starts_with($x, 'georreferencia'))];
+        return ['cuad' => $buscar(static fn($x) => str_starts_with($x, 'cuadrilla')),
+                'fecha' => $buscar(static fn($x) => str_starts_with($x, 'fecha visita')),
+                'dir' => $buscar(static fn($x) => str_starts_with($x, 'direccion')),
+                'geo' => $buscar(static fn($x) => str_starts_with($x, 'georeferencia') || str_starts_with($x, 'georreferencia')),
+                'prov' => $buscar(static fn($x) => $x === 'provincia'),
+                'tipo' => $buscar(static fn($x) => str_starts_with($x, 'tipo trabajo') || str_starts_with($x, 'tipo de trabajo'))];
     }
 
     private static function coords(string $t): ?array {

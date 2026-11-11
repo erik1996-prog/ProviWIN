@@ -57,6 +57,6 @@ Content-Type: application/json
 
 ## api/ordenes_cercanas.php (solo WIN: administración y supervisor directo)
 
-- `GET ?action=fecha`: fecha de hoy tomada de internet (503 si no hay conexión).
-- `GET ?action=inicio`: primera página de órdenes iniciadas de hoy: `fecha`, `total`, `paginas`, `puntos`.
-- `GET ?action=pagina&n=2&fecha=dd/mm/aaaa`: una página siguiente: `puntos` (`id`, `csc`, `cs`, `lat`, `lon`).
+- `GET ?action=fecha`: fecha de hoy tomada de internet (424 si no hay conexión).
+- `GET ?action=inicio&estado=iniciada|agendada|finalizada|cancelada&grupo=GP|SGI|SGA`: primera página de órdenes de hoy: `fecha`, `total`, `paginas`, `puntos`.
+- `GET ?action=pagina&n=2&fecha=dd/mm/aaaa&estado=…&grupo=…`: una página siguiente: `puntos` (`id` = N° de orden, `tipo`, `cuadrilla`, `fecha`, `direccion`, `lat`, `lon`).

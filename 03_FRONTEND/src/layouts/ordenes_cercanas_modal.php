@@ -7,12 +7,23 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
-        <p class="text-muted small mb-3">Órdenes iniciadas hoy, de la más cercana a la más lejana. Abre las coordenadas para ver la ruta en Google Maps.</p>
+        <p class="text-muted small mb-3">Órdenes de hoy, de la más cercana a la más lejana. Abre la ubicación para ver la ruta en Google Maps.</p>
         <div class="d-flex flex-column gap-1 mb-3">
           <span class="sgs-gps-estado" id="ocFecha"></span>
           <span class="sgs-gps-estado" id="ocUbicacion"></span>
         </div>
         <div class="sgs-filtros mb-3">
+          <div class="sgs-filtro">
+            <label class="form-label" for="ocEstado">Estado</label>
+            <select class="form-select" id="ocEstado">
+              <option value="iniciada" selected>Iniciadas</option><option value="agendada">Agendadas</option>
+              <option value="finalizada">Finalizadas</option><option value="cancelada">Canceladas</option>
+            </select>
+          </div>
+          <div class="sgs-filtro d-none" id="ocGrupoFiltro">
+            <label class="form-label" for="ocGrupo">Órdenes de</label>
+            <select class="form-select" id="ocGrupo"></select>
+          </div>
           <div class="sgs-filtro">
             <label class="form-label" for="ocRadio">Radio</label>
             <select class="form-select" id="ocRadio">
