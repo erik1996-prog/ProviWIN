@@ -139,6 +139,30 @@ try {
         $idBorrar = (int)$pdo->lastInsertId();
         $r = $admin(['id' => $idBorrar], 'eliminar_t2');
         $check('un T2 sin supervisiones se elimina', ($r['status'] ?? '') === 'success' && !$pdo->query("SELECT id FROM tecnicos WHERE id = $idBorrar")->fetchColumn(), $r);
+
+        // Corregir el T1 (nomenclatura y partner) y eliminar cuadrillas (2026-11-10)
+        $idT1 = (int)$pdo->query("SELECT id FROM tecnicos WHERE nombre_tecnico = 'P 9 PRUEBA NUEVO SGI JUAN LIDER'")->fetchColumn();
+        $idLuis = (int)$pdo->query("SELECT id FROM tecnicos WHERE nombre_tecnico = 'LUIS PRUEBA NUEVO AREQUIPA'")->fetchColumn();
+        $cuadrilla = fn(array $cambios) => $cambios + ['id' => $idT1, 't1_nombre' => 'P 9 PRUEBA NUEVO SGA JUAN LIDER', 't1_partner_id' => $partner2, 'apoyo_id' => $idLuis,
+            'placa' => '', 'vehiculo_tipo' => '', 'vehiculo_estado' => '', 'estado_operativo' => 'Habilitado', 'provincia' => 'AREQUIPA'];
+        $r = $admin($cuadrilla([]), 'cuadrilla_guardar');
+        $t1 = $pdo->query("SELECT nombre_tecnico, partner_id, apoyo_id FROM tecnicos WHERE id = $idT1")->fetch(PDO::FETCH_ASSOC);
+        $check('corrige la nomenclatura y el partner del T1; su T2 pasa al mismo partner', ($r['status'] ?? '') === 'success' && $t1['nombre_tecnico'] === 'P 9 PRUEBA NUEVO SGA JUAN LIDER'
+            && (int)$t1['partner_id'] === $partner2 && (int)$t1['apoyo_id'] === $idLuis && (int)$pdo->query("SELECT partner_id FROM tecnicos WHERE id = $idLuis")->fetchColumn() === $partner2, [$r, $t1]);
+        $r = $admin($cuadrilla(['t1_nombre' => 'PEDRO PRUEBA NUEVO APOYO']), 'cuadrilla_guardar');
+        $check('no acepta una nomenclatura que ya es de otro técnico', ($r['status'] ?? '') === 'error' && str_contains($r['message'] ?? '', 'Ya hay un técnico'), $r);
+        $r = $sup(['id' => $idT1], 'eliminar_cuadrilla');
+        $check('un supervisor sin el permiso no elimina cuadrillas', ($r['status'] ?? '') === 'error', $r);
+        $r = $admin(['id' => $idT1], 'eliminar_cuadrilla');
+        $t1 = $pdo->query("SELECT estado_operativo, apoyo_id FROM tecnicos WHERE id = $idT1")->fetch(PDO::FETCH_ASSOC);
+        $check('una cuadrilla con supervisiones no se borra: el T1 queda Inhabilitado y su T2 libre',
+            ($r['status'] ?? '') === 'success' && $t1 && $t1['estado_operativo'] === 'Inhabilitado' && $t1['apoyo_id'] === null, [$r, $t1]);
+        $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, dni, tipo_tecnico, partner_id, departamento, apoyo_id) VALUES ('P 9 PRUEBA NUEVO SGI BORRAR', '99999984', 1, :p, 'AREQUIPA', :a)")
+            ->execute([':p' => $partner, ':a' => $idLuis]);
+        $idBorrar = (int)$pdo->lastInsertId();
+        $r = $admin(['id' => $idBorrar], 'eliminar_cuadrilla');
+        $check('una cuadrilla sin historial se elimina y su T2 sigue registrado', ($r['status'] ?? '') === 'success'
+            && !$pdo->query("SELECT id FROM tecnicos WHERE id = $idBorrar")->fetchColumn() && $pdo->query("SELECT id FROM tecnicos WHERE id = $idLuis")->fetchColumn(), $r);
     } finally {
         if ($pdo->inTransaction()) $pdo->rollBack();
         $pdo->exec("DELETE FROM supervisiones WHERE id = $supervision");

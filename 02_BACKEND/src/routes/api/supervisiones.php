@@ -273,7 +273,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'asignar_partner') {
 // Reasignar: solo el administrador, a otro supervisor directo que trabaje esa zona.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['validar_partner', 'rescate_avance', 'rescate_cerrar', 'rescate_reasignar'], true)) {
     $esDirecto = ($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($user['is_win_directo']);
-    $esAdmin = ($user['rol'] ?? '') === Auth::ROLE_ADMINISTRADOR;
+    $esAdmin = Auth::puede(Auth::PERM_RESCATES_MANAGE, $user); // "Rescates de otros" (2026-11-11; antes solo el Administrador)
     $id = (int)($_POST['supervision_id'] ?? 0);
     $comentario = trim((string)($_POST['comentario'] ?? ''));
     $responder = static function (int $code, string $msg) { http_response_code($code); echo json_encode(['status' => 'error', 'message' => $msg], JSON_UNESCAPED_UNICODE); exit; };
@@ -316,7 +316,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['validar_partner
             if (($orden['rescate_estado'] ?? '') !== 'En rescate') $responder(409, 'Esta orden no tiene un rescate en curso.');
             $esDueno = (int)($orden['rescate_responsable_id'] ?? 0) === (int)$user['id'];
             if ($action === 'rescate_reasignar') {
-                if (!$esAdmin) $responder(403, 'Solo el administrador puede reasignar un rescate.');
+                if (!$esAdmin) $responder(403, 'No tiene permiso para reasignar rescates.');
                 $destino = (int)($_POST['supervisor_id'] ?? 0);
                 if ($destino === (int)($orden['rescate_responsable_id'] ?? 0)) $responder(422, 'Elija un supervisor distinto al actual.');
                 $sd = $pdo->prepare('SELECT u.id, u.nombre_completo, u.rol, u.activo, u.partner_id, p.nombre_partner FROM usuarios u LEFT JOIN partners p ON p.id = u.partner_id WHERE u.id = :id');
@@ -389,7 +389,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
     $entradaPrevia = json_decode(file_get_contents('php://input'), true) ?? $_POST;
     $correccionId = (int)($entradaPrevia['supervision_id_edit'] ?? $entradaPrevia['supervision_id'] ?? 0);
     $esCorreccionAdmin = false;
-    if (!$canCreateOperational && ($workflowUser['rol'] ?? '') === Auth::ROLE_ADMINISTRADOR && $correccionId > 0) {
+    if (!$canCreateOperational && Auth::puede(Auth::PERM_SUPERVISION_CORRECT, $workflowUser) && $correccionId > 0) { // "Corregir supervisiones" (2026-11-11)
         $stmtCorr = $pdo->prepare('SELECT estado_supervision FROM supervisiones WHERE id = :id');
         $stmtCorr->execute([':id' => $correccionId]);
         $esCorreccionAdmin = in_array($stmtCorr->fetchColumn(), ['Finalizada', 'Culminada', 'Finalizado'], true);
@@ -854,7 +854,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
                 echo json_encode(['status' => 'error', 'message' => mensajeSinAccesoSupervision($user, $existingSupervision, 'No tiene permisos para editar esta supervisión.')]);
                 exit;
             }
-            $adminEnVistaNormal = Auth::isAdministrative();
+            $adminEnVistaNormal = Auth::puede(Auth::PERM_SUPERVISION_CORRECT, $user); // cambia estados libremente (2026-11-11: según Permisos)
             $estadoActualNormalizado = in_array($existingSupervision['estado_supervision'], ['Culminada','Finalizado'], true)
                 ? 'Finalizada' : $existingSupervision['estado_supervision'];
             if (!$adminEnVistaNormal) {

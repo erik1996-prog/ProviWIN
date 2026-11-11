@@ -99,7 +99,9 @@
   const currentUserRole = SGS_SUPERVISION.rol;
   const currentUserDepartment = SGS_SUPERVISION.departamento; // zona de trabajo
   const currentUserZoneDepartment = SGS_SUPERVISION.departamentoZona; // departamento oficial de esa zona (NORTE CHICO → LIMA)
-  const esAdministradorActual = currentUserRole === 'Administrador';
+  // 2026-11-11: antes "solo el Administrador"; ahora según Permisos (Corregir supervisiones · Rescates de otros)
+  const puedeCorregir = !!SGS_SUPERVISION.puedeCorregir;
+  const gestionaRescates = !!SGS_SUPERVISION.gestionaRescates;
   const currentUserId = SGS_SUPERVISION.usuarioId;
   const esSupervisorWinDirecto = currentUserRole === 'Supervisor' && SGS_SUPERVISION.winDirecto;
   const esSupervisorPartnerActual = SGS_SUPERVISION.supervisorPartner;
@@ -2243,7 +2245,7 @@
   }
   async function openDetail(id, forceAdminEdit = false){
     let rec = records.find(r => r.id === Number(id));
-    if (forceAdminEdit && !esAdministradorActual) forceAdminEdit = false;
+    if (forceAdminEdit && !puedeCorregir) forceAdminEdit = false;
 
     await Promise.all([cargarListaTecnicos(), cargarCatalogoObservaciones()]);
 
@@ -2284,7 +2286,7 @@
     // (por ejemplo, una cancelación importada con la dirección del cliente), se respetan.
     const editLat = document.getElementById('edit_latitud');
     if (editLat && !editLat.disabled && !editLat.readOnly && !String(editLat.value || '').trim()
-        && rec.estado !== 'finalizada' && !esAdministradorActual) {
+        && rec.estado !== 'finalizada' && !puedeCorregir) {
       capturarGPS('edit_latitud', 'edit_longitud', 'edit_gps_status');
     }
 
@@ -2308,7 +2310,7 @@
     if (rec.es_asignacion_partner && rec.estado_atencion_partner === 'Atendida') {
       const incorrecta = rec.partner_cancelacion_incorrecta === 1;
       const porValidar = !validacion && !rec.rescate_estado && rec.estado === 'pendiente';
-      const puedeValidar = porValidar && (esAdministradorActual || (esSupervisorWinDirecto && String(rec.asignado_por) === String(currentUserId)));
+      const puedeValidar = porValidar && (gestionaRescates || (esSupervisorWinDirecto && String(rec.asignado_por) === String(currentUserId)));
       const fotos = atencion.filter(g => g.foto).map((g, i) => `<button type="button" class="btn btn-sm btn-outline-secondary" data-rescate-foto="${escapeHtml(g.foto)}"><i class="bi bi-image me-1"></i>Evidencia ${i + 1}</button>`).join('');
       html += `<div class="sgs-rescate card p-3 mb-3" id="partnerValidacionPanel">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
@@ -2343,7 +2345,7 @@
           ${g.comentario ? `<div>${escapeHtml(g.comentario)}</div>` : ''}
           ${g.foto ? `<button type="button" class="btn btn-sm btn-outline-secondary mt-1" data-rescate-foto="${escapeHtml(g.foto)}"><i class="bi bi-image me-1"></i>Ver foto</button>` : ''}</div>
         </li>`).join('') : '<li class="text-muted small">Sin movimientos registrados.</li>';
-      const puedeTrabajar = abierto && (esDueno || esAdministradorActual);
+      const puedeTrabajar = abierto && (esDueno || gestionaRescates);
       html += `<div class="sgs-rescate card p-3 mb-3" id="rescatePanel">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
           <h5 class="mb-0"><i class="bi bi-life-preserver me-2 text-primary"></i>Rescate</h5>
@@ -2368,7 +2370,7 @@
             <button type="button" class="btn btn-win" data-rescate="cerrar" data-resultado="Rescatado"><i class="bi bi-check2-circle me-1"></i>Rescatado</button>
           </div>
         </div>` : ''}
-        ${abierto && esAdministradorActual ? `
+        ${abierto && gestionaRescates ? `
         <div class="sgs-rescate-bloque">
           <label class="form-label" for="rescateReasignar">Reasignar a otro supervisor (casos puntuales)</label>
           <div class="d-flex flex-wrap gap-2">
@@ -2381,7 +2383,7 @@
     if (!html) return;
     detailContent.insertAdjacentHTML('afterbegin', html);
     if (rec.estado === 'rescate') document.getElementById('saveProgressBtn')?.remove(); // se trabaja desde el rescate
-    if (esAdministradorActual && document.getElementById('rescateReasignar')) {
+    if (gestionaRescates && document.getElementById('rescateReasignar')) {
       fetch('api/asistencia.php?action=list_filters').then(r => r.json()).then(d => {
         const sel = document.getElementById('rescateReasignar'); if (!sel) return;
         const dep = String(rec.departamento || '').toUpperCase();
@@ -2543,9 +2545,9 @@
       ${resultado}
       ${fotos ? `<div class="panel-bitacora p-3 p-md-4 mb-3"><p class="section-subtitle-bitacora mt-0">Evidencias registradas</p><div class="sgs-evidencias">${fotos}</div></div>` : ''}
       ${section('Observaciones registradas', hallazgos)}
-      <div class="form-actions-bitacora">${esAdministradorActual
+      <div class="form-actions-bitacora">${puedeCorregir
         ? `<span class="badge bg-success p-2">Supervisión finalizada</span><button type="button" class="btn-bitacora btn-orange-bitacora" id="btnCorregirSupervision"><i class="bi bi-pencil-square me-1"></i>Corregir supervisión</button>`
-        : `<span class="badge bg-success p-2">Supervisión finalizada · solo el administrador puede corregirla</span>`}</div>`;
+        : `<span class="badge bg-success p-2">Supervisión finalizada · la corrige quien tiene el permiso Corregir supervisiones</span>`}</div>`;
   }
   function buildDetailContent(rec, obsVinculadas = [], forceAdminEdit = false){
     if (rec.estado === 'finalizada' && !forceAdminEdit) return buildFinalizedViewContent(rec, obsVinculadas);
@@ -2674,9 +2676,9 @@
 
         <p class="section-subtitle-bitacora">1. Información general de la supervisión</p>
         <div class="grid-bitacora mb-3">
-          <div class="field-bitacora"><label>Departamento</label><input id="edit_departamento_visible" type="text" value="${escapeHtml(rec.departamento)}" ${esAdministradorActual ? '' : 'disabled'}></div>
-          <div class="field-bitacora"><label>Provincia</label><input id="edit_provincia_visible" type="text" value="${escapeHtml(rec.provincia)}" ${esAdministradorActual ? '' : 'disabled'}></div>
-          <div class="field-bitacora"><label>Distrito</label><input id="edit_distrito_visible" type="text" value="${escapeHtml(rec.distrito)}" ${esAdministradorActual ? '' : 'disabled'}></div>
+          <div class="field-bitacora"><label>Departamento</label><input id="edit_departamento_visible" type="text" value="${escapeHtml(rec.departamento)}" ${puedeCorregir ? '' : 'disabled'}></div>
+          <div class="field-bitacora"><label>Provincia</label><input id="edit_provincia_visible" type="text" value="${escapeHtml(rec.provincia)}" ${puedeCorregir ? '' : 'disabled'}></div>
+          <div class="field-bitacora"><label>Distrito</label><input id="edit_distrito_visible" type="text" value="${escapeHtml(rec.distrito)}" ${puedeCorregir ? '' : 'disabled'}></div>
           ${rec.direccion ? `<div class="field-bitacora full"><label>Dirección</label><input type="text" value="${escapeHtml(rec.direccion)}" disabled></div>` : ''}
         </div>
 
@@ -3005,7 +3007,7 @@
 
         <div class="form-actions-bitacora">
           ${esSupervisorPartnerActual ? `<button class="btn-bitacora btn-orange-bitacora" id="savePartnerObservation" type="button"><i class="bi bi-chat-square-text me-1"></i>Registrar observación de validación</button>` : (isFinished && !forceAdminEdit
-            ? (esAdministradorActual
+            ? (puedeCorregir
               ? `<span class="badge bg-secondary p-2">Vista de consulta</span>
                  <button class="btn-bitacora btn-orange-bitacora" id="enableAdminEditBtn" type="button"><i class="bi bi-shield-lock me-1"></i>Habilitar edición administrativa</button>
                  <span id="adminFinalActions" style="display:none;gap:8px;">
@@ -3266,9 +3268,9 @@
         if (!campo.disabled) finalEditableControls.push(campo);
         campo.disabled = true;
       });
-      if (esAdministradorActual && enableAdminEditBtn) enableAdminEditBtn.disabled = false;
+      if (puedeCorregir && enableAdminEditBtn) enableAdminEditBtn.disabled = false;
     }
-    if (!esAdministradorActual) {
+    if (!puedeCorregir) {
       // Mientras la supervisión siga abierta, todos sus campos permanecen editables.
       // El bloqueo total se aplica únicamente al cerrarla como finalizada.
       if (rec.estado !== 'finalizada' && esCancelacionPendiente && formDetalle) {
@@ -3294,7 +3296,7 @@
       }
     }
     enableAdminEditBtn?.addEventListener('click', () => {
-      if (!formDetalle || !esAdministradorActual) return;
+      if (!formDetalle || !puedeCorregir) return;
       finalEditableControls.forEach(campo => campo.disabled = false);
       enableAdminEditBtn.style.display = 'none';
       if (adminFinalActions) adminFinalActions.style.display = 'inline-flex';

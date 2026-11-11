@@ -37,7 +37,9 @@ $responder = static function (array $datos, int $codigo = 200): void {
 $action = $_GET['action'] ?? '';
 // 2026-11-08: quien solo genera links (y sigue los suyos) no necesita ver los resultados de Exámenes.
 $soloConGenerar = ['grupo_preparar', 'grupo_generar', 'grupos', 'grupo'];
-if (!Auth::puede(Auth::PERM_EXAMENES_VIEW, $usuario) && !(in_array($action, $soloConGenerar, true) && Auth::puede(Auth::PERM_EXAMENES_EDIT, $usuario))) {
+// 2026-11-11: "Cerrar links" tampoco depende del "Ver" de Exámenes (el botón también está en Técnicos y cuadrillas).
+$conCerrar = in_array($action, ['grupos', 'grupo', 'grupo_anular'], true) && Auth::puede(Auth::PERM_EXAMENES_DELETE, $usuario);
+if (!Auth::puede(Auth::PERM_EXAMENES_VIEW, $usuario) && !$conCerrar && !(in_array($action, $soloConGenerar, true) && Auth::puede(Auth::PERM_EXAMENES_EDIT, $usuario))) {
     $responder(['status' => 'error', 'message' => 'No tiene permiso para ver los exámenes.'], 403);
 }
 $pdo = Database::getConnection();

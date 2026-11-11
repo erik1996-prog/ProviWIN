@@ -2,7 +2,7 @@
 // 03_FRONTEND/src/pages/asistencia.php - Inicio y fin de turno, pausas e historial (supervisor directo WIN) y monitor de turnos (administración)
 Auth::requireLogin();
 $user = Auth::getLoggedInUser();
-$isAdmin = in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador']);
+$isAdmin = Auth::puede(Auth::PERM_TURNOS_MONITOR, $user); // Monitor de turnos (2026-11-10: según Permisos)
 $isReadOnlyWinSupervisor = Auth::registraTurno($user);
 
 if (!$isReadOnlyWinSupervisor && !$isAdmin) {
@@ -226,7 +226,7 @@ if (!$isReadOnlyWinSupervisor && !$isAdmin) {
                                     <th class="text-end pe-3">Acciones</th>
                                 </tr>
                             </thead>
-                            <tbody id="tbody-admin-asistencia" data-puede-reabrir="<?= ($user['rol'] ?? '') === 'Administrador' ? '1' : '0' ?>">
+                            <tbody id="tbody-admin-asistencia" data-puede-reabrir="<?= Auth::puede(Auth::PERM_TURNOS_REOPEN, $user) ? '1' : '0' ?>">
                                 <tr>
                                     <td colspan="9" class="text-center py-4 text-muted">Cargando monitor de asistencia...</td>
                                 </tr>

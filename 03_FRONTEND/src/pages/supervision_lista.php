@@ -182,7 +182,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
         </div>
       </div>
 
-      <?php $sgsAdminFilters = Auth::isAdministrative() && $canUseSupervisionFilters; ?>
+      <?php $sgsAdminFilters = $canUseSupervisionFilters && Auth::puede(Auth::PERM_SUPERVISION_FILTER_PEOPLE, $effectiveViewUser); // 2026-11-11: según Permisos ?>
       <!-- Fila 2 (2026-10-15): solo filtros, a todo el ancho; todos los controles de 40 px y alineados abajo. -->
       <div class="sgs-toolbar-row">
         <div class="sgs-filtros">
@@ -788,6 +788,9 @@ window.SGS_SUPERVISION = <?= json_encode([
         'noAtiende' => ['SGI' => sgsCuadrillaNoAtiende('SGI'), 'SGA' => sgsCuadrillaNoAtiende('SGA')]],
     'usuarioId' => (int)($effectiveViewUser['id'] ?? 0),
     'winDirecto' => !empty($effectiveViewUser['is_win_directo']),
+    // 2026-11-11: antes eran solo del Administrador; ahora según Permisos
+    'puedeCorregir' => Auth::puede(Auth::PERM_SUPERVISION_CORRECT, $effectiveViewUser),
+    'gestionaRescates' => Auth::puede(Auth::PERM_RESCATES_MANAGE, $effectiveViewUser),
     'registraTurno' => Auth::registraTurno($effectiveViewUser), // pedir turno iniciado solo si su perfil registra turno
     'supervisorPartner' => !empty($esSupervisorPartnerVista),
     'jefeOperaciones' => !empty($esJefeOperacionesVista),

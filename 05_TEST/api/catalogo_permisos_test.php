@@ -28,7 +28,7 @@ $check('cada pantalla pide un permiso que existe en Roles y permisos', $m && !$f
 $sinSeccion = []; $sinVer = [];
 foreach ($catalogo as $clave => $d) {
     if (!isset(UsuarioService::SECCION_PANTALLA[$d['group']])) $sinSeccion[] = "{$d['group']} ($clave)";
-    if (($d['action'] ?? '') !== 'ver' && Auth::permisoRequerido($clave) === null && $d['group'] !== 'Mi turno') $sinVer[] = $clave;
+    if (($d['action'] ?? '') !== 'ver' && Auth::permisoRequerido($clave) === null && $d['group'] !== 'Mi turno' && ($d['requiere'] ?? null) !== false) $sinVer[] = $clave;
 }
 $check('cada permiso pertenece a una pantalla con su sección del menú', !$sinSeccion, $sinSeccion);
 $check('editar, eliminar y opciones dependen del "Ver" de su pantalla', !$sinVer, $sinVer);

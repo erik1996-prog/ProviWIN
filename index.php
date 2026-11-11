@@ -52,13 +52,13 @@ $allowedViews = [
     'usuarios'               => ['file' => 'usuarios.php',               'title' => 'Usuarios y perfiles',         'perm' => [Auth::PERM_USERS_MANAGE, Auth::PERM_STAFF_MANAGE, Auth::PERM_USERS_VIEW]],
     'asistencia'             => ['file' => 'asistencia.php',             'title' => 'Inicio de turno',          'perm' => null],
     'mi_informacion'         => ['file' => 'mi_informacion.php',         'title' => 'Mi información',           'perm' => null],
-    'guia_estilo'            => ['file' => 'guia_estilo.php',            'title' => 'Guía de diseño',           'perm' => Auth::PERM_USERS_MANAGE],
+    'guia_estilo'            => ['file' => 'guia_estilo.php',            'title' => 'Guía de diseño',           'perm' => Auth::PERM_SYSTEM_MANAGE],
 ];
 
 // Seguimiento: el supervisor directo WIN con "Registrar turno" (Permisos) empieza su jornada registrando el turno;
 // sin turno activo la API no le permite registrar supervisiones. Sin ese permiso no ve Mi turno (2026-11-05).
 $isDirectSupervisorView = Auth::registraTurno($user);
-$canMonitorShifts = in_array($rol, [Auth::ROLE_ADMINISTRADOR, Auth::ROLE_GERENTE, Auth::ROLE_COORDINADOR], true); // 2026-10-12: también el administrador
+$canMonitorShifts = Auth::puede(Auth::PERM_TURNOS_MONITOR, $user); // 2026-11-10: según Permisos (antes fijo por tipo de usuario)
 // Vencimientos (2026-10-15): quedaron dentro de Cuadrillas; la dirección antigua lleva a las cuadrillas con alertas.
 if ($page === 'vencimientos') {
     header('Location: index.php?page=cuadrillas&docs=alerta');
@@ -67,7 +67,7 @@ if ($page === 'vencimientos') {
 if (!array_key_exists($page, $allowedViews)) {
     $page = $isDirectSupervisorView ? 'asistencia' : 'supervision_lista';
 }
-// Turnos: solo supervisor directo (registra) y administración, gerencia o coordinación (monitorean). Partners no.
+// Turnos: quien registra su turno o quien tiene "Monitor de turnos" en Permisos. Partners no.
 if ($page === 'asistencia' && !$isDirectSupervisorView && !$canMonitorShifts) {
     $page = 'supervision_lista';
 }
@@ -77,11 +77,8 @@ if ($isPartnerSupervisor && !in_array($page, ['mi_informacion', 'supervision_lis
     $page = 'supervision_lista';
 }
 
-// Usuarios no está aquí: entra quien tenga ver usuarios, agregar personal o administrar (se revisa abajo).
-$administrativeViews = ['admin_dashboard', 'timeline_supervisores', 'control_observaciones'];
-if (in_array($page, $administrativeViews, true) && !Auth::isAdministrative()) {
-    $page = 'supervision_lista';
-}
+// 2026-11-10: Dashboard de supervisiones, Línea de tiempo y Control y recurrencia ya no piden además ser de tipo
+// administrativo: basta su permiso (se revisa abajo con 'perm').
 // Módulos de gestión (2026-10-23): además de su permiso (ver, editar, eliminar en Roles y permisos), solo personal de WIN
 // (administrativo o supervisor directo). Las APIs aplican la misma regla con Auth::puede().
 if (in_array($page, ['cuadrillas', 'examenes', 'dashboard_pendientes', 'matriz_asistencia', 'vacaciones', 'dashboard_lluvias', 'dashboard_partners', 'partners'], true) && !Auth::esPersonalWin($user)) {

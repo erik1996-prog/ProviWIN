@@ -119,7 +119,7 @@ try {
     // T1: pertenecen a un partner, no llevan nomenclatura ("P n …") y rotan entre cuadrillas.
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'crear_apoyo') {
         $user = Auth::getLoggedInUser();
-        if (!Auth::can(Auth::PERM_SUPERVISION_CREATE, $user) && !Auth::isAdministrative()) {
+        if (!Auth::can(Auth::PERM_SUPERVISION_CREATE, $user) && !Auth::puede(Auth::PERM_CUADRILLAS_CREATE_T2, $user)) { // 2026-11-11: según Permisos
             http_response_code(403);
             throw new Exception('No tiene permiso para registrar técnicos.');
         }
@@ -261,6 +261,35 @@ try {
         exit;
     }
 
+    // Eliminar una cuadrilla (2026-11-10): su T2 y su vehículo quedan libres. Si el técnico líder ya sale en supervisiones o
+    // rindió exámenes no se borra (se perdería el historial): queda Inhabilitado y deja de aparecer.
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'eliminar_cuadrilla') {
+        if (!Auth::puede(Auth::PERM_CUADRILLAS_DELETE, $usuario)) { http_response_code(403); throw new Exception('No tiene permiso para eliminar cuadrillas.'); }
+        $id = (int)($_POST['id'] ?? 0);
+        $st = $pdo->prepare("SELECT t.nombre_tecnico, t.departamento,
+                (SELECT COUNT(*) FROM supervisiones s WHERE s.tecnico1_id = t.id OR s.tecnico2_id = t.id)
+                + (SELECT COUNT(*) FROM examen_convocatoria_tecnicos ct WHERE ct.tecnico_id = t.id)
+                + (SELECT COUNT(*) FROM examen_enlaces ee WHERE ee.tecnico_id = t.id) AS historial
+            FROM tecnicos t WHERE t.id = :id AND COALESCE(t.tipo_tecnico, 1) = 1");
+        $st->execute([':id' => $id]);
+        $t1 = $st->fetch();
+        if (!$t1) throw new Exception('La cuadrilla ya no existe.');
+        $zonasEditor = Auth::isAdministrative() && !sgsAlcanceLimitado($usuario) ? null : sgsUserZones((int)$usuario['id']);
+        if ($zonasEditor !== null && trim((string)$t1['departamento']) !== '' && !in_array(mb_strtoupper(trim((string)$t1['departamento']), 'UTF-8'), $zonasEditor, true)) {
+            http_response_code(403); throw new Exception('Esa cuadrilla es de otra zona: solo puede eliminar las de su zona.');
+        }
+        $pdo->beginTransaction();
+        $pdo->prepare('UPDATE tecnicos SET apoyo_id = NULL, vehiculo_id = NULL WHERE id = :id')->execute([':id' => $id]);
+        if ($t1['historial'] > 0) $pdo->prepare("UPDATE tecnicos SET estado_operativo = 'Inhabilitado', fecha_actualizacion = NOW() WHERE id = :id")->execute([':id' => $id]);
+        else $pdo->prepare('DELETE FROM tecnicos WHERE id = :id')->execute([':id' => $id]);
+        $pdo->commit();
+        win_log_error('audit_crew_delete', 'Cuadrilla eliminada', ['target_id' => $id, 'inhabilitado' => $t1['historial'] > 0]);
+        echo json_encode(['status' => 'success', 'message' => $t1['historial'] > 0
+            ? "{$t1['nombre_tecnico']} tiene supervisiones o exámenes: para no perder ese historial quedó Inhabilitado, sin T2 ni vehículo."
+            : "Cuadrilla de {$t1['nombre_tecnico']} eliminada. Su técnico de apoyo quedó libre."], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     // Edición de una cuadrilla desde la pantalla Cuadrillas (2026-10-15): personal administrativo, para emergencias.
     // 2026-10-20: también los supervisores directos, solo para las cuadrillas de su zona (o sin zona) y solo hacia sus zonas.
     // Mismas reglas que al cerrar una supervisión: un T2 y un vehículo pertenecen a una sola cuadrilla.
@@ -308,6 +337,16 @@ try {
         $t2Dni = $tocaT2 ? $dniValido((string)$_POST['t2_dni'], 'técnico de apoyo') : null;
         $t2Cel = $tocaT2 ? $celularValido((string)($_POST['t2_celular'] ?? ''), 'técnico de apoyo') : null;
         $t2Nombre = mb_strtoupper(preg_replace('/\s+/u', ' ', trim((string)($_POST['t2_nombre'] ?? ''))), 'UTF-8');
+        // Nomenclatura y partner del T1 (2026-11-10): solo se tocan si llegan.
+        $tocaNombre = array_key_exists('t1_nombre', $_POST);
+        $t1Nombre = mb_strtoupper(preg_replace('/\s+/u', ' ', trim((string)($_POST['t1_nombre'] ?? ''))), 'UTF-8');
+        if ($tocaNombre && mb_strlen($t1Nombre) < 5) throw new Exception('Escriba la nomenclatura del técnico líder.');
+        $t1Partner = array_key_exists('t1_partner_id', $_POST) ? (int)$_POST['t1_partner_id'] : null;
+        if ($t1Partner !== null) {
+            $st = $pdo->prepare("SELECT 1 FROM partners WHERE id = :id AND estado = 1 AND UPPER(TRIM(nombre_partner)) NOT IN ('WIN', 'WIN DIRECTO')");
+            $st->execute([':id' => $t1Partner]);
+            if (!$st->fetchColumn()) throw new Exception('Elija un partner activo para el técnico líder.');
+        }
 
         $pdo->beginTransaction();
         try {
@@ -324,6 +363,17 @@ try {
                 if ($zona['departamento'] && !$enZona($zona['departamento'])) throw new Exception('La provincia elegida es de otra zona: solo puede asignar provincias de su zona (' . implode(', ', $zonasEditor) . ').');
             }
 
+            if ($tocaNombre && $t1Nombre !== $lider['nombre_tecnico']) {
+                $st = $pdo->prepare('SELECT 1 FROM tecnicos WHERE nombre_tecnico = :n AND id <> :id LIMIT 1');
+                $st->execute([':n' => $t1Nombre, ':id' => $id]);
+                if ($st->fetchColumn()) throw new Exception("Ya hay un técnico registrado como {$t1Nombre}.");
+                $pdo->prepare('UPDATE tecnicos SET nombre_tecnico = :n WHERE id = :id')->execute([':n' => $t1Nombre, ':id' => $id]);
+                $lider['nombre_tecnico'] = $t1Nombre;
+            }
+            if ($t1Partner !== null && $t1Partner !== (int)$lider['partner_id']) {
+                $pdo->prepare('UPDATE tecnicos SET partner_id = :p WHERE id = :id')->execute([':p' => $t1Partner, ':id' => $id]);
+                $lider['partner_id'] = $t1Partner; // el T2 de la cuadrilla toma este partner (más abajo)
+            }
             if ($tocaT1) {
                 $dniLibre($t1Dni, $id);
                 $pdo->prepare('UPDATE tecnicos SET dni = :dni, celular = :cel WHERE id = :id')->execute([':dni' => $t1Dni, ':cel' => $t1Cel, ':id' => $id]);

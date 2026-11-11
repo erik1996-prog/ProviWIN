@@ -1,8 +1,8 @@
 <?php
 Auth::requireLogin();
 $user = Auth::getLoggedInUser();
-if (!Auth::isAdministrative()) {
-    echo '<div class="alert alert-danger m-4">Acceso reservado al personal administrativo.</div>';
+if (!Auth::can(Auth::PERM_OBSERVATION_REVIEW, $user)) { // 2026-11-10: según Permisos (antes fijo por tipo de usuario)
+    echo '<div class="alert alert-danger m-4">No tiene permiso para ver Control y recurrencia.</div>';
     return;
 }
 $pdo = Database::getConnection();

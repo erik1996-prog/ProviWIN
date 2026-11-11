@@ -1,6 +1,6 @@
 # Diccionario de datos — SGS
 
-Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-11-08 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
+Generado por `07_SCRIPTS/generar_instalacion.php` el 2026-11-11 desde la base. **No editar a mano**: la descripción de cada tabla es su comentario en la base.
 Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 
 | # | Tabla | Para qué sirve | En la instalación |
@@ -14,7 +14,7 @@ Diagrama de relaciones: `04_DATABASE/03_ESTRUCTURA/diagrama_relaciones.svg`.
 | 7 | [`ubigeo`](#ubigeo) | Departamentos, provincias y distritos de operación | 120 registros |
 | 8 | [`vehiculos`](#vehiculos) | Vehículos de las cuadrillas | 3 registros |
 | 9 | [`perfil_asignables`](#perfil_asignables) | Perfiles que puede asignar quien tiene el perfil | 34 registros |
-| 10 | [`perfil_permisos`](#perfil_permisos) | Permisos de cada perfil (Auth::permissionCatalog) | 272 registros |
+| 10 | [`perfil_permisos`](#perfil_permisos) | Permisos de cada perfil (Auth::permissionCatalog) | 289 registros |
 | 11 | [`subopciones_observacion`](#subopciones_observacion) | Tipificaciones de observación con gravedad y penalidad | 84 registros |
 | 12 | [`usuarios`](#usuarios) | Usuarios del sistema (personal WIN y de partners) | 18 registros |
 | 13 | [`asistencia_ajustes`](#asistencia_ajustes) | Correcciones del administrador en la matriz de asistencia | vacía |

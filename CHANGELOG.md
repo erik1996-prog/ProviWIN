@@ -4,6 +4,25 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Acciones de administrador en Permisos (2026-11-11)
+- **Cambiado**: lo que era solo del Administrador (o del personal administrativo) ahora se da por perfil:
+  - Supervisiones: **Corregir supervisiones** (incluso finalizadas, con su ubicación), **Rescates de otros** (validar por otro supervisor, avances, cerrar y reasignar) y el filtro **Departamento y supervisor**;
+  - Observaciones: **Observaciones de otros** (responder por el partner, evaluar y reabrir levantamientos, ampliar plazos vencidos). Los **Filtros** avanzados ya no piden ser administrativo;
+  - Monitor de turnos: **Reabrir turnos**; Clima: **Enviar corte a Teams**.
+- **Cambiado**: **Reabrir turnos** y **Cerrar links** salen en dos pantallas: ya no dependen del "Ver" de ninguna, así sirven en las dos.
+- Registrar observaciones pide "Hallazgos"; evaluar apelaciones y cambiar plazos piden "Ver" de Observaciones (antes, el tipo de usuario).
+- Cambio de base `2026-11-11_01_acciones_de_administrador_pasan_a_permisos` (Gerente y Coordinador conservan el filtro y el corte a Teams). Prueba: `permisos_pantallas_test` (18).
+
+### Cada pantalla con su permiso (2026-11-10)
+- **Cambiado**: en Permisos cada pantalla va aparte y dice si es **Registro**, **Indicador** o **Gestión**. Registro de lluvias queda separado del indicador Clima; Monitor de turnos, Control y recurrencia y Órdenes cercanas tienen su propio permiso; Dashboard, Línea de tiempo y Control ya no piden ser de tipo administrativo. La Línea de tiempo carga sin el permiso del Dashboard. Guía de diseño usa su permiso.
+- Cambio de base `2026-11-10_01_cada_pantalla_con_su_propio_permiso`: nadie gana ni pierde acceso. Prueba: `permisos_pantallas_test` (13).
+- **Cambiado**: Órdenes cercanas guarda 10 minutos la fecha de internet y anota cuánto tarda Winbo (`08_LOGS/runtime/winbo/tiempos-*.log`).
+
+### Corregir el T1 y eliminar cuadrillas (2026-11-10)
+- **Añadido**: en **Editar cuadrilla** se corrigen la **nomenclatura** y el **partner** del técnico líder (T1). El T2 de la cuadrilla pasa al mismo partner. No acepta una nomenclatura que ya sea de otro técnico.
+- **Añadido**: botón **Eliminar cuadrilla** (permiso "Eliminar" de Técnicos y cuadrillas). El T2 y el vehículo quedan libres. Si el T1 ya tiene supervisiones o exámenes, no se borra: queda Inhabilitado para no perder el historial.
+- Novedad id 5 en el recorrido de inicio de sesión. Prueba: `nuevo_tecnico_test` (25 verificaciones).
+
 ### Aviso "El sistema se actualizó" y permisos separados de los indicadores (2026-11-08)
 - **Añadido**: al **iniciar sesión**, un recorrido a pantalla completa **"El sistema se actualizó"**, con el fondo de la bienvenida. Cuenta lo nuevo paso a paso ("Ahora puedes…"), con enlace para ir a verlo; se avanza con botones, puntos, flechas del teclado o deslizando en el celular.
   - Cada usuario ve solo lo que puede usar según sus permisos.

@@ -59,6 +59,15 @@ class Auth {
     public const PERM_EXAMENES_VIEW = 'examenes.view';
     public const PERM_EXAMENES_EDIT = 'examenes.edit';
     public const PERM_EXAMENES_DELETE = 'examenes.delete';
+    public const PERM_TURNOS_MONITOR = 'turnos.monitor';         // 2026-11-10: antes fijo por tipo de usuario
+    // 2026-11-11: acciones que antes eran solo del Administrador (o del personal administrativo)
+    public const PERM_TURNOS_REOPEN = 'turnos.reopen';
+    public const PERM_SUPERVISION_CORRECT = 'supervision.correct';
+    public const PERM_RESCATES_MANAGE = 'rescates.manage';
+    public const PERM_SUPERVISION_FILTER_PEOPLE = 'supervision.filter_people';
+    public const PERM_OBSERVATION_MANAGE = 'observation.manage';
+    public const PERM_CLIMA_TEAMS = 'clima.teams';
+    public const PERM_ORDENES_CERCANAS = 'ordenes.cercanas';     // 2026-11-10: antes fijo por tipo de usuario
     public const PERM_EXAMENES_PURGE = 'examenes.purge'; // borrar exámenes de prueba (2026-11-05): solo perfiles administradores, salvo que se marque
     public const PERM_CUADRILLAS_VIEW = 'cuadrillas.view';
     public const PERM_CUADRILLAS_EDIT = 'cuadrillas.edit';
@@ -99,6 +108,7 @@ class Auth {
             self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT, self::PERM_CUADRILLAS_DELETE, self::PERM_CUADRILLAS_CREATE_T2,
             self::PERM_VACACIONES_VIEW, self::PERM_VACACIONES_APPROVE,
             self::PERM_PARTNERS_VIEW, self::PERM_PARTNERS_EDIT, self::PERM_PARTNERS_DELETE, self::PERM_OBSERVATION_DELETE,
+            self::PERM_TURNOS_MONITOR, self::PERM_ORDENES_CERCANAS,
         ],
         self::ROLE_GERENTE => [
             self::PERM_SUPERVISION_VIEW, self::PERM_SUPERVISION_VIEW_ALL,
@@ -110,6 +120,7 @@ class Auth {
             self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
             self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT, self::PERM_CUADRILLAS_DELETE, self::PERM_CUADRILLAS_CREATE_T2,
             self::PERM_VACACIONES_VIEW, self::PERM_VACACIONES_APPROVE,
+            self::PERM_TURNOS_MONITOR, self::PERM_ORDENES_CERCANAS, self::PERM_SUPERVISION_FILTER_PEOPLE, self::PERM_CLIMA_TEAMS,
         ],
         self::ROLE_COORDINADOR => [
             self::PERM_SUPERVISION_VIEW, self::PERM_SUPERVISION_VIEW_ALL,
@@ -124,12 +135,12 @@ class Auth {
             self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT, self::PERM_CUADRILLAS_DELETE, self::PERM_CUADRILLAS_CREATE_T2,
             self::PERM_VACACIONES_VIEW, self::PERM_VACACIONES_APPROVE,
             self::PERM_USERS_TEAM, // 2026-10-27: el líder (Gestión) registra a sus supervisores de su zona y área
+            self::PERM_TURNOS_MONITOR, self::PERM_ORDENES_CERCANAS, self::PERM_SUPERVISION_FILTER_PEOPLE, self::PERM_CLIMA_TEAMS,
         ],
         self::ROLE_SUPERVISOR => [
             self::PERM_SUPERVISION_VIEW, self::PERM_SUPERVISION_CREATE,
             self::PERM_SUPERVISION_ASSIGN, self::PERM_OBSERVATION_VIEW, self::PERM_OBSERVATION_RESPOND,
-            self::PERM_OBSERVATION_REVIEW,
-            self::PERM_ATTENDANCE_SELF, self::PERM_SUPERVISION_FILTERS,
+            self::PERM_ATTENDANCE_SELF, self::PERM_SUPERVISION_FILTERS, self::PERM_ORDENES_CERCANAS,
             self::PERM_SUPERVISION_MAP, self::PERM_FORM_FINDINGS,
             self::PERM_FORM_CHECKLIST,
             self::PERM_SUPERVISION_FILTER_DATE, self::PERM_SUPERVISION_FILTER_STATUS,
@@ -190,7 +201,9 @@ class Auth {
         }
         $d = self::permissionCatalog()[$permission] ?? null;
         if (!$d || ($d['action'] ?? '') === 'ver') return null;
-        return $d['requiere'] ?? ($ver[$d['group']] ?? null);
+        // 'requiere' => false (2026-11-11): la acción sale en más de una pantalla y no depende del "Ver" de ninguna.
+        if (array_key_exists('requiere', $d)) return $d['requiere'] ?: null;
+        return $ver[$d['group']] ?? null;
     }
 
     /** Quita de una lista los permisos cuya pantalla no se puede ver (al guardar los permisos de un perfil). */
@@ -216,7 +229,7 @@ class Auth {
             self::PERM_OBSERVATION_RESPOND => ['boton'=>'Responder','group'=>'Observaciones','label'=>'Responder observaciones del partner (levantamiento con fotos)','action'=>'editar'],
             self::PERM_OBSERVATION_FILTER_DATE => ['boton'=>'Fechas','group'=>'Observaciones','label'=>'Rango de fechas'],
             self::PERM_OBSERVATION_FILTER_ADVANCED => ['boton'=>'Filtros','group'=>'Observaciones','label'=>'Partner, técnico, zona y estado'],
-            self::PERM_OBSERVATION_REVIEW => ['boton'=>'Validar','group'=>'Observaciones','label'=>'Revisar y validar observaciones','action'=>'editar'],
+            self::PERM_OBSERVATION_REVIEW => ['group'=>'Control y recurrencia','label'=>'Ver Control y recurrencia: observaciones repetidas por técnico, partner y zona','action'=>'ver'],
             self::PERM_OBSERVATION_DELETE => ['group'=>'Observaciones','label'=>'Eliminar observaciones','action'=>'eliminar'],
             self::PERM_USERS_VIEW => ['group'=>'Usuarios y perfiles','label'=>'Ver usuarios (solo consulta; el partner ve solo a su partner y sus zonas)','action'=>'ver'],
             self::PERM_STAFF_MANAGE => ['boton'=>'Datos personales','group'=>'Usuarios y perfiles','label'=>'Agregar y editar personal (solo datos personales; sin acceso, rol ni activar)','action'=>'editar'],
@@ -229,7 +242,7 @@ class Auth {
             self::PERM_CLIMA_VIEW => ['group'=>'Clima','label'=>'Ver: indicador de clima y lluvias','action'=>'ver'],
             self::PERM_CLIMA_DELETE => ['group'=>'Clima','label'=>'Eliminar registros de lluvia','action'=>'eliminar'],
             self::PERM_EXAMENES_VIEW => ['group'=>'Exámenes','label'=>'Ver: resultados y links de examen','action'=>'ver'],
-            self::PERM_EXAMENES_DELETE => ['boton'=>'Cerrar links','group'=>'Exámenes','label'=>'Eliminar: cerrar links de examen','action'=>'eliminar'],
+            self::PERM_EXAMENES_DELETE => ['boton'=>'Cerrar links','group'=>'Exámenes','requiere'=>false,'label'=>'Cerrar links de examen, desde Exámenes o desde Técnicos y cuadrillas (sirve con cualquiera de las dos)','action'=>'eliminar'],
             self::PERM_EXAMENES_PURGE => ['boton'=>'Borrar exámenes','group'=>'Exámenes','label'=>'Eliminar: borrar exámenes y sus resultados (por ejemplo, los de prueba)','action'=>'eliminar'],
             self::PERM_CUADRILLAS_VIEW => ['group'=>'Técnicos y cuadrillas','label'=>'Ver: técnicos, cuadrillas y vencimientos','action'=>'ver'],
             self::PERM_CUADRILLAS_EDIT => ['group'=>'Técnicos y cuadrillas','label'=>'Editar: cuadrillas y fechas de vencimiento','action'=>'editar'],
@@ -240,13 +253,21 @@ class Auth {
             self::PERM_VACACIONES_VIEW => ['group'=>'Vacaciones y licencias','label'=>'Ver: vacaciones, descansos médicos y licencias','action'=>'ver'],
             self::PERM_VACACIONES_REQUEST => ['boton'=>'Solicitar','group'=>'Vacaciones y licencias','label'=>'Solicitar sus vacaciones, descansos médicos y licencias (supervisor directo)','action'=>'editar'],
             self::PERM_VACACIONES_APPROVE => ['boton'=>'Aprobar','group'=>'Vacaciones y licencias','label'=>'Aprobar, rechazar o anular las de los supervisores (con "Sus zonas a cargo", solo las de sus zonas)','action'=>'editar'],
-            self::PERM_CUADRILLAS_DELETE => ['group'=>'Técnicos y cuadrillas','label'=>'Eliminar técnicos de apoyo (T2); si ya salen en supervisiones quedan Inhabilitados y fuera de su cuadrilla','action'=>'eliminar'],
+            self::PERM_CUADRILLAS_DELETE => ['group'=>'Técnicos y cuadrillas','label'=>'Eliminar cuadrillas y técnicos de apoyo (T2); si ya tienen supervisiones o exámenes quedan Inhabilitados','action'=>'eliminar'],
             self::PERM_PARTNERS_VIEW => ['group'=>'Partners','label'=>'Ver partners','action'=>'ver'],
             self::PERM_PARTNERS_EDIT => ['group'=>'Partners','label'=>'Editar: crear, renombrar, activar y desactivar partners','action'=>'editar'],
             self::PERM_PARTNERS_DELETE => ['group'=>'Partners','label'=>'Eliminar partners (solo sin historial)','action'=>'eliminar'],
             self::PERM_TIMELINE_VIEW => ['group'=>'Línea de tiempo','label'=>'Ver línea de tiempo','action'=>'ver'],
             self::PERM_ATTENDANCE_SELF => ['boton'=>'Registrar turno','group'=>'Mi turno','label'=>'Registrar el propio turno','action'=>'editar'],
-            self::PERM_CLIMA_EDIT => ['boton'=>'Avisar lluvias','group'=>'Mi turno','requiere'=>self::PERM_ATTENDANCE_SELF,'label'=>'Avisar y cerrar lluvias en su zona, con el turno iniciado (no necesita ver el indicador Clima)','action'=>'editar'],
+            self::PERM_CLIMA_EDIT => ['boton'=>'Avisar y cerrar lluvias','group'=>'Registro de lluvias','requiere'=>self::PERM_ATTENDANCE_SELF,'label'=>'Avisar y cerrar lluvias de su zona desde Mi turno, con el turno iniciado (no necesita ver el indicador Clima)','action'=>'editar'],
+            self::PERM_TURNOS_MONITOR => ['group'=>'Monitor de turnos','label'=>'Ver el Monitor de turnos: estado de los turnos del personal directo en tiempo real','action'=>'ver'],
+            self::PERM_TURNOS_REOPEN => ['boton'=>'Reabrir turnos','group'=>'Monitor de turnos','requiere'=>false,'label'=>'Reabrir el turno finalizado de un supervisor, desde el Monitor de turnos o la Línea de tiempo (sirve con cualquiera de las dos)','action'=>'editar'],
+            self::PERM_SUPERVISION_CORRECT => ['boton'=>'Corregir supervisiones','group'=>'Supervisiones','label'=>'Corregir y reabrir supervisiones de otros, incluso finalizadas (con su ubicación)','action'=>'editar'],
+            self::PERM_RESCATES_MANAGE => ['boton'=>'Rescates de otros','group'=>'Supervisiones','label'=>'Validar la atención del partner por otro supervisor, registrar avances, cerrar y reasignar rescates de otros','action'=>'editar'],
+            self::PERM_SUPERVISION_FILTER_PEOPLE => ['boton'=>'Departamento y supervisor','group'=>'Supervisiones','label'=>'Filtrar por departamento y por supervisor'],
+            self::PERM_OBSERVATION_MANAGE => ['boton'=>'Observaciones de otros','group'=>'Observaciones','label'=>'Responder por el partner, evaluar y reabrir levantamientos de otros y ampliar plazos vencidos','action'=>'editar'],
+            self::PERM_CLIMA_TEAMS => ['boton'=>'Enviar corte a Teams','group'=>'Clima','label'=>'Enviar ya el corte de lluvias al grupo de Teams','action'=>'editar'],
+            self::PERM_ORDENES_CERCANAS => ['boton'=>'Órdenes cercanas','group'=>'Supervisiones','label'=>'Ver las órdenes de Winbo cercanas a su ubicación (solo personal de WIN)'],
             // 2026-11-01: antes "reservados" (fijos del tipo Administrador); ahora se dan por perfil como los demás
             self::PERM_SUPERVISION_IMPORT => ['boton'=>'Subir pendientes','group'=>'Supervisiones','label'=>'Subir pendientes (Excel de cancelaciones), corregirlas y marcarlas con prioridad alta (con "Sus zonas y su área", solo las suyas)','action'=>'editar'],
             self::PERM_SUPERVISION_DELETE => ['group'=>'Supervisiones','label'=>'Eliminar supervisiones','action'=>'eliminar'],
@@ -580,9 +601,7 @@ class Auth {
 
     /** Órdenes cercanas (2026-11-08): trae órdenes de todos los partners, así que solo WIN (administración y supervisor directo). */
     public static function puedeOrdenesCercanas(array $u): bool {
-        $rol = $u['rol'] ?? '';
-        return in_array($rol, [self::ROLE_ADMINISTRADOR, self::ROLE_GERENTE, self::ROLE_COORDINADOR], true)
-            || ($rol === self::ROLE_SUPERVISOR && !empty($u['is_win_directo']));
+        return self::puede(self::PERM_ORDENES_CERCANAS, $u); // 2026-11-10: según Permisos; nunca el personal de partners
     }
 
     public static function isAdministrative(): bool {

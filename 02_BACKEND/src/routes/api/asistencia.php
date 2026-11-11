@@ -54,7 +54,7 @@ if (in_array($action, ['start', 'end', 'start_event', 'end_event'], true)) {
     }
 }
 // Reabrir un turno: el propio supervisor directo o el administrador (reglas en la acción 'reabrir').
-if ($action === 'reabrir' && ($user['rol'] ?? '') !== Auth::ROLE_ADMINISTRADOR
+if ($action === 'reabrir' && !Auth::puede(Auth::PERM_TURNOS_REOPEN, $user)
     && (($user['rol'] ?? '') !== Auth::ROLE_SUPERVISOR || empty($user['is_win_directo']))) {
     ob_clean(); http_response_code(403);
     echo json_encode(['status' => 'error', 'message' => 'Solo el supervisor o el administrador pueden reabrir un turno.']);
@@ -338,7 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'end') {
 // -------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'reabrir') {
     $data = getRequestData();
-    $esAdmin = ($user['rol'] ?? '') === Auth::ROLE_ADMINISTRADOR;
+    $esAdmin = Auth::puede(Auth::PERM_TURNOS_REOPEN, $user); // "Reabrir turnos" (2026-11-11; antes solo el Administrador)
     $supervisorId = $esAdmin && !empty($data['supervisor_id']) ? (int)$data['supervisor_id'] : (int)$user['id'];
     $stmt = $pdo->prepare("SELECT * FROM asistencia_supervisores WHERE supervisor_id = :s AND fecha = CURRENT_DATE() ORDER BY id DESC LIMIT 1");
     $stmt->execute([':s' => $supervisorId]);
@@ -454,7 +454,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'end_event') {
 // -------------------------------------------------------------
 if ($action === 'admin_summary') {
     // Verificar permisos
-    if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
+    if (!Auth::puede(Auth::PERM_TURNOS_MONITOR, $user)) { // 2026-11-10: según Permisos
         http_response_code(403);
         echo json_encode(['status' => 'error', 'message' => 'Acceso no autorizado.']);
         exit;
@@ -926,7 +926,7 @@ if ($action === 'timeline_diaria') {
         'fecha' => $fechaSel,
         'ahora' => time(),
         'es_hoy' => $fechaSel === date('Y-m-d'),
-        'puede_reabrir' => ($user['rol'] ?? '') === Auth::ROLE_ADMINISTRADOR,
+        'puede_reabrir' => Auth::puede(Auth::PERM_TURNOS_REOPEN, $user),
         'supervisores' => $resultTimeline
     ]);
     exit;

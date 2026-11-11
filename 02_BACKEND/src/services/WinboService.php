@@ -48,14 +48,24 @@ class WinboService {
         return getenv('WINBO_USUARIO') && getenv('WINBO_CLAVE') && getenv('WINBO_EMPRESA') && getenv('WINBO_AREA');
     }
 
-    /** Fecha de hoy en Perú (UTC-5), leída de la cabecera Date de un sitio de internet; null si no hay conexión. */
+    /**
+     * Fecha de hoy en Perú (UTC-5), leída de la cabecera Date de un sitio de internet; null si no hay conexión.
+     * 2026-11-10 (sistema liviano): la hora de internet se guarda 10 minutos para todos; mientras tanto se le suma el tiempo
+     * pasado, así que la fecha cambia bien a medianoche aunque venga de lo guardado.
+     */
     public static function fechaInternet(): ?string {
+        $archivo = BASE_PATH . '/08_LOGS/runtime/winbo/fecha.json';
+        $guardada = json_decode((string)@file_get_contents($archivo), true);
+        if (is_array($guardada) && time() - (int)$guardada['local'] < 600) return gmdate('d/m/Y', (int)$guardada['internet'] + time() - (int)$guardada['local'] - 5 * 3600);
         foreach (['https://www.google.com', 'https://www.cloudflare.com'] as $url) {
             $ch = curl_init($url);
             curl_setopt_array($ch, self::opcionesCa() + [CURLOPT_NOBODY => true, CURLOPT_HEADER => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 4, CURLOPT_CONNECTTIMEOUT => 3]);
             $r = curl_exec($ch);
             curl_close($ch);
-            if ($r && preg_match('/^date:\s*(.+)$/mi', (string)$r, $m) && ($t = strtotime(trim($m[1])))) return gmdate('d/m/Y', $t - 5 * 3600);
+            if ($r && preg_match('/^date:\s*(.+)$/mi', (string)$r, $m) && ($t = strtotime(trim($m[1])))) {
+                if (is_dir(dirname($archivo)) || @mkdir(dirname($archivo), 0775, true)) @file_put_contents($archivo, json_encode(['internet' => $t, 'local' => time()]), LOCK_EX);
+                return gmdate('d/m/Y', $t - 5 * 3600);
+            }
         }
         return null;
     }
@@ -73,6 +83,7 @@ class WinboService {
             $codigo = $this->codigoEstado($estadoNombre);
             $p = $this->leerPagina($codigo, $fecha, 1);
             foreach (glob($this->dir . '/orden_*.json') ?: [] as $viejo) if (time() - (int)@filemtime($viejo) > 3600) @unlink($viejo);
+            foreach (glob($this->dir . '/tiempos-*.log') ?: [] as $viejo) if (time() - (int)@filemtime($viejo) > 7 * 86400) @unlink($viejo);
             return ['fecha' => $fecha, 'codigo' => $codigo, 'total' => $p['total'], 'paginas' => (int)ceil($p['total'] / max($p['filas'], 1)), 'puntos' => $p['puntos']];
         });
         return ['puntos' => self::delGrupo($p['puntos'], $grupo)] + $p;
@@ -129,9 +140,14 @@ class WinboService {
         }
         $op[CURLOPT_HTTPHEADER] = $cab;
         curl_setopt_array($ch, $op);
+        $inicio = microtime(true);
         $r = curl_exec($ch);
         if ($r === false) { usleep(700000); $r = curl_exec($ch); }   // Winbo a veces corta la conexión: un reintento
         curl_close($ch);
+        // Medición (2026-11-10): cuánto tarda Winbo en el hosting, para fijar su tiempo máximo con datos. Un archivo por día;
+        // los de más de 7 días se borran al escanear (inicio).
+        @file_put_contents($this->dir . '/tiempos-' . date('Y-m-d') . '.log', date('H:i:s') . ' ' . number_format(microtime(true) - $inicio, 2, '.', '')
+            . ' ' . ($r === false ? 'FALLO' : 'ok') . ' ' . strtok($ruta, '?') . "\n", FILE_APPEND | LOCK_EX);
         if ($r === false) throw new RuntimeException('No se pudo conectar con Winbo. Inténtalo en unos minutos.');
         return (string)$r;
     }

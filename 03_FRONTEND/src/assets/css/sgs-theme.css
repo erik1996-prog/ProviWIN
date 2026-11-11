@@ -4148,3 +4148,10 @@ body.sgs-nov-abierto { overflow: hidden; }
 @keyframes sgsNovDerecha { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
 @keyframes sgsNovIzquierda { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .sgs-nov, .sgs-nov-paso.entra-derecha, .sgs-nov-paso.entra-izquierda { animation: none; } }
+
+/* 70. Tipo de pantalla en Permisos (2026-11-10): Registro, Indicador o Gestión junto al nombre, para no mezclar ventanas
+   distintas al dar permisos. Colores suaves de marca (no de estado). */
+.perm-tipo { display: inline-block; margin-left: 4px; padding: 1px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 600; vertical-align: 1px; }
+.perm-tipo--registro { background: var(--sgs-orange-soft); color: var(--sgs-orange-dark); }
+.perm-tipo--indicador { background: var(--sgs-surface-alt); color: var(--sgs-ink-2); border: 1px solid var(--sgs-border); }
+.perm-tipo--gestion { background: var(--sgs-bg); color: var(--sgs-muted); border: 1px solid var(--sgs-border); }

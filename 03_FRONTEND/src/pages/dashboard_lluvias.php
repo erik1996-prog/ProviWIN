@@ -83,7 +83,7 @@ $kpis = [
       <div class="d-flex flex-wrap align-items-center gap-2">
         <span class="sgs-en-vivo" id="dllEnVivo"><i aria-hidden="true"></i>En vivo</span>
         <button type="button" class="btn btn-outline-secondary btn-sm" id="dllPantalla"><i class="bi bi-arrows-fullscreen me-1"></i>Pantalla completa</button>
-        <?php if (Auth::isAdministrative()): ?><button type="button" class="btn btn-outline-secondary btn-sm" id="dllEnviarCorte" title="Publica ahora en el grupo de Teams las lluvias de los últimos 7 días; desde las 12:00 incluye hoy (también sale sola en los horarios programados)"><i class="bi bi-send me-1"></i>Enviar corte a Teams</button>
+        <?php if (Auth::puede(Auth::PERM_CLIMA_TEAMS, $user)): ?><button type="button" class="btn btn-outline-secondary btn-sm" id="dllEnviarCorte" title="Publica ahora en el grupo de Teams las lluvias de los últimos 7 días; desde las 12:00 incluye hoy (también sale sola en los horarios programados)"><i class="bi bi-send me-1"></i>Enviar corte a Teams</button>
         <?php endif; ?>
         <?php if (Auth::isAdministrative() && Auth::esCuentaPrincipal((int)$user['id'])): // solo la cuenta principal programa (2026-10-26) ?><button type="button" class="btn btn-outline-secondary btn-sm" id="dllProgramar"><i class="bi bi-clock me-1"></i>Programar envíos</button><?php endif; ?>
       </div>

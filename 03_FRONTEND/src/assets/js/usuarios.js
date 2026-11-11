@@ -298,11 +298,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // ---------- Permisos del perfil (2026-10-31) ----------
   // Una sección del menú por tarjeta y una fila por pantalla con sus botones (Ver primero, Eliminar al final). Sin "Ver" los
   // demás botones de esa pantalla se apagan y se bloquean (el servidor aplica la misma regla al guardar).
-  const SECCIONES = [['Supervisiones', 'bi-journal-check'], ['Seguimiento', 'bi-activity'], ['Observaciones', 'bi-eye'], ['Asistencia', 'bi-calendar-check'],
+  const SECCIONES = [['Inicio', 'bi-house'], ['Supervisiones', 'bi-journal-check'], ['Seguimiento', 'bi-activity'], ['Observaciones', 'bi-eye'], ['Asistencia', 'bi-calendar-check'],
     ['Personal', 'bi-people'], ['Indicadores', 'bi-graph-up'], ['Otros', 'bi-grid']];
   const ORDEN_ACCION = { ver: 0, editar: 1, eliminar: 3 };
   // Ícono de cada pantalla: el mismo del menú
-  const ICONO_PANTALLA = { 'Supervisiones': 'bi-journal-check', 'Línea de tiempo': 'bi-diagram-3', 'Mi turno': 'bi-play-circle', 'Observaciones': 'bi-clipboard2-pulse',
+  const ICONO_PANTALLA = { 'Supervisiones': 'bi-journal-check', 'Línea de tiempo': 'bi-diagram-3', 'Mi turno': 'bi-play-circle', 'Registro de lluvias': 'bi-cloud-rain', 'Monitor de turnos': 'bi-clock-history', 'Control y recurrencia': 'bi-exclamation-diamond', 'Observaciones': 'bi-clipboard2-pulse',
     'Matriz de asistencia': 'bi-calendar3', 'Vacaciones y licencias': 'bi-calendar2-x', 'Usuarios y perfiles': 'bi-person-badge', 'Técnicos y cuadrillas': 'bi-people-fill', 'Partners': 'bi-buildings',
     'Dashboard de supervisiones': 'bi-speedometer2', 'Dashboard de partners': 'bi-buildings', 'Pendientes y rescates': 'bi-arrow-repeat', 'Clima': 'bi-cloud-sun',
     'Exámenes': 'bi-clipboard-check' };
@@ -324,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const admin = esAdminPerfil(perfilDe(perfilPermisos)), editable = EDITA_PERFILES && !admin;
     const tiene = (clave) => (admin ? !CAT.de_campo.includes(clave) : marcados.has(clave));
     const porPantalla = {};
-    CAT.permisos.forEach((x) => (porPantalla[x.grupo] = porPantalla[x.grupo] || { seccion: x.seccion, items: [] }).items.push(x));
+    CAT.permisos.forEach((x) => (porPantalla[x.grupo] = porPantalla[x.grupo] || { seccion: x.seccion, tipo: x.tipo, items: [] }).items.push(x));
     $('#permGrupos').innerHTML = SECCIONES.map(([sec, icono]) => {
       const pantallas = Object.entries(porPantalla).filter(([, v]) => v.seccion === sec);
       if (!pantallas.length) return '';
@@ -335,7 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const botones = [...v.items].sort((a, b) => (ORDEN_ACCION[a.accion] ?? 2) - (ORDEN_ACCION[b.accion] ?? 2)).map((x) => `<button type="button" class="perm-pill" aria-pressed="${tiene(x.clave)}" data-permiso="${esc(x.clave)}" title="${esc(x.etiqueta)}"${!editable || (x.requiere && !tiene(x.requiere)) ? ' disabled' : ''}><i class="bi bi-check2" aria-hidden="true"></i>${esc(x.boton)}</button>`).join('');
         const todas = v.items.every((x) => tiene(x.clave));
         const casilla = `<input class="form-check-input mt-0" type="checkbox" data-pantalla="${esc(pantalla)}"${todas ? ' checked' : ''}${editable ? '' : ' disabled'} aria-label="Todas las acciones de ${esc(pantalla)}">`;
-        return `<div class="perm-fila"><div class="perm-fila-nombre">${casilla}<i class="bi ${ICONO_PANTALLA[pantalla] || 'bi-window'}" aria-hidden="true"></i><span>${esc(pantalla)}<small>${esc(sec)}</small></span></div><div class="perm-acciones">${botones}</div></div>`;
+        return `<div class="perm-fila"><div class="perm-fila-nombre">${casilla}<i class="bi ${ICONO_PANTALLA[pantalla] || 'bi-window'}" aria-hidden="true"></i><span>${esc(pantalla)}${v.tipo ? ` <span class="perm-tipo perm-tipo--${esc(v.tipo.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''))}">${esc(v.tipo)}</span>` : ''}<small>${esc(sec)}</small></span></div><div class="perm-acciones">${botones}</div></div>`;
       }).join('') + '</div>';
     }).join('');
   }

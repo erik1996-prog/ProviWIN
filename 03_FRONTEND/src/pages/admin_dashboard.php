@@ -3,8 +3,8 @@
 Auth::requireLogin();
 $user = Auth::getLoggedInUser();
 
-if (!in_array($user['rol'], ['Administrador', 'Gerente', 'Coordinador'])) {
-    echo '<div class="alert alert-danger m-4">Acceso denegado: Se requieren permisos de administración.</div>';
+if (!Auth::can(Auth::PERM_DASHBOARD_VIEW, $user)) { // 2026-11-10: según Permisos (antes fijo por tipo de usuario)
+    echo '<div class="alert alert-danger m-4">No tiene permiso para ver el Dashboard de supervisiones.</div>';
     exit;
 }
 // SGS: el calendario de asistencia no forma parte de este sistema; solo se muestra el tablero de supervisión.

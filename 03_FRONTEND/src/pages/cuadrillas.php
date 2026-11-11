@@ -65,7 +65,7 @@ if ($busqueda !== '') {
     $like = '%' . addcslashes($busqueda, '%_\\') . '%';
     $params += [':q1' => $like, ':q2' => $like, ':q3' => $like, ':q4' => $like];
 }
-$stmt = $pdo->prepare("SELECT t.id, t.nombre_tecnico, t.dni, t.celular, t.estado_operativo, t.apoyo_id, t.vehiculo_id, t.provincia, t.departamento, p.nombre_partner,
+$stmt = $pdo->prepare("SELECT t.id, t.nombre_tecnico, t.dni, t.celular, t.estado_operativo, t.apoyo_id, t.vehiculo_id, t.provincia, t.departamento, t.partner_id, p.nombre_partner,
         ta.nombre_tecnico AS apoyo_nombre, ta.dni AS apoyo_dni, ta.celular AS apoyo_celular, v.placa, v.tipo AS vehiculo_tipo, v.estado_conservacion AS vehiculo_estado,
         (SELECT COUNT(*) FROM supervisiones s WHERE s.tecnico1_id = t.id) AS supervisiones,
         (SELECT MAX(s.fecha_registro) FROM supervisiones s WHERE s.tecnico1_id = t.id) AS ultima_supervision
@@ -302,7 +302,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
     <?php
     // Lápiz de edición de la cuadrilla (mismo editor en la vista Cuadrillas y en Técnicos líderes).
     $botonEditar = static fn(array $f): string => $puedeEditar ? '<button type="button" class="sgs-icon-action" title="Editar cuadrilla" aria-label="Editar cuadrilla de ' . $e($f['nombre_tecnico']) . '"'
-        . ' data-editar="' . (int)$f['id'] . '" data-nombre="' . $e($f['nombre_tecnico']) . '" data-partner="' . $e($f['nombre_partner'] ?: '—') . '"'
+        . ' data-editar="' . (int)$f['id'] . '" data-nombre="' . $e($f['nombre_tecnico']) . '" data-partner-id="' . (int)$f['partner_id'] . '"'
         . ' data-dni="' . $e($f['dni']) . '" data-celular="' . $e($f['celular']) . '" data-apoyo="' . (int)$f['apoyo_id'] . '" data-placa="' . $e($f['placa']) . '"'
         . ' data-tipo="' . $e($f['vehiculo_tipo']) . '" data-estado="' . $e($f['vehiculo_estado']) . '" data-operativo="' . $e($f['estado_operativo']) . '"'
         . ' data-provincia="' . $e($f['provincia'] ?: $f['departamento']) . '"><i class="bi bi-pencil"></i></button>' : '';
@@ -408,7 +408,13 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
       <div class="modal-body">
         <input type="hidden" name="id">
         <h6 class="cuad-seccion"><i class="bi bi-person-badge me-2" aria-hidden="true"></i>Técnico líder (T1)</h6>
-        <p class="mb-2"><strong id="cuadNombre"></strong><br><small class="text-muted" id="cuadPartnerTexto"></small></p>
+        <?php /* 2026-11-10: la nomenclatura y el partner del T1 también se corrigen aquí; el T2 de la cuadrilla pasa al mismo partner. */ ?>
+        <div class="mb-3"><label class="form-label" for="cuadT1Nombre">Nomenclatura del técnico líder</label>
+          <input class="form-control text-uppercase" id="cuadT1Nombre" name="t1_nombre" maxlength="150" required placeholder="Ej.: P 4 DOMINION SGI JUAN PEREZ"></div>
+        <div class="mb-3"><label class="form-label" for="cuadT1Partner">Partner</label>
+          <select class="form-select" id="cuadT1Partner" name="t1_partner_id" required><option value="">Seleccione el partner</option>
+            <?php foreach ($partners as $p): ?><option value="<?= (int)$p['id'] ?>"><?= $e($p['nombre_partner']) ?></option><?php endforeach; ?></select>
+          <small class="text-muted">Si cambia el partner, el técnico de apoyo (T2) de esta cuadrilla pasa también al nuevo partner.</small></div>
         <div class="row g-3 mb-3">
           <div class="col-sm-6"><label class="form-label" for="cuadT1Dni">DNI</label><input class="form-control" id="cuadT1Dni" name="t1_dni" inputmode="numeric" maxlength="8" placeholder="8 dígitos"></div>
           <div class="col-sm-6"><label class="form-label" for="cuadT1Cel">Celular</label><input class="form-control" id="cuadT1Cel" name="t1_celular" inputmode="tel" maxlength="9" placeholder="9XXXXXXXX"></div>
@@ -451,7 +457,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
           <select class="form-select" id="cuadOperativoEdit" name="estado_operativo"><option>Habilitado</option><option>Inhabilitado</option><option value="Blacklist">Lista negra</option></select></div>
         <div class="alert alert-danger d-none mt-3 mb-0" id="cuadError" role="alert"></div>
       </div>
-      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-win" id="btnGuardarCuadrilla"><i class="bi bi-check2 me-1"></i>Guardar cuadrilla</button></div>
+      <div class="modal-footer"><?php if ($puedeEliminar): ?><button type="button" class="btn btn-outline-danger me-auto" id="btnEliminarCuadrilla"><i class="bi bi-trash me-1"></i>Eliminar cuadrilla</button><?php endif; ?><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-win" id="btnGuardarCuadrilla"><i class="bi bi-check2 me-1"></i>Guardar cuadrilla</button></div>
     </form>
   </div></div>
 </div>

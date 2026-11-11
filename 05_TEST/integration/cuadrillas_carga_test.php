@@ -131,7 +131,7 @@ try {
     [$pagina] = $http("$base/index.php?page=cuadrillas");
     preg_match('/<meta name="csrf-token" content="([^"]+)"/', $pagina, $m);
     $csrf = ['X-CSRF-Token: ' . ($m[1] ?? '')];
-    $check('la pantalla muestra la carga por Excel y la edición', str_contains($pagina, 'Cargar técnicos líderes') && str_contains($pagina, 'id="cuadNombre"'));
+    $check('la pantalla muestra la carga por Excel y la edición', str_contains($pagina, 'Cargar técnicos líderes') && str_contains($pagina, 'id="cuadT1Nombre"'));
 
     [$bin, , $tipo] = $http("$base/api/tecnicos.php?action=exportar_lideres");
     file_put_contents($xlsx, $bin);

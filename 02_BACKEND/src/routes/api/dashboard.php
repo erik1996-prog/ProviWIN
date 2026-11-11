@@ -7,14 +7,15 @@ require_once __DIR__ . '/../../config/auth.php';
 require_once __DIR__ . '/../../config/database.php';
 
 Auth::requireLogin();
-if (!Auth::can(Auth::PERM_DASHBOARD_VIEW)) {
+$action = $_GET['action'] ?? '';
+// 2026-11-10: la Línea de tiempo usa el monitoreo en tiempo real: le basta su propio permiso, sin el del Dashboard.
+if (!Auth::can(Auth::PERM_DASHBOARD_VIEW) && !($action === 'monitoreo_realtime' && Auth::can(Auth::PERM_TIMELINE_VIEW))) {
     http_response_code(403);
-    echo json_encode(['status' => 'error', 'message' => 'Se requieren permisos administrativos.']);
+    echo json_encode(['status' => 'error', 'message' => 'No tiene permiso para ver esta información.']);
     exit;
 }
 $user = Auth::getLoggedInUser();
 $pdo = Database::getConnection();
-$action = $_GET['action'] ?? '';
 
 // 1. Monitoreo en Tiempo Real (Estado actual de cada supervisor hoy)
 if ($action === 'monitoreo_realtime') {

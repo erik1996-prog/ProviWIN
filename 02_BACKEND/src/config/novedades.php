@@ -22,6 +22,15 @@ function sgsNovedades(): array {
         ['id' => 4, 'fecha' => '2026-11-08', 'icono' => 'bi-shield-check', 'titulo' => 'Permisos separados de los indicadores',
          'texto' => 'Ahora puedes dar "Avisar lluvias" (en Mi turno) y "Generar links de examen" (en Técnicos y cuadrillas) sin dar acceso a los indicadores de Clima y Exámenes.',
          'url' => 'index.php?page=usuarios', 'puede' => static fn(array $u): bool => Auth::puede(Auth::PERM_USERS_MANAGE, $u)],
+        ['id' => 5, 'fecha' => '2026-11-10', 'icono' => 'bi-people-fill', 'titulo' => 'Corregir y eliminar cuadrillas',
+         'texto' => 'Ahora, en Técnicos y cuadrillas, puedes corregir la nomenclatura y el partner del técnico líder y, si tienes el permiso, eliminar una cuadrilla.',
+         'url' => 'index.php?page=cuadrillas', 'puede' => static fn(array $u): bool => Auth::puede(Auth::PERM_CUADRILLAS_EDIT, $u)],
+        ['id' => 6, 'fecha' => '2026-11-10', 'icono' => 'bi-ui-checks-grid', 'titulo' => 'Cada pantalla con su permiso',
+         'texto' => 'Ahora en Permisos cada pantalla va por separado y dice si es de Registro, Indicador o Gestión: por ejemplo, Registro de lluvias aparte del indicador Clima, y Monitor de turnos, Control y recurrencia y Órdenes cercanas con su propio permiso.',
+         'url' => 'index.php?page=usuarios', 'puede' => static fn(array $u): bool => Auth::puede(Auth::PERM_USERS_MANAGE, $u)],
+        ['id' => 7, 'fecha' => '2026-11-11', 'icono' => 'bi-person-check', 'titulo' => 'Acciones de administrador en Permisos',
+         'texto' => 'Ahora puedes dar por perfil lo que antes era solo del administrador: corregir supervisiones, rescates de otros, filtrar por supervisor, observaciones de otros, reabrir turnos y enviar el corte de lluvias a Teams.',
+         'url' => 'index.php?page=usuarios', 'puede' => static fn(array $u): bool => Auth::puede(Auth::PERM_USERS_MANAGE, $u)],
     ];
 }
 

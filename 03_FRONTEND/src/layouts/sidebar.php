@@ -27,10 +27,9 @@ if (!function_exists('formatSidebarInitials')) {
 
 $shortName = formatSidebarShortName($user['nombre'] ?? '');
 $sidebarInitials = formatSidebarInitials($user);
-$showAdministrativeMenu = Auth::isAdministrative();
 $isPartnerMenu = $rol === Auth::ROLE_JEFE_OPERACIONES || ($rol === Auth::ROLE_SUPERVISOR && empty($user['is_win_directo']));
 $isDirectMenu = Auth::registraTurno($user); // Mi turno: según "Registrar turno" en Permisos (2026-11-05)
-$canMonitorShifts = in_array($rol, [Auth::ROLE_ADMINISTRADOR, Auth::ROLE_GERENTE, Auth::ROLE_COORDINADOR], true); // 2026-10-12: también el administrador
+$canMonitorShifts = Auth::puede(Auth::PERM_TURNOS_MONITOR, $user); // 2026-11-10: según Permisos
 $canViewSupervisions = Auth::can(Auth::PERM_SUPERVISION_VIEW, $user);
 $canViewObservations = Auth::can(Auth::PERM_OBSERVATION_VIEW, $user);
 $canReviewObservations = Auth::can(Auth::PERM_OBSERVATION_REVIEW, $user);
@@ -98,16 +97,16 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
             [$canViewSupervisions, 'index.php?page=supervision_lista', ['supervision_lista', 'supervision_registro'], $isPartnerMenu ? 'bi-calendar-check' : 'bi-journal-check', $isPartnerMenu ? ($rol === Auth::ROLE_JEFE_OPERACIONES ? 'Órdenes del partner' : 'Mi agenda') : 'Supervisiones'],
         ]],
         ['Seguimiento', 'bi-person-workspace', [
-            [$showAdministrativeMenu && $canViewTimeline, 'index.php?page=timeline_supervisores', ['timeline_supervisores'], 'bi-diagram-3', 'Línea de tiempo'],
+            [$canViewTimeline, 'index.php?page=timeline_supervisores', ['timeline_supervisores'], 'bi-diagram-3', 'Línea de tiempo'],
             [$canMonitorShifts, 'index.php?page=asistencia', ['asistencia'], 'bi-clock-history', 'Monitor de turnos'],
         ]],
         ['Observaciones', 'bi-clipboard2-pulse', [
             [$canViewObservations, 'index.php?page=registro_observaciones', ['registro_observaciones', 'observaciones_partner'], 'bi-clipboard2-pulse', 'Registro', 'Observaciones'],
-            [$showAdministrativeMenu && $canReviewObservations, 'index.php?page=control_observaciones', ['control_observaciones'], 'bi-exclamation-diamond', 'Control y recurrencia'],
+            [$canReviewObservations, 'index.php?page=control_observaciones', ['control_observaciones'], 'bi-exclamation-diamond', 'Control y recurrencia'],
         ]],
         // 2026-10-31: los indicadores van después de Observaciones y antes de Asistencia y Personal (pedido del usuario).
         ['Indicadores', 'bi-graph-up', [
-            [$showAdministrativeMenu && $canViewDashboard, 'index.php?page=admin_dashboard', ['admin_dashboard'], 'bi-speedometer2', 'Dashboard de supervisiones'],
+            [$canViewDashboard, 'index.php?page=admin_dashboard', ['admin_dashboard'], 'bi-speedometer2', 'Dashboard de supervisiones'],
             [$ve(Auth::PERM_PARTNERS_DASHBOARD), 'index.php?page=dashboard_partners', ['dashboard_partners'], 'bi-buildings', 'Dashboard de partners'],
             [$ve(Auth::PERM_PENDIENTES_VIEW), 'index.php?page=dashboard_pendientes', ['dashboard_pendientes'], 'bi-arrow-repeat', 'Pendientes y rescates'],
             [$ve(Auth::PERM_CLIMA_VIEW), 'index.php?page=dashboard_lluvias', ['dashboard_lluvias'], 'bi-cloud-sun', 'Clima'],

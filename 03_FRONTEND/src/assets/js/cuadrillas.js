@@ -149,8 +149,8 @@ document.addEventListener('DOMContentLoaded', () => {
   tabla?.addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-editar]'); if (!b) return;
     f.id.value = b.dataset.editar;
-    $('cuadNombre').textContent = b.dataset.nombre;
-    $('cuadPartnerTexto').textContent = 'Partner: ' + b.dataset.partner;
+    $('cuadT1Nombre').value = b.dataset.nombre;
+    $('cuadT1Partner').value = b.dataset.partnerId && b.dataset.partnerId !== '0' ? b.dataset.partnerId : '';
     $('cuadT1Dni').value = b.dataset.dni && b.dataset.dni !== '0' ? b.dataset.dni : '';
     $('cuadT1Cel').value = b.dataset.celular || '';
     apoyo.value = b.dataset.apoyo && b.dataset.apoyo !== '0' ? b.dataset.apoyo : '0';
@@ -171,6 +171,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const r = await enviar('cuadrilla_guardar', new FormData(f));
       mCuadrilla.hide(); window.showToast?.(r.message, 'success');
       if (reabrirLink) try { sessionStorage.setItem('sgsReabrirLink', JSON.stringify(reabrirLink)); } catch { /* no se reabre */ }
+      setTimeout(() => location.reload(), 400);
+    } catch (e) {
+      $('cuadError').textContent = e.message; $('cuadError').classList.remove('d-none');
+    } finally { btn.disabled = false; }
+  });
+  // Eliminar la cuadrilla (2026-11-10, permiso "Eliminar" de Técnicos y cuadrillas): el T2 queda libre, sin cuadrilla.
+  $('btnEliminarCuadrilla')?.addEventListener('click', async (ev) => {
+    if (!confirm(`¿Eliminar la cuadrilla de ${$('cuadT1Nombre').value}? Su técnico de apoyo (T2) queda libre. Si ya tiene supervisiones o exámenes, el técnico líder queda Inhabilitado para no perder ese historial.`)) return;
+    const btn = ev.currentTarget; btn.disabled = true;
+    try {
+      const datos = new FormData(); datos.append('id', f.id.value);
+      const r = await enviar('eliminar_cuadrilla', datos);
+      mCuadrilla.hide(); window.showToast?.(r.message, 'success');
       setTimeout(() => location.reload(), 400);
     } catch (e) {
       $('cuadError').textContent = e.message; $('cuadError').classList.remove('d-none');

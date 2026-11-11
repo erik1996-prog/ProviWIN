@@ -37,8 +37,16 @@ final class UsuarioService
     public const SECCION_PANTALLA = [
         'Dashboard de supervisiones' => 'Indicadores', 'Dashboard de partners' => 'Indicadores', 'Pendientes y rescates' => 'Indicadores', 'Matriz de asistencia' => 'Asistencia', 'Vacaciones y licencias' => 'Asistencia',
         'Clima' => 'Indicadores', 'Exámenes' => 'Indicadores', 'Supervisiones' => 'Supervisiones', 'Línea de tiempo' => 'Seguimiento',
-        'Mi turno' => 'Seguimiento', 'Observaciones' => 'Observaciones', 'Usuarios y perfiles' => 'Personal', 'Técnicos y cuadrillas' => 'Personal',
+        'Mi turno' => 'Inicio', 'Registro de lluvias' => 'Inicio', 'Monitor de turnos' => 'Seguimiento', 'Observaciones' => 'Observaciones',
+        'Control y recurrencia' => 'Observaciones', 'Usuarios y perfiles' => 'Personal', 'Técnicos y cuadrillas' => 'Personal',
         'Partners' => 'Personal', 'Guía de diseño' => 'Otros',
+    ];
+    /** Qué es cada pantalla (2026-11-10): en Permisos se ve si es para registrar, para consultar indicadores o para administrar. */
+    public const TIPO_PANTALLA = [
+        'Mi turno' => 'Registro', 'Registro de lluvias' => 'Registro', 'Supervisiones' => 'Registro', 'Observaciones' => 'Registro', 'Vacaciones y licencias' => 'Registro',
+        'Línea de tiempo' => 'Indicador', 'Monitor de turnos' => 'Indicador', 'Control y recurrencia' => 'Indicador', 'Dashboard de supervisiones' => 'Indicador',
+        'Dashboard de partners' => 'Indicador', 'Pendientes y rescates' => 'Indicador', 'Clima' => 'Indicador', 'Exámenes' => 'Indicador', 'Matriz de asistencia' => 'Indicador',
+        'Usuarios y perfiles' => 'Gestión', 'Técnicos y cuadrillas' => 'Gestión', 'Partners' => 'Gestión', 'Guía de diseño' => 'Gestión',
     ];
 
     public static function catalogoSgs(): array
@@ -48,7 +56,8 @@ final class UsuarioService
                 // boton (2026-10-31): texto corto de la pantalla Permisos (Ver, Registrar, Editar, Eliminar o el de su opción)
             $out[] = ['clave' => $clave, 'grupo' => $def['group'], 'etiqueta' => $def['label'], 'accion' => $def['action'] ?? null,
                 'boton' => $def['boton'] ?? (['ver' => 'Ver', 'editar' => 'Editar', 'eliminar' => 'Eliminar'][$def['action'] ?? ''] ?? $def['label']),
-                'requiere' => Auth::permisoRequerido($clave), 'seccion' => self::SECCION_PANTALLA[$def['group']] ?? 'Otros'];
+                'requiere' => Auth::permisoRequerido($clave), 'seccion' => self::SECCION_PANTALLA[$def['group']] ?? 'Otros',
+                'tipo' => self::TIPO_PANTALLA[$def['group']] ?? ''];
         }
         return $out;
     }

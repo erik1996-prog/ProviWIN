@@ -1,6 +1,6 @@
 -- 04_DATABASE/03_ESTRUCTURA/esquema_completo.sql
 -- Estructura de SGS: 33 tablas en orden de dependencias, sin datos ni DROP.
--- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-11-08. No editar a mano: los cambios van como migración en 02_CAMBIOS.
+-- Generado por 07_SCRIPTS/generar_instalacion.php el 2026-11-11. No editar a mano: los cambios van como migración en 02_CAMBIOS.
 
 SET NAMES utf8mb4;
 

@@ -47,7 +47,7 @@ if (($_GET['action'] ?? '') === 'eliminar' && $_SERVER['REQUEST_METHOD'] === 'PO
     $responder(['status' => 'success', 'message' => 'Lluvia eliminada.']);
 }
 if (($_GET['action'] ?? '') === 'enviar_corte' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!$esAdmin) $responder(['status' => 'error', 'message' => 'Solo el personal administrativo puede enviar el corte.'], 403);
+    if (!Auth::puede(Auth::PERM_CLIMA_TEAMS, $usuario)) $responder(['status' => 'error', 'message' => 'No tiene permiso para enviar el corte a Teams.'], 403);
     require_once __DIR__ . '/../../config/lluvias_corte.php';
     require_once __DIR__ . '/../../config/examen_enlaces.php'; // sgsUrlSistema
     $url = sgsUrlSistema();

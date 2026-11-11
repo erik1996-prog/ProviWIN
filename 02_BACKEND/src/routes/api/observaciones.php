@@ -44,7 +44,7 @@ $pdo->exec("
 
 // 3. Registrar Observación con Carga de Hasta 3 Fotos
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
-    if (!Auth::hasRole([Auth::ROLE_SUPERVISOR, Auth::ROLE_ADMINISTRADOR, Auth::ROLE_GERENTE, Auth::ROLE_COORDINADOR])) {
+    if (!Auth::can(Auth::PERM_FORM_FINDINGS)) { // 2026-11-11: "Hallazgos" de Supervisiones (antes, por tipo de usuario)
         http_response_code(403);
         echo json_encode(['status' => 'error', 'message' => 'No tiene permisos para registrar observaciones.']);
         exit;
@@ -169,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'create') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'responder_checklist_partner') {
     // Personal del partner con el permiso de responder (el supervisor lo trae; al jefe de operaciones se le puede activar).
     $esRepresentantePartner = empty($user['is_win_directo']) && !empty($user['partner_id']) && Auth::can(Auth::PERM_OBSERVATION_RESPOND, $user);
-    if (!$esRepresentantePartner && $user['rol'] !== Auth::ROLE_ADMINISTRADOR) {
+    if (!$esRepresentantePartner && !Auth::puede(Auth::PERM_OBSERVATION_MANAGE, $user)) { // "Observaciones de otros" (2026-11-11)
         http_response_code(403); echo json_encode(['status'=>'error','message'=>'Solo el partner asignado puede responder este checklist.']); exit;
     }
     $supervisionId=(int)($_POST['supervision_id']??0); $respuestaGeneral=trim((string)($_POST['respuesta_general']??''));
@@ -194,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'evaluar_checklist') {
     if(!$approve&&$comment===''){http_response_code(422);echo json_encode(['status'=>'error','message'=>'Indique por qué no se valida la observación.']);exit;}
     $stmt=$pdo->prepare("SELECT ct.id,ct.supervisor_id,ct.estado_respuesta,ct.tecnico_nombre,s.partner_id FROM checklists_tecnicos ct JOIN supervisiones s ON s.id=ct.supervision_id WHERE ct.supervision_id=:sid ORDER BY ct.id DESC LIMIT 1");$stmt->execute([':sid'=>$supervisionId]);$checklist=$stmt->fetch();
     if(!$checklist){http_response_code(404);echo json_encode(['status'=>'error','message'=>'Checklist no encontrado.']);exit;}
-    $isAdmin=$user['rol']===Auth::ROLE_ADMINISTRADOR;$isDirect=($user['rol']===Auth::ROLE_SUPERVISOR&&!empty($user['is_win_directo'])&&(int)$checklist['supervisor_id']===(int)$user['id']);
+    $isAdmin=Auth::puede(Auth::PERM_OBSERVATION_MANAGE,$user);$isDirect=($user['rol']===Auth::ROLE_SUPERVISOR&&!empty($user['is_win_directo'])&&(int)$checklist['supervisor_id']===(int)$user['id']);
     if(!$isAdmin&&!$isDirect){http_response_code(403);echo json_encode(['status'=>'error','message'=>'Solo el supervisor directo responsable puede evaluar este levantamiento.']);exit;}
     if($checklist['estado_respuesta']!=='En revisión'){http_response_code(422);echo json_encode(['status'=>'error','message'=>'El checklist no tiene un levantamiento pendiente de evaluación.']);exit;}
     $newState=$approve?'Validado':'Penalizado';$pdo->prepare("UPDATE checklists_tecnicos SET estado_respuesta=:estado,sustentacion_evaluacion=:comentario,fecha_evaluacion=NOW(),evaluado_por=:usuario WHERE id=:id")->execute([':estado'=>$newState,':comentario'=>$comment,':usuario'=>$user['id'],':id'=>$checklist['id']]);
@@ -203,7 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'evaluar_checklist') {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'reabrir_checklist') {
     $input=json_decode(file_get_contents('php://input'),true)??[];$supervisionId=(int)($input['supervision_id']??0);$stmt=$pdo->prepare("SELECT ct.id,ct.supervisor_id,ct.estado_respuesta,ct.tecnico_nombre,s.partner_id FROM checklists_tecnicos ct JOIN supervisiones s ON s.id=ct.supervision_id WHERE ct.supervision_id=:sid ORDER BY ct.id DESC LIMIT 1");$stmt->execute([':sid'=>$supervisionId]);$checklist=$stmt->fetch();
-    if(!$checklist){http_response_code(404);echo json_encode(['status'=>'error','message'=>'Checklist no encontrado.']);exit;}$isAdmin=$user['rol']===Auth::ROLE_ADMINISTRADOR;$isDirect=$user['rol']===Auth::ROLE_SUPERVISOR&&!empty($user['is_win_directo'])&&(int)$checklist['supervisor_id']===(int)$user['id'];if(!$isAdmin&&!$isDirect){http_response_code(403);echo json_encode(['status'=>'error','message'=>'No tiene permiso para reabrir esta observación.']);exit;}if($checklist['estado_respuesta']!=='Penalizado'){http_response_code(422);echo json_encode(['status'=>'error','message'=>'Solo se pueden reabrir observaciones penalizadas.']);exit;}
+    if(!$checklist){http_response_code(404);echo json_encode(['status'=>'error','message'=>'Checklist no encontrado.']);exit;}$isAdmin=Auth::puede(Auth::PERM_OBSERVATION_MANAGE,$user);$isDirect=$user['rol']===Auth::ROLE_SUPERVISOR&&!empty($user['is_win_directo'])&&(int)$checklist['supervisor_id']===(int)$user['id'];if(!$isAdmin&&!$isDirect){http_response_code(403);echo json_encode(['status'=>'error','message'=>'No tiene permiso para reabrir esta observación.']);exit;}if($checklist['estado_respuesta']!=='Penalizado'){http_response_code(422);echo json_encode(['status'=>'error','message'=>'Solo se pueden reabrir observaciones penalizadas.']);exit;}
     $pdo->prepare("UPDATE checklists_tecnicos SET estado_respuesta='Reabierto',fecha_limite_respuesta=CASE WEEKDAY(NOW()) WHEN 0 THEN DATE_ADD(NOW(),INTERVAL 3 DAY) WHEN 1 THEN DATE_ADD(NOW(),INTERVAL 3 DAY) WHEN 2 THEN DATE_ADD(NOW(),INTERVAL 3 DAY) WHEN 3 THEN DATE_ADD(NOW(),INTERVAL 4 DAY) WHEN 4 THEN DATE_ADD(NOW(),INTERVAL 4 DAY) WHEN 5 THEN DATE_ADD(NOW(),INTERVAL 4 DAY) ELSE DATE_ADD(NOW(),INTERVAL 3 DAY) END,sustentacion_evaluacion=NULL,fecha_evaluacion=NULL,evaluado_por=NULL WHERE id=:id")->execute([':id'=>$checklist['id']]);$partnerUsers=$pdo->prepare("SELECT id FROM usuarios WHERE partner_id=:partner AND rol='Jefe de operaciones' AND activo=1");$partnerUsers->execute([':partner'=>$checklist['partner_id']]);$notify=$pdo->prepare("INSERT INTO notificaciones(usuario_id,titulo,mensaje,url_destino) VALUES(:uid,'Observación reabierta',:mensaje,'index.php?page=registro_observaciones')");foreach($partnerUsers->fetchAll(PDO::FETCH_COLUMN) as $partnerUserId)$notify->execute([':uid'=>$partnerUserId,':mensaje'=>'Puede actualizar los descargos de '.$checklist['tecnico_nombre'].' dentro del nuevo plazo.']);echo json_encode(['status'=>'success','message'=>'La observación fue reabierta por 3 días hábiles.']);exit;
 }
 
@@ -211,7 +211,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'reabrir_checklist') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'responder_partner') {
     // Personal del partner con el permiso de responder (el supervisor lo trae; al jefe de operaciones se le puede activar).
     $esRepresentantePartner = empty($user['is_win_directo']) && !empty($user['partner_id']) && Auth::can(Auth::PERM_OBSERVATION_RESPOND, $user);
-    if (!$esRepresentantePartner && $user['rol'] !== Auth::ROLE_ADMINISTRADOR) {
+    if (!$esRepresentantePartner && !Auth::puede(Auth::PERM_OBSERVATION_MANAGE, $user)) { // "Observaciones de otros" (2026-11-11)
         echo json_encode(['status' => 'error', 'message' => 'Solo los representantes del Partner pueden responder observaciones.']);
         exit;
     }
@@ -323,7 +323,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'responder_partner') {
 
 // 5. Evaluación del Supervisor sobre la Apelación del Partner
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'actualizar_plazo') {
-    if (!Auth::hasRole([Auth::ROLE_SUPERVISOR, Auth::ROLE_ADMINISTRADOR, Auth::ROLE_COORDINADOR])) {
+    if (!Auth::can(Auth::PERM_OBSERVATION_VIEW)) { // 2026-11-11: según Permisos; además debe ser suya o tener "Observaciones de otros"
         http_response_code(403); echo json_encode(['status'=>'error','message'=>'No tiene permisos para actualizar el plazo.']); exit;
     }
     $input=json_decode(file_get_contents('php://input'),true)??$_POST;
@@ -332,10 +332,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'actualizar_plazo') {
     if(!$date){http_response_code(422);echo json_encode(['status'=>'error','message'=>'Seleccione una fecha y hora válidas.']);exit;}
     $stmt=$pdo->prepare('SELECT s.supervisor_id,s.asignado_por,o.estado_respuesta FROM observaciones_supervision o JOIN supervisiones s ON s.id=o.supervision_id WHERE o.id=:id LIMIT 1');
     $stmt->execute([':id'=>$obsId]);$owner=$stmt->fetch();
-    if(!$owner||(!Auth::isAdministrative()&&(int)$owner['supervisor_id']!==(int)$user['id']&&(int)$owner['asignado_por']!==(int)$user['id'])){http_response_code(403);echo json_encode(['status'=>'error','message'=>'No puede modificar el plazo de una observación ajena.']);exit;}
+    if(!$owner||(!Auth::isAdministrative()&&!Auth::puede(Auth::PERM_OBSERVATION_MANAGE,$user)&&(int)$owner['supervisor_id']!==(int)$user['id']&&(int)$owner['asignado_por']!==(int)$user['id'])){http_response_code(403);echo json_encode(['status'=>'error','message'=>'No puede modificar el plazo de una observación ajena.']);exit;}
     // El administrador puede ampliar el plazo aunque ya haya pasado a "Penalidad Directa" (2026-10-11):
     // si la nueva fecha es futura, la observación vuelve a "Pendiente" para que el partner pueda responder.
-    $esAdmin = Auth::hasRole([Auth::ROLE_ADMINISTRADOR]);
+    $esAdmin = Auth::puede(Auth::PERM_OBSERVATION_MANAGE, $user); // ampliar plazos vencidos (2026-11-11: según Permisos)
     $cerrada = in_array($owner['estado_respuesta'],['Levantamiento validado','Penalidad Directa'],true);
     if($owner['estado_respuesta']==='Levantamiento validado' || ($cerrada && !$esAdmin)){http_response_code(422);echo json_encode(['status'=>'error','message'=>'La observación ya está cerrada.']);exit;}
     $reabre = $esAdmin && $owner['estado_respuesta']==='Penalidad Directa' && $date > new DateTime();
@@ -369,7 +369,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'eliminar') {
 
 // 5. Evaluación del Supervisor sobre la Apelación del Partner
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'evaluar_supervisor') {
-    if (!Auth::hasRole([Auth::ROLE_SUPERVISOR, Auth::ROLE_ADMINISTRADOR, Auth::ROLE_COORDINADOR])) {
+    if (!Auth::can(Auth::PERM_OBSERVATION_VIEW)) { // 2026-11-11: según Permisos; además debe ser suya o tener "Observaciones de otros"
         echo json_encode(['status' => 'error', 'message' => 'No tiene permisos para evaluar apelaciones.']);
         exit;
     }
@@ -382,7 +382,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'evaluar_supervisor') {
     $stmtOwner = $pdo->prepare("SELECT s.supervisor_id,s.asignado_por,o.estado_respuesta FROM observaciones_supervision o JOIN supervisiones s ON s.id = o.supervision_id WHERE o.id = :id LIMIT 1");
     $stmtOwner->execute([':id' => $obsId]);
     $owner = $stmtOwner->fetch();
-    if (!$owner || (!Auth::isAdministrative() && (int)$owner['supervisor_id'] !== (int)$user['id'] && (int)$owner['asignado_por'] !== (int)$user['id'])) {
+    if (!$owner || (!Auth::isAdministrative() && !Auth::puede(Auth::PERM_OBSERVATION_MANAGE, $user) && (int)$owner['supervisor_id'] !== (int)$user['id'] && (int)$owner['asignado_por'] !== (int)$user['id'])) {
         http_response_code(403);
         echo json_encode(['status' => 'error', 'message' => 'No puede evaluar una observación ajena.']);
         exit;
