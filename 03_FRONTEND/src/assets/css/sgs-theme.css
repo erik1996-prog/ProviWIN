@@ -4155,3 +4155,10 @@ body.sgs-nov-abierto { overflow: hidden; }
 .perm-tipo--registro { background: var(--sgs-orange-soft); color: var(--sgs-orange-dark); }
 .perm-tipo--indicador { background: var(--sgs-surface-alt); color: var(--sgs-ink-2); border: 1px solid var(--sgs-border); }
 .perm-tipo--gestion { background: var(--sgs-bg); color: var(--sgs-muted); border: 1px solid var(--sgs-border); }
+
+/* 71. Unir a la misma persona registrada como T1 y como T2 (2026-11-11, ventana Editar T2). */
+.cuad-unir { border: 1px solid var(--sgs-border); border-radius: var(--sgs-radius-sm); padding: 10px 12px; }
+.cuad-unir summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--sgs-ink); }
+.cuad-unir-lista { display: grid; gap: 4px; max-height: 180px; overflow-y: auto; }
+.cuad-unir-lista label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--sgs-border); border-radius: 8px; font-size: 13px; cursor: pointer; }
+.cuad-unir-lista label:has(input:checked) { border-color: var(--sgs-orange); background: var(--sgs-orange-soft); }

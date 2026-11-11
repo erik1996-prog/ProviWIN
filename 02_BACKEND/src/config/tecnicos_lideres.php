@@ -23,6 +23,101 @@ function sgsNombreLider(string $nombre): string {
  * Devuelve su id; si algo no cumple, lanza Exception con el motivo.
  */
 function sgsRegistrarTecnico(PDO $pdo, int $tipo, string $nombre, string $dni, int $partnerId, ?string $departamento, ?string $provincia, ?string $celular = null): int {
+    [$nombre, $dni, $celular] = sgsValidarDatosTecnico($pdo, $tipo, $nombre, $dni, $partnerId, $celular);
+    $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, dni, celular, tipo_tecnico, estado_operativo, partner_id, departamento, provincia, fecha_registro)
+            VALUES (:n, :dni, :cel, :tipo, 'Habilitado', :p, :dep, :prov, NOW())")
+        ->execute([':n' => $nombre, ':dni' => $dni, ':cel' => $celular ?: null, ':tipo' => $tipo === 1 ? 1 : 2, ':p' => $partnerId, ':dep' => $departamento ?: null, ':prov' => $provincia ?: null]);
+    return (int)$pdo->lastInsertId();
+}
+
+/**
+ * Técnico de apoyo (T2) que pasa a técnico líder (T1) (2026-11-11): se usa el mismo registro, así conserva su DNI y su
+ * historial (supervisiones y exámenes). Toma la nomenclatura, el partner y la zona nuevos, queda Habilitado (aunque lo
+ * hubieran "eliminado": con historial quedaba Inhabilitado) y sale de la cuadrilla donde era T2. Devuelve su id.
+ */
+function sgsPromoverT2aT1(PDO $pdo, int $id, string $nombre, int $partnerId, ?string $departamento, ?string $provincia, ?string $celular = null): int {
+    $st = $pdo->prepare('SELECT dni, celular FROM tecnicos WHERE id = :id AND tipo_tecnico = 2');
+    $st->execute([':id' => $id]);
+    $t2 = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$t2) throw new Exception('Ese técnico de apoyo ya no existe.');
+    [$nombre, , $celular] = sgsValidarDatosTecnico($pdo, 1, $nombre, (string)$t2['dni'], $partnerId, $celular, $id);
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('UPDATE tecnicos SET apoyo_id = NULL WHERE apoyo_id = :id')->execute([':id' => $id]);
+        $pdo->prepare("UPDATE tecnicos SET tipo_tecnico = 1, nombre_tecnico = :n, partner_id = :p, departamento = :dep, provincia = :prov,
+                celular = COALESCE(:cel, celular), estado_operativo = 'Habilitado', fecha_actualizacion = NOW() WHERE id = :id")
+            ->execute([':n' => $nombre, ':p' => $partnerId, ':dep' => $departamento ?: null, ':prov' => $provincia ?: null, ':cel' => $celular ?: null, ':id' => $id]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+    return $id;
+}
+
+/**
+ * Une a una persona registrada dos veces, como T1 (con nomenclatura) y como T2 (2026-11-11). Queda un solo registro: el del
+ * T1 si $quedaT1, o el del T2. Recibe el historial del otro (supervisiones, exámenes y documentos) y su celular si le falta,
+ * queda Habilitado (salvo lista negra) y el otro registro se borra. Si queda como T2, la cuadrilla que tenía como líder se
+ * deshace (su T2 y su vehículo quedan libres). DNI: si los dos tienen y son distintos, el usuario elige con cuál se queda
+ * ($dniDe 't1' o 't2', 2026-11-11); si solo uno tiene, queda ese. Devuelve el id que queda.
+ */
+function sgsUnirTecnicos(PDO $pdo, int $t1Id, int $t2Id, bool $quedaT1, ?string $dniDe = null): int {
+    $st = $pdo->prepare('SELECT id, tipo_tecnico, dni, celular, estado_operativo FROM tecnicos WHERE id IN (:a, :b)');
+    $st->execute([':a' => $t1Id, ':b' => $t2Id]);
+    $filas = array_column($st->fetchAll(PDO::FETCH_ASSOC), null, 'id');
+    if ($t1Id === $t2Id || !isset($filas[$t1Id], $filas[$t2Id]) || (int)$filas[$t1Id]['tipo_tecnico'] === 2 || (int)$filas[$t2Id]['tipo_tecnico'] !== 2) {
+        throw new Exception('Elija un técnico líder (T1) y un técnico de apoyo (T2) distintos.');
+    }
+    [$queda, $sale] = $quedaT1 ? [$filas[$t1Id], $filas[$t2Id]] : [$filas[$t2Id], $filas[$t1Id]];
+    $q = (int)$queda['id']; $s = (int)$sale['id'];
+    $dniT1 = trim((string)$filas[$t1Id]['dni']); $dniT2 = trim((string)$filas[$t2Id]['dni']);
+    if ($dniT1 !== '' && $dniT2 !== '' && $dniT1 !== $dniT2 && !in_array($dniDe, ['t1', 't2'], true)) throw new Exception("Tienen DNI distintos ({$dniT1} y {$dniT2}): elija con cuál se queda.");
+    $dni = ($dniDe === 't2' ? $dniT2 : ($dniDe === 't1' ? $dniT1 : '')) ?: ($dniT1 ?: $dniT2);
+    $listaNegra = in_array('Blacklist', [$queda['estado_operativo'], $sale['estado_operativo']], true);
+    $pdo->beginTransaction();
+    try {
+        foreach (['supervisiones' => ['tecnico1_id', 'tecnico2_id'], 'examen_convocatoria_tecnicos' => ['tecnico_id'], 'examen_enlaces' => ['tecnico_id'],
+                  'documentos_vencimiento' => ['tecnico_id', 'lider_id']] as $tabla => $columnas) {
+            foreach ($columnas as $c) $pdo->prepare("UPDATE `$tabla` SET `$c` = :q WHERE `$c` = :s")->execute([':q' => $q, ':s' => $s]);
+        }
+        // Si queda como T2, sigue en la cuadrilla donde el otro registro era T2; si queda como T1, nadie lo tiene de apoyo.
+        $pdo->prepare('UPDATE tecnicos SET apoyo_id = ' . ($quedaT1 ? 'NULL' : ':q') . ' WHERE apoyo_id = :s')->execute($quedaT1 ? [':s' => $s] : [':q' => $q, ':s' => $s]);
+        $pdo->prepare('DELETE FROM tecnicos WHERE id = :s')->execute([':s' => $s]);
+        $pdo->prepare('UPDATE tecnicos SET dni = :dni, celular = COALESCE(NULLIF(celular, \'\'), :cel), estado_operativo = :e, fecha_actualizacion = NOW() WHERE id = :q')
+            ->execute([':dni' => $dni ?: null, ':cel' => $sale['celular'] ?: null, ':e' => $listaNegra ? 'Blacklist' : 'Habilitado', ':q' => $q]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+    return $q;
+}
+
+/**
+ * Técnico líder (T1) que pasa a técnico de apoyo (T2) (2026-11-11): mismo registro (conserva su historial), con el nombre de la
+ * persona sin la nomenclatura; su cuadrilla se deshace (su T2 y su vehículo quedan libres).
+ */
+function sgsPasarT1aT2(PDO $pdo, int $id): string {
+    $st = $pdo->prepare('SELECT nombre_tecnico FROM tecnicos WHERE id = :id AND COALESCE(tipo_tecnico, 1) = 1');
+    $st->execute([':id' => $id]);
+    $nombre = $st->fetchColumn();
+    if ($nombre === false) throw new Exception('Ese técnico líder ya no existe.');
+    $persona = sgsPersonaLider((string)$nombre);
+    $st = $pdo->prepare('SELECT 1 FROM tecnicos WHERE nombre_tecnico = :n AND id <> :id');
+    $st->execute([':n' => $persona, ':id' => $id]);
+    if ($st->fetchColumn()) throw new Exception("Ya hay un técnico registrado como {$persona}: es la misma persona; únalos desde la ventana de ese técnico de apoyo.");
+    $pdo->prepare('UPDATE tecnicos SET tipo_tecnico = 2, nombre_tecnico = :n, apoyo_id = NULL, vehiculo_id = NULL, fecha_actualizacion = NOW() WHERE id = :id')
+        ->execute([':n' => $persona, ':id' => $id]);
+    return $persona;
+}
+
+/**
+ * Reglas comunes para registrar o pasar a T1 un técnico: nombre, DNI de 8 dígitos y único, celular de 9 dígitos (opcional),
+ * partner activo y que la persona no esté ya registrada. $propioId: el registro que se está cambiando (no cuenta como otro).
+ * Devuelve [nombre, dni, celular] limpios; si algo no cumple, lanza Exception con el motivo.
+ */
+function sgsValidarDatosTecnico(PDO $pdo, int $tipo, string $nombre, string $dni, int $partnerId, ?string $celular, int $propioId = 0): array {
     $nombre = sgsNombreLider($nombre);
     $quien = $tipo === 1 ? 'técnico líder' : 'técnico de apoyo';
     // El líder lleva su nomenclatura (p. ej. "P 1 KAJOMI SGI JUAN PEREZ"): admite números; el de apoyo, solo letras.
@@ -36,24 +131,26 @@ function sgsRegistrarTecnico(PDO $pdo, int $tipo, string $nombre, string $dni, i
     $st = $pdo->prepare("SELECT nombre_partner FROM partners WHERE id = :id AND estado = 1 AND UPPER(TRIM(nombre_partner)) NOT IN ('WIN', 'WIN DIRECTO')");
     $st->execute([':id' => $partnerId]);
     if (!$st->fetchColumn()) throw new Exception('Elija un partner activo.');
-    $st = $pdo->prepare('SELECT t.nombre_tecnico, t.tipo_tecnico, p.nombre_partner FROM tecnicos t LEFT JOIN partners p ON p.id = t.partner_id WHERE t.dni = :dni LIMIT 1');
-    $st->execute([':dni' => $dni]);
+    $st = $pdo->prepare('SELECT t.nombre_tecnico, t.tipo_tecnico, p.nombre_partner FROM tecnicos t LEFT JOIN partners p ON p.id = t.partner_id WHERE t.dni = :dni AND t.id <> :propio LIMIT 1');
+    $st->execute([':dni' => $dni, ':propio' => $propioId]);
     if ($otro = $st->fetch(PDO::FETCH_ASSOC)) {
+        if ($tipo === 2 && (int)$otro['tipo_tecnico'] !== 2) { // 2026-11-11
+            throw new Exception("Ese DNI es del técnico líder (T1) {$otro['nombre_tecnico']}. Pida al administrador que lo pase a técnico de apoyo (T2) en Técnicos y cuadrillas.");
+        }
         $rol = (int)$otro['tipo_tecnico'] === 2 ? 'técnico de apoyo' : 'técnico líder';
         throw new Exception("El DNI ya está registrado como {$rol}: {$otro['nombre_tecnico']}" . ($otro['nombre_partner'] ? " ({$otro['nombre_partner']})" : '') . '.');
     }
-    $st = $pdo->prepare('SELECT nombre_tecnico FROM tecnicos WHERE nombre_tecnico = :n LIMIT 1');
-    $st->execute([':n' => $nombre]);
+    $st = $pdo->prepare('SELECT nombre_tecnico FROM tecnicos WHERE nombre_tecnico = :n AND id <> :propio LIMIT 1');
+    $st->execute([':n' => $nombre, ':propio' => $propioId]);
     if ($st->fetchColumn()) throw new Exception('Ya existe un técnico con ese nombre. Búsquelo en la lista.');
     if ($tipo === 1) { // la misma persona con otra nomenclatura ("P 4 DOMINION SGI JUAN PEREZ" = "P 12 OLMA SGA JUAN PEREZ")
-        foreach ($pdo->query('SELECT nombre_tecnico FROM tecnicos WHERE COALESCE(tipo_tecnico, 1) = 1')->fetchAll(PDO::FETCH_COLUMN) as $existente) {
+        $st = $pdo->prepare('SELECT nombre_tecnico FROM tecnicos WHERE COALESCE(tipo_tecnico, 1) = 1 AND id <> :propio');
+        $st->execute([':propio' => $propioId]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $existente) {
             if (sgsPersonaLider($existente) === sgsPersonaLider($nombre)) throw new Exception("Esa persona ya está registrada como técnico líder: {$existente}. Corríjala con el lápiz de su fila.");
         }
     }
-    $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, dni, celular, tipo_tecnico, estado_operativo, partner_id, departamento, provincia, fecha_registro)
-            VALUES (:n, :dni, :cel, :tipo, 'Habilitado', :p, :dep, :prov, NOW())")
-        ->execute([':n' => $nombre, ':dni' => $dni, ':cel' => $celular ?: null, ':tipo' => $tipo === 1 ? 1 : 2, ':p' => $partnerId, ':dep' => $departamento ?: null, ':prov' => $provincia ?: null]);
-    return (int)$pdo->lastInsertId();
+    return [$nombre, $dni, $celular];
 }
 /**
  * La persona detrás de la nomenclatura, para reconocerla aunque cambie el inicio:

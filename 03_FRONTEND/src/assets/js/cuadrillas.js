@@ -176,6 +176,20 @@ document.addEventListener('DOMContentLoaded', () => {
       $('cuadError').textContent = e.message; $('cuadError').classList.remove('d-none');
     } finally { btn.disabled = false; }
   });
+  // Pasar un T1 a técnico de apoyo (2026-11-11, permiso "Unir y cambiar T1/T2"): mismo registro, su cuadrilla queda libre.
+  $('btnPasarT2')?.addEventListener('click', async (ev) => {
+    if (!confirm(`¿Pasar a ${$('cuadT1Nombre').value} a técnico de apoyo (T2)? Conserva su historial; su cuadrilla (su T2 y su vehículo) queda libre.`)) return;
+    const btn = ev.currentTarget; btn.disabled = true;
+    try {
+      const datos = new FormData(); datos.append('id', f.id.value);
+      const r = await enviar('pasar_a_t2', datos);
+      mCuadrilla.hide(); window.showToast?.(r.message, 'success');
+      setTimeout(() => location.reload(), 400);
+    } catch (e) {
+      $('cuadError').textContent = e.message; $('cuadError').classList.remove('d-none');
+    } finally { btn.disabled = false; }
+  });
+
   // Eliminar la cuadrilla (2026-11-10, permiso "Eliminar" de Técnicos y cuadrillas): el T2 queda libre, sin cuadrilla.
   $('btnEliminarCuadrilla')?.addEventListener('click', async (ev) => {
     if (!confirm(`¿Eliminar la cuadrilla de ${$('cuadT1Nombre').value}? Su técnico de apoyo (T2) queda libre. Si ya tiene supervisiones o exámenes, el técnico líder queda Inhabilitado para no perder ese historial.`)) return;
@@ -247,6 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
       $('et2Celular').value = ed.dataset.celular; $('et2Estado').value = ed.dataset.estado; $('et2Observacion').value = ed.dataset.observacion;
       $('et2Partner').value = ed.dataset.partner; $('et2Provincia').value = ed.dataset.provincia;
       $('et2Ayuda').textContent = 'El departamento se busca solo.' + (ed.dataset.cuadrilla ? ` Si cambia de partner o de zona, dejará la cuadrilla de ${ed.dataset.cuadrilla}.` : '');
+      limpiarUnir();
       bootstrap.Modal.getOrCreateInstance($('mEditarT2')).show();
       return;
     }
@@ -264,6 +279,54 @@ document.addEventListener('DOMContentLoaded', () => {
     finally { boton.disabled = false; }
   });
 
+  // Misma persona registrada como T1 y como T2 (2026-11-11, permiso "Unir y cambiar T1/T2"): se busca el T1 y se unen en un
+  // solo registro, que queda como T1 o como T2, con todo su historial (api/tecnicos.php?action=unir_tecnicos).
+  let buscarUnir = null;
+  function limpiarUnir() {
+    if (!$('et2Unir')) return;
+    $('et2Unir').open = false; $('et2UnirBuscar').value = ''; $('et2UnirLista').innerHTML = '';
+    $('et2UnirDni').classList.add('d-none'); $('et2UnirDniOpciones').innerHTML = '';
+    document.querySelectorAll('[data-unir]').forEach((b) => { b.disabled = true; });
+  }
+  $('et2UnirBuscar')?.addEventListener('input', (ev) => {
+    clearTimeout(buscarUnir);
+    const q = ev.target.value.trim();
+    if (q.length < 3) { $('et2UnirLista').innerHTML = ''; return; }
+    buscarUnir = setTimeout(async () => {
+      try {
+        const r = await (await fetch(`api/tecnicos.php?action=search&q=${encodeURIComponent(q)}`)).json();
+        const lideres = (r.data || []).filter((t) => Number(t.tipo_tecnico || 1) === 1).slice(0, 20);
+        $('et2UnirLista').innerHTML = lideres.length ? lideres.map((t) => `<label><input class="form-check-input" type="radio" name="unirT1" value="${Number(t.id)}" data-dni="${esc(t.dni && t.dni !== '0' ? t.dni : '')}">
+          <span>${esc(t.nombre_tecnico)}<small class="text-muted d-block">DNI ${esc(t.dni && t.dni !== '0' ? t.dni : 'sin registrar')} · ${esc(t.estado_operativo || '')}</small></span></label>`).join('')
+          : '<p class="text-muted small mb-0">No hay técnicos líderes con ese nombre o DNI.</p>';
+        document.querySelectorAll('[data-unir]').forEach((b) => { b.disabled = true; });
+      } catch { $('et2UnirLista').innerHTML = '<p class="text-danger small mb-0">No se pudo buscar.</p>'; }
+    }, 300);
+  });
+  // Al elegir el T1: si los dos tienen DNI y son distintos, se elige con cuál se queda (2026-11-11).
+  $('et2UnirLista')?.addEventListener('change', () => {
+    const t1 = document.querySelector('input[name="unirT1"]:checked');
+    const dniT1 = t1?.dataset.dni || '', dniT2 = $('et2Dni').value.trim();
+    const elegir = dniT1 !== '' && dniT2 !== '' && dniT1 !== dniT2;
+    $('et2UnirDni').classList.toggle('d-none', !elegir);
+    $('et2UnirDniOpciones').innerHTML = elegir ? `<label><input class="form-check-input" type="radio" name="unirDni" value="t1" checked><span>${esc(dniT1)} <small class="text-muted">(del técnico líder)</small></span></label>
+      <label><input class="form-check-input" type="radio" name="unirDni" value="t2"><span>${esc(dniT2)} <small class="text-muted">(del técnico de apoyo)</small></span></label>` : '';
+    document.querySelectorAll('[data-unir]').forEach((b) => { b.disabled = !t1; });
+  });
+  document.querySelectorAll('[data-unir]').forEach((b) => b.addEventListener('click', async () => {
+    const t1 = document.querySelector('input[name="unirT1"]:checked'); if (!t1) return;
+    const nombreT1 = t1.closest('label').querySelector('span').firstChild.textContent.trim();
+    const queda = b.dataset.unir;
+    if (!confirm(`¿Unir a ${$('et2Nombre').value} (T2) con ${nombreT1} (T1)? Queda un solo registro como ${queda === 't1' ? 'técnico líder (T1)' : 'técnico de apoyo (T2)'}, con todo el historial de los dos; el otro registro se borra.`)) return;
+    b.disabled = true;
+    try {
+      const datos = new FormData(); datos.append('t1_id', t1.value); datos.append('t2_id', $('et2Id').value); datos.append('queda', queda);
+      const dniDe = document.querySelector('input[name="unirDni"]:checked'); if (dniDe) datos.append('dni_de', dniDe.value);
+      const r = await enviar('unir_tecnicos', datos);
+      window.showToast(r.message, 'success'); window.location.reload();
+    } catch (e) { $('et2Error').textContent = e.message; $('et2Error').classList.remove('d-none'); b.disabled = false; }
+  }));
+
   // Nuevo técnico (2026-10-29): un técnico líder (T1) o de apoyo (T2) suelto, sin el Excel (api/tecnicos.php?action=crear_tecnico).
   const fNuevo = $('fNuevoTecnico');
   $('btnNuevoTecnico')?.addEventListener('click', () => {
@@ -276,8 +339,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const falta = [...fNuevo.querySelectorAll('[required]')].find((c) => !c.value.trim());
     if (falta) { error.textContent = 'Complete: ' + (fNuevo.querySelector(`label[for="${falta.id}"]`)?.textContent || 'los datos') + '.'; error.classList.remove('d-none'); falta.focus(); return; }
     const boton = $('btnGuardarNuevoTecnico'); boton.disabled = true;
+    const enviar = async (datos) => (await fetch('api/tecnicos.php?action=crear_tecnico', { method: 'POST', headers: { 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '' }, body: datos })).json();
     try {
-      const r = await (await fetch('api/tecnicos.php?action=crear_tecnico', { method: 'POST', headers: { 'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '' }, body: new FormData(fNuevo) })).json();
+      let r = await enviar(new FormData(fNuevo));
+      // 2026-11-11: el DNI es de un T2 → se pregunta si pasa a técnico líder (mismo registro, con su historial).
+      if (r.status === 'confirmar') {
+        if (!confirm(r.message)) return;
+        const datos = new FormData(fNuevo); datos.append('promover', '1');
+        r = await enviar(datos);
+      }
       if (r.status !== 'success') throw new Error(r.message || 'No se pudo registrar el técnico.');
       window.showToast(r.message, 'success');
       window.location.reload();

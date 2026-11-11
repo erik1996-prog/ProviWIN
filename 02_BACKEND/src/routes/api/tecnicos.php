@@ -172,8 +172,27 @@ try {
         if ($zonasEditor !== null && !in_array(mb_strtoupper((string)$zona['departamento'], 'UTF-8'), $zonasEditor, true)) {
             throw new Exception('La provincia elegida es de otra zona: solo puede registrar técnicos de su zona (' . implode(', ', $zonasEditor) . ').');
         }
-        $id = sgsRegistrarTecnico($pdo, $tipo, (string)($_POST['nombre_tecnico'] ?? ''), (string)($_POST['dni'] ?? ''), (int)($_POST['partner_id'] ?? 0),
-            $zona['departamento'], $zona['provincia'], (string)($_POST['celular'] ?? ''));
+        // 2026-11-11: el DNI de un técnico de apoyo (T2), aunque esté Inhabilitado, al registrarlo como T1 se le ofrece pasarlo
+        // a técnico líder: mismo registro (conserva su historial); se confirma con promover=1.
+        $dni = trim((string)($_POST['dni'] ?? ''));
+        $st = $pdo->prepare('SELECT id, nombre_tecnico, estado_operativo FROM tecnicos WHERE dni = :dni AND tipo_tecnico = 2 LIMIT 1');
+        $st->execute([':dni' => $dni]);
+        $t2 = $tipo === 1 && preg_match('/^\d{8}$/', $dni) ? $st->fetch() : false;
+        if ($t2 && ($_POST['promover'] ?? '') !== '1') {
+            echo json_encode(['status' => 'confirmar', 'message' => "El DNI {$dni} es del técnico de apoyo (T2) {$t2['nombre_tecnico']}"
+                . ($t2['estado_operativo'] !== 'Habilitado' ? " ({$t2['estado_operativo']})" : '') . '. ¿Pasarlo a técnico líder (T1) con la nomenclatura, el partner y la zona que escribió? '
+                . 'Conserva su historial y sale de la cuadrilla donde era T2.'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        $id = $t2
+            ? sgsPromoverT2aT1($pdo, (int)$t2['id'], (string)($_POST['nombre_tecnico'] ?? ''), (int)($_POST['partner_id'] ?? 0), $zona['departamento'], $zona['provincia'], (string)($_POST['celular'] ?? ''))
+            : sgsRegistrarTecnico($pdo, $tipo, (string)($_POST['nombre_tecnico'] ?? ''), $dni, (int)($_POST['partner_id'] ?? 0),
+                $zona['departamento'], $zona['provincia'], (string)($_POST['celular'] ?? ''));
+        if ($t2) {
+            win_log_error('audit_technician_promoted', 'Técnico de apoyo (T2) pasado a técnico líder (T1)', ['target_id' => $id, 'partner_id' => (int)$_POST['partner_id']]);
+            echo json_encode(['status' => 'success', 'message' => 'Pasó a técnico líder (T1) con su historial.', 'id' => $id], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         win_log_error('audit_technician_created', ($tipo === 1 ? 'Técnico líder (T1)' : 'Técnico de apoyo (T2)') . ' registrado desde Técnicos y cuadrillas', ['target_id' => $id, 'partner_id' => (int)$_POST['partner_id']]);
         echo json_encode(['status' => 'success', 'message' => ($tipo === 1 ? 'Técnico líder' : 'Técnico de apoyo') . ' registrado.', 'id' => $id], JSON_UNESCAPED_UNICODE);
         exit;
@@ -258,6 +277,24 @@ try {
         echo json_encode(['status' => 'success', 'message' => $t2['supervisiones'] > 0
             ? "{$t2['nombre_tecnico']} sale en {$t2['supervisiones']} supervisión(es): para no perder ese historial quedó Inhabilitado y fuera de su cuadrilla."
             : "{$t2['nombre_tecnico']} eliminado."], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    // Unir a una persona registrada como T1 y como T2, y pasar un T1 a T2 (2026-11-11, permiso "Unir y cambiar T1/T2").
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && in_array($action, ['unir_tecnicos', 'pasar_a_t2'], true)) {
+        if (!Auth::puede(Auth::PERM_CUADRILLAS_MERGE, $usuario)) { http_response_code(403); throw new Exception('No tiene permiso para unir técnicos ni cambiar su tipo.'); }
+        require_once __DIR__ . '/../../config/tecnicos_lideres.php';
+        if ($action === 'pasar_a_t2') {
+            $persona = sgsPasarT1aT2($pdo, (int)($_POST['id'] ?? 0));
+            win_log_error('audit_technician_demoted', 'Técnico líder (T1) pasado a técnico de apoyo (T2)', ['target_id' => (int)$_POST['id']]);
+            echo json_encode(['status' => 'success', 'message' => "{$persona} ahora es técnico de apoyo (T2); su cuadrilla quedó libre."], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        $t1 = (int)($_POST['t1_id'] ?? 0); $t2 = (int)($_POST['t2_id'] ?? 0); $quedaT1 = ($_POST['queda'] ?? '') === 't1';
+        $dniDe = in_array($_POST['dni_de'] ?? '', ['t1', 't2'], true) ? $_POST['dni_de'] : null;
+        $queda = sgsUnirTecnicos($pdo, $t1, $t2, $quedaT1, $dniDe);
+        win_log_error('audit_technician_merged', 'Técnicos unidos (misma persona como T1 y T2)', ['target_id' => $queda, 't1_id' => $t1, 't2_id' => $t2, 'queda' => $quedaT1 ? 'T1' : 'T2']);
+        echo json_encode(['status' => 'success', 'message' => 'Registros unidos: queda uno solo como ' . ($quedaT1 ? 'técnico líder (T1)' : 'técnico de apoyo (T2)') . ' con todo su historial.'], JSON_UNESCAPED_UNICODE);
         exit;
     }
 

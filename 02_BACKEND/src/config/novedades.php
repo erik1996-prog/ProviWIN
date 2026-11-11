@@ -31,6 +31,12 @@ function sgsNovedades(): array {
         ['id' => 7, 'fecha' => '2026-11-11', 'icono' => 'bi-person-check', 'titulo' => 'Acciones de administrador en Permisos',
          'texto' => 'Ahora puedes dar por perfil lo que antes era solo del administrador: corregir supervisiones, rescates de otros, filtrar por supervisor, observaciones de otros, reabrir turnos y enviar el corte de lluvias a Teams.',
          'url' => 'index.php?page=usuarios', 'puede' => static fn(array $u): bool => Auth::puede(Auth::PERM_USERS_MANAGE, $u)],
+        ['id' => 8, 'fecha' => '2026-11-11', 'icono' => 'bi-arrow-up-circle', 'titulo' => 'Pasar un T2 a técnico líder',
+         'texto' => 'Ahora, al registrar un técnico líder (T1) con el DNI de un técnico de apoyo (T2), el sistema te ofrece pasarlo a T1 con su mismo registro e historial, aunque lo hayas eliminado.',
+         'url' => 'index.php?page=cuadrillas', 'puede' => static fn(array $u): bool => Auth::puede(Auth::PERM_CUADRILLAS_IMPORT, $u)],
+        ['id' => 9, 'fecha' => '2026-11-11', 'icono' => 'bi-intersect', 'titulo' => 'Unir técnicos duplicados',
+         'texto' => 'Ahora, si una persona quedó registrada como T1 y como T2, puedes unirla en un solo registro con todo su historial desde la ventana del T2, y pasar un T1 a T2.',
+         'url' => 'index.php?page=cuadrillas&vista=apoyo', 'puede' => static fn(array $u): bool => Auth::puede(Auth::PERM_CUADRILLAS_MERGE, $u)],
     ];
 }
 

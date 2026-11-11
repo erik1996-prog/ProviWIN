@@ -23,6 +23,7 @@ $puedeEliminar = Auth::puede(Auth::PERM_CUADRILLAS_DELETE, $user); // técnicos 
 $puedeAgregarT2 = Auth::puede(Auth::PERM_CUADRILLAS_CREATE_T2, $user); // Nuevo técnico (2026-11-04): T2 con este permiso, T1 con Cargar Excel
 $puedeExamen = Auth::puede(Auth::PERM_EXAMENES_EDIT, $user);
 $puedeAnularExamen = Auth::puede(Auth::PERM_EXAMENES_DELETE, $user);
+$puedeUnir = Auth::puede(Auth::PERM_CUADRILLAS_MERGE, $user); // unir duplicados T1/T2 y pasar un T1 a T2 (2026-11-11)
 if (!Auth::puede(Auth::PERM_CUADRILLAS_VIEW, $user)) {
     echo '<div class="alert alert-danger m-4">No tiene permiso para ver técnicos y cuadrillas.</div>';
     return;
@@ -457,7 +458,7 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
           <select class="form-select" id="cuadOperativoEdit" name="estado_operativo"><option>Habilitado</option><option>Inhabilitado</option><option value="Blacklist">Lista negra</option></select></div>
         <div class="alert alert-danger d-none mt-3 mb-0" id="cuadError" role="alert"></div>
       </div>
-      <div class="modal-footer"><?php if ($puedeEliminar): ?><button type="button" class="btn btn-outline-danger me-auto" id="btnEliminarCuadrilla"><i class="bi bi-trash me-1"></i>Eliminar cuadrilla</button><?php endif; ?><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-win" id="btnGuardarCuadrilla"><i class="bi bi-check2 me-1"></i>Guardar cuadrilla</button></div>
+      <div class="modal-footer"><?php if ($puedeUnir): ?><button type="button" class="btn btn-outline-secondary" id="btnPasarT2" title="Deja de ser líder: pasa a técnico de apoyo con su historial"><i class="bi bi-arrow-down-circle me-1"></i>Pasar a T2</button><?php endif; ?><?php if ($puedeEliminar): ?><button type="button" class="btn btn-outline-danger me-auto" id="btnEliminarCuadrilla"><i class="bi bi-trash me-1"></i>Eliminar cuadrilla</button><?php endif; ?><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-win" id="btnGuardarCuadrilla"><i class="bi bi-check2 me-1"></i>Guardar cuadrilla</button></div>
     </form>
   </div></div>
 </div>
@@ -478,7 +479,22 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
         <div class="col-12"><small class="text-muted" id="et2Ayuda">El departamento se busca solo.<?= $veSinZona ? ' Vacía = sin zona (solo usted la verá).' : ($esAdmin ? '' : ' Solo provincias de su zona.') ?></small></div>
         <div class="col-sm-6"><label class="form-label" for="et2Estado">Estado</label><select class="form-select" id="et2Estado" name="estado_operativo"><option>Habilitado</option><option>Inhabilitado</option><option value="Blacklist">Lista negra</option></select></div>
         <div class="col-12"><label class="form-label" for="et2Observacion">Observación</label><textarea class="form-control" id="et2Observacion" name="observacion" rows="2" maxlength="255"></textarea></div>
-      </div><div class="alert alert-danger d-none mt-3 mb-0" id="et2Error" role="alert"></div></div>
+      </div>
+      <?php if ($puedeUnir): // 2026-11-11: la misma persona registrada como T1 y como T2 ?>
+      <details class="cuad-unir mt-3" id="et2Unir">
+        <summary><i class="bi bi-intersect me-1" aria-hidden="true"></i>¿Es la misma persona que un técnico líder (T1)?</summary>
+        <p class="small text-muted mt-2 mb-2">Se unen en un solo registro con todo su historial (supervisiones, exámenes y documentos) y el otro se borra.</p>
+        <label class="form-label" for="et2UnirBuscar">Buscar el técnico líder</label>
+        <input class="form-control mb-2" id="et2UnirBuscar" type="search" placeholder="Nombre, apellido o DNI (3 letras o más)" autocomplete="off">
+        <div class="cuad-unir-lista" id="et2UnirLista"></div>
+        <div class="mt-2 d-none" id="et2UnirDni"><label class="form-label mb-1">¿Con qué DNI se queda?</label><div class="cuad-unir-lista" id="et2UnirDniOpciones"></div></div>
+        <div class="d-flex flex-wrap gap-2 mt-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-unir="t1" disabled>Unir: queda como T1</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-unir="t2" disabled>Unir: queda como T2</button>
+        </div>
+      </details>
+      <?php endif; ?>
+      <div class="alert alert-danger d-none mt-3 mb-0" id="et2Error" role="alert"></div></div>
       <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-win" id="btnGuardarT2"><i class="bi bi-check2 me-1"></i>Guardar cambios</button></div>
     </form>
   </div></div>

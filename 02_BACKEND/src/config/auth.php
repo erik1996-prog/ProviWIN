@@ -67,6 +67,7 @@ class Auth {
     public const PERM_SUPERVISION_FILTER_PEOPLE = 'supervision.filter_people';
     public const PERM_OBSERVATION_MANAGE = 'observation.manage';
     public const PERM_CLIMA_TEAMS = 'clima.teams';
+    public const PERM_CUADRILLAS_MERGE = 'cuadrillas.merge'; // 2026-11-11: unir duplicados T1/T2 y pasar un T1 a T2
     public const PERM_ORDENES_CERCANAS = 'ordenes.cercanas';     // 2026-11-10: antes fijo por tipo de usuario
     public const PERM_EXAMENES_PURGE = 'examenes.purge'; // borrar exámenes de prueba (2026-11-05): solo perfiles administradores, salvo que se marque
     public const PERM_CUADRILLAS_VIEW = 'cuadrillas.view';
@@ -248,6 +249,7 @@ class Auth {
             self::PERM_CUADRILLAS_EDIT => ['group'=>'Técnicos y cuadrillas','label'=>'Editar: cuadrillas y fechas de vencimiento','action'=>'editar'],
             self::PERM_CUADRILLAS_IMPORT => ['boton'=>'Cargar Excel y agregar T1','group'=>'Técnicos y cuadrillas','label'=>'Cargar y descargar técnicos líderes (Excel) y agregar un técnico líder (T1)','action'=>'editar'],
             // 2026-11-08: cada acción va en la pantalla donde se hace, no en la del indicador: quien la registra no necesita ver el indicador.
+            self::PERM_CUADRILLAS_MERGE => ['boton'=>'Unir y cambiar T1/T2','group'=>'Técnicos y cuadrillas','label'=>'Unir a una persona registrada dos veces (como T1 y como T2) y pasar un técnico líder a técnico de apoyo','action'=>'eliminar'],
             self::PERM_EXAMENES_EDIT => ['boton'=>'Generar links de examen','group'=>'Técnicos y cuadrillas','label'=>'Generar links de examen (no necesita ver los resultados de Exámenes)','action'=>'editar'],
             self::PERM_CUADRILLAS_CREATE_T2 => ['boton'=>'Agregar T2','group'=>'Técnicos y cuadrillas','label'=>'Agregar técnicos de apoyo (T2) (con zona propia, solo en su zona)','action'=>'editar'],
             self::PERM_VACACIONES_VIEW => ['group'=>'Vacaciones y licencias','label'=>'Ver: vacaciones, descansos médicos y licencias','action'=>'ver'],

@@ -4,6 +4,17 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Unir técnicos duplicados y pasar un T1 a T2 (2026-11-11)
+- **Añadido**: permiso **Unir y cambiar T1/T2** (Técnicos y cuadrillas; los administradores lo tienen sin marcarlo).
+  - En la ventana del T2, **¿Es la misma persona que un técnico líder?**: se busca el T1 y se unen en un solo registro, que queda como T1 o como T2. Recibe el historial del otro (supervisiones, exámenes y documentos) y su DNI y celular si le faltan; el otro registro se borra. No hace falta ponerle antes el DNI al T1: si los dos tienen DNI distintos, se elige con cuál se queda.
+  - En la ventana del T1, **Pasar a T2**: mismo registro sin la nomenclatura; su cuadrilla queda libre.
+- **Cambiado**: si alguien registra como T2 a un técnico que figura como T1, el mensaje le pide hablar con el administrador para que lo pase a T2.
+- Prueba: `nuevo_tecnico_test` (34).
+
+### Pasar un T2 a técnico líder (2026-11-11)
+- **Corregido**: al registrar un T1 con el DNI de un técnico de apoyo (T2) salía "el DNI ya existe", aunque se hubiera eliminado: con supervisiones, eliminar solo lo deja Inhabilitado para no perder el historial. Ahora **Nuevo técnico** pregunta si pasarlo a técnico líder y usa el **mismo registro**: toma la nomenclatura, el partner y la zona, queda Habilitado, sale de su cuadrilla de T2 y conserva su DNI y su historial.
+- Reglas comunes en `sgsValidarDatosTecnico` (registrar y pasar a T1). Prueba: `nuevo_tecnico_test` (28).
+
 ### Acciones de administrador en Permisos (2026-11-11)
 - **Cambiado**: lo que era solo del Administrador (o del personal administrativo) ahora se da por perfil:
   - Supervisiones: **Corregir supervisiones** (incluso finalizadas, con su ubicación), **Rescates de otros** (validar por otro supervisor, avances, cerrar y reasignar) y el filtro **Departamento y supervisor**;

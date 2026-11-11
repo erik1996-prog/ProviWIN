@@ -163,6 +163,48 @@ try {
         $r = $admin(['id' => $idBorrar], 'eliminar_cuadrilla');
         $check('una cuadrilla sin historial se elimina y su T2 sigue registrado', ($r['status'] ?? '') === 'success'
             && !$pdo->query("SELECT id FROM tecnicos WHERE id = $idBorrar")->fetchColumn() && $pdo->query("SELECT id FROM tecnicos WHERE id = $idLuis")->fetchColumn(), $r);
+
+        // Un T2 (aunque esté Inhabilitado por tener historial) pasa a T1 con su mismo registro (2026-11-11)
+        $nuevoT1 = ['tipo_tecnico' => 1, 'partner_id' => $partner, 'nombre_tecnico' => 'P 9 PRUEBA NUEVO SGI PEDRO ASCENDIDO', 'dni' => '99999978', 'provincia' => 'AREQUIPA'];
+        $r = $admin($nuevoT1);
+        $check('con el DNI de un T2 pregunta si pasa a técnico líder', ($r['status'] ?? '') === 'confirmar' && str_contains($r['message'] ?? '', 'PEDRO PRUEBA NUEVO APOYO'), $r);
+        $r = $admin($nuevoT1 + ['promover' => '1']);
+        $t1 = $pdo->query("SELECT id, tipo_tecnico, nombre_tecnico, estado_operativo, departamento FROM tecnicos WHERE dni = '99999978'")->fetch(PDO::FETCH_ASSOC);
+        $check('pasa a T1 con el mismo registro: nomenclatura, Habilitado y su zona', ($r['status'] ?? '') === 'success' && (int)$t1['id'] === $idT2
+            && (int)$t1['tipo_tecnico'] === 1 && $t1['nombre_tecnico'] === 'P 9 PRUEBA NUEVO SGI PEDRO ASCENDIDO' && $t1['estado_operativo'] === 'Habilitado' && $t1['departamento'] === 'AREQUIPA', [$r, $t1]);
+        $check('conserva su historial de supervisiones', (int)$pdo->query("SELECT COUNT(*) FROM supervisiones WHERE tecnico2_id = $idT2 OR tecnico1_id = $idT2")->fetchColumn() === $enSupervision, null);
+
+        // La misma persona como T1 y como T2: mensaje al supervisor, unir y pasar a T2 (2026-11-11)
+        $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, dni, tipo_tecnico, partner_id, departamento) VALUES ('P 9 PRUEBA NUEVO SGI MARIO DUPLICADO', NULL, 1, :p, 'AREQUIPA')")->execute([':p' => $partner]);
+        $dupT1 = (int)$pdo->lastInsertId();
+        $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, dni, celular, tipo_tecnico, partner_id, departamento) VALUES ('MARIO PRUEBA NUEVO DUP', '99999985', '911222333', 2, :p, 'AREQUIPA')")->execute([':p' => $partner]);
+        $dupT2 = (int)$pdo->lastInsertId();
+        $pdo->exec("UPDATE supervisiones SET tecnico2_id = $dupT2 WHERE id = $supervision");
+        $r = $sup(['tipo_tecnico' => 2, 'partner_id' => $partner, 'nombre_tecnico' => 'Otro Prueba Nuevo Arequipa', 'dni' => '99999978', 'provincia' => 'AREQUIPA']);
+        $check('el supervisor que registra como T2 a un T1 recibe: hable con el administrador', ($r['status'] ?? '') === 'error' && str_contains($r['message'] ?? '', 'administrador'), $r);
+        $r = $sup(['t1_id' => $dupT1, 't2_id' => $dupT2, 'queda' => 't1'], 'unir_tecnicos');
+        $check('sin "Unir y cambiar T1/T2" no se pueden unir', ($r['status'] ?? '') === 'error', $r);
+        $r = $admin(['t1_id' => $dupT1, 't2_id' => $dupT2, 'queda' => 't1'], 'unir_tecnicos');
+        $quedo = $pdo->query("SELECT tipo_tecnico, dni, celular FROM tecnicos WHERE id = $dupT1")->fetch(PDO::FETCH_ASSOC);
+        $check('unir: queda el T1 con el DNI, el celular y el historial del T2; el T2 se borra', ($r['status'] ?? '') === 'success' && (int)$quedo['tipo_tecnico'] === 1
+            && $quedo['dni'] === '99999985' && $quedo['celular'] === '911222333' && !$pdo->query("SELECT id FROM tecnicos WHERE id = $dupT2")->fetchColumn()
+            && (int)$pdo->query("SELECT tecnico2_id FROM supervisiones WHERE id = $supervision")->fetchColumn() === $dupT1, [$r, $quedo]);
+        $r = $admin(['id' => $dupT1], 'pasar_a_t2');
+        $quedo = $pdo->query("SELECT tipo_tecnico, nombre_tecnico, apoyo_id FROM tecnicos WHERE id = $dupT1")->fetch(PDO::FETCH_ASSOC);
+        $check('pasar a T2: mismo registro, sin la nomenclatura y sin cuadrilla', ($r['status'] ?? '') === 'success' && (int)$quedo['tipo_tecnico'] === 2
+            && !str_starts_with($quedo['nombre_tecnico'], 'P 9') && str_contains($quedo['nombre_tecnico'], 'MARIO') && $quedo['apoyo_id'] === null, [$r, $quedo]);
+        // Con DNI distintos: pide elegir y se queda con el elegido
+        $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, dni, tipo_tecnico, partner_id, departamento) VALUES ('P 9 PRUEBA NUEVO SGI ANA DOBLE', '99999986', 1, :p, 'AREQUIPA')")->execute([':p' => $partner]);
+        $otroT1 = (int)$pdo->lastInsertId();
+        $pdo->prepare("INSERT INTO tecnicos (nombre_tecnico, dni, tipo_tecnico, partner_id, departamento) VALUES ('ANA PRUEBA NUEVO DOBLE', '99999987', 2, :p, 'AREQUIPA')")->execute([':p' => $partner]);
+        $otroT2 = (int)$pdo->lastInsertId();
+        $r = $admin(['t1_id' => $otroT1, 't2_id' => $otroT2, 'queda' => 't1'], 'unir_tecnicos');
+        $check('con DNI distintos pide elegir con cuál se queda', ($r['status'] ?? '') === 'error' && str_contains($r['message'] ?? '', 'elija'), $r);
+        $r = $admin(['t1_id' => $otroT1, 't2_id' => $otroT2, 'queda' => 't1', 'dni_de' => 't2'], 'unir_tecnicos');
+        $check('se queda con el DNI elegido (el del T2)', ($r['status'] ?? '') === 'success'
+            && $pdo->query("SELECT dni FROM tecnicos WHERE id = $otroT1")->fetchColumn() === '99999987' && !$pdo->query("SELECT id FROM tecnicos WHERE id = $otroT2")->fetchColumn(), $r);
+        $pdo->exec("UPDATE supervisiones SET tecnico2_id = NULL WHERE id = $supervision");
+        $pdo->exec("DELETE FROM tecnicos WHERE id IN ($dupT1, $otroT1)");
     } finally {
         if ($pdo->inTransaction()) $pdo->rollBack();
         $pdo->exec("DELETE FROM supervisiones WHERE id = $supervision");
