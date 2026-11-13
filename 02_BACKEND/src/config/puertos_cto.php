@@ -140,7 +140,7 @@ function sgsPuertosResultado(int $usuarioId, string $id): ?array {
 }
 /**
  * Respuesta de Wincore (desde la ventana del vínculo). Solo se guarda lo que se muestra: estado y ubicación de la CTO y,
- * por puerto, número, estado y servicio. Nunca datos de clientes, aunque vinieran.
+ * por puerto, número, estado, servicio y potencia. Nunca datos de clientes, aunque vinieran.
  */
 function sgsPuertosGuardarRespuesta(string $id, array $r): bool {
     if (!sgsPuertosIdValido($id)) return false;
@@ -159,8 +159,20 @@ function sgsPuertosGuardarRespuesta(string $id, array $r): bool {
         $c['puertos'] = [];
         foreach (array_slice(is_array($r['puertos'] ?? null) ? $r['puertos'] : [], 0, 128) as $p) {
             if (!is_array($p)) continue;
-            $c['puertos'][] = ['puerto' => $txt($p['puerto'] ?? '', 10), 'estado' => $txt($p['estado'] ?? '', 30), 'servicio' => $txt($p['servicio'] ?? '', 30)];
+            // Potencia en dBm (2026-11-11): '' sin dato (puerto libre), '0' = sin señal o equipo apagado.
+            // Acepta el número aunque venga como texto ("-18,86", "-18.86 dBm"): se toma la primera cifra con su signo.
+            $pot = preg_match('/-?\d+(?:[.,]\d+)?/', (string)($p['potencia'] ?? ''), $m) ? str_replace(',', '.', $m[0]) : '';
+            $c['puertos'][] = ['puerto' => $txt($p['puerto'] ?? '', 10), 'estado' => $txt($p['estado'] ?? '', 30), 'servicio' => $txt($p['servicio'] ?? '', 30),
+                'potencia' => is_numeric($pot) && abs((float)$pot) < 100 ? (string)round((float)$pot, 2) : ''];
         }
+        // Un puerto por número (2026-11-11): Wincore a veces repite un número con un duplicado vacío que se vería como disponible;
+        // si choca, gana el OCUPADO.
+        $porNumero = [];
+        foreach ($c['puertos'] as $p) {
+            $n = $p['puerto'];
+            if (!isset($porNumero[$n]) || ($p['estado'] === 'OCUPADO' && $porNumero[$n]['estado'] !== 'OCUPADO')) $porNumero[$n] = $p;
+        }
+        $c['puertos'] = array_values($porNumero);
         usort($c['puertos'], static fn($a, $b) => (int)$a['puerto'] <=> (int)$b['puerto']);
     }
     sgsPuertosEscribir("$dir/$id.lista.json", $c);

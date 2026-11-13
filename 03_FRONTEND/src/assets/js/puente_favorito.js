@@ -7,7 +7,9 @@
 (function () {
   var SGS = '__SGS__', WINCORE = '__WINCORE__', ORIGEN = new URL(SGS).origin;
   if (location.origin !== WINCORE) { alert('Primero abre Wincore, inicia sesión y luego pulsa este favorito.'); return; }
-  if (window.__sgsPuente && !window.__sgsPuente.closed) { window.__sgsPuente.focus(); return; }
+  // Si ya se había pulsado (la ventana quedó con un error, venció la sesión del SGS, etc.), se deja lo anterior y se vincula de
+  // nuevo desde cero: la ventana del SGS se recarga (mismo nombre) y vuelve a saludar.
+  if (window.__sgsFin) window.__sgsFin();
 
   // Token "ticked" de la página de Wincore (3 códigos md5 separados por punto)
   function token() {
@@ -45,10 +47,40 @@
       return rpc('logordenamientoplanta.getpuertos', parametros(extra)).then(function (pr) {
         if (!pr || !Array.isArray(pr.data) || !pr.data.length) throw new Error('Wincore no devolvió los puertos de la CTO ' + cod + '.');
         var p0 = pr.data[0];
-        // Solo lo que se muestra: nada de clientes
-        return { cto: { estado: cto.txt_estado_cto_nap || '', objeto: p0.objeto || '', direccion: cto.tx_direccion || '', distrito: cto.tx_distrito || '',
-            provincia: cto.tx_provincia || '', departamento: cto.tx_departamento || '', lat: cto.tx_lat_cto || p0.n_latcto || '', lon: cto.tx_lon_cto || p0.n_loncto || '' },
-          puertos: pr.data.map(function (p) { return { puerto: p.puerto, estado: p.estado_puerto, servicio: p.estado_unifilar || '' }; }) };
+        // MAC de activación tal como viene (Wincore la busca así); solo para cruzar la respuesta se pasa a mayúsculas. Nunca el campo
+        // "mac": a veces viene en otro formato (ZTEG…) y no coincide con la potencia.
+        var macDe = function (p) { return String(p.mac_prefijo_activacion || ''); };
+        // Solo lo que se muestra: nada de clientes (la MAC solo sirve aquí para pedir la potencia y no se envía al SGS)
+        var armar = function (potencias) {
+          return { cto: { estado: cto.txt_estado_cto_nap || '', objeto: p0.objeto || '', direccion: cto.tx_direccion || '', distrito: cto.tx_distrito || '',
+              provincia: cto.tx_provincia || '', departamento: cto.tx_departamento || '', lat: cto.tx_lat_cto || p0.n_latcto || '', lon: cto.tx_lon_cto || p0.n_loncto || '' },
+            puertos: pr.data.map(function (p) {
+              var mac = p.estado_puerto === 'OCUPADO' ? macDe(p) : '', pot = mac ? potencias[mac.toUpperCase()] : null;
+              return { puerto: p.puerto, estado: p.estado_puerto, servicio: p.estado_unifilar || '', potencia: pot == null ? '' : pot };
+            }) };
+        };
+        // Potencia de cada puerto ocupado (en el equipo del cliente, dBm), por su MAC de activación (mac_prefijo_activacion; si no
+        // viene, no se pide). Solo se piden los ocupados (los libres no la muestran). A veces la primera respuesta de Wincore trae 0 en
+        // todos y una segunda, unos segundos después, ya trae la medición: si todo vino en 0 o vacío, se pregunta una vez más.
+        // Si falla, se muestran los puertos sin ella.
+        var macs = pr.data.filter(function (p) { return p.estado_puerto === 'OCUPADO' && macDe(p); }).map(function (p) { return { nserie: macDe(p) }; });
+        if (!macs.length) return armar({});
+        var pedir = function (intento) {
+          return rpc('logconodered.getInfoPotenciaByMacs', { allnserie: macs, ticked: token() }).then(function (po) {
+            var potencias = {}, conValor = 0;
+            (po && po.data || []).forEach(function (d) {
+              if (!d.mac_serie) return;
+              // Equipo apagado (estado_red inactive) = sin señal (0), aunque traiga una medición vieja
+              var valor = String(d.estado_red || '').toLowerCase() === 'inactive' ? 0 : d.potencia_ont;
+              potencias[String(d.mac_serie).toUpperCase()] = valor;
+              if (Number(valor)) conValor++;
+            });
+            console.info('SGS · potencia de Wincore (intento ' + intento + '):', po && po.status, (po && po.data || []).length, 'filas,', conValor, 'con valor, para', macs.length, 'MAC');
+            if (!conValor && intento === 1) return new Promise(function (ok) { setTimeout(ok, 3000); }).then(function () { return pedir(2); });
+            return armar(potencias);
+          });
+        };
+        return pedir(1).then(null, function (err) { console.info('SGS · no se pudo leer la potencia:', err.message); return armar({}); });
       });
     });
   }
@@ -58,7 +90,6 @@
   marca.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:99999;padding:6px 12px;border-radius:999px;background:#FF5A0A;color:#fff;font:600 13px Arial,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.2)';
   var w = window.open(SGS + 'puente_wincore.php', 'sgs_puente', 'width=460,height=640');
   if (!w) { alert('Chrome bloqueó la ventana del SGS: permite las ventanas emergentes de Wincore y vuelve a pulsar el favorito.'); return; }
-  window.__sgsPuente = w;
   document.body.appendChild(marca);
   function enviar(datos) { w.postMessage(datos, ORIGEN); }
   function oir(e) {
@@ -69,7 +100,8 @@
     else if (d.sgs === 'consultar' && /^[A-Z0-9][A-Z0-9_-]{2,39}$/.test(String(d.codigo)))
       consultar(String(d.codigo)).then(function (r) { enviar({ sgs: 'resultado', id: d.id, datos: r }); },
         function (err) { enviar({ sgs: 'resultado', id: d.id, datos: { error: err.message } }); });
-    else if (d.sgs === 'fin') { window.removeEventListener('message', oir); marca.remove(); window.__sgsPuente = null; }
+    else if (d.sgs === 'fin') window.__sgsFin();
   }
   window.addEventListener('message', oir);
+  window.__sgsFin = function () { window.removeEventListener('message', oir); marca.remove(); window.__sgsFin = null; };
 })();

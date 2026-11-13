@@ -137,7 +137,7 @@ $needsLeaflet = $page === 'admin_dashboard'
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
-    <meta name="sgs-inactividad" content="<?= (int)SGS_SESION_INACTIVA ?>">
+    <meta name="sgs-cierre" content="<?= strtotime('tomorrow') ?>">
     <title><?= htmlspecialchars($pageTitle . ' · ' . SYSTEM_CODE) ?></title>
     <link rel="icon" type="image/svg+xml" href="03_FRONTEND/src/assets/img/favicon.svg?v=<?= rawurlencode(ASSET_VERSION) ?>">
     <!-- App instalable (PWA, 2026-10-26): manifest.webmanifest + sw.js -->

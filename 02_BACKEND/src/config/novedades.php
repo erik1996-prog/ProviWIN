@@ -38,8 +38,14 @@ function sgsNovedades(): array {
          'texto' => 'Ahora, si una persona quedó registrada como T1 y como T2, puedes unirla en un solo registro con todo su historial desde la ventana del T2, y pasar un T1 a T2.',
          'url' => 'index.php?page=cuadrillas&vista=apoyo', 'puede' => static fn(array $u): bool => Auth::puede(Auth::PERM_CUADRILLAS_MERGE, $u)],
         ['id' => 10, 'fecha' => '2026-11-11', 'icono' => 'bi-hdd-network', 'titulo' => 'Consultar puertos de una CTO',
-         'texto' => 'Ahora, en Supervisiones, puedes consultar qué puertos de una CTO están disponibles u ocupados en Wincore, con su ubicación y la ruta en Google Maps, mientras el vínculo con Wincore esté activo.',
+         'texto' => 'Ahora, en Supervisiones, puedes consultar qué puertos de una CTO están disponibles u ocupados en Wincore, con el servicio y la potencia de cada puerto, su ubicación y la ruta en Google Maps, mientras el vínculo con Wincore esté activo.',
          'url' => 'index.php?page=supervision_lista', 'puede' => static fn(array $u): bool => Auth::puedeConsultarPuertos($u)],
+        ['id' => 11, 'fecha' => '2026-11-13', 'icono' => 'bi-moon-stars', 'titulo' => 'Tu sesión dura todo el día',
+         'texto' => 'Ahora tu sesión ya no se cierra a las 4 horas sin uso: queda abierta durante todo el día y se cierra a la medianoche. Al día siguiente vuelves a ingresar.',
+         'url' => 'index.php', 'puede' => static fn(array $u): bool => true],
+        ['id' => 12, 'fecha' => '2026-11-13', 'icono' => 'bi-bullseye', 'titulo' => 'Meta justa: sin días remotos ni vacaciones',
+         'texto' => 'Ahora, en la meta de productividad, los días de trabajo remoto (y sus supervisiones) y las vacaciones o licencias aprobadas ya no cuentan ni bajan el avance del supervisor.',
+         'url' => 'index.php?page=admin_dashboard', 'puede' => static fn(array $u): bool => Auth::can(Auth::PERM_DASHBOARD_VIEW, $u)],
     ];
 }
 

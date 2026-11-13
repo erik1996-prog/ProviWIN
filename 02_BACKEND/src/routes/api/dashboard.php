@@ -129,6 +129,8 @@ if ($action === 'matriz_mensual') {
 //    Meta: SGS_META_SUPERVISIONES_DIA supervisiones finalizadas por día.
 //    a) Por días laborables: lunes a sábado transcurridos del mes + domingos en que el supervisor trabajó.
 //    b) Por días trabajados: días con turno iniciado (incluye domingos trabajados).
+//    (2026-11-13, pedido del usuario) No cuentan ni le afectan: los días en que registró trabajo remoto (ni el día ni sus
+//    supervisiones, como si no hubiera salido a campo) ni sus vacaciones y licencias aprobadas (se descuentan de la meta).
 if ($action === 'productividad_mensual') {
     [$inicio, $finMes] = sgsDashboardPeriodo();
     $supervisorFiltro = max(0, intval($_GET['supervisor_id'] ?? 0));
@@ -150,15 +152,36 @@ if ($action === 'productividad_mensual') {
     $rango = [':ini' => $inicio->format('Y-m-d'), ':fin' => $finMes->modify('+1 day')->format('Y-m-d')];
     $alcParams = [];
     $alcance = sgsAlcanceSupervisionSql($user, 'supervisiones', $alcParams); // líder: solo su entorno (2026-10-28)
+    $diaRemoto = "EXISTS (SELECT 1 FROM asistencia_eventos re WHERE re.asistencia_id = %s AND re.tipo_evento = 'remoto')";
     $stmtSup = $pdo->prepare("SELECT supervisor_id, COUNT(*) total FROM supervisiones
-        WHERE estado_supervision = 'Finalizada' AND fecha_registro >= :ini AND fecha_registro < :fin AND {$alcance}" . ($depFiltro !== '' ? ' AND ' . sgsZonaSql('supervisiones') . ' = :dep' : '') . " GROUP BY supervisor_id");
+        WHERE estado_supervision = 'Finalizada' AND fecha_registro >= :ini AND fecha_registro < :fin AND {$alcance}
+          AND NOT EXISTS (SELECT 1 FROM asistencia_supervisores ra WHERE ra.supervisor_id = supervisiones.supervisor_id
+              AND ra.fecha = DATE(supervisiones.fecha_registro) AND " . sprintf($diaRemoto, 'ra.id') . ")" . ($depFiltro !== '' ? ' AND ' . sgsZonaSql('supervisiones') . ' = :dep' : '') . " GROUP BY supervisor_id");
     $stmtSup->execute($rango + $alcParams + ($depFiltro !== '' ? [':dep' => $depFiltro] : []));
     $finalizadas = $stmtSup->fetchAll(PDO::FETCH_KEY_PAIR);
     $stmtDias = $pdo->prepare("SELECT supervisor_id, COUNT(DISTINCT fecha) dias, COUNT(DISTINCT CASE WHEN DAYOFWEEK(fecha) = 1 THEN fecha END) domingos
-        FROM asistencia_supervisores WHERE fecha >= :ini AND fecha < :fin AND inicio_turno IS NOT NULL GROUP BY supervisor_id");
+        FROM asistencia_supervisores WHERE fecha >= :ini AND fecha < :fin AND inicio_turno IS NOT NULL
+          AND NOT " . sprintf($diaRemoto, 'asistencia_supervisores.id') . " GROUP BY supervisor_id");
     $stmtDias->execute($rango);
     $dias = [];
     foreach ($stmtDias->fetchAll() as $row) $dias[(int)$row['supervisor_id']] = $row;
+    // Días laborables (lunes a sábado, hasta hoy) que no se le exigen: remotos y vacaciones o licencias aprobadas.
+    $sinMeta = [];
+    $hasta = $corte->format('Y-m-d');
+    $stmtRem = $pdo->prepare("SELECT supervisor_id, fecha FROM asistencia_supervisores WHERE fecha >= :ini AND fecha <= :hasta
+        AND DAYOFWEEK(fecha) <> 1 AND inicio_turno IS NOT NULL AND " . sprintf($diaRemoto, 'asistencia_supervisores.id'));
+    $stmtRem->execute([':ini' => $rango[':ini'], ':hasta' => $hasta]);
+    foreach ($stmtRem->fetchAll() as $row) $sinMeta[(int)$row['supervisor_id']]['remoto'][$row['fecha']] = true;
+    $stmtAus = $pdo->prepare("SELECT supervisor_id, fecha_inicio, fecha_fin FROM ausencias_supervisores
+        WHERE estado = 'Aprobada' AND fecha_inicio <= :hasta AND fecha_fin >= :ini");
+    $stmtAus->execute([':ini' => $rango[':ini'], ':hasta' => $hasta]);
+    foreach ($stmtAus->fetchAll() as $row) {
+        $d = max($inicio, new DateTimeImmutable($row['fecha_inicio']));
+        $ultimo = min($corte, new DateTimeImmutable($row['fecha_fin']));
+        for (; $d <= $ultimo; $d = $d->modify('+1 day')) {
+            if ($d->format('w') !== '0') $sinMeta[(int)$row['supervisor_id']]['ausencia'][$d->format('Y-m-d')] = true;
+        }
+    }
 
     $filas = []; $totSup = 0; $totDias = 0; $cumplen = 0; $conTurnos = 0;
     foreach ($supervisores as $s) {
@@ -167,14 +190,16 @@ if ($action === 'productividad_mensual') {
         $diasTrab = (int)($dias[$id]['dias'] ?? 0);
         $domingos = (int)($dias[$id]['domingos'] ?? 0);
         $promedio = $diasTrab > 0 ? round($n / $diasTrab, 2) : null;
-        $metaFecha = round($meta * ($habilesTranscurridos + $domingos), 1);
+        $remotos = $sinMeta[$id]['remoto'] ?? [];
+        $ausente = array_diff_key($sinMeta[$id]['ausencia'] ?? [], $remotos); // un día no se descuenta dos veces
+        $metaFecha = round($meta * max(0, $habilesTranscurridos - count($remotos) - count($ausente) + $domingos), 1);
         $avance = $metaFecha > 0 ? (int)round($n / $metaFecha * 100) : null;
         $estado = $promedio === null ? 'sin_turnos' : ($promedio >= $meta ? 'cumple' : ($promedio >= $meta * 0.8 ? 'cerca' : 'bajo'));
         if ($estado === 'cumple') $cumplen++;
         if ($diasTrab > 0) $conTurnos++;
         $totSup += $n; $totDias += $diasTrab;
         $filas[] = ['supervisor_id' => $id, 'nombre' => $s['nombre_completo'], 'finalizadas' => $n, 'dias_trabajados' => $diasTrab,
-            'domingos_trabajados' => $domingos, 'promedio_dia_trabajado' => $promedio, 'meta_a_la_fecha' => $metaFecha,
+            'domingos_trabajados' => $domingos, 'dias_remotos' => count($remotos), 'dias_ausencia' => count($ausente), 'promedio_dia_trabajado' => $promedio, 'meta_a_la_fecha' => $metaFecha,
             'avance_pct' => $avance, 'estado' => $estado];
     }
     usort($filas, static fn($a, $b) => [$b['promedio_dia_trabajado'] ?? -1, $b['finalizadas']] <=> [$a['promedio_dia_trabajado'] ?? -1, $a['finalizadas']]);

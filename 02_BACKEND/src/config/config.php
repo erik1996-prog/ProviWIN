@@ -11,8 +11,9 @@ define('BACKEND_PATH', BASE_PATH . '/02_BACKEND/src');
 define('FRONTEND_PATH', BASE_PATH . '/03_FRONTEND/src');
 define('LOG_PATH', BASE_PATH . '/08_LOGS');
 define('STORAGE_PATH', LOG_PATH . '/runtime');
-// Sesión (2026-10-26): se cierra tras 4 horas sin actividad (servidor: Auth::isLoggedIn; pantalla: main.js).
-define('SGS_SESION_INACTIVA', 4 * 3600);
+// Sesión (2026-11-13): dura hasta la medianoche del día del ingreso (servidor: Auth::isLoggedIn; pantalla: main.js). Este valor
+// es solo cuánto se guarda el archivo de una sesión sin uso: más de un día, para que no se borre antes de la medianoche.
+define('SGS_SESION_INACTIVA', 26 * 3600);
 
 require_once __DIR__ . '/env.php';
 sgs_load_env(BASE_PATH . '/.env');

@@ -286,17 +286,18 @@ class Auth {
 
     public static function isLoggedIn(): bool {
         if (empty($_SESSION['user_id'])) return false;
-        // 4 horas sin ninguna petición: se cierra la sesión (2026-10-26). La pantalla además la cierra si nadie la usa.
+        // La sesión dura hasta la medianoche del día en que se ingresó (2026-11-13, pedido del usuario; antes se cerraba a las
+        // 4 horas sin uso): al cambiar el día se cierra y se vuelve a ingresar. La pantalla también vuelve al ingreso (main.js).
         if (PHP_SAPI !== 'cli') {
-            $ultimo = (int)($_SESSION['sgs_ultimo_uso'] ?? time());
-            if (time() - $ultimo > SGS_SESION_INACTIVA) {
-                win_log_error('session_idle', 'Sesión cerrada por inactividad', ['user_id' => (int)$_SESSION['user_id']]);
+            $hoy = date('Y-m-d');
+            $_SESSION['sgs_dia'] ??= $hoy; // sesión abierta antes de este cambio: vale hasta la medianoche de hoy
+            if ($_SESSION['sgs_dia'] !== $hoy) {
+                win_log_error('session_midnight', 'Sesión cerrada a la medianoche', ['user_id' => (int)$_SESSION['user_id']]);
                 self::logout();
                 if (session_status() !== PHP_SESSION_ACTIVE) @session_start();
-                $_SESSION['sgs_motivo_salida'] = 'inactividad';
+                $_SESSION['sgs_motivo_salida'] = 'medianoche';
                 return false;
             }
-            $_SESSION['sgs_ultimo_uso'] = time();
         }
         // Una cuenta desactivada o eliminada pierde el acceso aunque su sesión siga abierta.
         // Se revalida contra la BD como máximo una vez por minuto para no consultar en cada llamada.
@@ -462,7 +463,7 @@ class Auth {
 
         // Crear Sesión segura únicamente después de completar la autenticación.
         session_regenerate_id(true);
-        $_SESSION['sgs_ultimo_uso'] = time();
+        $_SESSION['sgs_dia'] = date('Y-m-d'); // la sesión vale hasta la medianoche de hoy
         self::cargarSesionDe($user);
         // Reiniciar el control visual de flyers en cada autenticación. De esta
         // manera el flyer vigente aparece una vez por ingreso al sistema.

@@ -71,7 +71,7 @@ try {
         $hijo = $datos . '.php';
         file_put_contents($hijo, '<?php $_SESSION = []; $_SERVER["REQUEST_METHOD"] = ' . var_export($metodo, true) . '; $_SERVER["SCRIPT_NAME"] = ' . var_export($script, true) . ';'
             . ' require ' . var_export(BACKEND_PATH . '/config/config.php', true) . '; require ' . var_export(BACKEND_PATH . '/config/auth.php', true) . ';'
-            . ' $_SESSION = unserialize(file_get_contents(' . var_export($datos, true) . ')); $_SESSION["sgs_ultimo_uso"] = time(); $_SESSION["sgs_revalidated_at"] = time();'
+            . ' $_SESSION = unserialize(file_get_contents(' . var_export($datos, true) . ')); $_SESSION["sgs_dia"] = date("Y-m-d"); $_SESSION["sgs_revalidated_at"] = time();'
             . ' Auth::requireLogin(); echo "PASA";');
         $salida = (string)shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($hijo) . ' 2>&1');
         @unlink($datos); @unlink($hijo);

@@ -12,6 +12,7 @@ $puedeVincular = Auth::puedeVincularWincore($effectiveViewUser);
       </div>
       <div class="modal-body">
         <p class="text-muted small mb-2">Escribe el código de la CTO para ver qué puertos están disponibles u ocupados y llegar a ella con Google Maps.</p>
+        <div class="alert alert-info py-2 px-3 small mb-2"><i class="bi bi-clock me-1"></i>Horario de atención: de 8:00 a. m. a 6:00 p. m. Por motivos operativos, el servicio podría suspenderse antes de ese horario.</div>
         <span class="sgs-gps-estado d-block mb-3" id="pcEstado" role="status"></span>
         <form class="sgs-filtros mb-3" id="pcForm" novalidate>
           <div class="sgs-filtro sgs-filtro--ancho">

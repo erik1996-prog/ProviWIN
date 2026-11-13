@@ -29,7 +29,10 @@
             if (!d.supervisores.length) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-inbox d-block fs-4 mb-1"></i>No hay supervisores directos activos.</td></tr>'; return; }
             tbody.innerHTML = d.supervisores.map((s) => {
                 const [cls, txt] = estados[s.estado] || estados.sin_turnos;
-                const dias = s.dias_trabajados + (s.domingos_trabajados ? ` <small class="text-muted">(${s.domingos_trabajados} dom.)</small>` : '');
+                // Días que no cuentan para la meta (2026-11-13): trabajo remoto y vacaciones o licencias aprobadas.
+                const aparte = [s.domingos_trabajados ? `${s.domingos_trabajados} dom.` : '', s.dias_remotos ? `${s.dias_remotos} remoto${s.dias_remotos > 1 ? 's' : ''}` : '',
+                    s.dias_ausencia ? `${s.dias_ausencia} vac./lic.` : ''].filter(Boolean).join(' · ');
+                const dias = s.dias_trabajados + (aparte ? ` <small class="text-muted">(${aparte})</small>` : '');
                 const pct = s.avance_pct ?? 0;
                 return `<tr>
                     <td><strong>${esc(s.nombre)}</strong></td>

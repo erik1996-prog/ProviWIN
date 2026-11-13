@@ -34,8 +34,8 @@ $assets = '03_FRONTEND/src/assets';
       <h1>Iniciar sesión</h1>
       <p class="sgs-sub">Ingresa tus datos de acceso.</p>
 
-      <?php if (($_GET['motivo'] ?? '') === 'inactividad' || ($_SESSION['sgs_motivo_salida'] ?? '') === 'inactividad'): unset($_SESSION['sgs_motivo_salida']); ?>
-      <div class="alert alert-info sgs-alert" role="status">Tu sesión se cerró por 4 horas sin actividad. Vuelve a ingresar.</div>
+      <?php if (($_GET['motivo'] ?? '') === 'medianoche' || ($_SESSION['sgs_motivo_salida'] ?? '') === 'medianoche'): unset($_SESSION['sgs_motivo_salida']); ?>
+      <div class="alert alert-info sgs-alert" role="status">Tu sesión se cerró a la medianoche. Vuelve a ingresar para el nuevo día.</div>
       <?php endif; ?>
       <div class="alert alert-danger sgs-alert d-none" id="loginAlert" role="alert"></div>
 

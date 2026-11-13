@@ -1,7 +1,7 @@
 <?php
 // 03_FRONTEND/src/pages/puente_wincore.php - Ventana del vínculo con Wincore (2026-11-11). Se entra por puente_wincore.php.
 // Solo la cuenta principal. Queda abierta junto a Wincore: pasa a Wincore las consultas de puertos de los supervisores y
-// devuelve sus resultados (assets/js/puente_wincore.js). Sin el menú del sistema ni el cierre por inactividad de la pantalla:
+// devuelve sus resultados (assets/js/puente_wincore.js). Sin el menú del sistema; la sesión se cierra a la medianoche como en todo el SGS y
 // el vínculo dura SGS_PUENTE_HORAS como máximo.
 require_once BACKEND_PATH . '/config/puertos_cto.php';
 if (!Auth::isLoggedIn()) { header('Location: index.php'); exit; } // tras iniciar sesión, se vuelve a pulsar el favorito

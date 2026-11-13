@@ -37,6 +37,9 @@
   }
 
   const CLASE = { DISPONIBLE: 'is-libre', OCUPADO: 'is-ocupado' };
+  // Potencia de un puerto ocupado: '0' sin señal (equipo apagado), '' sin dato (Wincore no la dio), si no el valor en dBm.
+  // Usa el mismo estilo del texto del servicio (sin estilos nuevos). Los puertos libres no llevan potencia.
+  const potencia = p => p.estado !== 'OCUPADO' ? '' : `<small>${p.potencia === '0' ? 'sin señal' : p.potencia ? esc(p.potencia) + ' dBm' : 'sin dato'}</small>`;
   function mostrar(r) {
     const c = r.cto, ps = r.puertos;
     const libres = ps.filter(p => p.estado === 'DISPONIBLE').length, ocupados = ps.filter(p => p.estado === 'OCUPADO').length;
@@ -52,14 +55,19 @@
         </div>`;
     }
     const otros = ps.length - libres - ocupados;
+    const suspendidos = ps.filter(p => p.estado === 'OCUPADO' && /SUSPEND/i.test(p.servicio)).length;
+    // Debajo del número: el disponible dice "disponible" (no el estado de un cliente anterior, como "bajas"); el ocupado, si está
+    // activo o suspendido; otro estado de Wincore, tal cual.
+    const frase = t => { const x = String(t || '').toLowerCase(); return x ? x[0].toUpperCase() + x.slice(1) : '—'; }; // ACTIVO → Activo
+    const situacion = p => frase(p.estado === 'DISPONIBLE' ? 'disponible' : p.estado === 'OCUPADO' ? (p.servicio || 'ocupado') : p.estado);
     $('pcResultado').innerHTML = `<div class="pc-ficha">
         <div class="pc-ficha-titulo"><strong>${esc(r.codigo)}</strong>${c.estado ? `<span class="badge bg-secondary">${esc(c.estado)}</span>` : ''}${c.objeto ? `<small class="text-muted">${esc(c.objeto)}</small>` : ''}</div>
         ${c.direccion || lugar ? `<span class="text-muted">${esc(c.direccion)}${c.direccion && lugar ? ' – ' : ''}${esc(lugar)}</span>` : ''}
         ${mapa}
       </div>
-      <div class="pc-resumen"><span class="badge bg-success">${libres} disponibles</span><span class="badge bg-danger">${ocupados} ocupados</span>${otros ? `<span class="badge bg-secondary">${otros} otros</span>` : ''}<span>· debajo de cada puerto, el estado del servicio</span></div>
-      <div class="pc-puertos">${ps.map(p => `<div class="pc-puerto ${CLASE[p.estado] || 'is-otro'}" title="Puerto ${esc(p.puerto)}: ${esc(p.estado || '—')} · servicio ${esc(p.servicio || '—')}">
-          <strong>${esc(p.puerto)}</strong><small>${esc(p.servicio || '—')}</small></div>`).join('')}</div>`;
+      <div class="pc-resumen"><span class="badge bg-success">${libres} disponibles</span><span class="badge bg-danger">${ocupados} ocupados</span>${suspendidos ? `<span class="badge bg-secondary">${suspendidos} ${suspendidos === 1 ? 'suspendido' : 'suspendidos'}</span>` : ''}${otros ? `<span class="badge bg-secondary">${otros} otros</span>` : ''}<span>· en los ocupados: si está activo o suspendido y su potencia (dBm)</span></div>
+      <div class="pc-puertos">${ps.map(p => `<div class="pc-puerto ${CLASE[p.estado] || 'is-otro'}" title="Puerto ${esc(p.puerto)}: ${esc(situacion(p))}">
+          <strong>${esc(p.puerto)}</strong><span><small>${esc(situacion(p))}</small>${potencia(p)}</span></div>`).join('')}</div>`;
     $('pcCopiar')?.addEventListener('click', async () => {
       const txt = `${c.lat},${c.lon}`;
       try { await navigator.clipboard.writeText(txt); window.showToast?.('Coordenadas copiadas.', 'success'); }
@@ -95,7 +103,8 @@
 
   $('pcForm').addEventListener('submit', consultar);
   modal.addEventListener('show.bs.modal', verEstado);
-  modal.addEventListener('hidden.bs.modal', () => { turno++; $('pcAvance').textContent = ''; });
+  // Al cerrar se borra todo (código, resultado y avisos): al volver a abrir queda lista para una consulta nueva.
+  modal.addEventListener('hidden.bs.modal', () => { turno++; $('pcCodigo').value = ''; $('pcAvance').textContent = ''; $('pcResultado').innerHTML = ''; });
   $('pcFavorito')?.addEventListener('click', e => { e.preventDefault(); window.showToast?.('Arrástralo a la barra de favoritos de Chrome; aquí no hace nada.', 'error'); });
   $('pcDesactivar')?.addEventListener('click', async () => {
     if (!window.confirm('¿Desactivar el vínculo con Wincore? Nadie podrá consultar puertos hasta que lo vuelvas a activar desde Wincore.')) return;

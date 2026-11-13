@@ -120,7 +120,10 @@ try {
     [$c, $r] = $principal('resultado', null, "&id=$id");
     $check('nadie más que quien consultó ve el resultado', $c === 404, [$c, $r]);
     $wincore = ['cto' => ['estado' => 'OPERATIVA', 'objeto' => 'SPLITTER 1X16-PC', 'direccion' => 'AV. PRUEBA 123', 'distrito' => 'PIURA', 'lat' => '-5.18603', 'lon' => '-80.633147', 'no_cliente' => 'CLIENTE SECRETO'],
-        'puertos' => [['puerto' => '2', 'estado' => 'OCUPADO', 'servicio' => 'ACTIVO', 'cliente' => 'CLIENTE SECRETO', 'nro_identidad' => '12345678'],
+        'puertos' => [['puerto' => '2', 'estado' => 'OCUPADO', 'servicio' => 'ACTIVO', 'potencia' => '-18.861', 'mac' => '485754438CD2D9B0', 'cliente' => 'CLIENTE SECRETO', 'nro_identidad' => '12345678'],
+            ['puerto' => '3', 'estado' => 'OCUPADO', 'servicio' => 'SUSPENDIDO', 'potencia' => 0],
+            ['puerto' => '2', 'estado' => 'DISPONIBLE', 'servicio' => ''],
+            ['puerto' => '4', 'estado' => 'OCUPADO', 'servicio' => 'ACTIVO', 'potencia' => '-21,5 dBm'],
             ['puerto' => '1', 'estado' => 'DISPONIBLE', 'servicio' => 'BAJAS']]];
     [$c, $r] = $principal('responder', ['id' => $id, 'datos' => json_encode($wincore)]);
     $check('la ventana del vínculo devuelve el resultado', $c === 200, [$c, $r]);
@@ -128,7 +131,9 @@ try {
     $texto = json_encode($r, JSON_UNESCAPED_UNICODE);
     $check('quien consultó recibe los puertos ordenados, la ubicación y la dirección', ($r['estado'] ?? '') === 'lista' && $r['puertos'][0]['puerto'] === '1'
         && $r['puertos'][1]['estado'] === 'OCUPADO' && $r['cto']['lat'] === '-5.18603' && $r['cto']['direccion'] === 'AV. PRUEBA 123', $r);
-    $check('sin datos de clientes aunque Wincore los mande', !str_contains($texto, 'SECRETO') && !str_contains($texto, '12345678'), $r);
+    $check('un número repetido queda una sola vez y gana el ocupado', count($r['puertos']) === 4 && $r['puertos'][1]['estado'] === 'OCUPADO', $r['puertos']);
+    $check('cada puerto ocupado trae su potencia (0 = sin señal) y el libre ninguna', $r['puertos'][1]['potencia'] === '-18.86' && $r['puertos'][2]['potencia'] === '0' && $r['puertos'][3]['potencia'] === '-21.5' && $r['puertos'][0]['potencia'] === '', $r);
+    $check('sin datos de clientes ni MAC aunque Wincore los mande', !str_contains($texto, 'SECRETO') && !str_contains($texto, '12345678') && !str_contains($texto, '485754438CD2D9B0'), $r);
     [$c, $r] = $admin('resultado', null, "&id=$id");
     $check('el resultado se entrega una sola vez (no queda guardado)', $c === 404, [$c, $r]);
     [$c, $r] = $principal('tomar');

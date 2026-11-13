@@ -4173,11 +4173,15 @@ body.sgs-nov-abierto { overflow: hidden; }
 .pc-ubicacion { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; font-variant-numeric: tabular-nums; }
 .pc-ubicacion .btn { padding: 2px 8px; font-size: 12.5px; }
 .pc-resumen { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; font-size: 12px; color: var(--sgs-muted); }
-.pc-puertos { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 4px; }
-.pc-puerto { border-radius: 6px; padding: 3px 2px; text-align: center; display: grid; line-height: 1.15;
+/* Cada puerto como ficha horizontal (2026-11-11, el usuario pidió otro diseño porque el texto se salía): número a la izquierda,
+   estado y potencia a la derecha, uno debajo del otro. 2 por fila en celular, 4–5 en computadora. */
+.pc-puertos { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 6px; }
+.pc-puerto { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 5px 8px; border-radius: 8px; line-height: 1.2;
   background: var(--sgs-surface-alt); color: var(--sgs-ink-2); border: 1px solid var(--sgs-border); }
-.pc-puerto strong { font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.pc-puerto small { font-size: 9.5px; font-weight: 600; text-transform: lowercase; opacity: .85; }
+.pc-puerto strong { flex: 0 0 22px; font-size: 15px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+.pc-puerto span { display: grid; min-width: 0; }
+.pc-puerto small { font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-puerto small + small { font-weight: 500; font-variant-numeric: tabular-nums; opacity: .85; }
 .pc-puerto.is-libre { background: var(--sgs-success-soft); color: var(--sgs-success-dark); border-color: transparent; }
 .pc-puerto.is-ocupado { background: var(--sgs-danger-soft); color: var(--sgs-danger-dark); border-color: transparent; }
 .pv-cuerpo { background: var(--sgs-bg); min-height: 100vh; display: grid; place-items: center; padding: 16px; }

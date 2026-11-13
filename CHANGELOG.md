@@ -4,8 +4,12 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Sesión hasta la medianoche y meta sin días remotos ni ausencias (2026-11-13)
+- La sesión ya no se cierra a las 4 horas sin uso: dura hasta la medianoche del día en que se ingresó (`Auth::isLoggedIn` guarda `sgs_dia`; la pantalla vuelve al ingreso con la meta `sgs-cierre` en `main.js`; el ingreso avisa "Tu sesión se cerró a la medianoche"). `SGS_SESION_INACTIVA` (config.php) queda solo como vida del archivo de sesión: 26 horas.
+- Meta de productividad (Dashboard): los días con trabajo remoto no cuentan (ni el día ni sus supervisiones finalizadas) y las vacaciones y licencias aprobadas se descuentan de la meta a la fecha. La tabla muestra cuántos días remotos y de vacaciones o licencias tuvo cada supervisor. Prueba: `05_TEST/integration/productividad_test.php`.
+
 ### Consultar puertos de una CTO con el vínculo con Wincore (2026-11-11)
-- Supervisiones tiene el botón **Consultar puertos** (permiso "Consultar puertos" del grupo Supervisiones; por ahora solo los perfiles administradores): se escribe la CTO y se ven sus puertos disponibles u ocupados, el estado del servicio, la dirección, las coordenadas y los botones "Ver en mapa" y "Cómo llegar".
+- Supervisiones tiene el botón **Consultar puertos** (permiso "Consultar puertos" del grupo Supervisiones; por ahora solo los perfiles administradores): se escribe la CTO y se ven sus puertos disponibles u ocupados, el estado del servicio, la potencia de cada puerto ocupado (dBm; "sin señal" si el equipo está apagado; se pide por la MAC, que no sale de la laptop), la dirección, las coordenadas y los botones "Ver en mapa" y "Cómo llegar".
 - Wincore solo se alcanza con la VPN, así que el servidor no lo llama: la cuenta principal pulsa en Wincore el favorito **Vincular SGS**, que abre la ventana del vínculo (`puente_wincore.php`). Las dos ventanas se hablan con postMessage y la pestaña de Wincore hace las consultas con su propia sesión; la cookie y el token no salen de la laptop y al SGS solo llega el estado de los puertos (nunca datos de clientes).
 - El vínculo dura 10 horas; se apaga antes con "Desactivar" (en la ventana del vínculo o en Consultar puertos) o a los 20 s si la ventana deja de preguntar. Wincore atiende una consulta a la vez y en orden de llegada; el supervisor ve cuántas hay antes que la suya (máximo 15 en espera). Sin base de datos: archivos en `08_LOGS/runtime/puertos` que se borran a los 10 minutos. Lógica en `config/puertos_cto.php`, API `api/puertos_cto.php`, prueba `05_TEST/integration/puertos_cto_test.php`.
 
