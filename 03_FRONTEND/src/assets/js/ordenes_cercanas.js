@@ -17,13 +17,21 @@
     $('ocReintentar').classList.toggle('d-none', listo || A.preparando);
   };
 
+  // Con el vínculo con Phoenix (2026-11-13) el servidor no espera: responde "consultando" y aquí se repite la misma petición
+  // cada 2 s hasta tener las órdenes (máximo 90 s), sin dejar procesos del hosting ocupados.
+  const REPETIR_MS = 2000, MAX_MS = 90000;
   async function api(q) {
-    let r;
-    try { r = await fetch('api/ordenes_cercanas.php?' + q, { headers: { Accept: 'application/json' } }); }
-    catch { throw new Error('No se pudo conectar con el servidor.'); }
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok || d.status !== 'success') throw new Error(d.message || 'No se pudo completar la consulta.');
-    return d;
+    const inicio = Date.now();
+    for (;;) {
+      let r;
+      try { r = await fetch('api/ordenes_cercanas.php?' + q, { headers: { Accept: 'application/json' } }); }
+      catch { throw new Error('No se pudo conectar con el servidor.'); }
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d.status !== 'success') throw new Error(d.message || 'No se pudo completar la consulta.');
+      if (!d.consultando) return d;
+      if (Date.now() - inicio > MAX_MS) throw new Error('Phoenix está tardando en responder. Inténtalo en unos minutos.');
+      await new Promise(ok => setTimeout(ok, REPETIR_MS));
+    }
   }
 
   // Escucha el GPS unos segundos y se queda con la lectura más precisa.
@@ -142,4 +150,44 @@
   $('ocEstado').addEventListener('change', reiniciar);
   modal.addEventListener('show.bs.modal', () => { if (!(A.fecha && A.yo)) preparar(); });
   modal.addEventListener('hidden.bs.modal', () => { A.turno++; A.escaneando = false; botones(); });
+
+  // Sesión de Phoenix iniciada aquí, hasta las 23:59 (2026-11-19). Solo la cuenta principal ve este bloque (Vínculo con Phoenix).
+  // "Iniciar sesión en Phoenix" abre la ventanita phoenix_sesion.php; al terminar avisa con postMessage y se cierra sola.
+  if ($('ocPhxSesion')) {
+    const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const phx = async (accion, post) => {
+      const r = await fetch(`api/puente_phoenix.php?action=${accion}`, post
+        ? { method: 'POST', headers: { 'X-CSRF-Token': token }, body: new FormData() } : { headers: { Accept: 'application/json' } });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d.status !== 'success') throw new Error(d.message || 'No se pudo consultar la sesión de Phoenix.');
+      return d;
+    };
+    const mostrar = d => {
+      estado('ocPhxEstado', d.activa ? 'ok' : (d.vinculo ? 'ok' : ''), d.activa
+        ? `Sesión de Phoenix activa hasta las ${d.vence}${d.usuario ? ` · ${d.usuario}` : ''}. Puedes cerrar la laptop.`
+        : d.vinculo ? 'Sin sesión iniciada aquí: se está usando el vínculo de tu laptop (favorito).' : 'Sin sesión de Phoenix. Inicia sesión aquí: queda activa hasta las 23:59.');
+      $('ocPhxIniciar').classList.toggle('d-none', !!d.activa);
+      $('ocPhxCerrar').classList.toggle('d-none', !d.activa);
+    };
+    const consultar = async () => {
+      try { mostrar(await phx('sesion_estado')); } catch (x) { estado('ocPhxEstado', 'error', x.message); }
+    };
+    $('ocPhxIniciar').addEventListener('click', () => {
+      const w = 440, h = 560, x = Math.max(0, (screen.width - w) / 2), y = Math.max(0, (screen.height - h) / 2);
+      const v = window.open('phoenix_sesion.php', 'sgsPhoenixSesion', `width=${w},height=${h},left=${x},top=${y}`);
+      if (!v) estado('ocPhxEstado', 'error', 'El navegador bloqueó la ventanita. Permite las ventanas emergentes de este sitio.');
+    });
+    $('ocPhxCerrar').addEventListener('click', async () => {
+      if (!confirm('¿Cerrar la sesión de Phoenix? Órdenes cercanas dejará de leer órdenes hasta que vuelvas a iniciarla.')) return;
+      try { await phx('sesion_cerrar', true); } catch (x) { estado('ocPhxEstado', 'error', x.message); return; }
+      consultar();
+    });
+    window.addEventListener('message', ev => {
+      if (ev.origin === location.origin && ev.data?.tipo === 'phoenix-sesion') consultar();
+    });
+    modal.addEventListener('show.bs.modal', consultar);
+    // Si Phoenix cerró la sesión antes de la medianoche, el aviso sale en la lista y aquí se vuelve a ofrecer iniciarla.
+    new MutationObserver(() => { if (/sesión de Phoenix se cerró/i.test($('ocAvance').textContent)) consultar(); })
+      .observe($('ocAvance'), { childList: true, characterData: true, subtree: true });
+  }
 })();

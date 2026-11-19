@@ -619,6 +619,11 @@ class Auth {
         return self::puedeConsultarPuertos($u) && self::cuentaPrincipalId() === (int)($u['id'] ?? 0);
     }
 
+    /** Activar y desactivar el vínculo con Phoenix (2026-11-13): solo la cuenta principal, porque usa su sesión de Phoenix. */
+    public static function puedeVincularPhoenix(array $u): bool {
+        return self::puedeOrdenesCercanas($u) && self::cuentaPrincipalId() === (int)($u['id'] ?? 0);
+    }
+
     public static function isAdministrative(): bool {
         return self::hasRole([
             self::ROLE_ADMINISTRADOR,

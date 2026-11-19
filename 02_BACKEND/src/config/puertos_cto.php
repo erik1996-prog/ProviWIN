@@ -11,7 +11,7 @@
 // El vínculo dura SGS_PUENTE_HORAS desde que se activa; se apaga antes con "Desactivar" o si la ventana deja de responder.
 // Sistema liviano: sin base de datos, archivos chicos en 08_LOGS/runtime/puertos que se borran solos a los 10 minutos.
 const SGS_PUENTE_HORAS = 10;
-const SGS_PUENTE_SONDEO = 3;          // segundos entre preguntas de la ventana del vínculo
+const SGS_PUENTE_SONDEO = 5;          // segundos entre preguntas de la ventana del vínculo (2026-11-13: de 3 a 5, hosting más liviano)
 const SGS_PUENTE_SIN_PULSO = 20;      // sin preguntas en este tiempo, el vínculo se considera apagado
 const SGS_PUERTOS_ESPERA = 40;        // segundos que tiene Wincore para responder desde que toma la consulta
 const SGS_PUERTOS_COLA = 15;          // consultas en espera como máximo; con más se pide intentar en un minuto

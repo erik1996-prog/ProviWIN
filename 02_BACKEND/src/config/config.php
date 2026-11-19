@@ -74,7 +74,7 @@ if (PHP_SAPI !== 'cli' && session_status() === PHP_SESSION_NONE) {
     ]);
     ini_set('session.use_strict_mode', '1');
     // Sesiones en una carpeta propia (bloqueada a la web) con su propia limpieza: en un hosting compartido la carpeta
-    // común las borra a los 24 min por defecto. Duran lo que la inactividad permitida, más un margen.
+    // común las borra a los 24 min por defecto. Duran más de un día: la sesión se cierra a la medianoche (Auth::isLoggedIn).
     $sgsSesiones = STORAGE_PATH . '/sesiones';
     if (is_dir($sgsSesiones) || @mkdir($sgsSesiones, 0700, true)) {
         ini_set('session.save_path', $sgsSesiones);

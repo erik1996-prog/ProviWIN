@@ -51,19 +51,24 @@
         // "mac": a veces viene en otro formato (ZTEG…) y no coincide con la potencia.
         var macDe = function (p) { return String(p.mac_prefijo_activacion || ''); };
         // Solo lo que se muestra: nada de clientes (la MAC solo sirve aquí para pedir la potencia y no se envía al SGS)
+        // Estado de cada puerto (2026-11-13, validado contra la supervisión en vivo de Wincore): getpuertos a veces viene desactualizado.
+        //  - OCUPADO sin MAC de activación = marca del ordenamiento (pedido pendiente), no una ocupación física: se muestra DISPONIBLE.
+        //  - Activo o suspendido sale del estado en vivo de la potencia (estado_red: active / inactive); si no llegó, del estado_unifilar.
         var armar = function (potencias) {
           return { cto: { estado: cto.txt_estado_cto_nap || '', objeto: p0.objeto || '', direccion: cto.tx_direccion || '', distrito: cto.tx_distrito || '',
               provincia: cto.tx_provincia || '', departamento: cto.tx_departamento || '', lat: cto.tx_lat_cto || p0.n_latcto || '', lon: cto.tx_lon_cto || p0.n_loncto || '' },
             puertos: pr.data.map(function (p) {
-              var mac = p.estado_puerto === 'OCUPADO' ? macDe(p) : '', pot = mac ? potencias[mac.toUpperCase()] : null;
-              return { puerto: p.puerto, estado: p.estado_puerto, servicio: p.estado_unifilar || '', potencia: pot == null ? '' : pot };
+              var mac = p.estado_puerto === 'OCUPADO' ? macDe(p).trim() : '', pot = mac ? potencias[mac.toUpperCase()] : null;
+              if (p.estado_puerto === 'OCUPADO' && !mac) return { puerto: p.puerto, estado: 'DISPONIBLE', servicio: '', potencia: '' };
+              var servicio = pot && pot.red === 'active' ? 'ACTIVO' : pot && pot.red === 'inactive' ? 'SUSPENDIDO' : p.estado_unifilar || '';
+              return { puerto: p.puerto, estado: p.estado_puerto, servicio: mac ? servicio : p.estado_unifilar || '', potencia: pot ? pot.valor : '' };
             }) };
         };
         // Potencia de cada puerto ocupado (en el equipo del cliente, dBm), por su MAC de activación (mac_prefijo_activacion; si no
         // viene, no se pide). Solo se piden los ocupados (los libres no la muestran). A veces la primera respuesta de Wincore trae 0 en
         // todos y una segunda, unos segundos después, ya trae la medición: si todo vino en 0 o vacío, se pregunta una vez más.
         // Si falla, se muestran los puertos sin ella.
-        var macs = pr.data.filter(function (p) { return p.estado_puerto === 'OCUPADO' && macDe(p); }).map(function (p) { return { nserie: macDe(p) }; });
+        var macs = pr.data.filter(function (p) { return p.estado_puerto === 'OCUPADO' && macDe(p).trim(); }).map(function (p) { return { nserie: macDe(p).trim() }; });
         if (!macs.length) return armar({});
         var pedir = function (intento) {
           return rpc('logconodered.getInfoPotenciaByMacs', { allnserie: macs, ticked: token() }).then(function (po) {
@@ -71,8 +76,8 @@
             (po && po.data || []).forEach(function (d) {
               if (!d.mac_serie) return;
               // Equipo apagado (estado_red inactive) = sin señal (0), aunque traiga una medición vieja
-              var valor = String(d.estado_red || '').toLowerCase() === 'inactive' ? 0 : d.potencia_ont;
-              potencias[String(d.mac_serie).toUpperCase()] = valor;
+              var red = String(d.estado_red || '').toLowerCase(), valor = red === 'inactive' ? 0 : d.potencia_ont;
+              potencias[String(d.mac_serie).toUpperCase()] = { valor: valor == null ? '' : valor, red: red };
               if (Number(valor)) conValor++;
             });
             console.info('SGS · potencia de Wincore (intento ' + intento + '):', po && po.status, (po && po.data || []).length, 'filas,', conValor, 'con valor, para', macs.length, 'MAC');

@@ -37,7 +37,7 @@ if ($action === 'fecha' || $action === 'inicio') {
     if ($action === 'fecha') $salir(200, ['status' => 'success', 'fecha' => $hoy,
         'grupos' => array_map(static fn($c) => ['codigo' => $c, 'nombre' => $NOMBRES[$c]], $permitidas)]);
 }
-if (!WinboService::configurado()) $salir(424, ['status' => 'error', 'message' => 'Falta configurar el acceso a Winbo en el servidor.']);
+if (!WinboService::configurado()) $salir(424, ['status' => 'error', 'message' => 'La consulta de órdenes no está activa en este momento. Inténtalo más tarde.']);
 $estado = ESTADOS[(string)($_GET['estado'] ?? 'iniciada')] ?? null;
 if ($estado === null) $salir(400, ['status' => 'error', 'message' => 'Estado no válido.']);
 $grupo = (string)($_GET['grupo'] ?? $permitidas[0]);
@@ -52,6 +52,9 @@ try {
         $salir(200, ['status' => 'success'] + $winbo->pagina($estado, $fecha, (int)($_GET['n'] ?? 0), $grupo));
     }
     $salir(400, ['status' => 'error', 'message' => 'Acción no válida.']);
+} catch (SgsPhoenixEnCurso $e) {
+    // Vínculo con Phoenix (2026-11-13): el pedido sigue en curso; el navegador repite esta misma petición en 2 s (sin procesos esperando).
+    $salir(200, ['status' => 'success', 'consultando' => true]);
 } catch (InvalidArgumentException | RuntimeException $e) {
     win_log_error('winbo', $e->getMessage());
     $salir(424, ['status' => 'error', 'message' => $e->getMessage()]);

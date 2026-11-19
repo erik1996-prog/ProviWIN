@@ -4,9 +4,27 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Iniciar la sesión de Phoenix aquí, activa hasta la medianoche (2026-11-19)
+- **Añadido**: en Órdenes cercanas → "Vínculo con Phoenix (solo tú)", el botón **Iniciar sesión en Phoenix** abre una ventanita (`phoenix_sesion.php`): la cuenta principal escribe una vez su usuario y contraseña de Phoenix, el servidor entra y la ventanita se cierra sola. Muestra "Sesión de Phoenix activa hasta las 23:59" y **Cerrar sesión**. Ya no hace falta dejar la laptop abierta.
+- **Seguridad**: la contraseña solo se usa para entrar; no se guarda en archivos, base de datos ni logs. Solo quedan las cookies de la sesión en `08_LOGS/runtime/phoenix/sesion_aqui.cookie` (y `sesion_aqui.json` con usuario y hora), que se borran a las 23:59:59 hora de Perú o con Cerrar sesión.
+- **Cambiado**: `WinboService` usa, en este orden, el vínculo del favorito (si está activo), la sesión iniciada aquí o el `.env`. Si Phoenix cierra la sesión antes de la medianoche, se borra y Órdenes cercanas avisa que hay que iniciarla de nuevo. Los pasos de ingreso pasaron de `conectar()` a `entrar()` (los mismos para el `.env` y la ventanita). La lectura de órdenes, los grupos y la caché no cambian; el favorito sigue igual.
+- Archivos: `config/puente_phoenix.php`, `services/WinboService.php`, `routes/api/puente_phoenix.php` (acciones `sesion_estado`, `sesion_iniciar`, `sesion_cerrar`), `phoenix_sesion.php` + `pages/phoenix_sesion.php` + `assets/js/phoenix_sesion.js`, `layouts/ordenes_cercanas_modal.php`, `assets/js/ordenes_cercanas.js`. Prueba: `05_TEST/integration/phoenix_sesion_test.php`.
+
 ### Sesión hasta la medianoche y meta sin días remotos ni ausencias (2026-11-13)
 - La sesión ya no se cierra a las 4 horas sin uso: dura hasta la medianoche del día en que se ingresó (`Auth::isLoggedIn` guarda `sgs_dia`; la pantalla vuelve al ingreso con la meta `sgs-cierre` en `main.js`; el ingreso avisa "Tu sesión se cerró a la medianoche"). `SGS_SESION_INACTIVA` (config.php) queda solo como vida del archivo de sesión: 26 horas.
 - Meta de productividad (Dashboard): los días con trabajo remoto no cuentan (ni el día ni sus supervisiones finalizadas) y las vacaciones y licencias aprobadas se descuentan de la meta a la fecha. La tabla muestra cuántos días remotos y de vacaciones o licencias tuvo cada supervisor. Prueba: `05_TEST/integration/productividad_test.php`.
+
+### Sistema más liviano: Órdenes cercanas sin procesos esperando (2026-11-13)
+- Con el vínculo con Phoenix, el servidor ya no espera la respuesta (antes hasta 35 s con un proceso del hosting ocupado, y con varios supervisores el hosting se saturaba y salía "Conexión interrumpida"). Deja el pedido, responde "consultando" al instante y el navegador repite la misma petición cada 2 s (máximo 90 s); cada petición ocupa el servidor unos milisegundos. Si varios piden lo mismo comparten un solo pedido (`sgsPhoenixPedir`, `SgsPhoenixEnCurso`).
+- Las ventanas de vínculo (Wincore y Phoenix) preguntan cada 5 s en vez de 3 (`SGS_PUENTE_SONDEO`): de 40 a 24 consultas por minuto con las dos abiertas.
+
+### Órdenes cercanas con el vínculo con Phoenix (2026-11-13)
+- Igual que el vínculo con Wincore: la cuenta principal inicia sesión en Phoenix, pulsa el favorito **Vincular SGS – Phoenix** (está en Órdenes cercanas → "Vínculo con Phoenix") y queda abierta la ventana del vínculo (`puente_phoenix.php`) por 10 horas. Mientras está activo, `WinboService` ya no entra a Phoenix con usuario y contraseña: pide cada lectura (estados de orden, pantalla de la grilla y página de órdenes) a esa pestaña, que la trae con su sesión. Solo cambió la conexión; la lectura, los grupos y la caché de 2 minutos compartida siguen igual.
+- El favorito solo atiende las tres rutas de lectura de la grilla. Si el vínculo no está activo y el `.env` no tiene `WINBO_*`, Órdenes cercanas avisa "La consulta de órdenes no está activa en este momento". Con el vínculo funcionando se pueden borrar `WINBO_USUARIO` y `WINBO_CLAVE` del hosting.
+- Archivos: `config/puente_phoenix.php`, `routes/api/puente_phoenix.php` (+ `api/puente_phoenix.php`), `pages/puente_phoenix.php` (+ `puente_phoenix.php`), `assets/js/puente_phoenix.js`, `assets/js/phoenix_favorito.js`; permiso `Auth::puedeVincularPhoenix`.
+
+### Consultar puertos: estados como en la supervisión en vivo de Wincore (2026-11-13)
+- El favorito **Vincular SGS** (`puente_favorito.js`) corrige lo que `getpuertos` trae desactualizado: un puerto OCUPADO sin MAC de activación (marca del ordenamiento, no ocupación física) se muestra **Disponible**, y activo o suspendido sale del estado en vivo de la potencia (`estado_red` active / inactive; si no llegó, del `estado_unifilar`). Los conteos de libres y ocupados salen de la lista corregida. Hay que volver a arrastrar el favorito.
 
 ### Consultar puertos de una CTO con el vínculo con Wincore (2026-11-11)
 - Supervisiones tiene el botón **Consultar puertos** (permiso "Consultar puertos" del grupo Supervisiones; por ahora solo los perfiles administradores): se escribe la CTO y se ven sus puertos disponibles u ocupados, el estado del servicio, la potencia de cada puerto ocupado (dBm; "sin señal" si el equipo está apagado; se pide por la MAC, que no sale de la laptop), la dirección, las coordenadas y los botones "Ver en mapa" y "Cómo llegar".

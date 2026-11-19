@@ -46,6 +46,9 @@ function sgsNovedades(): array {
         ['id' => 12, 'fecha' => '2026-11-13', 'icono' => 'bi-bullseye', 'titulo' => 'Meta justa: sin días remotos ni vacaciones',
          'texto' => 'Ahora, en la meta de productividad, los días de trabajo remoto (y sus supervisiones) y las vacaciones o licencias aprobadas ya no cuentan ni bajan el avance del supervisor.',
          'url' => 'index.php?page=admin_dashboard', 'puede' => static fn(array $u): bool => Auth::can(Auth::PERM_DASHBOARD_VIEW, $u)],
+        ['id' => 13, 'fecha' => '2026-11-13', 'icono' => 'bi-link-45deg', 'titulo' => 'Vínculo con Phoenix para Órdenes cercanas',
+         'texto' => 'Ahora Órdenes cercanas puede leer las órdenes con tu sesión de Phoenix, sin guardar tu contraseña en el servidor: en Órdenes cercanas, abre "Vínculo con Phoenix", arrastra el favorito y púlsalo en Phoenix.',
+         'url' => 'index.php?page=supervision_lista', 'puede' => static fn(array $u): bool => Auth::puedeVincularPhoenix($u)],
     ];
 }
 
