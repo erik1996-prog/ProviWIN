@@ -8,7 +8,7 @@ $tmp = Join-Path $env:TEMP 'VinculoWincore'
 Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path "$tmp\php\ext" | Out-Null
 
-foreach ($n in 'vinculo_wincore.php', 'Vinculo Wincore.ps1', 'Vinculo Wincore.cmd', 'Detener Vinculo Wincore.ps1', 'Detener Vinculo Wincore.cmd', 'Instalar.ps1', 'Instalar.cmd', 'LEEME.txt') {
+foreach ($n in 'vinculo_wincore.php', 'vigilante.ps1', 'Vinculo Wincore.ps1', 'Vinculo Wincore.cmd', 'Detener Vinculo Wincore.ps1', 'Detener Vinculo Wincore.cmd', 'Instalar.ps1', 'Instalar.cmd', 'LEEME.txt') {
     Copy-Item (Join-Path $PSScriptRoot $n) $tmp
 }
 foreach ($n in 'php.exe', 'php8ts.dll', 'libcrypto-3-x64.dll', 'libssl-3-x64.dll', 'libssh2.dll', 'nghttp2.dll', 'libsasl.dll') { Copy-Item (Join-Path $xampp $n) "$tmp\php" }

@@ -48,12 +48,18 @@ function sgsPuenteEstado(): array {
 function sgsPuenteActivar(int $usuarioId): int {
     $vence = time() + SGS_PUENTE_HORAS * 3600;
     sgsPuertosEscribir(sgsPuertosDir() . '/puente.json', ['usuario_id' => $usuarioId, 'desde' => time(), 'vence' => $vence, 'pulso' => time()]);
+    @unlink(sgsPuertosDir() . '/desactivado.json');
     return $vence;
 }
 
 /** Apaga el vínculo y descarta lo que esperaba respuesta (el supervisor ve "no está activa"). */
-function sgsPuenteDesactivar(): void {
+/**
+ * $porUsuario (2026-11-20): lo apagó la persona (Desactivar en el SGS o en la ventanita, Detener el programa, Anular la clave). Se
+ * deja una marca para que el programa Vínculo Wincore no vuelva a entrar solo; si en cambio el vínculo solo venció, sí vuelve.
+ */
+function sgsPuenteDesactivar(bool $porUsuario = false): void {
     @unlink(sgsPuertosDir() . '/puente.json');
+    if ($porUsuario) sgsPuertosEscribir(sgsPuertosDir() . '/desactivado.json', ['desde' => time()]);
     foreach (glob(sgsPuertosDir('consultas') . '/*.{pendiente,tomada}.json', GLOB_BRACE) ?: [] as $f) @unlink($f);
 }
 

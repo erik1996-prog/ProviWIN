@@ -200,7 +200,7 @@
     }
 
     $('vwParar').addEventListener('click', function () {
-      api('desactivar', {}).catch(function () { }).then(function () { apagar('Vínculo desactivado. Nadie puede consultar puertos hasta que lo actives de nuevo.'); });
+      api('desactivar', { usuario: '1' }).catch(function () { }).then(function () { apagar('Vínculo desactivado. Nadie puede consultar puertos hasta que lo actives de nuevo.'); });
     });
 
     api('vincular', {}).then(function (v) {

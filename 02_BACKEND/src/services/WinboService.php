@@ -95,16 +95,29 @@ class WinboService {
      */
     public static function mantenerViva(): void {
         if (!sgsPhoenixSesion()['activa'] || sgsPhoenixEstado()['activo']) return;
+        if (self::sesionAquiViva() === false) { sgsPhoenixSesionCerrar(); win_log_error('phoenix_sesion', 'Phoenix cerró la sesión iniciada en el SGS (señal de vida)'); }
+    }
+
+    /**
+     * ¿Sigue abierta en Phoenix la sesión iniciada aquí? Abre su página principal (y guarda la llave renovada): true = abierta,
+     * false = Phoenix lleva al ingreso (cerrada de verdad), null = Phoenix no respondió (no se sabe: no se borra nada).
+     * 2026-11-20: antes, una sola respuesta vacía o lenta de Phoenix bastaba para dar la sesión por cerrada y borrarla.
+     */
+    private static function sesionAquiViva(): ?bool {
         $cookie = sgsPhoenixSesionCookie();
+        if (!is_file($cookie)) return false;
         $ch = curl_init(self::BASE . '/default.aspx');
         curl_setopt_array($ch, self::opcionesCa() + [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => 15,
             CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => self::UA, CURLOPT_COOKIEFILE => $cookie, CURLOPT_COOKIEJAR => $cookie,
             CURLOPT_HTTPHEADER => ['Referer: ' . self::BASE . '/default.aspx']]);
         $r = curl_exec($ch);
+        $codigo = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $final = (string)curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
         unset($ch);
-        if ($r === false) return;                                  // sin conexión con Phoenix: se reintenta la próxima vez
-        if (stripos($final, 'login.aspx') !== false) { sgsPhoenixSesionCerrar(); win_log_error('phoenix_sesion', 'Phoenix cerró la sesión iniciada en el SGS'); }
+        if ($r === false || $codigo >= 500 || $codigo === 0) return null;
+        // Sin sesión, Phoenix responde 200 con un script que manda al ingreso (window.top.location='…/login.aspx').
+        if (stripos($final, 'login.aspx') !== false || preg_match('/location\s*=\s*["\'][^"\']*login\.aspx/i', (string)$r)) return false;
+        return true;
     }
 
     public static function cookieLectura(bool $renovar = false): string {
@@ -362,7 +375,15 @@ class WinboService {
     /** Con candado: si varias peticiones la pierden a la vez, solo una vuelve a entrar. */
     private function conectar(): void {
         // Sesión iniciada aquí (2026-11-19): sin la contraseña no se puede volver a entrar; se borra y se pide iniciar de nuevo.
-        if ($this->aqui) { sgsPhoenixSesionCerrar(); throw new RuntimeException(self::SESION_AQUI_CERRADA); }
+        // 2026-11-20: antes de borrarla se confirma con Phoenix; si sigue abierta (o Phoenix no respondió), fue una respuesta vacía o
+        // lenta de un momento: no se borra y se reintenta en el siguiente turno.
+        if ($this->aqui) {
+            $viva = self::sesionAquiViva();
+            if ($viva !== false) throw new RuntimeException('Phoenix no respondió bien esta vez. Se reintenta en unos minutos (la sesión sigue conectada).');
+            sgsPhoenixSesionCerrar();
+            win_log_error('phoenix_sesion', 'Phoenix cerró la sesión iniciada en el SGS (confirmado al consultar)');
+            throw new RuntimeException(self::SESION_AQUI_CERRADA);
+        }
         $f = fopen($this->dir . '/login.lock', 'c');
         flock($f, LOCK_EX);
         try {

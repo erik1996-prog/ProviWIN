@@ -12,6 +12,7 @@ try {
     # Si está funcionando, se detiene antes de reemplazar sus archivos
     $pidArchivo = Join-Path $env:LOCALAPPDATA 'SGS\vinculo_wincore.pid'
     if (Test-Path $pidArchivo) { Stop-Process -Id ([int](Get-Content $pidArchivo -Raw)) -Force -ErrorAction SilentlyContinue; Remove-Item $pidArchivo -ErrorAction SilentlyContinue }
+    Get-CimInstance Win32_Process -Filter "Name='php.exe'" | Where-Object { $_.CommandLine -like '*vinculo_wincore.php*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
     New-Item -ItemType Directory -Force -Path $destino | Out-Null
     Get-ChildItem -Path $PSScriptRoot -Force | Where-Object { $_.Name -notin 'Instalar.cmd', 'Instalar.ps1' } | Copy-Item -Destination $destino -Recurse -Force
     Write-Host "  Programa copiado en $destino"
@@ -41,6 +42,16 @@ try {
         $acceso.Save()
     }
     Write-Host '  Accesos directos creados en el escritorio: «Vínculo Wincore» y «Detener Vínculo Wincore».'
+    # Al encender la laptop (2026-11-20): arranca solo, oculto y sin preguntar (si ya se configuró una vez).
+    $inicio = [Environment]::GetFolderPath('Startup')
+    $acceso = $ws.CreateShortcut((Join-Path $inicio 'Vínculo Wincore (al encender).lnk'))
+    $acceso.TargetPath = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $acceso.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$(Join-Path $destino 'Vinculo Wincore.ps1')`" auto"
+    $acceso.WorkingDirectory = $destino
+    $acceso.WindowStyle = 7
+    $acceso.Description = 'Arranca el Vínculo Wincore al encender la laptop'
+    $acceso.Save()
+    Write-Host '  Arranca solo al encender la laptop (para quitarlo: Windows + R → shell:startup y borra «Vínculo Wincore (al encender)»).'
     Write-Host ''
     Write-Host '  Listo. Ya puedes borrar la carpeta del paquete que copiaste.' -ForegroundColor Green
     Write-Host '  Para usarlo: conecta la VPN y abre «Vínculo Wincore» en el escritorio.'

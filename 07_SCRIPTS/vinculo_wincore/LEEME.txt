@@ -2,28 +2,38 @@
 =====================
 
 Programa para la laptop que tiene la VPN de Wincore. Atiende las consultas de puertos de los
-supervisores en segundo plano. Tu contraseña de Wincore no se guarda en ningún lado.
+supervisores en segundo plano, arranca solo al encender la laptop y, si Wincore cierra la sesión,
+vuelve a entrar solo.
 
 INSTALAR (una sola vez)
   1. Descomprime este paquete (clic derecho > Extraer todo).
-  2. Abre la carpeta y haz doble clic en "Instalar".
+  2. Abre la carpeta y haz doble clic en "Instalar" (el de tipo "Script de comandos de Windows").
   3. Aparecen en el escritorio: "Vínculo Wincore" y "Detener Vínculo Wincore".
      Ya puedes borrar la carpeta y el .zip.
 
-PRIMERA VEZ QUE LO ABRES
-  - Te pide la dirección de tu SGS (la misma del navegador, sin index.php).
-  - Te pide la clave del programa: en el SGS, Supervisiones > Consultar puertos >
-    Vínculo con Wincore > Generar clave del programa > Copiar. Pégala con clic derecho.
+PRIMERA VEZ QUE LO ABRES (con la VPN conectada)
+  - Dirección de tu SGS: la misma del navegador, sin index.php.
+  - Clave del programa: en el SGS, Supervisiones > Consultar puertos > Vínculo con Wincore >
+    Crear mi favorito > copia la clave. Pégala con clic derecho.
+  - Tu usuario y contraseña de Wincore (la contraseña no se ve al escribir).
+  La contraseña se guarda CIFRADA solo en esta laptop: solo tu usuario de Windows puede leerla.
+  Nunca sale de la laptop ni llega al SGS.
 
-CADA DÍA
-  1. Conecta la VPN.
-  2. Doble clic en "Vínculo Wincore".
-  3. Escribe tu usuario y tu contraseña de Wincore (la contraseña no se ve al escribir).
-  4. Sale "Listo: Vínculo Wincore activo hasta las ..." y la ventana se cierra sola.
+PHOENIX (OPCIONAL)
+  Al abrirlo te pregunta si también quieres conectar Phoenix solo. Si dices que sí, escribe tu
+  usuario y contraseña de Phoenix (también quedan cifrados solo en esta laptop). Desde ahí, cada día
+  de 05:55 a 21:00 el programa mantiene conectada la sesión de Phoenix del SGS. No necesita la VPN.
+
+DESPUÉS
+  No tienes que hacer nada: arranca solo al encender la laptop, sin ventanas.
+  Si Wincore cierra la sesión, vuelve a entrar solo. Si se cae la VPN, reintenta cada minuto.
 
 PARA APAGARLO
-  Doble clic en "Detener Vínculo Wincore" (o Desactivar en el SGS).
+  Doble clic en "Detener Vínculo Wincore" (o Desactivar vínculo en el SGS).
+  Para que no arranque al encender: Windows + R > shell:startup > borra "Vínculo Wincore (al encender)".
+
+SI CAMBIAS TU CONTRASEÑA DE WINCORE
+  El programa se detiene solo. Abre "Vínculo Wincore" y escribe la nueva.
 
 SI ALGO FALLA
   Lo que pasó queda en: %LOCALAPPDATA%\SGS\vinculo_wincore.log  (no tiene tu contraseña).
-  Si generaste otra clave en el SGS, borra %APPDATA%\SGS\vinculo_wincore.json y vuelve a abrirlo.

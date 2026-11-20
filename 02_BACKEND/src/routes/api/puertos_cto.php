@@ -57,7 +57,7 @@ switch ($action) {
         $ok = is_array($datos) && sgsPuertosGuardarRespuesta((string)($_POST['id'] ?? ''), $datos);
         $salir($ok ? 200 : 404, ['status' => $ok ? 'success' : 'error']);
     case 'desactivar':
-        sgsPuenteDesactivar();
+        sgsPuenteDesactivar(true);
         $salir(200, ['status' => 'success']);
     // Programa "Vínculo Wincore" de la laptop (2026-11-19): la clave se muestra una sola vez; aquí solo queda su huella.
     case 'agente_estado':
@@ -67,7 +67,7 @@ switch ($action) {
     case 'agente_generar':
     case 'agente_anular':
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') $salir(405, ['status' => 'error', 'message' => 'Método no permitido.']);
-        if ($action === 'agente_anular') { sgsAgenteAnular(); sgsPuenteDesactivar(); $salir(200, ['status' => 'success']); }
+        if ($action === 'agente_anular') { sgsAgenteAnular(); sgsPuenteDesactivar(true); $salir(200, ['status' => 'success']); }
         require_once __DIR__ . '/../../config/examen_enlaces.php'; // sgsUrlSistema()
         $clave = sgsAgenteGenerarClave($uid);
         $salir(200, ['status' => 'success', 'clave' => $clave, 'favorito' => sgsFavoritoPuente(sgsUrlSistema() . '/', $clave)]);

@@ -33,7 +33,7 @@ $CLAVE = (string)$cfg['clave'];
 $WINCORE = rtrim((string)($cfg['wincore'] ?? 'https://wincore.win.pe'), '/');
 $usuario = trim(preg_replace('/^﻿/', '', (string)fgets(STDIN))); // sin la marca UTF-8 que Windows antepone a veces
 $contrasena = rtrim((string)fgets(STDIN), "\r\n");
-if ($usuario === '' || $contrasena === '') { $decir('Escribe tu usuario y tu contraseña de Wincore.'); exit(2); }
+if ($usuario === '' || $contrasena === '') { $decir('Escribe tu usuario y tu contraseña de Wincore.'); exit(3); }
 
 // Certificados: los del paquete de la laptop (php/cacert.pem) o, en una PC con XAMPP, los suyos.
 $CA = [];
@@ -173,7 +173,8 @@ $sgs = static function (string $accion, ?array $post = null) use ($SGS, $CLAVE, 
     $ch = curl_init($SGS . '/api/puertos_agente.php?action=' . $accion);
     $op = $CA + [CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => 30, CURLOPT_COOKIEFILE => $jarSgs, CURLOPT_COOKIEJAR => $jarSgs,
         CURLOPT_HTTPHEADER => ['X-SGS-Clave: ' . $CLAVE, 'Accept: application/json'], CURLOPT_USERAGENT => 'SGS-VinculoWincore'];
-    if ($post !== null) $op += [CURLOPT_POST => true, CURLOPT_POSTFIELDS => http_build_query($post)];
+    // Siempre POST con la clave también en el cuerpo (2026-11-20): algunos hostings o Cloudflare quitan la cabecera X-SGS-Clave.
+    $op += [CURLOPT_POST => true, CURLOPT_POSTFIELDS => http_build_query(($post ?? []) + ['clave' => $CLAVE])];
     curl_setopt_array($ch, $op);
     $r = curl_exec($ch);
     $codigo = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -181,12 +182,24 @@ $sgs = static function (string $accion, ?array $post = null) use ($SGS, $CLAVE, 
     if ($r === false) throw new SinRed('No se pudo conectar con el SGS. Revisa tu internet.');
     $d = json_decode((string)$r, true) ?? [];
     if ($codigo === 200 && !$d) throw new RuntimeException("La dirección del SGS no es la correcta ($SGS): respondió una página en lugar del programa. Borra %APPDATA%\SGS\vinculo_wincore.json y escribe la dirección sin index.php.");
-    if ($codigo !== 200 || ($d['status'] ?? '') !== 'success') throw new RuntimeException($d['message'] ?? "El SGS respondió con error ($codigo).");
+    // Clave anulada o sin permiso (401/403): no tiene sentido reintentar. El hosting ocupado o caído (5xx, 429…): se reintenta.
+    if (in_array($codigo, [401, 403], true)) throw new RuntimeException($d['message'] ?? "El SGS rechazó el programa ($codigo).");
+    if ($codigo !== 200 || ($d['status'] ?? '') !== 'success') throw new SinRed($d['message'] ?? "El SGS no respondió bien ($codigo).");
     return $d;
 };
 
+// Cómo termina el programa (2026-11-20): el vigilante (vigilante.ps1) lee este código para saber si vuelve a entrar solo.
+//   0 = lo detuvo el usuario (Detener, o Desactivar en el SGS) · 2 = clave del programa anulada o sin permiso · 3 = Wincore no
+//   aceptó el usuario o la contraseña · 4 = se cerró la sesión de Wincore o venció el vínculo (vuelve a entrar en 15 s) ·
+//   5 = sin red, VPN o SGS (reintenta cada minuto).
+const SALIDA_DETENIDO = 0, SALIDA_CLAVE = 2, SALIDA_CONTRASENA = 3, SALIDA_SESION = 4, SALIDA_RED = 5;
+
 // Antes de entrar a Wincore se comprueba la clave del programa (si fue anulada, no tiene sentido iniciar sesión)
-try { $sgs('tomar'); } catch (Throwable $e) { $contrasena = ''; $decir('El SGS no aceptó el programa: ' . $e->getMessage()); exit(1); }
+try { $sgs('tomar'); } catch (Throwable $e) {
+    $contrasena = '';
+    $decir('El SGS no aceptó el programa: ' . $e->getMessage());
+    exit($e instanceof SinRed ? SALIDA_RED : SALIDA_CLAVE);
+}
 
 // 1) Inicio de sesión, igual que la pantalla de ingreso de Wincore (index2.html)
 $decir('Iniciando sesión en Wincore…');
@@ -196,7 +209,10 @@ try {
     if ($ticked === '') throw new RuntimeException('Wincore no entregó el permiso de ingreso.');
     $l = $rpc('loglogin.login', ['deviceid' => '1234567890', 'ticked' => $ticked, 'userid' => $usuario, 'password' => $contrasena]);
     $contrasena = '';                               // la contraseña ya no se necesita
-    if ((string)($l['status'] ?? '') !== '0') throw new RuntimeException('Wincore no aceptó el ingreso: ' . trim((string)($l['message'] ?? 'usuario o contraseña incorrectos')));
+    if ((string)($l['status'] ?? '') !== '0') {
+        $decir('Wincore no aceptó el ingreso: ' . trim((string)($l['message'] ?? 'usuario o contraseña incorrectos')));
+        exit(SALIDA_CONTRASENA);
+    }
     $pagina = $wincoreHttp('/dataTables.php', http_build_query(['controlkey' => (string)($l['controlkey'] ?? ''), 'returndata' => json_encode($l['data'][0] ?? new stdClass(), JSON_UNESCAPED_UNICODE)]), 'application/x-www-form-urlencoded');
     // El token que usan las pantallas de Wincore (3 códigos md5 separados por punto); si la página no lo trae, el del ingreso.
     if (preg_match('/[0-9a-f]{32}\.[0-9a-f]{32}\.[0-9a-f]{32}/i', $pagina, $m)) $ticked = $m[0];
@@ -204,7 +220,7 @@ try {
 } catch (Throwable $e) {
     $contrasena = '';
     $decir($e->getMessage());
-    exit(1);
+    exit($e instanceof SinRed ? SALIDA_RED : SALIDA_SESION);
 }
 $decir('Sesión de Wincore iniciada como ' . $usuario . '.');
 
@@ -216,40 +232,52 @@ try {
     $v = $sgs('vincular', []);
 } catch (Throwable $e) {
     $decir('El SGS no aceptó el vínculo: ' . $e->getMessage());
-    exit(1);
+    exit($e instanceof SinRed ? SALIDA_RED : SALIDA_CLAVE);
 }
 $sondeo = max(3, (int)($v['sondeo'] ?? 5));
 $decir('Vinculado con el SGS hasta las ' . $v['vence'] . '. Los supervisores ya pueden consultar puertos.');
 $decir($REGISTRO !== '' ? 'Funciona en segundo plano. Para detenerlo: acceso directo «Detener Vínculo Wincore» o Desactivar en el SGS.'
     : 'Deja esta ventana abierta (puedes minimizarla). Para detener: Ctrl + C o cierra la ventana.');
 
-$atendidas = 0; $fallosRed = 0; $fallosSgs = 0; $motivo = '';
+// Señal de vida a Wincore (2026-11-20): cada 8 min una consulta mínima (una CTO que no existe) para que no cierre la sesión por no
+// usarla; si responde sin datos, la sesión ya se cerró y se sale para que el vigilante vuelva a entrar solo.
+$VIDA = 480; $ultimaVida = time();
+$vida = static function () use ($rpc, $parametros): void {
+    $r = $rpc('logordenamientoplanta.getdatacto', $parametros(['tx_cto_nap' => 'SGS-VIDA', 'cod_sitio' => 'SGS-VIDA']));
+    if (!array_key_exists('data', $r)) throw new SinSesion('Wincore no respondió datos: la sesión de Wincore pudo vencer.');
+};
+
+$atendidas = 0; $fallosRed = 0; $fallosSgs = 0; $motivo = ''; $salida = SALIDA_DETENIDO;
 $pedirParar = static fn(): bool => $DETENER !== '' && is_file($DETENER);
 while (!$parar && !($parar = $pedirParar())) {
     try {
         $t = $sgs('tomar');
         $fallosSgs = 0;
     } catch (Throwable $e) {
-        if (++$fallosSgs >= 6) { $motivo = 'No hay conexión con el SGS hace un buen rato: ' . $e->getMessage(); break; }
+        if (++$fallosSgs >= 6) { $motivo = 'No hay conexión con el SGS hace un buen rato: ' . $e->getMessage(); $salida = $e instanceof SinRed ? SALIDA_RED : SALIDA_CLAVE; break; }
         $decir('Sin respuesta del SGS (' . $e->getMessage() . '). Reintentando…');
         sleep($sondeo); continue;
     }
-    if (empty($t['activo'])) { $motivo = 'El vínculo se desactivó o venció en el SGS.'; break; }
+    if (empty($t['activo'])) {
+        if (!empty($t['desactivado'])) { $motivo = 'Desactivaste el vínculo en el SGS.'; $salida = SALIDA_DETENIDO; }
+        else { $motivo = 'El vínculo venció en el SGS: se vuelve a activar.'; $salida = SALIDA_SESION; }
+        break;
+    }
     if (!empty($t['consulta'])) {
         $c = $t['consulta'];
         try {
             $datos = $consultar((string)$c['codigo']);
-            $fallosRed = 0;
+            $fallosRed = 0; $ultimaVida = time();
             $decir('Consulta ' . $c['codigo'] . ': ' . count($datos['puertos']) . ' puertos.' . ($t['en_espera'] ? ' En espera: ' . $t['en_espera'] . '.' : ''));
         } catch (SinSesion $e) {
-            try { $sgs('responder', ['id' => $c['id'], 'datos' => json_encode(['error' => 'La consulta de puertos se interrumpió. Vuelve a intentarlo más tarde.'])]); } catch (Throwable $_) {}
-            $motivo = 'La sesión de Wincore se cerró. Vuelve a abrir el programa e inicia sesión.'; break;
+            try { $sgs('responder', ['id' => $c['id'], 'datos' => json_encode(['error' => 'La consulta de puertos se interrumpió. Vuelve a intentarlo en un minuto.'])]); } catch (Throwable $_) {}
+            $motivo = 'La sesión de Wincore se cerró: se vuelve a entrar solo.'; $salida = SALIDA_SESION; break;
         } catch (SinRed $e) {
             $datos = ['error' => 'Wincore no respondió. Vuelve a intentarlo en un momento.'];
             $decir($e->getMessage());
             if (++$fallosRed >= 3) {
                 try { $sgs('responder', ['id' => $c['id'], 'datos' => json_encode($datos)]); } catch (Throwable $_) {}
-                $motivo = 'Wincore no responde (¿se cayó la VPN?). Conecta la VPN y vuelve a abrir el programa.'; break;
+                $motivo = 'Wincore no responde (¿se cayó la VPN?): se reintenta solo cada minuto.'; $salida = SALIDA_RED; break;
             }
         } catch (Throwable $e) {
             $datos = ['error' => $e->getMessage()];
@@ -258,9 +286,19 @@ while (!$parar && !($parar = $pedirParar())) {
         try { $sgs('responder', ['id' => $c['id'], 'datos' => json_encode($datos, JSON_UNESCAPED_UNICODE)]); $atendidas++; } catch (Throwable $e) { $decir('No se pudo entregar el resultado: ' . $e->getMessage()); }
         continue; // la siguiente de la cola sin esperar
     }
+    if (time() - $ultimaVida >= $VIDA) {
+        $ultimaVida = time();
+        try { $vida(); }
+        catch (SinSesion $e) { $motivo = 'La sesión de Wincore se cerró: se vuelve a entrar solo.'; $salida = SALIDA_SESION; break; }
+        catch (SinRed $e) { $motivo = 'Wincore no responde (¿se cayó la VPN?): se reintenta solo cada minuto.'; $salida = SALIDA_RED; break; }
+        catch (Throwable $e) { /* una respuesta rara: se vuelve a probar en la próxima señal */ }
+    }
     for ($i = 0; $i < $sondeo * 4 && !$parar && !$pedirParar(); $i++) usleep(250000);
 }
-try { $sgs('desactivar', []); } catch (Throwable $_) { /* el SGS lo apaga solo a los 20 s sin pulso */ }
+if ($salida === SALIDA_DETENIDO) {
+    // Lo detuvo el usuario: el SGS lo marca como apagado a propósito (así el programa no vuelve a entrar solo).
+    try { $sgs('desactivar', ['usuario' => '1']); } catch (Throwable $_) { /* el SGS lo apaga solo a los 20 s sin pulso */ }
+}
 if ($DETENER !== '') @unlink($DETENER);
-$decir(($motivo ?: 'Programa detenido.') . " Consultas atendidas: $atendidas. El vínculo quedó desactivado.");
-exit($motivo && !$parar ? 1 : 0);
+$decir(($motivo ?: 'Programa detenido.') . " Consultas atendidas: $atendidas.");
+exit($salida);

@@ -31,7 +31,8 @@ $salir = static function (int $http, array $datos): void {
     exit;
 };
 
-$uid = sgsAgenteValidar((string)($_SERVER['HTTP_X_SGS_CLAVE'] ?? ''));
+// La clave llega en la cabecera X-SGS-Clave y, por si el hosting o Cloudflare quitan esa cabecera, también en el cuerpo (2026-11-20).
+$uid = sgsAgenteValidar(trim((string)(($_SERVER['HTTP_X_SGS_CLAVE'] ?? '') ?: ($_POST['clave'] ?? ''))));
 if ($uid === null) {
     usleep(500000); // sin prisa para quien prueba claves
     $salir(401, ['status' => 'error', 'message' => 'La clave del programa no es válida o fue anulada. Genera una nueva en Consultar puertos → Vínculo con Wincore.']);
@@ -52,7 +53,8 @@ switch ((string)($_GET['action'] ?? '')) {
         $salir(200, ['status' => 'success', 'vence' => $hora(sgsPuenteActivar($uid)), 'sondeo' => SGS_PUENTE_SONDEO]);
     case 'tomar':
         $t = sgsPuenteTomar($uid);
-        if ($t === null) $salir(200, ['status' => 'success', 'activo' => false]);
+        // desactivado: lo apagó la persona (el programa no vuelve a entrar solo); si no, venció y puede volver a activarse.
+        if ($t === null) $salir(200, ['status' => 'success', 'activo' => false, 'desactivado' => is_file(sgsPuertosDir() . '/desactivado.json')]);
         $salir(200, ['status' => 'success', 'activo' => true, 'vence' => $hora($t['vence']), 'consulta' => $t['consulta'], 'en_espera' => $t['en_espera']]);
     case 'responder':
         if (!$post) break;
@@ -61,7 +63,36 @@ switch ((string)($_GET['action'] ?? '')) {
         $salir($ok ? 200 : 404, ['status' => $ok ? 'success' : 'error']);
     case 'desactivar':
         if (!$post) break;
-        sgsPuenteDesactivar();
+        sgsPuenteDesactivar(!empty($_POST['usuario']));   // el programa al detenerse o la ventanita con su botón
         $salir(200, ['status' => 'success']);
+
+    // Phoenix desde el mismo programa (2026-11-20, pedido del usuario): el vigilante de la laptop pregunta si la sesión de Phoenix
+    // iniciada en el SGS está activa y, si no (pasó la medianoche o Phoenix la cerró), la inicia con el usuario y la contraseña
+    // de Phoenix guardados cifrados en la laptop. Aquí la contraseña solo se usa para entrar (WinboService::iniciarSesionAqui):
+    // no se guarda ni se escribe en registros; queda solo la sesión, como con la ventanita del indicador.
+    case 'phoenix_estado':
+    case 'phoenix_iniciar':
+        require_once __DIR__ . '/../../config/puente_phoenix.php';
+        if (!Auth::puedeVincularPhoenix(['id' => (int)$usuario['id'], 'rol' => $usuario['rol'], 'is_win_directo' => true])) $salir(403, ['status' => 'error', 'message' => 'Esta cuenta no puede conectar Phoenix.']);
+        if ($_GET['action'] === 'phoenix_estado') {
+            $s = sgsPhoenixSesion();
+            $salir(200, ['status' => 'success', 'activa' => $s['activa'], 'vence' => $hora($s['vence'] ?? null)]);
+        }
+        if (!$post) break;
+        $usuarioPhoenix = trim((string)($_POST['phoenix_usuario'] ?? ''));
+        $clavePhoenix = (string)($_POST['phoenix_clave'] ?? '');
+        unset($_POST['phoenix_clave'], $_REQUEST['phoenix_clave']);
+        if ($usuarioPhoenix === '' || $clavePhoenix === '') $salir(422, ['status' => 'error', 'message' => 'Faltan el usuario o la contraseña de Phoenix.']);
+        require_once __DIR__ . '/../../services/WinboService.php';
+        try {
+            $vence = WinboService::iniciarSesionAqui($usuarioPhoenix, $clavePhoenix, (int)$usuario['id']);
+        } catch (Throwable $e) {
+            $clavePhoenix = '';
+            win_log_error('phoenix_sesion', 'El programa de la laptop no pudo iniciar Phoenix: ' . $e->getMessage());
+            // 422 = Phoenix rechazó el usuario o la contraseña (el programa deja de intentar); 424 = otro problema (reintenta luego)
+            $salir(str_contains($e->getMessage(), 'no aceptó') ? 422 : 424, ['status' => 'error', 'message' => $e instanceof RuntimeException ? $e->getMessage() : 'No se pudo entrar a Phoenix.']);
+        }
+        $clavePhoenix = '';
+        $salir(200, ['status' => 'success', 'activa' => true, 'vence' => $hora($vence)]);
 }
 $salir(400, ['status' => 'error', 'message' => 'Acción no válida.']);
