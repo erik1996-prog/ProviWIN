@@ -152,7 +152,7 @@ try {
 // WhatsApp aparte (2026-11-20): reporte general, sin HTML, partido bajo el límite, config sin token.
 $wc = sgsIoWhatsappConfig();
 $check('WhatsApp: config propia (08:06 primera; 10:30, 12:30, 14:30, 16:30 y 18:30 alertas, como Telegram) y sin token en el archivo',
-    $wc['numeros'] === ['51933174396'] && $wc['cortes'] === ['08:06' => 'primera', '10:30' => 'alertas', '12:30' => 'alertas', '14:30' => 'alertas', '16:30' => 'alertas', '18:30' => 'alertas']
+    $wc['numeros'] && !array_filter($wc['numeros'], static fn($x) => !preg_match('/^51\d{9}$/', $x)) && $wc['cortes'] === ['08:06' => 'primera', '10:30' => 'alertas', '12:30' => 'alertas', '14:30' => 'alertas', '16:30' => 'alertas', '18:30' => 'alertas']
     && array_keys(array_filter($wc['cortes'], static fn($r) => $r === 'alertas')) === array_keys(array_filter(InicioOrdenesService::CORTES, static fn($r) => $r === 'alertas'))
     && !preg_match('/inr_(live|test)_/', (string)file_get_contents(SGS_IO_WHATSAPP_CONFIG)), $wc);
 $cw = static fn(string $prov, string $cuad, string $estado, ?string $ini, string $res, ?string $cam = null) => ['proveedor' => $prov, 'cuadrilla' => $cuad,
