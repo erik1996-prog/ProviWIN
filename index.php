@@ -25,14 +25,9 @@ win_run_periodic_task('cierre-turnos', 300, static fn() => sgsCerrarTurnosVencid
 // Envíos programados del corte de lluvias (2026-10-26): salen también con las visitas (sin cron en cPanel), revisando
 // cada 5 minutos como mucho y después de mandar la página (sgsEnviarCortesTrasLaVisita).
 win_run_periodic_task('corte-lluvias', 300, static function (): void { require_once BACKEND_PATH . '/config/lluvias_corte.php'; sgsEnviarCortesTrasLaVisita(); });
-// Inicio de órdenes (2026-11-19): sin cron, la visita de cualquier usuario despierta (como mucho una vez por minuto) un turno corto
-// de lectura de Winbo y, si toca, el reporte de cada hora a Telegram; corre después de mandar la página.
-// 2026-11-20: con una lectura a medias (la primera del día o la de cada 30 min) despierta cada 15 s en vez de cada 60 s, para que
-// termine pronto; cada turno sigue siendo uno a la vez y después de mandar la página. Saberlo lee solo pulso.json (unos bytes).
-// (Misma regla que InicioOrdenesService::leyendo(), sin cargar el servicio en cada visita.)
-$ioPulso = json_decode((string)@file_get_contents(STORAGE_PATH . '/inicio_ordenes/pulso.json'), true);
-$ioLeyendo = is_array($ioPulso) && in_array($ioPulso['fase'] ?? '', ['grilla', 'historial'], true) && empty($ioPulso['error']);
-win_run_periodic_task('inicio-ordenes', $ioLeyendo ? 15 : 60, static function (): void { require_once BACKEND_PATH . '/services/InicioOrdenesService.php'; InicioOrdenesService::turnoTrasLaVisita(); });
+// Inicio de órdenes: lectura de Phoenix y reportes, despertados por cualquier pantalla (sgsDespertarInicioOrdenes, config/runtime.php).
+sgsDespertarInicioOrdenes();   // config/runtime.php: también la despierta la campanita de cada pantalla
+sgsMantenerPhoenix();          // señal de vida a la sesión de Phoenix cada 10 min (config/runtime.php)
 // Respaldos (2026-10-16): ya no se hacen en las visitas; los hace la tarea programada (07_SCRIPTS/respaldar.php automatico).
 // Cada usuario trabaja con su propia cuenta y rol (la "vista provisional" se retiró el 2026-10-06).
 $rol = $user['rol'] ?? '';
@@ -149,6 +144,7 @@ $needsLeaflet = $page === 'admin_dashboard'
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="<?= htmlspecialchars(Auth::csrfToken(), ENT_QUOTES, 'UTF-8') ?>">
     <meta name="sgs-cierre" content="<?= strtotime('tomorrow') ?>">
+    <?php if (!Auth::verComoActivo() && Auth::puedeOrdenesCercanas($user)): // ubicación al día para Órdenes cercanas (main.js) ?><meta name="sgs-ubicacion" content="<?= (int)$user['id'] ?>"><?php endif; ?>
     <title><?= htmlspecialchars($pageTitle . ' · ' . SYSTEM_CODE) ?></title>
     <link rel="icon" type="image/svg+xml" href="03_FRONTEND/src/assets/img/favicon.svg?v=<?= rawurlencode(ASSET_VERSION) ?>">
     <!-- App instalable (PWA, 2026-10-26): manifest.webmanifest + sw.js -->

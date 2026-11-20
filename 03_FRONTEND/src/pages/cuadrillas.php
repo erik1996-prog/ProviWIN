@@ -18,6 +18,7 @@ $esDirecto = ($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR && !empty($user['is_
 $esAdmin = Auth::isAdministrative() && !sgsAlcanceLimitado($user); // líder con zonas: solo las suyas
 // Permisos (2026-10-23, Roles y permisos): ver, editar cuadrillas (el directo, solo de su zona), cargar Excel y links de examen.
 $puedeEditar = Auth::puede(Auth::PERM_CUADRILLAS_EDIT, $user);
+$nombreT1Fijo = ($user['rol'] ?? '') === Auth::ROLE_SUPERVISOR; // 2026-11-20: el supervisor edita el T1 salvo su nombre
 $puedeImportar = Auth::puede(Auth::PERM_CUADRILLAS_IMPORT, $user);
 $puedeEliminar = Auth::puede(Auth::PERM_CUADRILLAS_DELETE, $user); // técnicos de apoyo (T2), 2026-11-03
 $puedeAgregarT2 = Auth::puede(Auth::PERM_CUADRILLAS_CREATE_T2, $user); // Nuevo técnico (2026-11-04): T2 con este permiso, T1 con Cargar Excel
@@ -411,7 +412,8 @@ if ($zonasUsuario !== null) $provinciasEditor = array_filter($provinciasEditor, 
         <h6 class="cuad-seccion"><i class="bi bi-person-badge me-2" aria-hidden="true"></i>Técnico líder (T1)</h6>
         <?php /* 2026-11-10: la nomenclatura y el partner del T1 también se corrigen aquí; el T2 de la cuadrilla pasa al mismo partner. */ ?>
         <div class="mb-3"><label class="form-label" for="cuadT1Nombre">Nomenclatura del técnico líder</label>
-          <input class="form-control text-uppercase" id="cuadT1Nombre" name="t1_nombre" maxlength="150" required placeholder="Ej.: P 4 DOMINION SGI JUAN PEREZ"></div>
+          <input class="form-control text-uppercase" id="cuadT1Nombre" name="t1_nombre" maxlength="150" required placeholder="Ej.: P 4 DOMINION SGI JUAN PEREZ"<?= $nombreT1Fijo ? ' readonly' : '' ?>>
+          <?php if ($nombreT1Fijo): ?><small class="text-muted">Tu perfil no puede cambiar el nombre del técnico líder.</small><?php endif; ?></div>
         <div class="mb-3"><label class="form-label" for="cuadT1Partner">Partner</label>
           <select class="form-select" id="cuadT1Partner" name="t1_partner_id" required><option value="">Seleccione el partner</option>
             <?php foreach ($partners as $p): ?><option value="<?= (int)$p['id'] ?>"><?= $e($p['nombre_partner']) ?></option><?php endforeach; ?></select>

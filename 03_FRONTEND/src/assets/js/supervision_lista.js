@@ -952,6 +952,10 @@
       if (!tecnico || !modalEditarTecnicoEl) return;
       document.getElementById('edit_tecnico_id').value = tecnico.id;
       document.getElementById('edit_tecnico_nombre').value = tecnico.nombre_tecnico;
+      // 2026-11-20: el perfil de supervisor edita los datos del técnico líder (T1) salvo su nombre (el servidor también lo respeta).
+      const nombreFijo = tecnico.tipo_tecnico == 1 && (window.SGS_SUPERVISION || {}).rol === 'Supervisor';
+      document.getElementById('edit_tecnico_nombre').readOnly = nombreFijo;
+      document.getElementById('edit_tecnico_nombre_ayuda').classList.toggle('d-none', !nombreFijo);
       document.getElementById('edit_tecnico_dni').value = tecnico.dni || '';
       document.getElementById('edit_tecnico_celular').value = tecnico.celular || '';
       document.getElementById('edit_tecnico_celular_box').style.display = tecnico.tipo_tecnico == 1 ? '' : 'none';

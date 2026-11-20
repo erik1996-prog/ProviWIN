@@ -2,7 +2,7 @@
 // 02_BACKEND/src/config/inicio_ordenes_telegram.php - Reportes de "Inicio de órdenes" a los grupos de Telegram (2026-11-19).
 // Copia fiel de inicio-ordenes/core/telegram.py (formato aprobado por el usuario el 19/11):
 //   · "alertas": órdenes iniciadas hace 2 h o más (🔴 3 h o más · 🟡 2 a 3 h). Sale solo en los cortes 10:30, 12:30,
-//     15:30 y 17:30 (services/InicioOrdenesService.php).
+//     14:30, 16:30 y 18:30 (services/InicioOrdenesService.php).
 //   · "facilidades": cancelaciones del día por facilidades técnicas (lista fija SGS_IO_FACILIDADES).
 // Token: TELEGRAM_TOKEN del .env (nunca en otros archivos ni en logs).
 // Grupos: 09_CONFIG/inicio_ordenes_telegram.json → {"grupos": [{"nombre", "chat_id", "partners": [...] o ["*"],
@@ -229,13 +229,21 @@ function sgsIoPrimeraSinIniciar(array $cuadrillas): array {
 }
 
 /** Texto HTML del reporte de primera orden sin iniciar (08:06), agrupado por zona como el de alertas. */
-function sgsIoArmarPrimera(array $cuads, string $nombre, array $menciones, DateTimeInterface $ahora): string {
+function sgsIoArmarPrimera(array $cuads, string $nombre, array $menciones, DateTimeInterface $ahora, ?int $enCamino = null): string {
     $L = sgsIoMenciones($menciones);
+    // 2026-11-20 (pedido del usuario): si la lectura terminó después de las 08:05 y alguna ya inició, el encabezado lo dice.
+    $tarde = (bool)array_filter($cuads, static fn($c) => !empty($c['inicio']));
     array_push($L, 'Estimados, ' . sgsIoSaludo($ahora) . '.',
-        'Se envía el reporte correspondiente de las cuadrillas ' . sgsIoDeQuien($nombre) . 'que aún no inician su <b>primera orden</b>, siendo las 08:05.',
+        'Se envía el reporte correspondiente de las cuadrillas ' . sgsIoDeQuien($nombre) . 'que aún no inician su <b>primera orden</b>'
+            . ($tarde ? ' o la iniciaron <b>después de las 08:05</b>.' : ', siendo las 08:05.'),
         '📅 ' . $ahora->format('d/m/Y') . ' · corte ' . $ahora->format('H:i'), '');
+    // 2026-11-20 (pedido del usuario): si ninguna cuadrilla salió todavía, se dice que las órdenes siguen agendadas.
+    if (!$cuads && $enCamino === 0) { $L[] = '🕗 Aún no hay cuadrillas en camino: las órdenes del día se encuentran agendadas.'; return implode("\n", $L); }
     if (!$cuads) { $L[] = '✅ Todas las cuadrillas en camino iniciaron su primera orden hasta las 08:05.'; return implode("\n", $L); }
-    $L[] = '📊 <b>Resumen:</b> 🚚 ' . count($cuads) . ' cuadrilla' . (count($cuads) !== 1 ? 's' : '') . ' en camino sin iniciar';
+    $nTarde = count(array_filter($cuads, static fn($c) => !empty($c['inicio'])));
+    $nSin = count($cuads) - $nTarde;
+    $L[] = '📊 <b>Resumen:</b> 🚚 ' . $nSin . ' cuadrilla' . ($nSin !== 1 ? 's' : '') . ' en camino sin iniciar'
+        . ($nTarde ? ' · ' . $nTarde . ' inici' . ($nTarde !== 1 ? 'aron' : 'ó') . ' después de las 08:05' : '');
     $L = array_merge($L, ['', SGS_IO_LINEA, '<b>EN CAMINO · SIN INICIAR A LAS 08:05 (' . count($cuads) . ')</b>'],
         sgsIoPorZona($cuads, 'cuadrilla', 'cuadrillas', static fn($c) => sgsIoOt($c['orden'] ?? '') . ' · En camino desde las ' . substr($c['camino'], 0, 5)
             . ($c['inicio'] ? ' · inició a las ' . substr($c['inicio'], 0, 5) : '')));
@@ -357,11 +365,22 @@ function sgsIoMensajes(array $tablero, string $reporte, DateTimeInterface $ahora
         $nombreDe = static fn(string $p) => $propio ? (in_array($tipo, ['SGI', 'SGA'], true) ? $tipo : '') : sgsIoNombreReporte([$p], $tipo);
         $mensajes = $porPartner ? [] : [[$propio ? $nombreDe('') : sgsIoNombreReporte($ps, $tipo), [], $menc]];      // sin órdenes: uno solo para el grupo
         foreach ($porPartner as $p => $os) $mensajes[] = [$nombreDe((string)$p), $os, $menc + sgsIoMencionesPartner((string)$p)];
+        // Primera orden: cuántas cuadrillas del grupo ya salieron (En camino hasta las 08:05) para distinguir "todas iniciaron" de "aún agendadas".
+        $enCamino = null;
+        if ($reporte === 'primera') {
+            $enCamino = 0;
+            foreach ($tablero['cuadrillas'] ?? [] as $c) {
+                if (!$c['camino'] || strcmp($c['camino'], SGS_IO_HORA_PRIMERA) > 0) continue;
+                if (!in_array('*', $ps, true) && !in_array(sgsIoPartnerBase($c['proveedor'] ?? ''), $ps, true)) continue;
+                if (in_array($tipo, ['SGI', 'SGA'], true) && ($c['grupo'] ?? '') !== $tipo) continue;
+                $enCamino++;
+            }
+        }
         foreach ($mensajes as [$nombre, $os, $m])
             $out[] = ['grupo' => (string)($g['nombre'] ?? ''), 'chat_id' => $g['chat_id'] ?? null, 'partner' => $nombre, 'ordenes' => count($os),
                       'texto' => match ($reporte) {
                           'alertas' => sgsIoArmarAlertas($os, $nombre, $m, $ahora),
-                          'primera' => sgsIoArmarPrimera($os, $nombre, $m, $ahora),
+                          'primera' => sgsIoArmarPrimera($os, $nombre, $m, $ahora, $enCamino),
                           default => sgsIoArmarFacilidades($os, $nombre, $m, $ahora)}];
     }
     return $out;

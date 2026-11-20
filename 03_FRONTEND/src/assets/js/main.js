@@ -776,3 +776,28 @@ window.winFetchJson = async (resource, options = {}) => {
     setInterval(revisar, 60000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) revisar(); });
 })();
+
+// Ubicación al día (2026-11-20, pedido del usuario): para quien usa Órdenes cercanas, mientras tiene abierta CUALQUIER pantalla del
+// SGS (y a la vista) se va guardando su última ubicación buena en esta pestaña (sessionStorage, por usuario). Así Órdenes cercanas
+// abre al instante. Solo si el usuario ya dio permiso de ubicación (no pregunta nada) y se pausa con la pestaña oculta (batería).
+(() => {
+    const meta = document.querySelector('meta[name="sgs-ubicacion"]');
+    if (!meta || !navigator.geolocation || !navigator.permissions) return;
+    const clave = `sgs-ubicacion-${meta.content}`;
+    let id = null;
+    const guardar = (p) => {
+        const nueva = { lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy, t: Date.now() };
+        let vieja = null;
+        try { vieja = JSON.parse(sessionStorage.getItem(clave)); } catch (_) { /* sin guardar */ }
+        if (vieja && Date.now() - vieja.t < 60000 && vieja.acc < nueva.acc) return;   // en el último minuto, gana la más precisa
+        try { sessionStorage.setItem(clave, JSON.stringify(nueva)); } catch (_) { /* navegación privada */ }
+    };
+    const empezar = () => { if (id === null && !document.hidden) id = navigator.geolocation.watchPosition(guardar, () => {}, { enableHighAccuracy: true, maximumAge: 30000 }); };
+    const parar = () => { if (id !== null) { navigator.geolocation.clearWatch(id); id = null; } };
+    navigator.permissions.query({ name: 'geolocation' }).then((permiso) => {
+        const segun = () => (permiso.state === 'granted' ? empezar() : parar());
+        segun();
+        permiso.onchange = segun;
+        document.addEventListener('visibilitychange', () => (document.hidden ? parar() : segun()));
+    }).catch(() => {});
+})();

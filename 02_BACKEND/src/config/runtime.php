@@ -188,3 +188,38 @@ function sgs_purge_old_logs(): void
         }
     }
 }
+
+/**
+ * Inicio de órdenes (2026-11-19; 2026-11-20 pedido del usuario): despierta la lectura de Phoenix y los reportes de Telegram y
+ * WhatsApp desde CUALQUIER pantalla abierta del sistema, de cualquier usuario: la carga de cada página (index.php) y la consulta
+ * de la campanita que cada pantalla visible hace cada minuto (api/notificaciones.php). Como mucho una vez por minuto para todo el
+ * servidor (cada 15 s mientras hay una lectura a medias); saberlo lee solo pulso.json (unos bytes) y el trabajo corre DESPUÉS de
+ * responder, así nadie espera. Sin sesión de Phoenix no hace nada.
+ */
+function sgsDespertarInicioOrdenes(): void
+{
+    $p = json_decode((string)@file_get_contents(STORAGE_PATH . '/inicio_ordenes/pulso.json'), true);
+    $leyendo = is_array($p) && in_array($p['fase'] ?? '', ['grilla', 'historial'], true) && empty($p['error']);
+    win_run_periodic_task('inicio-ordenes', $leyendo ? 15 : 60, static function (): void {
+        require_once BACKEND_PATH . '/services/InicioOrdenesService.php';
+        InicioOrdenesService::turnoTrasLaVisita();
+    });
+}
+
+/**
+ * Sesión de Phoenix iniciada en el SGS (2026-11-20, pedido del usuario): señal de vida cada 10 min para que Phoenix no la cierre por
+ * no usarla, aunque la laptop esté apagada (lo hace el servidor). La despierta cualquier pantalla abierta, igual que los reportes
+ * (index.php y la campanita); corre después de responder. Sigue cerrándose a las 23:59.
+ */
+function sgsMantenerPhoenix(): void
+{
+    if (!is_file(STORAGE_PATH . '/phoenix/sesion_aqui.json')) return;      // sin sesión iniciada aquí: nada que mantener
+    win_run_periodic_task('phoenix-vivo', 600, static function (): void {
+        register_shutdown_function(static function (): void {
+            if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+            elseif (function_exists('litespeed_finish_request')) litespeed_finish_request();
+            try { require_once BACKEND_PATH . '/services/WinboService.php'; WinboService::mantenerViva(); }
+            catch (Throwable $e) { win_log_error('phoenix_sesion', 'Falló la señal de vida de Phoenix', ['error' => $e->getMessage()]); }
+        });
+    });
+}

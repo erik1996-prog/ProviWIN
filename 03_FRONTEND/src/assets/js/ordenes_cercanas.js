@@ -52,27 +52,47 @@
     fin = setTimeout(cerrar, GPS_SEGUNDOS * 1000);
   });
 
+  // Ubicación al día (2026-11-20, pedido del usuario): main.js guarda la última ubicación buena del usuario mientras tiene abierta
+  // CUALQUIER pantalla del SGS. Si es reciente (menos de 2 min) y precisa, se usa al instante y el GPS sigue afinando por detrás
+  // (si se movió más de 50 m o mejora la precisión, la lista se reordena sola). La fecha y el GPS se buscan a la vez.
+  const guardada = () => {
+    const m = document.querySelector('meta[name="sgs-ubicacion"]');
+    if (!m) return null;
+    try {
+      const v = JSON.parse(sessionStorage.getItem(`sgs-ubicacion-${m.content}`));
+      return v && Date.now() - v.t < 120000 && v.acc <= GPS_ACEPTABLE ? v : null;
+    } catch { return null; }
+  };
   async function preparar() {
     if (A.preparando) return;
     A.preparando = true; A.fecha = ''; A.yo = null; botones();
     estado('ocFecha', 'buscando', 'Detectando la fecha de hoy desde internet…');
-    estado('ocUbicacion', '', '');
+    const g = guardada();
+    if (g) {
+      A.yo = { lat: g.lat, lon: g.lon }; A.precision = g.acc;
+      estado('ocUbicacion', 'ok', `Tu ubicación de hace ${Math.max(1, Math.round((Date.now() - g.t) / 1000))} s (±${Math.round(g.acc)} m)`);
+    } else estado('ocUbicacion', 'buscando', 'Detectando tu ubicación…');
+    const gps = ubicar().then(p => {
+      if (A.yo && distancia(A.yo, p) < 0.05 && p.precision >= A.precision) {   // no cambió: se deja la que ya estaba
+        estado('ocUbicacion', 'ok', `Ubicación detectada (±${Math.round(A.precision)} m)`);
+        return false;
+      }
+      A.yo = { lat: p.lat, lon: p.lon }; A.precision = p.precision;
+      const buena = p.precision <= GPS_ACEPTABLE;
+      estado('ocUbicacion', buena ? 'ok' : 'baja', `Ubicación detectada (±${Math.round(p.precision)} m)${buena ? '' : ': poco precisa'}`);
+      return true;
+    }, x => { if (!A.yo) estado('ocUbicacion', 'error', x.message); return false; });
     try {
       const r = await api('action=fecha');
       A.fecha = r.fecha;
       // Grupo de órdenes según el usuario (provincia, Lima instalaciones, Lima visitas técnicas): selector solo si tiene más de uno.
-      $('ocGrupo').innerHTML = r.grupos.map(g => `<option value="${esc(g.codigo)}">${esc(g.nombre)}</option>`).join('');
+      $('ocGrupo').innerHTML = r.grupos.map(gr => `<option value="${esc(gr.codigo)}">${esc(gr.nombre)}</option>`).join('');
       $('ocGrupoFiltro').classList.toggle('d-none', r.grupos.length < 2);
       estado('ocFecha', 'ok', `Fecha de hoy: ${A.fecha}`);
-      estado('ocUbicacion', 'buscando', 'Detectando tu ubicación…');
-      try {
-        const p = await ubicar();
-        A.yo = { lat: p.lat, lon: p.lon }; A.precision = p.precision;
-        const buena = p.precision <= GPS_ACEPTABLE;
-        estado('ocUbicacion', buena ? 'ok' : 'baja', `Ubicación detectada (±${Math.round(p.precision)} m)${buena ? '' : ': poco precisa'}`);
-      } catch (x) { estado('ocUbicacion', 'error', x.message); }
     } catch (x) { estado('ocFecha', 'error', x.message); }
+    if (!A.yo) await gps;                 // sin ubicación guardada se espera al GPS; con ella, el GPS sigue afinando por detrás
     A.preparando = false; botones(); pintar();
+    gps.then(cambio => { if (cambio) { pintar(); buscarCasas(); } });
   }
 
   const distancia = (a, b) => {

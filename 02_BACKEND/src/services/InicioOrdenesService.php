@@ -14,6 +14,7 @@
 // Telegram: los reportes salen solo en los CORTES del día (08:06 primera orden; luego alertas), una vez cada uno (config/inicio_ordenes_telegram.php).
 require_once __DIR__ . '/../config/inicio_ordenes.php';
 require_once __DIR__ . '/../config/inicio_ordenes_telegram.php';
+require_once __DIR__ . '/../config/inicio_ordenes_whatsapp.php';   // 2026-11-20: WhatsApp aparte (reporte general a un número)
 require_once __DIR__ . '/WinboService.php';
 
 class InicioOrdenesService {
@@ -35,7 +36,7 @@ class InicioOrdenesService {
     public const LECTURA_DESDE = 6, LECTURA_HASTA = 21;       // horas en que se consulta Winbo sin pedirlo (06:00 a 20:59)
     // Envíos automáticos (2026-11-19, pedido del usuario): hora del corte => reporte. A las 08:06, las cuadrillas que a las 08:05
     // seguían En camino sin iniciar su primera orden; luego, las alertas de iniciadas (2 h o más).
-    public const CORTES = ['08:06' => 'primera', '10:30' => 'alertas', '12:30' => 'alertas', '15:30' => 'alertas', '17:30' => 'alertas'];
+    public const CORTES = ['08:06' => 'primera', '10:30' => 'alertas', '12:30' => 'alertas', '14:30' => 'alertas', '16:30' => 'alertas', '18:30' => 'alertas'];   // 2026-11-20: 14:30, 16:30 y 18:30 (antes 15:30 y 17:30), pedido del usuario
     private const VENTANA_CORTE = 3600;     // si a la hora del corte nadie entró, sale con la primera visita de la hora siguiente
     private const FINALES = ['FINALIZADA', 'CANCELADA', 'ANULADA', 'CERRADA', 'RECHAZADA'];
     private const EN_CURSO = ['EN CAMINO', 'INICIADA', 'REVISION'];
@@ -157,6 +158,7 @@ class InicioOrdenesService {
             }
             $this->guardar();
             if ($this->e['fase'] === 'espera' && !$this->e['error']) $this->telegramCortes();
+            if ($this->e['fase'] === 'espera' && !$this->e['error']) $this->whatsappCortes();
         } finally {
             flock($candado, LOCK_UN); fclose($candado);
         }
@@ -467,7 +469,7 @@ class InicioOrdenesService {
 
     // ── HTTP ─────────────────────────────────────────────────
     /**
-     * Varias peticiones a Phoenix a la vez (curl_multi), con las cookies de la sesión (solo lectura: no las cambia).
+     * Varias peticiones a Phoenix a la vez (curl_multi), con las cookies de la sesión (guarda la llave que Phoenix renueva).
      * Cada una: ruta, json (null = GET) y referer. Devuelve el texto de cada una o false si falló (con un reintento si fue 5xx).
      */
     private function multi(array $pets, int $paralelo = 0): array {
@@ -483,7 +485,7 @@ class InicioOrdenesService {
             $cab = ['Referer: ' . $p['referer']];
             $op = (is_file('C:/xampp/apache/bin/curl-ca-bundle.crt') ? [CURLOPT_CAINFO => 'C:/xampp/apache/bin/curl-ca-bundle.crt'] : []) + [
                 CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => self::SEGUNDOS_WINBO,
-                CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => self::UA, CURLOPT_COOKIEFILE => $this->cookie, CURLOPT_ENCODING => ''];
+                CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => self::UA, CURLOPT_COOKIEFILE => $this->cookie, CURLOPT_COOKIEJAR => $this->cookie, CURLOPT_ENCODING => ''];   // guarda la llave renovada (2026-11-20)
             if ($p['json'] !== null) {
                 $op[CURLOPT_POST] = true;
                 $op[CURLOPT_POSTFIELDS] = json_encode($p['json'], JSON_UNESCAPED_UNICODE);
@@ -564,7 +566,7 @@ class InicioOrdenesService {
     }
 
     /**
-     * Reportes automáticos en los CORTES (08:06 primera orden; 10:30, 12:30, 15:30 y 17:30 alertas): una sola vez cada corte aunque haya varios usuarios
+     * Reportes automáticos en los CORTES (08:06 primera orden; 10:30, 12:30, 14:30, 16:30 y 18:30 alertas): una sola vez cada corte aunque haya varios usuarios
      * (marca compartida en telegram.json). Sale recién cuando terminó una lectura de Winbo hecha DESPUÉS de la hora del corte (el
      * turno la empieza al llegar el corte), así nunca va con datos desfasados. Si en la hora siguiente al corte nadie entró a
      * ProviWIN, ese corte se salta (no se manda atrasado).
@@ -584,5 +586,33 @@ class InicioOrdenesService {
         }
         @file_put_contents($archivo, json_encode(['hora' => $hora, 'enviado' => $ahora->format('H:i'), 'resultados' => $res], JSON_UNESCAPED_UNICODE), LOCK_EX);
         foreach ($res as $r) if (!$r['ok']) win_log_error('inicio_ordenes_telegram', 'No se envió un reporte automático', $r);
+    }
+
+    /**
+     * WhatsApp (2026-11-20, aparte de Telegram): reportes generales (todos los partners) a los números de 09_CONFIG/inicio_ordenes_whatsapp.json
+     * en sus cortes (08:06 primera atención; 10:30, 12:30, 14:30, 16:30 y 18:30 alertas, los mismos de Telegram). Igual que Telegram: una vez por corte (marca en whatsapp.json), con una lectura empezada después de la hora
+     * del corte y solo dentro de la hora siguiente. Un error aquí no afecta a Telegram ni a la lectura.
+     */
+    private function whatsappCortes(): void {
+        try {
+            if (!sgsIoWhatsappConfigurado()) return;
+            $ahora = self::ahora();
+            $archivo = $this->dir . '/whatsapp.json';
+            foreach (sgsIoWhatsappConfig()['cortes'] as $c => $reporte) {
+                $t = (new DateTimeImmutable($ahora->format('Y-m-d') . " $c:00", new DateTimeZone('America/Lima')))->getTimestamp();
+                if ($ahora->getTimestamp() < $t || $ahora->getTimestamp() >= $t + self::VENTANA_CORTE) continue;
+                $hora = $ahora->format('Y-m-d ') . $c;
+                $marca = json_decode((string)@file_get_contents($archivo), true);
+                if (($marca['hora'] ?? '') === $hora) return;                     // ya salió
+                if ((int)($this->e['leidoDesde'] ?? 0) < $t) return;              // falta una lectura hecha desde el corte
+                @file_put_contents($archivo, json_encode(['hora' => $hora, 'enviado' => null], JSON_UNESCAPED_UNICODE), LOCK_EX);   // primero la marca
+                $res = sgsIoWhatsappEnviarReporte($this->tablero(), $reporte, $ahora->format('Ymd') . '-' . str_replace(':', '', $c), $ahora);
+                @file_put_contents($archivo, json_encode(['hora' => $hora, 'enviado' => $ahora->format('H:i'), 'resultados' => $res], JSON_UNESCAPED_UNICODE), LOCK_EX);
+                foreach ($res as $r) if (!$r['ok']) win_log_error('inicio_ordenes_whatsapp', 'No se envió el reporte por WhatsApp', $r);
+                return;
+            }
+        } catch (Throwable $ex) {
+            win_log_error('inicio_ordenes_whatsapp', $ex->getMessage());
+        }
     }
 }

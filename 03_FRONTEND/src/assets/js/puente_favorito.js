@@ -40,7 +40,7 @@
     if (window.__sgsVinculo) return;
     window.__sgsVinculo = true;
     var SGS = cfg.sgs.replace(/\/+$/, '') + '/', CLAVE = cfg.clave, ticked = cfg.ticked, SONDEO = 8000;
-    var atendidas = 0, ocupado = false, activo = false, fallosSesion = 0, fallosSgs = 0, reloj = null, intervalo = null;
+    var atendidas = 0, ocupado = false, activo = false, fallosSesion = 0, fallosSgs = 0, reloj = null, intervalo = null, ultimaVida = Date.now();
     document.title = 'Vínculo Wincore · SGS';
     document.body.innerHTML = '<div style="font:14px Arial,sans-serif;color:#141414;padding:18px;max-width:420px">'
       + '<div style="font-weight:700;font-size:16px;color:#FF5A0A;margin-bottom:8px">Vínculo Wincore · SGS</div>'
@@ -133,9 +133,36 @@
       estado(texto, '#B42318');
       $('vwParar').style.display = 'none';
     }
+    // Señal de vida a Wincore (2026-11-20): si no hay consultas, Wincore cierra la sesión por no usarla. Cada 10 min se vuelve a
+    // pedir su página (como si se navegara); si lleva al ingreso, la sesión ya se cerró y se avisa aquí.
+    // Llave «ticked» al día (2026-11-20): Wincore la cambia (p. ej. al recargar o volver a entrar en la otra ventana) y con la vieja
+    // sus respuestas fallan como si la sesión se hubiera cerrado. Se toma la más reciente: la de la ventana donde se pulsó el
+    // favorito (si sigue abierta) o la de la página que se acaba de pedir. Devuelve true si cambió.
+    var TOKEN = /[0-9a-f]{32}\.[0-9a-f]{32}\.[0-9a-f]{32}/i;
+    function renovarLlave(html) {
+      var nueva = '';
+      try { if (window.opener && !window.opener.closed) nueva = (window.opener.document.documentElement.innerHTML.match(TOKEN) || [''])[0]; } catch (e) { }
+      if (!nueva && html) nueva = (html.match(TOKEN) || [''])[0];
+      if (nueva && nueva !== ticked) { ticked = nueva; return true; }
+      return false;
+    }
+    function vida() {
+      ultimaVida = Date.now();
+      return fetch(location.pathname + location.search, { credentials: 'include', cache: 'no-store' })
+        .then(function (r) { return r.text(); })
+        .then(function (h) {
+          if (/loginForm|loglogin\.login/.test(h)) {
+            api('desactivar', {}).catch(function () { });
+            apagar('Tu sesión de Wincore se cerró. Inicia sesión en Wincore y vuelve a pulsar el favorito.');
+            return false;
+          }
+          return renovarLlave(h);
+        }, function () { return false; });
+    }
     // Pide al SGS la siguiente consulta (una a la vez); el pedido también avisa que la ventanita sigue viva.
     function vuelta() {
       if (!activo || ocupado) return;
+      if (Date.now() - ultimaVida > 600000) vida();
       ocupado = true;
       var hubo = false;
       api('tomar').then(function (t) {
@@ -146,7 +173,10 @@
         if (!t.consulta) return;
         var c = t.consulta;
         hubo = true;
-        return consultar(String(c.codigo)).then(function (datos) { fallosSesion = 0; return datos; }, function (err) {
+        // Si falla, puede ser la llave vieja: se renueva y, si cambió, se intenta una vez más.
+        return consultar(String(c.codigo)).then(null, function (err) {
+          return vida().then(function (cambio) { if (cambio && activo) return consultar(String(c.codigo)); throw err; });
+        }).then(function (datos) { fallosSesion = 0; return datos; }, function (err) {
           if (err.sesion) fallosSesion++;
           return { error: err.sesion ? 'La consulta de puertos se interrumpió. Vuelve a intentarlo en un momento.' : err.message };
         }).then(function (datos) {

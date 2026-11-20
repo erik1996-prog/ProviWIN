@@ -89,7 +89,7 @@ $check('Cuadrilla sin el nombre del partner ni SGI/SGA', sgsIoCuadrillaSinPartne
 $check('Grupo propio del partner: el encabezado no repite el partner', str_contains(sgsIoArmarAlertas([], '', [], $ahora), 'Se envía el reporte del <b>tiempo de atención</b> de las cuadrillas para la alerta correspondiente.'));
 $check('Alertas sin órdenes: aviso en verde', str_contains(sgsIoArmarAlertas([], 'OLMA', [], $ahora), "las cuadrillas de <b>OLMA</b>") && str_contains(sgsIoArmarAlertas([], 'OLMA', [], $ahora), '✅ No hay órdenes iniciadas hace más de 2 horas.'));
 $check('Grupos de Telegram en 09_CONFIG (dos de prueba, sin token)', count(sgsIoTelegramGrupos()) >= 1 && !preg_match('/\d{6,}:[A-Za-z0-9_-]{20,}/', (string)file_get_contents(SGS_IO_TELEGRAM_GRUPOS)));
-$check('Cortes automáticos: 08:06 primera orden; 10:30, 12:30, 15:30 y 17:30 alertas', InicioOrdenesService::CORTES === ['08:06' => 'primera', '10:30' => 'alertas', '12:30' => 'alertas', '15:30' => 'alertas', '17:30' => 'alertas']);
+$check('Cortes automáticos: 08:06 primera orden; 10:30, 12:30, 14:30, 16:30 y 18:30 alertas', InicioOrdenesService::CORTES === ['08:06' => 'primera', '10:30' => 'alertas', '12:30' => 'alertas', '14:30' => 'alertas', '16:30' => 'alertas', '18:30' => 'alertas']);
 // Primera orden sin iniciar a las 08:05: en camino a las 08:05 y sin inicio hasta entonces (las que iniciaron después también).
 $cq = static fn(string $cuad, ?string $camino, ?string $inicio, string $motivo = '') => ['cuadrilla' => $cuad, 'proveedor' => 'OLMA SGI', 'grupo' => sgsIoGrupo($cuad),
     'provincia' => 'PIURA', 'orden' => 'P', 'camino' => $camino, 'inicio' => $inicio, 'motivo' => $motivo];
@@ -98,16 +98,24 @@ $ps = sgsIoPrimeraSinIniciar([$cq('A SGI', '07:40:00', null), $cq('B SGI', '07:5
     $cq('G SGI', '07:55:00', null, 'Agendada después de las 07:30')]);
 $check('Primera orden: solo en camino a las 08:05 sin iniciar (C inició 08:09, entra)', array_column($ps, 'cuadrilla') === ['C SGI', 'A SGI'], array_column($ps, 'cuadrilla'));
 $tp = sgsIoArmarPrimera($ps, 'SGI', [], new DateTimeImmutable('2026-11-19 08:06:00', new DateTimeZone('America/Lima')));
-$check('Primera orden: texto del reporte', str_contains($tp, 'Estimados, buenos días.') && str_contains($tp, 'cuadrillas <b>SGI</b> que aún no inician su <b>primera orden</b>, siendo las 08:05.')
+$check('Primera orden: texto del reporte', str_contains($tp, 'Estimados, buenos días.') && str_contains($tp, 'cuadrillas <b>SGI</b> que aún no inician su <b>primera orden</b> o la iniciaron <b>después de las 08:05</b>.')
     && str_contains($tp, '📍 <b><u>PIURA</u></b> · 2 cuadrillas') && str_contains($tp, 'En camino desde las 07:30 · inició a las 08:09') && str_ends_with($tp, 'Para su seguimiento correspondiente.'), $tp);
 // Un mensaje por partner y por SGI/SGA (con los grupos de prueba: uno SGI y uno SGA para todos los partners).
 $o = static fn(string $prov, string $cuad, string $desde) => ['estado' => 'Iniciada', 'desde' => "2026-11-19T$desde", 'proveedor' => $prov,
     'cuadrilla' => $cuad, 'orden' => 'P', 'zona' => '', 'provincia' => '', 'grupo' => sgsIoGrupo($cuad)];
 $ms = sgsIoMensajes(['enCurso' => [$o('OLMA SGI', 'A SGI', '11:00:00'), $o('OLMA SGA', 'B SGA', '11:00:00'), $o('ALFITELL SGI', 'C SGI', '10:00:00'),
                                    $o('ALFITELL SGI', 'D SGI', '12:00:00'), $o('OLMA SGI', 'E SGI', '14:00:00')]], 'alertas', $ahora);
+$deGrupo = static fn(array $ms, string $g) => array_values(array_filter($ms, static fn($m) => str_contains($m['grupo'], $g)));
+$alf = $deGrupo($ms, 'ALFITELL');
+$check('Grupo ALFITELL: solo sus órdenes SGI, sin repetir su nombre y con sus encargados', array_column($alf, 'ordenes') === [2]
+    && str_contains($alf[0]['texto'], 'las cuadrillas <b>SGI</b> para') && str_contains($alf[0]['texto'], 'tg://user?id=2005327267') && (string)$alf[0]['chat_id'] === '-1002953135395',
+    array_column($alf, 'ordenes'));
+$ms = $deGrupo($ms, 'Bot de pruebas');
 $check('Un mensaje por partner: ALFITELL SGI, OLMA SGI y OLMA SGA', array_column($ms, 'partner') === ['ALFITELL SGI', 'OLMA SGI', 'OLMA SGA']
     && array_column($ms, 'ordenes') === [2, 1, 1] && str_contains($ms[0]['texto'], 'las cuadrillas de <b>ALFITELL SGI</b>'), array_column($ms, 'partner'));
-$ms = sgsIoMensajes(['enCurso' => []], 'alertas', $ahora);
+$mp = $deGrupo(sgsIoMensajes(['cuadrillas' => [['camino' => null, 'inicio' => null, 'motivo' => '', 'proveedor' => 'ALFITELL SGI', 'grupo' => 'SGI']]], 'primera', $ahora), 'ALFITELL');
+$check('Primera orden sin nadie en camino: "las órdenes del día se encuentran agendadas"', count($mp) === 1 && str_contains($mp[0]['texto'], 'se encuentran agendadas'), $mp[0]['texto'] ?? '');
+$ms = $deGrupo(sgsIoMensajes(['enCurso' => []], 'alertas', $ahora), 'Bot de pruebas');
 $check('Sin alertas: un solo mensaje ✅ para SGI y otro para SGA', array_column($ms, 'partner') === ['SGI', 'SGA'] && str_contains($ms[0]['texto'], '✅'), array_column($ms, 'partner'));
 $check('Trabajo de cada turno acotado (sistema liviano)', InicioOrdenesService::TURNO_SEGUNDOS <= 20 && InicioOrdenesService::TURNO_SEGUNDOS_CORTE <= 45);
 $check('Lectura de Winbo cada 30 minutos', InicioOrdenesService::VUELTA === 1800);
@@ -140,6 +148,37 @@ try {
 } finally {
     foreach ($respaldo as $a => $txt) $txt === false ? @unlink("$dirIo/$a") : file_put_contents("$dirIo/$a", $txt);
 }
+
+// WhatsApp aparte (2026-11-20): reporte general, sin HTML, partido bajo el límite, config sin token.
+$wc = sgsIoWhatsappConfig();
+$check('WhatsApp: config propia (08:06 primera; 10:30, 12:30, 14:30, 16:30 y 18:30 alertas, como Telegram) y sin token en el archivo',
+    $wc['numeros'] === ['51933174396'] && $wc['cortes'] === ['08:06' => 'primera', '10:30' => 'alertas', '12:30' => 'alertas', '14:30' => 'alertas', '16:30' => 'alertas', '18:30' => 'alertas']
+    && array_keys(array_filter($wc['cortes'], static fn($r) => $r === 'alertas')) === array_keys(array_filter(InicioOrdenesService::CORTES, static fn($r) => $r === 'alertas'))
+    && !preg_match('/inr_(live|test)_/', (string)file_get_contents(SGS_IO_WHATSAPP_CONFIG)), $wc);
+$cw = static fn(string $prov, string $cuad, string $estado, ?string $ini, string $res, ?string $cam = null) => ['proveedor' => $prov, 'cuadrilla' => $cuad,
+    'grupo' => sgsIoGrupo($cuad), 'provincia' => 'PIURA', 'estado' => $estado, 'inicio' => $ini, 'camino' => $cam, 'resultado' => $res, 'orden' => '3290001',
+    'primeraAgendada' => ['visita' => '08:00', 'orden' => '3290001']];
+$wm = sgsIoArmarPrimeraWa([$cw('OLMA', 'P 1 OLMA SGI JUAN', 'Inició', '07:50:00', 'Cumple'), $cw('ALFITELL', 'P 2 ALFITELL SGI ANA', 'En camino', null, '', '07:40:00'),
+                           $cw('ALFITELL', 'P 3 ALFITELL SGI LUIS', 'Inició', '08:09:00', 'Incumple'), $cw('OLMA', 'P 4 OLMA SGI PEDRO', 'Inició', '09:00:00', '')],
+                          new DateTimeImmutable('2026-11-20 08:06:00', new DateTimeZone('America/Lima')));
+$check('WhatsApp primera: una línea por cuadrilla que no cumple, por partner, sin saludo, resumen ni colores', count($wm) === 1
+    && str_starts_with($wm[0], "*Reporte general de primera atención*\nCorte 08:06 · 20/11/2026") && !str_contains($wm[0], 'Estimad') && !str_contains($wm[0], 'JUAN')
+    && !str_contains($wm[0], 'PEDRO') && !str_contains($wm[0], 'Resumen') && !preg_match('/[🟢🟡🔴]/u', $wm[0])
+    && str_contains($wm[0], "*ALFITELL*\nP 2 ALFITELL SGI ANA — Aún en camino desde las 07:40, no inicia\nP 3 ALFITELL SGI LUIS — Inició fuera de horario 08:09")
+    && !str_contains($wm[0], '*OLMA*') && !preg_match('/<\/?[a-z]/', $wm[0]), $wm);
+$oa = static fn($prov, $cuad, $desde) => ['estado' => 'Iniciada', 'desde' => "2026-11-20T$desde", 'proveedor' => $prov, 'cuadrilla' => $cuad, 'orden' => '3291140',
+    'provincia' => 'CHICLAYO', 'grupo' => sgsIoGrupo($cuad)];
+$wa = sgsIoArmarAlertasWa([$oa('OLMA SGI', 'P 1 OLMA SGI A', '06:55:00'), $oa('ALFITELL SGI', 'P 2 ALFITELL SGI B', '08:00:00'), $oa('ALFITELL SGI', 'P 3 ALFITELL SGI C', '10:00:00')],
+                          new DateTimeImmutable('2026-11-20 10:30:00', new DateTimeZone('America/Lima')));
+$check('WhatsApp alertas: todos los partners juntos, crítico y en alerta', count($wa) === 1 && str_contains($wa[0], '🔴 1 crítica · 🟡 1 en alerta')
+    && str_contains($wa[0], '▪️ *OLMA* (1)') && str_contains($wa[0], 'P 2 B (SGI) · OT 3291140 · Chiclayo · *2 h 30 min* (desde 08:00)') && !str_contains($wa[0], ' C (SGI)'), $wa);
+$muchas = [];
+for ($i = 0; $i < 200; $i++) $muchas[] = $cw('P' . ($i % 7), "P $i X SGI NOMBRE APELLIDO APELLIDO", 'En camino', null, '', '07:40:00') + ['motivo' => ''];
+$sinCamino = sgsIoArmarPrimeraWa([$cw('OLMA', 'P 9 OLMA SGI SIN SALIR', 'Sin iniciar', null, '')], new DateTimeImmutable('2026-11-20 08:06:00', new DateTimeZone('America/Lima')));
+$check('WhatsApp primera: la que no puso En camino no aparece', !str_contains($sinCamino[0], 'SIN SALIR') && str_contains($sinCamino[0], 'iniciaron a tiempo'), $sinCamino);
+$wm = sgsIoArmarPrimeraWa($muchas, new DateTimeImmutable('2026-11-20 08:06:00', new DateTimeZone('America/Lima')));
+$check('WhatsApp: se parte en mensajes de menos de 4096 caracteres', count($wm) > 1 && max(array_map('mb_strlen', $wm)) < 4096 && str_starts_with($wm[1], '_Parte 2 de'),
+    array_map('mb_strlen', $wm));
 
 // API sin sesión
 $ch = curl_init("$base/api/inicio_ordenes.php?action=tablero");

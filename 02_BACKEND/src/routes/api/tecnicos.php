@@ -85,12 +85,14 @@ try {
             throw new Exception('Indique un técnico existente, su nombre y un DNI válido de 8 dígitos.');
         }
 
-        $stmtCheck = $pdo->prepare("SELECT id, tipo_tecnico FROM tecnicos WHERE id = :id");
+        $stmtCheck = $pdo->prepare("SELECT id, tipo_tecnico, nombre_tecnico FROM tecnicos WHERE id = :id");
         $stmtCheck->execute([':id' => $id]);
         $existing = $stmtCheck->fetch();
         if (!$existing) {
             throw new Exception('El técnico seleccionado ya no existe.');
         }
+        // 2026-11-20 (pedido del usuario): el perfil de supervisor edita los datos del técnico líder (T1) salvo su nombre.
+        if ((int)$existing['tipo_tecnico'] === 1 && ($usuario['rol'] ?? '') === Auth::ROLE_SUPERVISOR) $nombre = (string)$existing['nombre_tecnico'];
         if ($existing['tipo_tecnico'] == 1 && !preg_match('/^\d{9}$/', $celular)) {
             throw new Exception('El técnico líder debe tener un número celular válido de 9 dígitos.');
         }
@@ -375,7 +377,8 @@ try {
         $t2Cel = $tocaT2 ? $celularValido((string)($_POST['t2_celular'] ?? ''), 'técnico de apoyo') : null;
         $t2Nombre = mb_strtoupper(preg_replace('/\s+/u', ' ', trim((string)($_POST['t2_nombre'] ?? ''))), 'UTF-8');
         // Nomenclatura y partner del T1 (2026-11-10): solo se tocan si llegan.
-        $tocaNombre = array_key_exists('t1_nombre', $_POST);
+        // 2026-11-20 (pedido del usuario): el perfil de supervisor no cambia el nombre (nomenclatura) del técnico líder.
+        $tocaNombre = array_key_exists('t1_nombre', $_POST) && ($editor['rol'] ?? '') !== Auth::ROLE_SUPERVISOR;
         $t1Nombre = mb_strtoupper(preg_replace('/\s+/u', ' ', trim((string)($_POST['t1_nombre'] ?? ''))), 'UTF-8');
         if ($tocaNombre && mb_strlen($t1Nombre) < 5) throw new Exception('Escriba la nomenclatura del técnico líder.');
         $t1Partner = array_key_exists('t1_partner_id', $_POST) ? (int)$_POST['t1_partner_id'] : null;

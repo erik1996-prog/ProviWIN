@@ -16,6 +16,8 @@ win_run_periodic_task('observation-sla', 60, static function () use ($pdo): void
 });
 
 if ($action === 'list') {
+    sgsDespertarInicioOrdenes();   // cualquier pantalla abierta mantiene vivos los reportes de Inicio de órdenes (2026-11-20)
+    sgsMantenerPhoenix();          // y la sesión de Phoenix (señal de vida cada 10 min)
     // Retención de siete días, una sola vez por hora para todo el servidor.
     win_run_periodic_task('notification-retention', 3600, static function () use ($pdo): void {
         $pdo->exec("DELETE FROM notificaciones WHERE fecha_registro < DATE_SUB(NOW(), INTERVAL 7 DAY)");

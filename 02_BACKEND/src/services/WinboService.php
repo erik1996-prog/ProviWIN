@@ -87,6 +87,26 @@ class WinboService {
         return sgsPhoenixSesion()['activa'] ? 'aqui' : (self::conCredenciales() ? 'env' : null);
     }
     /** Cookies de esa sesión. $renovar: Phoenix la cerró; con el .env vuelve a entrar, con la iniciada aquí la borra y avisa. */
+    /**
+     * Señal de vida (2026-11-20, pedido del usuario: "la sesión de Phoenix se cierra sola al rato"): Phoenix cierra la sesión que no
+     * se usa. Cada 10 min (sgsMantenerPhoenix en config/runtime.php, desde cualquier pantalla abierta) se abre su página principal
+     * con la sesión iniciada en el SGS y se guarda la llave renovada. Si Phoenix ya la había cerrado (lleva al ingreso), se borra
+     * para que el indicador diga "sin conexión". Solo la sesión iniciada aquí (el .env vuelve a entrar solo).
+     */
+    public static function mantenerViva(): void {
+        if (!sgsPhoenixSesion()['activa'] || sgsPhoenixEstado()['activo']) return;
+        $cookie = sgsPhoenixSesionCookie();
+        $ch = curl_init(self::BASE . '/default.aspx');
+        curl_setopt_array($ch, self::opcionesCa() + [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => 15,
+            CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => self::UA, CURLOPT_COOKIEFILE => $cookie, CURLOPT_COOKIEJAR => $cookie,
+            CURLOPT_HTTPHEADER => ['Referer: ' . self::BASE . '/default.aspx']]);
+        $r = curl_exec($ch);
+        $final = (string)curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+        unset($ch);
+        if ($r === false) return;                                  // sin conexión con Phoenix: se reintenta la próxima vez
+        if (stripos($final, 'login.aspx') !== false) { sgsPhoenixSesionCerrar(); win_log_error('phoenix_sesion', 'Phoenix cerró la sesión iniciada en el SGS'); }
+    }
+
     public static function cookieLectura(bool $renovar = false): string {
         $modo = self::sesionLectura();
         if ($modo === null) throw new RuntimeException('No hay sesión de Phoenix. Conéctala arriba, en el indicador «Phoenix» de la barra superior.');
@@ -225,7 +245,7 @@ class WinboService {
         foreach ($pets as $i => [$ruta, $json]) {
             $ch = curl_init(self::BASE . $ruta);
             curl_setopt_array($ch, self::opcionesCa() + [CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_POSTFIELDS => json_encode($json),
-                CURLOPT_TIMEOUT => self::SEGUNDOS_WINBO, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => self::UA, CURLOPT_COOKIEFILE => $this->cookie,
+                CURLOPT_TIMEOUT => self::SEGUNDOS_WINBO, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => self::UA, CURLOPT_COOKIEFILE => $this->cookie, CURLOPT_COOKIEJAR => $this->cookie,
                 CURLOPT_ENCODING => '', CURLOPT_HTTPHEADER => ['Referer: ' . $referer, 'Origin: ' . self::BASE, 'Content-Type: application/json; charset=UTF-8',
                     'X-Requested-With: XMLHttpRequest', 'Accept: application/json, text/javascript, */*; q=0.01']]);
             curl_multi_add_handle($mh, $ch); $hs[$i] = $ch;
@@ -272,7 +292,10 @@ class WinboService {
         $cab = ['Referer: ' . $referer];
         $op = self::opcionesCa() + [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => self::SEGUNDOS_WINBO,
                CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => self::UA, CURLOPT_COOKIEFILE => $this->cookie];
-        if ($guardar) $op[CURLOPT_COOKIEJAR] = $this->cookie;   // solo el inicio de sesión escribe las cookies
+        // 2026-11-20: Phoenix renueva la llave de la sesión (cookies) en cada consulta. Antes solo se guardaban al iniciar sesión y la
+        // sesión caducaba sola al rato aunque se usara; ahora cada respuesta deja guardada la llave nueva. ($guardar queda por los
+        // pasos del inicio de sesión.)
+        $op[CURLOPT_COOKIEJAR] = $this->cookie;
         if ($json !== null) {
             $op[CURLOPT_POST] = true;
             $op[CURLOPT_POSTFIELDS] = json_encode($json, JSON_UNESCAPED_UNICODE);

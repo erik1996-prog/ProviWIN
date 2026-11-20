@@ -714,6 +714,7 @@ $itemsChecklist = array_merge(...array_values($checklistSecciones));
           <div class="mb-3">
             <label for="edit_tecnico_nombre" class="form-label fw-semibold">Nombre completo</label>
             <input type="text" class="form-control" id="edit_tecnico_nombre" maxlength="200" required>
+            <small class="text-muted d-none" id="edit_tecnico_nombre_ayuda">Tu perfil no puede cambiar el nombre del técnico líder.</small>
           </div>
           <div class="mb-3">
             <label for="edit_tecnico_dni" class="form-label fw-semibold">DNI</label>
