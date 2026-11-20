@@ -169,9 +169,9 @@ try {
     $check('Desactivar apaga el vínculo para todos', $c === 200 && $r2['activo'] === false, [$r, $r2]);
 
     // Favorito
-    $fav = sgsFavoritoPuente('https://sgs.ejemplo/ProviWIN/');
+    $fav = sgsFavoritoPuente('https://sgs.ejemplo/ProviWIN/', 'sgsw_' . str_repeat('a', 48));
     $js = rawurldecode(substr($fav, 11));
-    $check('el favorito lleva la dirección del SGS y la de Wincore', str_starts_with($fav, 'javascript:') && str_contains($js, "'https://sgs.ejemplo/ProviWIN/'")
+    $check('el favorito lleva la dirección del SGS, la de Wincore y la clave', str_starts_with($fav, 'javascript:') && str_contains($js, "'https://sgs.ejemplo/ProviWIN/'") && str_contains($js, "'sgsw_" . str_repeat('a', 48) . "'") && !str_contains($js, '__CLAVE__')
         && str_contains($js, "'" . sgsWincoreOrigen() . "'") && !str_contains($js, '__SGS__') && !str_contains($js, '// '), substr($js, 0, 200));
 } catch (Throwable $e) {
     $check('sin excepciones', false, $e->getMessage());

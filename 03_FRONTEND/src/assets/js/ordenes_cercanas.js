@@ -98,10 +98,39 @@
     $('ocLista').innerHTML = `<div class="table-responsive"><table class="table table-hover mb-0 align-middle sgs-tabla-tarjetas"><thead><tr>
       <th>Tipo de trabajo</th><th>Ubicación</th><th>N° de orden</th><th>Cuadrilla</th><th>Fecha</th><th>Dirección</th></tr></thead><tbody>${
       l.map(p => `<tr><td data-label="Tipo de trabajo">${esc(p.tipo || '—')}</td>
-        <td data-label="Ubicación"><a class="text-nowrap" href="${ruta(p)}" target="_blank" rel="noopener" title="Ver la ruta en Google Maps"><i class="bi bi-sign-turn-right me-1"></i>${p.km.toFixed(2)} km</a></td>
+        <td data-label="Ubicación"><a class="text-nowrap" href="${ruta(p)}" target="_blank" rel="noopener" title="Ver la ruta en Google Maps"><i class="bi bi-sign-turn-right me-1"></i>${p.km.toFixed(2)} km</a>${ORIGEN[p.origen] || ''}</td>
         <td data-label="N° de orden">${esc(p.id || '—')}</td><td data-label="Cuadrilla">${esc(p.cuadrilla || '—')}</td>
         <td data-label="Fecha" class="text-nowrap">${esc(p.fecha || '—')}</td><td data-label="Dirección">${esc(p.direccion || '—')}</td></tr>`).join('')
     }</tbody></table></div>`;
+  }
+
+  // Ubicación de la casa (2026-11-20, pedido del usuario): para las órdenes que se muestran (las más cercanas) se piden en Phoenix
+  // las coordenadas de la foto de la fachada, de a 6 y hasta 18. Con foto, la distancia y la ruta usan esa ubicación; sin foto,
+  // la de la orden. Un ícono chico en Ubicación dice cuál es (casa verde / punto rojo; la leyenda va arriba, en «Ten en cuenta»).
+  const ORIGEN = {
+    casa: '<i class="bi bi-house-fill text-success ms-1" title="Ubicación de la foto de la fachada" aria-label="Ubicación de la foto de la fachada"></i>',
+    orden: '<i class="bi bi-geo-alt-fill text-danger ms-1" title="Ubicación de la orden: no hay foto de la fachada" aria-label="Ubicación de la orden"></i>',
+  };
+  const CASAS_MAX = 18, CASAS_LOTE = 6;
+  let buscandoCasas = false;
+  async function buscarCasas() {
+    if (buscandoCasas || !A.yo || !A.leido) return;
+    const turno = A.turno, radio = +$('ocRadio').value;
+    let l = A.puntos.map(p => ({ p, km: distancia(A.yo, p) }));
+    if (radio) l = l.filter(x => x.km <= radio);
+    const faltan = l.sort((a, b) => a.km - b.km).slice(0, CASAS_MAX).map(x => x.p).filter(p => p.id && !p.origen);
+    if (!faltan.length) return;
+    buscandoCasas = true;
+    try {
+      for (let i = 0; i < faltan.length && turno === A.turno; i += CASAS_LOTE) {
+        const lote = faltan.slice(i, i + CASAS_LOTE);
+        let r;
+        try { r = await api(`action=casas&ids=${lote.map(p => encodeURIComponent(p.id)).join(',')}`); } catch { break; }
+        if (turno !== A.turno) return;
+        lote.forEach(p => { const c = r.casas && r.casas[p.id]; if (c) { p.lat = c.lat; p.lon = c.lon; p.origen = 'casa'; } else p.origen = 'orden'; });
+        pintar();
+      }
+    } finally { buscandoCasas = false; }
   }
   const agregar = puntos => puntos.forEach(p => {
     const k = p.id || `${p.lat}|${p.lon}|${p.direccion}`;
@@ -135,12 +164,12 @@
     } catch (x) {
       if (vigente()) $('ocAvance').textContent = x.message;
     }
-    if (vigente()) { A.escaneando = false; botones(); pintar(); }
+    if (vigente()) { A.escaneando = false; botones(); pintar(); buscarCasas(); }
   }
 
   $('ocEscanear').addEventListener('click', escanear);
   $('ocReintentar').addEventListener('click', preparar);
-  $('ocRadio').addEventListener('change', pintar);
+  $('ocRadio').addEventListener('change', () => { pintar(); buscarCasas(); });
   // Otro grupo u otro estado: lo escaneado ya no vale; se detiene lo que esté en curso y se vuelve a escanear a pedido.
   const reiniciar = () => {
     A.turno++; A.escaneando = false; A.leido = false; A.puntos = []; A.vistos = new Set();
@@ -151,43 +180,8 @@
   modal.addEventListener('show.bs.modal', () => { if (!(A.fecha && A.yo)) preparar(); });
   modal.addEventListener('hidden.bs.modal', () => { A.turno++; A.escaneando = false; botones(); });
 
-  // Sesión de Phoenix iniciada aquí, hasta las 23:59 (2026-11-19). Solo la cuenta principal ve este bloque (Vínculo con Phoenix).
-  // "Iniciar sesión en Phoenix" abre la ventanita phoenix_sesion.php; al terminar avisa con postMessage y se cierra sola.
-  if ($('ocPhxSesion')) {
-    const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
-    const phx = async (accion, post) => {
-      const r = await fetch(`api/puente_phoenix.php?action=${accion}`, post
-        ? { method: 'POST', headers: { 'X-CSRF-Token': token }, body: new FormData() } : { headers: { Accept: 'application/json' } });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok || d.status !== 'success') throw new Error(d.message || 'No se pudo consultar la sesión de Phoenix.');
-      return d;
-    };
-    const mostrar = d => {
-      estado('ocPhxEstado', d.activa ? 'ok' : (d.vinculo ? 'ok' : ''), d.activa
-        ? `Sesión de Phoenix activa hasta las ${d.vence}${d.usuario ? ` · ${d.usuario}` : ''}. Puedes cerrar la laptop.`
-        : d.vinculo ? 'Sin sesión iniciada aquí: se está usando el vínculo de tu laptop (favorito).' : 'Sin sesión de Phoenix. Inicia sesión aquí: queda activa hasta las 23:59.');
-      $('ocPhxIniciar').classList.toggle('d-none', !!d.activa);
-      $('ocPhxCerrar').classList.toggle('d-none', !d.activa);
-    };
-    const consultar = async () => {
-      try { mostrar(await phx('sesion_estado')); } catch (x) { estado('ocPhxEstado', 'error', x.message); }
-    };
-    $('ocPhxIniciar').addEventListener('click', () => {
-      const w = 440, h = 560, x = Math.max(0, (screen.width - w) / 2), y = Math.max(0, (screen.height - h) / 2);
-      const v = window.open('phoenix_sesion.php', 'sgsPhoenixSesion', `width=${w},height=${h},left=${x},top=${y}`);
-      if (!v) estado('ocPhxEstado', 'error', 'El navegador bloqueó la ventanita. Permite las ventanas emergentes de este sitio.');
-    });
-    $('ocPhxCerrar').addEventListener('click', async () => {
-      if (!confirm('¿Cerrar la sesión de Phoenix? Órdenes cercanas dejará de leer órdenes hasta que vuelvas a iniciarla.')) return;
-      try { await phx('sesion_cerrar', true); } catch (x) { estado('ocPhxEstado', 'error', x.message); return; }
-      consultar();
-    });
-    window.addEventListener('message', ev => {
-      if (ev.origin === location.origin && ev.data?.tipo === 'phoenix-sesion') consultar();
-    });
-    modal.addEventListener('show.bs.modal', consultar);
-    // Si Phoenix cerró la sesión antes de la medianoche, el aviso sale en la lista y aquí se vuelve a ofrecer iniciarla.
-    new MutationObserver(() => { if (/sesión de Phoenix se cerró/i.test($('ocAvance').textContent)) consultar(); })
-      .observe($('ocAvance'), { childList: true, characterData: true, subtree: true });
-  }
+  // Sesión de Phoenix (2026-11-19): se conecta desde el indicador "Phoenix" de la barra superior (phoenix_estado.js). Si Phoenix
+  // la cerró antes de la medianoche, el aviso sale en la lista y el indicador se actualiza para ofrecer conectarla de nuevo.
+  new MutationObserver(() => { if (/sesión de Phoenix se cerró/i.test($('ocAvance').textContent)) window.sgsPhoenixRevisar?.(); })
+    .observe($('ocAvance'), { childList: true, characterData: true, subtree: true });
 })();

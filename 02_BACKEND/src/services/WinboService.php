@@ -25,7 +25,7 @@ class WinboService {
     private string $dir, $cookie, $cols;
     private bool $puente, $aqui;
     private const SIN_SESION = 'Phoenix no devolvió las órdenes: la sesión de Phoenix del vínculo pudo vencer. Inténtalo en unos minutos.';
-    private const SESION_AQUI_CERRADA = 'La sesión de Phoenix se cerró antes de la medianoche. Vuelve a iniciar sesión en Órdenes cercanas → Vínculo con Phoenix.';
+    private const SESION_AQUI_CERRADA = 'La sesión de Phoenix se cerró antes de la medianoche. Vuelve a conectarla arriba, en el indicador «Phoenix» de la barra superior.';
 
     public function __construct() {
         $this->dir = BASE_PATH . '/08_LOGS/runtime/winbo';
@@ -79,6 +79,24 @@ class WinboService {
     public static function configurado(): bool {
         return sgsPhoenixEstado()['activo'] || sgsPhoenixSesion()['activa'] || self::conCredenciales();
     }
+    /**
+     * Inicio de órdenes (2026-11-19): lee con la sesión iniciada aquí o con la del .env, nunca con el favorito (solo atiende la
+     * grilla de Órdenes cercanas). Devuelve 'aqui', 'env' o null si no hay ninguna.
+     */
+    public static function sesionLectura(): ?string {
+        return sgsPhoenixSesion()['activa'] ? 'aqui' : (self::conCredenciales() ? 'env' : null);
+    }
+    /** Cookies de esa sesión. $renovar: Phoenix la cerró; con el .env vuelve a entrar, con la iniciada aquí la borra y avisa. */
+    public static function cookieLectura(bool $renovar = false): string {
+        $modo = self::sesionLectura();
+        if ($modo === null) throw new RuntimeException('No hay sesión de Phoenix. Conéctala arriba, en el indicador «Phoenix» de la barra superior.');
+        $s = new self();
+        $s->puente = false;
+        $s->aqui = $modo === 'aqui';
+        $s->cookie = $s->aqui ? sgsPhoenixSesionCookie() : $s->dir . '/sesion.cookie';
+        if ($renovar || !is_file($s->cookie)) $s->conectar();
+        return $s->cookie;
+    }
     private static function conCredenciales(): bool {
         return getenv('WINBO_USUARIO') && getenv('WINBO_CLAVE') && getenv('WINBO_EMPRESA') && getenv('WINBO_AREA');
     }
@@ -130,6 +148,93 @@ class WinboService {
         if (!is_array($base) || $n < 2 || $n > (int)$base['paginas']) throw new InvalidArgumentException('Vuelve a escanear las órdenes.');
         $p = $this->conCache($this->clave($estadoNombre, $fecha, $n), fn() => ['puntos' => $this->leerPagina((string)$base['codigo'], $fecha, $n)['puntos']]);
         return ['puntos' => self::delGrupo($p['puntos'], $grupo)];
+    }
+
+    // ── Ubicación de la casa: foto de la fachada (2026-11-20, pedido del usuario) ──────────────────────────────────────────
+    // Para cada orden se busca su tarea de foto de la casa ("FACHADA DEL DOMICILIO" en instalaciones, "FOTO DOMICILIO" en
+    // visitas técnicas) y se toman SOLO las coordenadas del botón "Ver Mapa" de su primera foto (dónde se tomó). Si la orden no
+    // tiene esa tarea o aún no tiene foto, se usan las coordenadas de la orden (las de la grilla, como antes).
+    // Camino en Phoenix (3 pasos, varias órdenes a la vez): CargarVisitasGrilla → CargarVisitasTareasGrilla (su campo "map" trae
+    // cada tarea con su id) → ConsultarTareaDeta (abrirModalUbicacionFoto5_Formu("lat","lon")). Pesa (~1,7 MB por orden: las
+    // tareas traen sus fotos), así que se piden pocas a la vez, solo las que se muestran, y se guardan todo el día para todos
+    // (las que aún no tienen foto se vuelven a buscar a los 30 min). Solo con la sesión iniciada en el SGS (o el .env): el
+    // favorito solo lee la grilla.
+    public const CASAS_POR_PEDIDO = 6;
+    private const TAREA_CASA = '/FACHADA|FOTO\s+(DEL\s+)?DOMICILIO/i';
+    private const CASA_REINTENTO = 1800;
+
+    /** Coordenadas de la foto de la fachada de cada orden: [id => ['lat' => …, 'lon' => …] o null (usar las de la orden)]. */
+    public function casas(array $ids): array {
+        $ids = array_slice(array_values(array_unique(array_filter(array_map('strval', $ids), static fn($i) => preg_match('/^\d{5,10}$/', $i)))), 0, self::CASAS_POR_PEDIDO);
+        $archivo = $this->dir . '/casas_' . date('Ymd') . '.json';
+        $guardadas = json_decode((string)@file_get_contents($archivo), true) ?: [];
+        $res = []; $buscar = [];
+        foreach ($ids as $id) {
+            $g = $guardadas[$id] ?? null;
+            if (isset($g['lat'])) $res[$id] = ['lat' => $g['lat'], 'lon' => $g['lon']];
+            elseif ($g && time() - (int)$g['sin'] < self::CASA_REINTENTO) $res[$id] = null;
+            else $buscar[] = $id;
+        }
+        if (!$buscar || $this->puente || self::sesionLectura() === null) return $res + array_fill_keys($buscar, null);
+        $this->cookie = self::cookieLectura();
+        $ref = self::BASE . '/Paginas/OrdenTrabajo/grilla.aspx';
+        $form = '/Paginas/OrdenTrabajo/Formulario.aspx/';
+        // 1) Visitas de cada orden
+        $visitas = []; $respondio = [];   // solo se anota "sin foto" de las que Phoenix sí respondió (si la sesión cayó, se reintenta)
+        foreach ($this->multi(array_map(static fn($id) => [$form . 'CargarVisitasGrilla', ['OrdenId' => $id, 'IdPage' => '5_Formu', 'pagiActu' => 1]], $buscar), $ref) as $i => $t) {
+            $d = self::decodificar($t);
+            if (array_key_exists('html', $d)) $respondio[$buscar[$i]] = true;
+            preg_match_all('/seleccionarVisita5_Formu\(\s*(?:&quot;|["\'])\s*(\d+)/', html_entity_decode((string)($d['html'] ?? '')), $m);
+            foreach (array_unique($m[1]) as $v) $visitas[] = [$buscar[$i], $v];
+        }
+        // 2) Tareas de cada visita: la de la casa (la de la visita más reciente gana)
+        $tarea = [];
+        foreach ($this->multi(array_map(static fn($x) => [$form . 'CargarVisitasTareasGrilla', ['OrdeVisiId' => $x[1], 'IdPage' => '5_Formu', 'EsSeguimiento' => '', 'EsCliente' => '']], $visitas), $ref) as $i => $t) {
+            $mapa = json_decode((string)(self::decodificar($t)['map'] ?? ''), true);
+            foreach (is_array($mapa) ? $mapa : [] as $tt) {
+                if (preg_match(self::TAREA_CASA, (string)($tt['tarea'] ?? '')) && preg_match('/^\d+$/', (string)($tt['id'] ?? ''))) $tarea[$visitas[$i][0]] = (string)$tt['id'];
+            }
+        }
+        // 3) Detalle de esa tarea: coordenadas de "Ver Mapa" de su primera foto
+        $conTarea = array_keys($tarea);
+        $hallado = [];
+        foreach ($this->multi(array_map(static fn($id) => [$form . 'ConsultarTareaDeta', ['OrdeTrabaTareId' => (int)$tarea[$id], 'TipoHora' => '0', 'Index' => 0, 'IdPage' => '5_Formu', 'EsSeguimiento' => '', 'EsCliente' => '']], $conTarea), $ref) as $i => $t) {
+            $h = html_entity_decode((string)(self::decodificar($t)['html'] ?? ''));
+            if (preg_match('/abrirModalUbicacionFoto5_Formu\(\s*\\\\?["\']\s*(-?\d{1,3}\.\d+)\s*\\\\?["\']\s*,\s*\\\\?["\']\s*(-?\d{1,3}\.\d+)/', $h, $m)
+                && abs((float)$m[1]) > 0.0001 && abs((float)$m[2]) > 0.0001 && abs((float)$m[1]) <= 90 && abs((float)$m[2]) <= 180) {
+                $hallado[$conTarea[$i]] = ['lat' => (float)$m[1], 'lon' => (float)$m[2]];
+            }
+        }
+        // Se guardan para todos (con candado: varios supervisores pueden pedir a la vez)
+        $f = fopen($archivo, 'c+');
+        if ($f && flock($f, LOCK_EX)) {
+            $actual = json_decode((string)stream_get_contents($f), true) ?: [];
+            foreach ($buscar as $id) if (isset($hallado[$id]) || isset($respondio[$id])) $actual[$id] = $hallado[$id] ?? ['sin' => time()];
+            ftruncate($f, 0); rewind($f); fwrite($f, json_encode($actual)); fflush($f); flock($f, LOCK_UN);
+        }
+        if ($f) fclose($f);
+        foreach (glob($this->dir . '/casas_*.json') ?: [] as $viejo) if ($viejo !== $archivo) @unlink($viejo);
+        foreach ($buscar as $id) $res[$id] = $hallado[$id] ?? null;
+        return $res;
+    }
+
+    /** Varias consultas POST a Phoenix a la vez (cada una: [ruta, json]) con las cookies de la sesión. Texto de cada una ('' si falló). */
+    private function multi(array $pets, string $referer): array {
+        if (!$pets) return [];
+        $mh = curl_multi_init(); $hs = [];
+        foreach ($pets as $i => [$ruta, $json]) {
+            $ch = curl_init(self::BASE . $ruta);
+            curl_setopt_array($ch, self::opcionesCa() + [CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_POSTFIELDS => json_encode($json),
+                CURLOPT_TIMEOUT => self::SEGUNDOS_WINBO, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => self::UA, CURLOPT_COOKIEFILE => $this->cookie,
+                CURLOPT_ENCODING => '', CURLOPT_HTTPHEADER => ['Referer: ' . $referer, 'Origin: ' . self::BASE, 'Content-Type: application/json; charset=UTF-8',
+                    'X-Requested-With: XMLHttpRequest', 'Accept: application/json, text/javascript, */*; q=0.01']]);
+            curl_multi_add_handle($mh, $ch); $hs[$i] = $ch;
+        }
+        do { $st = curl_multi_exec($mh, $activos); if ($activos) curl_multi_select($mh, 1.0); } while ($activos && $st === CURLM_OK);
+        $res = [];
+        foreach ($hs as $i => $ch) { $res[$i] = (string)curl_multi_getcontent($ch); curl_multi_remove_handle($mh, $ch); curl_close($ch); }
+        curl_multi_close($mh);
+        return $res;
     }
 
     /** GP = fuera de Lima · SGI = Lima e instalación · SGA = Lima y visita técnica (todo lo que no es instalación). */

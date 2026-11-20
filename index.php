@@ -25,6 +25,14 @@ win_run_periodic_task('cierre-turnos', 300, static fn() => sgsCerrarTurnosVencid
 // Envíos programados del corte de lluvias (2026-10-26): salen también con las visitas (sin cron en cPanel), revisando
 // cada 5 minutos como mucho y después de mandar la página (sgsEnviarCortesTrasLaVisita).
 win_run_periodic_task('corte-lluvias', 300, static function (): void { require_once BACKEND_PATH . '/config/lluvias_corte.php'; sgsEnviarCortesTrasLaVisita(); });
+// Inicio de órdenes (2026-11-19): sin cron, la visita de cualquier usuario despierta (como mucho una vez por minuto) un turno corto
+// de lectura de Winbo y, si toca, el reporte de cada hora a Telegram; corre después de mandar la página.
+// 2026-11-20: con una lectura a medias (la primera del día o la de cada 30 min) despierta cada 15 s en vez de cada 60 s, para que
+// termine pronto; cada turno sigue siendo uno a la vez y después de mandar la página. Saberlo lee solo pulso.json (unos bytes).
+// (Misma regla que InicioOrdenesService::leyendo(), sin cargar el servicio en cada visita.)
+$ioPulso = json_decode((string)@file_get_contents(STORAGE_PATH . '/inicio_ordenes/pulso.json'), true);
+$ioLeyendo = is_array($ioPulso) && in_array($ioPulso['fase'] ?? '', ['grilla', 'historial'], true) && empty($ioPulso['error']);
+win_run_periodic_task('inicio-ordenes', $ioLeyendo ? 15 : 60, static function (): void { require_once BACKEND_PATH . '/services/InicioOrdenesService.php'; InicioOrdenesService::turnoTrasLaVisita(); });
 // Respaldos (2026-10-16): ya no se hacen en las visitas; los hace la tarea programada (07_SCRIPTS/respaldar.php automatico).
 // Cada usuario trabaja con su propia cuenta y rol (la "vista provisional" se retiró el 2026-10-06).
 $rol = $user['rol'] ?? '';
@@ -53,6 +61,8 @@ $allowedViews = [
     'asistencia'             => ['file' => 'asistencia.php',             'title' => 'Inicio de turno',          'perm' => null],
     'mi_informacion'         => ['file' => 'mi_informacion.php',         'title' => 'Mi información',           'perm' => null],
     'guia_estilo'            => ['file' => 'guia_estilo.php',            'title' => 'Guía de diseño',           'perm' => Auth::PERM_SYSTEM_MANAGE],
+    // Solo la cuenta principal (se revisa abajo con Auth::puedeVincularPhoenix).
+    'inicio_ordenes'         => ['file' => 'inicio_ordenes.php',         'title' => 'Inicio de órdenes',        'perm' => null],
 ];
 
 // Seguimiento: el supervisor directo WIN con "Registrar turno" (Permisos) empieza su jornada registrando el turno;
@@ -64,7 +74,7 @@ if ($page === 'vencimientos') {
     header('Location: index.php?page=cuadrillas&docs=alerta');
     exit;
 }
-if (!array_key_exists($page, $allowedViews)) {
+if (!array_key_exists($page, $allowedViews) || ($page === 'inicio_ordenes' && !Auth::puedeVincularPhoenix($user))) {
     $page = $isDirectSupervisorView ? 'asistencia' : 'supervision_lista';
 }
 // Turnos: quien registra su turno o quien tiene "Monitor de turnos" en Permisos. Partners no.
@@ -121,6 +131,7 @@ $pageDescriptions = [
     'mi_informacion' => 'Tus datos personales y laborales.',
     'usuarios' => 'Crea y administra usuarios, sus perfiles y permisos.',
     'partners' => 'Contratas que trabajan con WIN: registro, RUC y estado.',
+    'inicio_ordenes' => 'Primera atención de cada cuadrilla y órdenes en curso de GESTIÓN PROVINCIA, en vivo desde Phoenix. No se guarda nada.',
 ];
 $pageDescriptions['supervision_registro'] = $pageDescriptions['supervision_lista'];
 $pageDescriptions['observaciones_partner'] = $pageDescriptions['registro_observaciones'];
@@ -201,6 +212,7 @@ $needsLeaflet = $page === 'admin_dashboard'
     $novedades = !empty($_SESSION['novedades_al_ingresar']) && !Auth::verComoActivo() ? sgsNovedadesPendientes(Database::getConnection(), $user) : [];
     unset($_SESSION['novedades_al_ingresar']);
     if ($novedades): require FRONTEND_PATH . '/layouts/novedades.php'; ?><script src="<?= $assets ?>/js/novedades.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
+    <?php if (!Auth::verComoActivo() && Auth::puedeVincularPhoenix($user)): // indicador Phoenix de la barra superior (topbar.php) ?><script src="<?= $assets ?>/js/phoenix_estado.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
     <script src="<?= $assets ?>/js/error-monitor.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
 </body>
 </html>

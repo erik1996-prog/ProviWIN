@@ -1,6 +1,6 @@
 <?php // 03_FRONTEND/src/layouts/puertos_cto_modal.php - Ventana "Consultar puertos" de Supervisiones (2026-11-11). Lógica: config/puertos_cto.php.
 require_once BACKEND_PATH . '/config/puertos_cto.php';
-require_once BACKEND_PATH . '/config/examen_enlaces.php'; // sgsUrlSistema()
+
 $puedeVincular = Auth::puedeVincularWincore($effectiveViewUser);
 ?>
 <div class="modal fade" id="modalPuertosCto" tabindex="-1" aria-labelledby="pcTitulo" aria-hidden="true">
@@ -24,15 +24,25 @@ $puedeVincular = Auth::puedeVincularWincore($effectiveViewUser);
         <p class="text-muted small mb-2" id="pcAvance" role="status"></p>
         <div id="pcResultado"></div>
         <?php if ($puedeVincular): ?>
-        <details class="pc-vinculo mt-3" id="pcVinculo">
-          <summary><i class="bi bi-link-45deg me-1"></i>Vínculo con Wincore <small class="text-muted">(solo tú)</small></summary>
-          <ol class="small mt-2 mb-2 ps-3">
-            <li>Una sola vez: muestra la barra de favoritos de Chrome (Ctrl + Mayús + B) y <strong>arrastra</strong> a ella este botón:
-              <a class="btn btn-outline-secondary btn-sm ms-1" id="pcFavorito" href="<?= htmlspecialchars(sgsFavoritoPuente(sgsUrlSistema() . '/'), ENT_QUOTES, 'UTF-8') ?>"><i class="bi bi-link-45deg me-1"></i>Vincular SGS</a></li>
-            <li>Con la VPN conectada, entra a Wincore, inicia sesión y abre la pantalla donde consultas una CTO.</li>
-            <li>Pulsa el favorito <strong>Vincular SGS</strong>: se abre una ventana del SGS junto a Wincore y el vínculo se activa por <?= SGS_PUENTE_HORAS ?> horas. Deja las dos abiertas.</li>
+        <details class="pc-vinculo mt-3" id="pcVinculo" data-wincore="<?= htmlspecialchars(sgsWincoreOrigen(), ENT_QUOTES, 'UTF-8') ?>">
+          <summary><i class="bi bi-link-45deg me-1"></i>Vínculo con Wincore <small class="text-muted">(solo tú, en tu laptop con la VPN)</small></summary>
+          <ol class="small mt-2 mb-2 ps-3 pc-pasos">
+            <li class="mb-2"><strong>VPN:</strong> <span class="sgs-gps-estado d-inline-block" id="pcVpn" role="status">Sin revisar</span>
+              <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" id="pcVpnRevisar">Revisar</button></li>
+            <li class="mb-2"><strong>Wincore:</strong> <a class="btn btn-outline-secondary btn-sm ms-1" id="pcAbrirWincore" href="<?= htmlspecialchars(sgsWincoreOrigen(), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1"></i>Abrir Wincore</a> e inicia sesión.</li>
+            <li><strong>Favorito «Vincular SGS»</strong> (se arma una sola vez):
+              <span class="d-block text-muted" id="pcAgenteEstado" role="status">Revisando…</span>
+              <div class="alert alert-warning py-2 px-3 mt-2 mb-2 d-none" id="pcAgenteClave">
+                <strong>Arrastra este botón a la barra de favoritos de Chrome</strong> (Ctrl + Mayús + B para verla). Solo aparece ahora:
+                <div class="mt-2"><a class="btn btn-win btn-sm" id="pcFavorito" href="#"><i class="bi bi-link-45deg me-1"></i>Vincular SGS</a></div>
+                <div class="mt-2 text-muted">¿Usas el programa «Vínculo Wincore»? Pega esta clave en él:</div>
+                <div class="d-flex gap-2 mt-1"><input class="form-control form-control-sm" id="pcAgenteTexto" readonly aria-label="Clave del programa">
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="pcAgenteCopiar"><i class="bi bi-clipboard me-1"></i>Copiar</button></div>
+              </div>
+              <div class="mt-1"><button type="button" class="btn btn-outline-secondary btn-sm" id="pcAgenteGenerar"><i class="bi bi-key me-1"></i>Crear mi favorito</button>
+                <button type="button" class="btn btn-outline-danger btn-sm d-none" id="pcAgenteAnular"><i class="bi bi-x-circle me-1"></i>Anular favorito</button></div></li>
           </ol>
-          <p class="small text-muted mb-2">Si recargas Wincore, vuelve a pulsar el favorito. La sesión y el token de Wincore no salen de tu laptop, y a los supervisores solo les llega el estado de los puertos, nunca los datos de clientes.</p>
+          <p class="small text-muted mb-2">En Wincore pulsa el favorito: se abre la ventanita <strong>«Vínculo Wincore»</strong>. Minimízala y no la cierres; puedes seguir usando Wincore en tu otra ventana sin que se corte. Tu sesión de Wincore no sale de tu laptop y a los supervisores solo les llega el estado de los puertos.</p>
           <button type="button" class="btn btn-outline-danger btn-sm" id="pcDesactivar" disabled><i class="bi bi-power me-1"></i>Desactivar vínculo</button>
         </details>
         <?php endif; ?>

@@ -1,6 +1,7 @@
 <?php // 03_FRONTEND/src/layouts/ordenes_cercanas_modal.php - Ventana "Órdenes cercanas" de Supervisiones (2026-11-08).
 // 2026-11-13: la cuenta principal ve aquí cómo vincular Phoenix (config/puente_phoenix.php).
-// 2026-11-19: y puede iniciar la sesión de Phoenix aquí (ventanita phoenix_sesion.php), activa hasta las 23:59; el favorito queda como otra forma.
+// 2026-11-19: la sesión de Phoenix (ventanita phoenix_sesion.php, hasta las 23:59) se conecta desde el indicador "Phoenix" de la barra
+// superior (topbar.php), común con Inicio de órdenes; el favorito queda como otra forma.
 require_once BACKEND_PATH . '/config/puente_phoenix.php';
 require_once BACKEND_PATH . '/config/examen_enlaces.php'; // sgsUrlSistema()
 $puedeVincularPhoenix = Auth::puedeVincularPhoenix($effectiveViewUser);
@@ -13,7 +14,10 @@ $puedeVincularPhoenix = Auth::puedeVincularPhoenix($effectiveViewUser);
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
-        <p class="text-muted small mb-3">Órdenes de hoy, de la más cercana a la más lejana. Abre la ubicación para ver la ruta en Google Maps.</p>
+        <p class="text-muted small mb-1">Órdenes de hoy, de la más cercana a la más lejana. Abre la ubicación para ver la ruta en Google Maps.</p>
+        <p class="small mb-3"><strong>Ten en cuenta:</strong>
+          <span class="text-nowrap"><i class="bi bi-house-fill text-success" aria-hidden="true"></i> ubicación de la foto de la fachada</span> ·
+          <span class="text-nowrap"><i class="bi bi-geo-alt-fill text-danger" aria-hidden="true"></i> ubicación de la orden (sin foto de la fachada)</span></p>
         <div class="d-flex flex-column gap-1 mb-3">
           <span class="sgs-gps-estado" id="ocFecha"></span>
           <span class="sgs-gps-estado" id="ocUbicacion"></span>
@@ -43,11 +47,7 @@ $puedeVincularPhoenix = Auth::puedeVincularPhoenix($effectiveViewUser);
         <?php if ($puedeVincularPhoenix): ?>
         <details class="pc-vinculo mt-3">
           <summary><i class="bi bi-link-45deg me-1"></i>Vínculo con Phoenix <small class="text-muted">(solo tú)</small></summary>
-          <div class="mt-2 mb-3" id="ocPhxSesion">
-            <span class="sgs-gps-estado d-block mb-2" id="ocPhxEstado" role="status">Consultando la sesión de Phoenix…</span>
-            <button type="button" class="btn btn-win btn-sm d-none" id="ocPhxIniciar"><i class="bi bi-box-arrow-in-right me-1"></i>Iniciar sesión en Phoenix</button>
-            <button type="button" class="btn btn-outline-danger btn-sm d-none" id="ocPhxCerrar"><i class="bi bi-box-arrow-right me-1"></i>Cerrar sesión</button>
-          </div>
+          <p class="small mt-2 mb-3"><i class="bi bi-plug me-1" aria-hidden="true"></i>La sesión de Phoenix se conecta arriba, en el indicador <strong>Phoenix</strong> de la barra superior (dura hasta las 23:59 y la usa también Inicio de órdenes).</p>
           <p class="small text-muted mb-1">Otra forma (con la laptop abierta):</p>
           <ol class="small mt-2 mb-2 ps-3">
             <li>Una sola vez: muestra la barra de favoritos de Chrome (Ctrl + Mayús + B) y <strong>arrastra</strong> a ella este botón:

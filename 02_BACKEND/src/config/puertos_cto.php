@@ -180,11 +180,46 @@ function sgsPuertosGuardarRespuesta(string $id, array $r): bool {
     return true;
 }
 
-/** Favorito "Vincular SGS" (javascript:) para la barra de Chrome, con la dirección de este SGS y la de Wincore. */
-function sgsFavoritoPuente(string $urlSgs): string {
+/**
+ * Favorito "Vincular SGS" (javascript:) para la barra de Chrome, con la dirección de este SGS, la de Wincore y la clave del
+ * programa (2026-11-20: la ventanita «Vínculo Wincore» habla directo con api/puertos_agente.php). Se arma solo al generar la
+ * clave, porque la clave no se guarda: generar otra deja sin efecto el favorito anterior.
+ */
+function sgsFavoritoPuente(string $urlSgs, string $clave): string {
     $js = (string)file_get_contents(FRONTEND_PATH . '/assets/js/puente_favorito.js');
     $js = preg_replace('#^\s*//.*$#m', '', $js);          // sin comentarios de línea
     $js = preg_replace('/\s*\n\s*/', "\n", trim($js));
-    $js = strtr($js, ['__SGS__' => $urlSgs, '__WINCORE__' => sgsWincoreOrigen()]);
+    $js = strtr($js, ['__SGS__' => $urlSgs, '__WINCORE__' => sgsWincoreOrigen(), '__CLAVE__' => $clave]);
     return 'javascript:' . rawurlencode($js);
+}
+
+// ── Programa "Vínculo Wincore" de la laptop (2026-11-19, pedido del usuario) ─────────────────────────────────────────────
+// Otra forma del vínculo, sin Chrome ni favorito: un programa en la laptop de la cuenta principal (07_SCRIPTS/vinculo_wincore)
+// inicia sesión en Wincore con la VPN (la contraseña no se guarda) y atiende la misma cola de consultas por api/puertos_agente.php.
+// Se identifica ante el SGS con una clave que genera la cuenta principal en Consultar puertos (se muestra una sola vez; aquí
+// solo se guarda su huella sha256) y que puede anular cuando quiera. Una clave a la vez: generar otra anula la anterior.
+function sgsAgenteArchivo(): string { return sgsPuertosDir() . '/agente.json'; }
+
+/** Nueva clave del programa para la cuenta principal. Devuelve la clave (solo esta vez). */
+function sgsAgenteGenerarClave(int $usuarioId): string {
+    $clave = 'sgsw_' . bin2hex(random_bytes(24));
+    sgsPuertosEscribir(sgsAgenteArchivo(), ['huella' => hash('sha256', $clave), 'usuario_id' => $usuarioId, 'creada' => time(), 'uso' => null]);
+    @chmod(sgsAgenteArchivo(), 0600);
+    return $clave;
+}
+
+function sgsAgenteAnular(): void { @unlink(sgsAgenteArchivo()); }
+
+/** Estado de la clave (sin la clave): existe, cuándo se creó y cuándo la usó el programa por última vez. */
+function sgsAgenteEstado(): array {
+    $a = sgsPuertosLeer(sgsAgenteArchivo());
+    return ['existe' => (bool)$a, 'creada' => $a ? (int)$a['creada'] : null, 'uso' => $a && $a['uso'] ? (int)$a['uso'] : null];
+}
+
+/** Id de la cuenta dueña de la clave, o null si no coincide. Marca el último uso (a lo más una vez por minuto). */
+function sgsAgenteValidar(string $clave): ?int {
+    $a = sgsPuertosLeer(sgsAgenteArchivo());
+    if (!$a || !preg_match('/^sgsw_[a-f0-9]{48}$/', $clave) || !hash_equals((string)$a['huella'], hash('sha256', $clave))) return null;
+    if (time() - (int)($a['uso'] ?? 0) >= 60) { $a['uso'] = time(); sgsPuertosEscribir(sgsAgenteArchivo(), $a); }
+    return (int)$a['usuario_id'];
 }

@@ -18,6 +18,22 @@ $verComo = Auth::verComoActivo(); // 2026-10-28: el administrador general ve el 
         <h1><?= htmlspecialchars($pageTitle ?? APP_NAME) ?></h1>
         <?php if (!empty($pageDescription)): ?><p><?= htmlspecialchars($pageDescription) ?></p><?php endif; ?>
     </div>
+    <?php
+    // Conexión con Phoenix (2026-11-19, pedido del usuario): un solo lugar, visible en todas las pantallas y solo para la cuenta
+    // principal, para ver si la sesión de Phoenix está conectada y conectarla o cerrarla. La usan Órdenes cercanas e Inicio de
+    // órdenes. El estado sale de archivos chicos (sin consultar a Phoenix); assets/js/phoenix_estado.js lo maneja.
+    if (!$verComo && Auth::puedeVincularPhoenix($user)):
+        require_once BACKEND_PATH . '/config/puente_phoenix.php';
+        $phx = is_file(sgsPhoenixDir() . '/sesion_aqui.json') ? sgsPhoenixSesion() : ['activa' => false];
+        $phxVinculo = !$phx['activa'] && is_file(sgsPhoenixDir() . '/puente.json') && sgsPhoenixEstado()['activo'];
+    ?>
+    <button type="button" class="sgs-phx" id="sgsPhx" data-estado="<?= $phx['activa'] || $phxVinculo ? 'ok' : 'sin' ?>"
+        title="Sesión de Phoenix (la usan Órdenes cercanas e Inicio de órdenes)" aria-label="<?= $phx['activa'] || $phxVinculo ? 'Phoenix: conectado' : 'Phoenix: sin conexión' ?>">
+        <i class="bi bi-plug" aria-hidden="true"></i>
+        <span>Phoenix<span class="sgs-phx-detalle" id="sgsPhxTexto">: <?= $phx['activa'] ? 'conectado hasta las ' . date('H:i', (int)$phx['vence'])
+            : ($phxVinculo ? 'conectado por el favorito' : 'sin conexión') ?></span></span>
+    </button>
+    <?php endif; ?>
     <div class="sgs-topbar-date d-none d-md-flex"><i class="bi bi-calendar3"></i><span><?= htmlspecialchars(date("d/m/Y")) ?></span></div>
 </header>
 

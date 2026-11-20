@@ -1,6 +1,6 @@
 // 03_FRONTEND/src/assets/js/phoenix_sesion.js - Ventanita "Iniciar sesión en Phoenix" (2026-11-19).
 // Manda usuario y contraseña una vez a api/puente_phoenix.php?action=sesion_iniciar, borra la contraseña del campo, avisa a la
-// ventana que la abrió (Órdenes cercanas, mismo origen) y se cierra sola.
+// ventana que la abrió (indicador Phoenix de la barra superior, mismo origen) y se cierra sola.
 (() => {
   const $ = (id) => document.getElementById(id);
   const token = document.querySelector('meta[name="csrf-token"]')?.content || '';

@@ -112,4 +112,56 @@
     catch (e) { window.showToast?.(e.message, 'error'); }
     verEstado();
   });
+
+  // Vínculo con Wincore (2026-11-20): solo la cuenta principal ve este bloque.
+  //  1) VPN: se revisa si Wincore responde desde esta laptop (sin leer nada: Chrome no lo permite entre sitios distintos; la
+  //     primera vez Chrome puede pedir permiso para "dispositivos de la red local").
+  //  2) Favorito «Vincular SGS» con la clave del programa: se arma al crear la clave y solo se muestra esa vez (el servidor guarda
+  //     solo su huella). Crear otro o anularlo deja sin efecto el anterior. La misma clave sirve para el programa Vínculo Wincore.
+  if ($('pcVinculo')) {
+    const WINCORE = $('pcVinculo').dataset.wincore;
+    const vpn = (tipo, texto) => { $('pcVpn').dataset.estado = tipo; $('pcVpn').textContent = texto; };
+    const revisarVpn = async () => {
+      vpn('buscando', 'Revisando…');
+      const corte = new AbortController(), reloj = setTimeout(() => corte.abort(), 6000);
+      try {
+        await fetch(`${WINCORE}/favicon.ico?_=${Date.now()}`, { mode: 'no-cors', cache: 'no-store', signal: corte.signal });
+        vpn('ok', 'Conectada: Wincore responde');
+      } catch { vpn('error', 'No detectada: conecta la VPN'); }
+      finally { clearTimeout(reloj); }
+    };
+    const agente = d => {
+      $('pcAgenteEstado').textContent = d.existe
+        ? `Creado el ${d.creada}${d.uso ? ` · usado por última vez el ${d.uso}` : ' · aún no se usó'}.`
+        : 'Aún no creas tu favorito.';
+      $('pcAgenteGenerar').innerHTML = `<i class="bi bi-key me-1"></i>${d.existe ? 'Crear otro favorito' : 'Crear mi favorito'}`;
+      $('pcAgenteAnular').classList.toggle('d-none', !d.existe);
+    };
+    const verAgente = async () => { try { agente(await api('agente_estado')); } catch (e) { $('pcAgenteEstado').textContent = e.message; } };
+    const ocultarClave = () => { $('pcAgenteTexto').value = ''; $('pcFavorito').setAttribute('href', '#'); $('pcAgenteClave').classList.add('d-none'); };
+    $('pcAgenteGenerar').addEventListener('click', async () => {
+      if (!$('pcAgenteAnular').classList.contains('d-none')
+        && !window.confirm('¿Crear otro favorito? El anterior (y la clave del programa) dejan de funcionar: tendrás que arrastrar el nuevo.')) return;
+      try {
+        const d = await api('agente_generar', new FormData());
+        $('pcFavorito').setAttribute('href', d.favorito);
+        $('pcAgenteTexto').value = d.clave;
+        $('pcAgenteClave').classList.remove('d-none');
+      } catch (e) { window.showToast?.(e.message, 'error'); }
+      verAgente();
+    });
+    $('pcAgenteCopiar').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText($('pcAgenteTexto').value); window.showToast?.('Clave copiada.', 'success'); }
+      catch { $('pcAgenteTexto').select(); document.execCommand('copy'); }
+    });
+    $('pcAgenteAnular').addEventListener('click', async () => {
+      if (!window.confirm('¿Anular el favorito? Dejará de funcionar (y el programa Vínculo Wincore también) hasta que crees otro.')) return;
+      try { await api('agente_anular', new FormData()); ocultarClave(); window.showToast?.('Favorito anulado.', 'success'); }
+      catch (e) { window.showToast?.(e.message, 'error'); }
+      verAgente(); verEstado();
+    });
+    $('pcVpnRevisar').addEventListener('click', revisarVpn);
+    $('pcVinculo').addEventListener('toggle', () => { if ($('pcVinculo').open) { revisarVpn(); verAgente(); } });
+    modal.addEventListener('hidden.bs.modal', ocultarClave);
+  }
 })();

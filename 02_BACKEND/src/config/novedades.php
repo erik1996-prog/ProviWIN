@@ -49,6 +49,15 @@ function sgsNovedades(): array {
         ['id' => 13, 'fecha' => '2026-11-13', 'icono' => 'bi-link-45deg', 'titulo' => 'Vínculo con Phoenix para Órdenes cercanas',
          'texto' => 'Ahora Órdenes cercanas puede leer las órdenes con tu sesión de Phoenix, sin guardar tu contraseña en el servidor: en Órdenes cercanas, abre "Vínculo con Phoenix", arrastra el favorito y púlsalo en Phoenix.',
          'url' => 'index.php?page=supervision_lista', 'puede' => static fn(array $u): bool => Auth::puedeVincularPhoenix($u)],
+        ['id' => 14, 'fecha' => '2026-11-19', 'icono' => 'bi-pc-display', 'titulo' => 'Programa Vínculo Wincore en tu laptop',
+         'texto' => 'Ahora puedes atender las consultas de puertos sin Chrome ni favorito: genera la clave del programa en Consultar puertos → Vínculo con Wincore, abre «Vínculo Wincore» en tu laptop con la VPN e inicia sesión una vez. La contraseña no se guarda.',
+         'url' => 'index.php?page=supervision_lista', 'puede' => static fn(array $u): bool => Auth::puedeVincularWincore($u)],
+        ['id' => 15, 'fecha' => '2026-11-20', 'icono' => 'bi-house-check', 'titulo' => 'Órdenes cercanas con la ubicación de la casa',
+         'texto' => 'Ahora, en Órdenes cercanas, la distancia y la ruta usan la ubicación de la foto de la fachada del domicilio (casa verde); si la orden aún no tiene esa foto, se usa la ubicación de la orden (punto rojo).',
+         'url' => 'index.php?page=supervision_lista', 'puede' => static fn(array $u): bool => Auth::puedeOrdenesCercanas($u)],
+        ['id' => 16, 'fecha' => '2026-11-20', 'icono' => 'bi-window-stack', 'titulo' => 'Vínculo con Wincore en su propia ventanita',
+         'texto' => 'Ahora el favorito «Vincular SGS» abre una ventanita propia de Wincore: la minimizas y sigues usando Wincore sin que se corte. Además revisa si tu VPN está conectada. Créalo una vez en Consultar puertos → Vínculo con Wincore.',
+         'url' => 'index.php?page=supervision_lista', 'puede' => static fn(array $u): bool => Auth::puedeVincularWincore($u)],
     ];
 }
 

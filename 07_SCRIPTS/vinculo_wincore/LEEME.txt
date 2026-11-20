@@ -1,0 +1,29 @@
+﻿VÍNCULO WINCORE · SGS
+=====================
+
+Programa para la laptop que tiene la VPN de Wincore. Atiende las consultas de puertos de los
+supervisores en segundo plano. Tu contraseña de Wincore no se guarda en ningún lado.
+
+INSTALAR (una sola vez)
+  1. Descomprime este paquete (clic derecho > Extraer todo).
+  2. Abre la carpeta y haz doble clic en "Instalar".
+  3. Aparecen en el escritorio: "Vínculo Wincore" y "Detener Vínculo Wincore".
+     Ya puedes borrar la carpeta y el .zip.
+
+PRIMERA VEZ QUE LO ABRES
+  - Te pide la dirección de tu SGS (la misma del navegador, sin index.php).
+  - Te pide la clave del programa: en el SGS, Supervisiones > Consultar puertos >
+    Vínculo con Wincore > Generar clave del programa > Copiar. Pégala con clic derecho.
+
+CADA DÍA
+  1. Conecta la VPN.
+  2. Doble clic en "Vínculo Wincore".
+  3. Escribe tu usuario y tu contraseña de Wincore (la contraseña no se ve al escribir).
+  4. Sale "Listo: Vínculo Wincore activo hasta las ..." y la ventana se cierra sola.
+
+PARA APAGARLO
+  Doble clic en "Detener Vínculo Wincore" (o Desactivar en el SGS).
+
+SI ALGO FALLA
+  Lo que pasó queda en: %LOCALAPPDATA%\SGS\vinculo_wincore.log  (no tiene tu contraseña).
+  Si generaste otra clave en el SGS, borra %APPDATA%\SGS\vinculo_wincore.json y vuelve a abrirlo.

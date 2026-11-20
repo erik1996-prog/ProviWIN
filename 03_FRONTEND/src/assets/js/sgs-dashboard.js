@@ -115,5 +115,5 @@ window.SgsDashboard = (() => {
     const kpis = (raiz, valores) => Object.entries(valores).forEach(([k, v]) => { const el = raiz.querySelector(`[data-kpi="${k}"]`); if (el) el.textContent = v; });
     const cuentas = (raiz, valores) => raiz.querySelectorAll('[data-cuenta]').forEach((el) => { el.textContent = valores[el.dataset.cuenta] || 0; });
 
-    return { esc, fecha, hora, vacio, barras, columnas, parametros, tabla, iniciar, kpis, cuentas };
+    return { esc, fecha, hora, vacio, barras, columnas, ayuda, parametros, tabla, iniciar, kpis, cuentas };
 })();

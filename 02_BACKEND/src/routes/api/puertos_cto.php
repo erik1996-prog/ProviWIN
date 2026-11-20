@@ -2,6 +2,7 @@
 // 02_BACKEND/src/routes/api/puertos_cto.php - Consulta de puertos de una CTO (2026-11-11). Lógica: config/puertos_cto.php.
 //   Quien tiene "Consultar puertos": estado (GET), consultar (POST codigo), resultado (GET id).
 //   Solo la cuenta principal, desde la ventana del vínculo: vincular, tomar (GET), responder (POST id, datos), desactivar.
+//   Solo la cuenta principal (2026-11-19): agente_estado, agente_generar y agente_anular (clave del programa Vínculo Wincore).
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
@@ -23,7 +24,7 @@ $salir = static function (int $http, array $datos): void {
 $hora = static fn(?int $t) => $t ? date('H:i', $t) : null;
 
 $action = (string)($_GET['action'] ?? '');
-$vinculo = in_array($action, ['vincular', 'tomar', 'responder', 'desactivar'], true);
+$vinculo = in_array($action, ['vincular', 'tomar', 'responder', 'desactivar', 'agente_estado', 'agente_generar', 'agente_anular'], true);
 if ($vinculo ? !Auth::puedeVincularWincore($usuario) : !Auth::puedeConsultarPuertos($usuario)) {
     $salir(403, ['status' => 'error', 'message' => 'Sin acceso a la consulta de puertos.']);
 }
@@ -58,5 +59,17 @@ switch ($action) {
     case 'desactivar':
         sgsPuenteDesactivar();
         $salir(200, ['status' => 'success']);
+    // Programa "Vínculo Wincore" de la laptop (2026-11-19): la clave se muestra una sola vez; aquí solo queda su huella.
+    case 'agente_estado':
+        $a = sgsAgenteEstado();
+        $fecha = static fn(?int $x) => $x ? date('d/m/Y H:i', $x) : null;
+        $salir(200, ['status' => 'success', 'existe' => $a['existe'], 'creada' => $fecha($a['creada']), 'uso' => $fecha($a['uso'])]);
+    case 'agente_generar':
+    case 'agente_anular':
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') $salir(405, ['status' => 'error', 'message' => 'Método no permitido.']);
+        if ($action === 'agente_anular') { sgsAgenteAnular(); sgsPuenteDesactivar(); $salir(200, ['status' => 'success']); }
+        require_once __DIR__ . '/../../config/examen_enlaces.php'; // sgsUrlSistema()
+        $clave = sgsAgenteGenerarClave($uid);
+        $salir(200, ['status' => 'success', 'clave' => $clave, 'favorito' => sgsFavoritoPuente(sgsUrlSistema() . '/', $clave)]);
 }
 $salir(400, ['status' => 'error', 'message' => 'Acción no válida.']);

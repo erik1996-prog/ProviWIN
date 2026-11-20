@@ -99,6 +99,8 @@ $menuItem = static function (string $href, array $pages, string $icon, string $l
         ['Seguimiento', 'bi-person-workspace', [
             [$canViewTimeline, 'index.php?page=timeline_supervisores', ['timeline_supervisores'], 'bi-diagram-3', 'Línea de tiempo'],
             [$canMonitorShifts, 'index.php?page=asistencia', ['asistencia'], 'bi-clock-history', 'Monitor de turnos'],
+            // 2026-11-19: Inicio de órdenes (Phoenix en vivo), solo la cuenta principal.
+            [Auth::puedeVincularPhoenix($user), 'index.php?page=inicio_ordenes', ['inicio_ordenes'], 'bi-flag', 'Inicio de órdenes'],
         ]],
         ['Observaciones', 'bi-clipboard2-pulse', [
             [$canViewObservations, 'index.php?page=registro_observaciones', ['registro_observaciones', 'observaciones_partner'], 'bi-clipboard2-pulse', 'Registro', 'Observaciones'],

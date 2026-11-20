@@ -4,3 +4,7 @@
 *.jpg binary
 *.pdf binary
 *.gz binary
+
+# Scripts de Windows (Vínculo Wincore): siempre con fin de línea de Windows
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

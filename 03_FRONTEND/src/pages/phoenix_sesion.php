@@ -1,7 +1,7 @@
 <?php
 // 03_FRONTEND/src/pages/phoenix_sesion.php - Ventanita "Iniciar sesión en Phoenix" (2026-11-19, pedido del usuario).
 // Se entra por phoenix_sesion.php. Solo la cuenta principal: escribe una vez su usuario y contraseña de Phoenix, el servidor
-// entra y guarda solo la sesión (cookies) hasta las 23:59; la ventanita avisa a Órdenes cercanas y se cierra sola
+// entra y guarda solo la sesión (cookies) hasta las 23:59; la ventanita avisa a la pantalla que la abrió (indicador Phoenix de la barra superior) y se cierra sola
 // (assets/js/phoenix_sesion.js). La contraseña no se guarda.
 require_once BACKEND_PATH . '/config/puente_phoenix.php';
 if (!Auth::isLoggedIn()) { header('Location: index.php'); exit; }

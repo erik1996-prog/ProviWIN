@@ -45,6 +45,8 @@ if (!in_array($grupo, $permitidas, true)) $salir(403, ['status' => 'error', 'mes
 
 try {
     $winbo = new WinboService();
+    // Ubicación de la casa (2026-11-20): coordenadas de la foto de la fachada de las órdenes que se muestran (pocas a la vez).
+    if ($action === 'casas') $salir(200, ['status' => 'success', 'casas' => (object)$winbo->casas(explode(',', (string)($_GET['ids'] ?? '')))]);
     if ($action === 'inicio') $salir(200, ['status' => 'success'] + $winbo->inicio($estado, (string)$hoy, $grupo));
     if ($action === 'pagina') {
         $fecha = (string)($_GET['fecha'] ?? '');

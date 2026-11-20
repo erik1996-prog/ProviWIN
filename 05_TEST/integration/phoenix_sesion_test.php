@@ -43,7 +43,7 @@ try {
     $conectar = new ReflectionMethod($svc, 'conectar'); $conectar->setAccessible(true);
     $msg = '';
     try { $conectar->invoke($svc); } catch (RuntimeException $e) { $msg = $e->getMessage(); }
-    $check('si Phoenix la cierra antes, avisa que hay que iniciar de nuevo', str_contains($msg, 'Vuelve a iniciar sesión'), $msg);
+    $check('si Phoenix la cierra antes, avisa que hay que iniciar de nuevo', str_contains($msg, 'Vuelve a conectarla'), $msg);
     $check('…y la sesión se borra', !sgsPhoenixSesion()['activa'] && !is_file($cookie) && !is_file($json));
 
     // Vencida (pasó la medianoche): se borra sola.
