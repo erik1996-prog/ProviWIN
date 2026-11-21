@@ -58,6 +58,9 @@ function sgsNovedades(): array {
         ['id' => 16, 'fecha' => '2026-11-20', 'icono' => 'bi-window-stack', 'titulo' => 'Vínculo con Wincore en su propia ventanita',
          'texto' => 'Ahora el favorito «Vincular SGS» abre una ventanita propia de Wincore: la minimizas y sigues usando Wincore sin que se corte. Además revisa si tu VPN está conectada. Créalo una vez en Consultar puertos → Vínculo con Wincore.',
          'url' => 'index.php?page=supervision_lista', 'puede' => static fn(array $u): bool => Auth::puedeVincularWincore($u)],
+        ['id' => 17, 'fecha' => '2026-11-21', 'icono' => 'bi-plug', 'titulo' => 'Phoenix, Bot y Wincore desde tu laptop',
+         'texto' => 'Ahora, arriba a la derecha, ves si están conectados Phoenix, el bot de Telegram y Wincore. Con el programa «Vínculo Wincore» en tu laptop se conectan solos cada día; genera tu clave en Consultar puertos → Vínculo con Wincore.',
+         'url' => 'index.php?page=supervision_lista', 'puede' => static fn(array $u): bool => Auth::puedeVincularLaptop($u)],
     ];
 }
 

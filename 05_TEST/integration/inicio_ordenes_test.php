@@ -117,6 +117,23 @@ $mp = $deGrupo(sgsIoMensajes(['cuadrillas' => [['camino' => null, 'inicio' => nu
 $check('Primera orden sin nadie en camino: "las órdenes del día se encuentran agendadas"', count($mp) === 1 && str_contains($mp[0]['texto'], 'se encuentran agendadas'), $mp[0]['texto'] ?? '');
 $ms = $deGrupo(sgsIoMensajes(['enCurso' => []], 'alertas', $ahora), 'Bot de pruebas');
 $check('Sin alertas: un solo mensaje ✅ para SGI y otro para SGA', array_column($ms, 'partner') === ['SGI', 'SGA'] && str_contains($ms[0]['texto'], '✅'), array_column($ms, 'partner'));
+// Sin foto de fachada (en prueba): solo a los grupos con "fachada": true, con la lista ya revisada en Phoenix.
+$fl = [array_merge($o('OLMA SGI', 'A SGI', '13:50:00'), ['m' => 40, 'partner' => 'OLMA', 'provincia' => 'PIURA']), $o('OLMA SGA', 'B SGA', '12:00:00') + ['m' => 150, 'partner' => 'OLMA']];
+$marcados = array_values(array_filter(sgsIoTelegramGrupos(), static fn($g) => !empty($g['fachada'])));
+if (!$marcados) {
+    try { sgsIoMensajes(['enCurso' => []], 'fachada', $ahora, $fl); $sinEnvio = false; } catch (RuntimeException $x) { $sinEnvio = true; }
+    $check('Fachada sin grupos marcados: no arma ningún mensaje (no se envía nada)', $sinEnvio && !sgsIoFachadaConfigurada());
+} else {
+    $mf = sgsIoMensajes(['enCurso' => []], 'fachada', $ahora, $fl);
+    $check('Fachada: solo a los grupos marcados', array_diff(array_unique(array_column($mf, 'grupo')), array_column($marcados, 'nombre')) === [], array_column($mf, 'grupo'));
+}
+$tf = sgsIoArmarFachada([$fl[0]], 'SGI', [], $ahora);
+$check('Fachada: texto del reporte', str_contains($tf, 'iniciadas sin foto de fachada') && str_contains($tf, '📍 <b><u>PIURA</u></b> · 1 orden')
+    && str_contains($tf, 'Iniciada hace <b>40 min</b> (desde las 13:50)') && str_contains(sgsIoArmarFachada([$fl[1]], 'SGA', [], $ahora), 'Iniciada hace <b>2 h 30 min</b>')
+    && str_contains(sgsIoArmarFachada($fl, 'SGA', [], $ahora), '2 órdenes sin foto'), $tf);
+$check('Fachada sin órdenes: aviso en verde', str_contains(sgsIoArmarFachada([], 'SGI', [], $ahora), '✅ Todas las órdenes iniciadas ya tienen su foto de fachada.'));
+$check('Fachada: cada hora a las :30 de 08:30 a 20:30 y no se envía a mano', count(InicioOrdenesService::CORTES_FACHADA) === 13 && InicioOrdenesService::CORTES_FACHADA[0] === '08:30'
+    && InicioOrdenesService::CORTES_FACHADA[12] === '20:30' && !isset(SGS_IO_REPORTES['fachada']));
 $check('Trabajo de cada turno acotado (sistema liviano)', InicioOrdenesService::TURNO_SEGUNDOS <= 20 && InicioOrdenesService::TURNO_SEGUNDOS_CORTE <= 45);
 $check('Lectura de Winbo cada 30 minutos', InicioOrdenesService::VUELTA === 1800);
 

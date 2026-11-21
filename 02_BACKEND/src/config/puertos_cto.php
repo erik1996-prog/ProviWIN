@@ -45,6 +45,12 @@ function sgsPuenteEstado(): array {
     return ['activo' => $activo, 'vence' => $activo ? (int)$p['vence'] : null, 'usuario_id' => $p ? (int)$p['usuario_id'] : null];
 }
 
+/** 2026-11-21: con varias laptops, ¿el vínculo activo es de otra persona? (una sola laptop atiende a la vez; la otra espera) */
+function sgsPuenteDeOtro(int $usuarioId): bool {
+    $e = sgsPuenteEstado();
+    return $e['activo'] && $e['usuario_id'] !== $usuarioId;
+}
+
 function sgsPuenteActivar(int $usuarioId): int {
     $vence = time() + SGS_PUENTE_HORAS * 3600;
     sgsPuertosEscribir(sgsPuertosDir() . '/puente.json', ['usuario_id' => $usuarioId, 'desde' => time(), 'vence' => $vence, 'pulso' => time()]);
@@ -203,29 +209,46 @@ function sgsFavoritoPuente(string $urlSgs, string $clave): string {
 // Otra forma del vínculo, sin Chrome ni favorito: un programa en la laptop de la cuenta principal (07_SCRIPTS/vinculo_wincore)
 // inicia sesión en Wincore con la VPN (la contraseña no se guarda) y atiende la misma cola de consultas por api/puertos_agente.php.
 // Se identifica ante el SGS con una clave que genera la cuenta principal en Consultar puertos (se muestra una sola vez; aquí
-// solo se guarda su huella sha256) y que puede anular cuando quiera. Una clave a la vez: generar otra anula la anterior.
-function sgsAgenteArchivo(): string { return sgsPuertosDir() . '/agente.json'; }
+// solo se guarda su huella sha256) y que puede anular cuando quiera. Una clave por persona: generar otra anula la anterior.
+// 2026-11-21 (pedido del usuario): cada persona con el permiso "Conectar desde su laptop" tiene su propia clave (agente_<id>.json);
+// la clave de antes (agente.json, de la cuenta principal) se pasa sola a su archivo y sigue sirviendo.
+function sgsAgenteArchivo(int $usuarioId): string { return sgsPuertosDir() . '/agente_' . $usuarioId . '.json'; }
 
-/** Nueva clave del programa para la cuenta principal. Devuelve la clave (solo esta vez). */
+function sgsAgenteMigrar(): void {
+    $viejo = sgsPuertosDir() . '/agente.json';
+    if (!is_file($viejo)) return;
+    $a = sgsPuertosLeer($viejo);
+    if ($a && !is_file(sgsAgenteArchivo((int)$a['usuario_id']))) @rename($viejo, sgsAgenteArchivo((int)$a['usuario_id']));
+    else @unlink($viejo);
+}
+
+/** Nueva clave del programa para esa persona. Devuelve la clave (solo esta vez). */
 function sgsAgenteGenerarClave(int $usuarioId): string {
     $clave = 'sgsw_' . bin2hex(random_bytes(24));
-    sgsPuertosEscribir(sgsAgenteArchivo(), ['huella' => hash('sha256', $clave), 'usuario_id' => $usuarioId, 'creada' => time(), 'uso' => null]);
-    @chmod(sgsAgenteArchivo(), 0600);
+    sgsPuertosEscribir(sgsAgenteArchivo($usuarioId), ['huella' => hash('sha256', $clave), 'usuario_id' => $usuarioId, 'creada' => time(), 'uso' => null]);
+    @chmod(sgsAgenteArchivo($usuarioId), 0600);
     return $clave;
 }
 
-function sgsAgenteAnular(): void { @unlink(sgsAgenteArchivo()); }
+function sgsAgenteAnular(int $usuarioId): void { sgsAgenteMigrar(); @unlink(sgsAgenteArchivo($usuarioId)); }
 
-/** Estado de la clave (sin la clave): existe, cuándo se creó y cuándo la usó el programa por última vez. */
-function sgsAgenteEstado(): array {
-    $a = sgsPuertosLeer(sgsAgenteArchivo());
+/** Estado de su clave (sin la clave): existe, cuándo se creó y cuándo la usó el programa por última vez. */
+function sgsAgenteEstado(int $usuarioId): array {
+    sgsAgenteMigrar();
+    $a = sgsPuertosLeer(sgsAgenteArchivo($usuarioId));
     return ['existe' => (bool)$a, 'creada' => $a ? (int)$a['creada'] : null, 'uso' => $a && $a['uso'] ? (int)$a['uso'] : null];
 }
 
-/** Id de la cuenta dueña de la clave, o null si no coincide. Marca el último uso (a lo más una vez por minuto). */
+/** Id de la persona dueña de la clave, o null si no coincide con ninguna. Marca el último uso (a lo más una vez por minuto). */
 function sgsAgenteValidar(string $clave): ?int {
-    $a = sgsPuertosLeer(sgsAgenteArchivo());
-    if (!$a || !preg_match('/^sgsw_[a-f0-9]{48}$/', $clave) || !hash_equals((string)$a['huella'], hash('sha256', $clave))) return null;
-    if (time() - (int)($a['uso'] ?? 0) >= 60) { $a['uso'] = time(); sgsPuertosEscribir(sgsAgenteArchivo(), $a); }
-    return (int)$a['usuario_id'];
+    if (!preg_match('/^sgsw_[a-f0-9]{48}$/', $clave)) return null;
+    sgsAgenteMigrar();
+    $huella = hash('sha256', $clave);
+    foreach (glob(sgsPuertosDir() . '/agente_*.json') ?: [] as $f) {
+        $a = sgsPuertosLeer($f);
+        if (!$a || !hash_equals((string)$a['huella'], $huella)) continue;
+        if (time() - (int)($a['uso'] ?? 0) >= 60) { $a['uso'] = time(); sgsPuertosEscribir($f, $a); }
+        return (int)$a['usuario_id'];
+    }
+    return null;
 }

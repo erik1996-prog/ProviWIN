@@ -7,7 +7,8 @@
 #   3 = Wincore no aceptó el usuario o la contraseña               → termina (hay que abrir «Vínculo Wincore» y escribirla de nuevo)
 #   4 = se cerró la sesión de Wincore o venció el vínculo         → vuelve a entrar en 15 s
 #   5 = sin VPN, sin internet o el SGS no responde                 → reintenta cada minuto, sin límite
-# Además (2026-11-20) mantiene conectada la sesión de Phoenix del SGS de 05:55 a 21:00 (RevisarPhoenix), si se guardó su usuario.
+# Además (2026-11-20) mantiene conectada la sesión de Phoenix del SGS de 05:55 a 21:00 (RevisarPhoenix), si se guardó su usuario,
+# y (2026-11-21) entrega cada día al SGS el token del bot de Telegram (RevisarTelegram), si se guardó.
 # Para detenerlo: «Detener Vínculo Wincore» (crea el archivo .detener). La contraseña solo se descifra en memoria para pasarla al
 # programa por la entrada estándar: nunca queda en un archivo, en la lista de procesos ni en el registro.
 $ErrorActionPreference = 'Stop'
@@ -69,6 +70,42 @@ function RevisarPhoenix {
     }
 }
 
+# Telegram (2026-11-21, pedido del usuario: "el token como Phoenix"). Cada 2 min, de 05:55 a 21:00, pregunta al SGS si ya tiene el
+# token del bot de hoy; si no (pasó la medianoche), se lo entrega. El token está guardado cifrado en esta laptop; el SGS lo comprueba
+# con Telegram y lo guarda solo hasta las 23:59. Si Telegram lo rechaza, deja de intentar hasta que se escriba de nuevo.
+$estadoTelegram = Join-Path $local 'vinculo_telegram.estado'
+$script:ultimaTelegram = [datetime]::MinValue
+function RevisarTelegram {
+    if (((Get-Date) - $script:ultimaTelegram).TotalSeconds -lt 120) { return }
+    $script:ultimaTelegram = Get-Date
+    $minuto = (Get-Date).Hour * 60 + (Get-Date).Minute
+    if ($minuto -lt 355 -or $minuto -ge 1260) { return }                       # de 05:55 a 21:00
+    try {
+        $acc = Get-Content $acceso -Raw -Encoding UTF8 | ConvertFrom-Json
+        if (-not $acc.telegram_token) { return }
+        if ((Test-Path $estadoTelegram) -and ((Get-Content $estadoTelegram -Raw).Trim() -eq 'rechazado')) { return }
+        $cfg = Get-Content $config -Raw -Encoding UTF8 | ConvertFrom-Json
+        $url = "$($cfg.sgs.TrimEnd('/'))/api/puertos_agente.php?action="
+        $e = Invoke-RestMethod -Uri ($url + 'telegram_estado') -Method Post -Body @{ clave = $cfg.clave } -Headers @{ 'X-SGS-Clave' = $cfg.clave } -TimeoutSec 20
+        if ($e.activo) { return }
+        $segura = ConvertTo-SecureString $acc.telegram_token
+        $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($segura)
+        try {
+            $r = Invoke-RestMethod -Uri ($url + 'telegram_token') -Method Post -TimeoutSec 30 -Headers @{ 'X-SGS-Clave' = $cfg.clave } `
+                -Body @{ clave = $cfg.clave; telegram_token = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) }
+            Anotar "Telegram: token entregado al SGS (bot @$($r.bot)) hasta las $($r.vence)."
+            Set-Content -Path $estadoTelegram -Value 'entregado' -Encoding UTF8
+        } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
+    } catch {
+        $codigo = try { [int]$_.Exception.Response.StatusCode } catch { 0 }
+        if ($codigo -eq 422) {
+            Anotar 'Telegram no aceptó el token guardado: abre «Vínculo Wincore» y escríbelo de nuevo.'
+            Set-Content -Path $estadoTelegram -Value 'rechazado' -Encoding UTF8
+        } elseif ($codigo -ne 0) { Anotar "Telegram: el SGS respondió $codigo; se reintenta en 2 minutos." }
+    }
+}
+function RevisarSgs { RevisarPhoenix; RevisarTelegram }
+
 # Certificado de Wincore: se conecta con Windows, que lo valida igual que Chrome (con las entidades de la laptop y las intermedias),
 # y guarda esa cadena para el programa. Solo si Windows la aceptó: la verificación nunca se apaga.
 function GuardarCadenaWincore {
@@ -123,7 +160,7 @@ try {
             [Array]::Clear($bytes, 0, $bytes.Length)
         } finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
         Estado 'funcionando'
-        while (-not $proceso.WaitForExit(5000)) { RevisarPhoenix }   # mientras atiende Wincore, cada 2 min revisa Phoenix
+        while (-not $proceso.WaitForExit(5000)) { RevisarSgs }   # mientras atiende Wincore, cada 2 min revisa Phoenix y Telegram
         $codigo = $proceso.ExitCode
         if (Test-Path $detener) { break }
 
@@ -142,7 +179,7 @@ try {
                 if ($reinicios.Count -gt 10) { $espera = 300 }
                 Anotar "Se vuelve a conectar solo en $espera s."
                 Estado 'reconectando'
-                for ($i = 0; $i -lt $espera -and -not (Test-Path $detener); $i++) { Start-Sleep -Seconds 1; RevisarPhoenix }
+                for ($i = 0; $i -lt $espera -and -not (Test-Path $detener); $i++) { Start-Sleep -Seconds 1; RevisarSgs }
                 $seguir = $true
             }
         }

@@ -56,7 +56,7 @@ $allowedViews = [
     'asistencia'             => ['file' => 'asistencia.php',             'title' => 'Inicio de turno',          'perm' => null],
     'mi_informacion'         => ['file' => 'mi_informacion.php',         'title' => 'Mi información',           'perm' => null],
     'guia_estilo'            => ['file' => 'guia_estilo.php',            'title' => 'Guía de diseño',           'perm' => Auth::PERM_SYSTEM_MANAGE],
-    // Solo la cuenta principal (se revisa abajo con Auth::puedeVincularPhoenix).
+    // Solo la cuenta principal (se revisa abajo con Auth::puedeInicioOrdenes).
     'inicio_ordenes'         => ['file' => 'inicio_ordenes.php',         'title' => 'Inicio de órdenes',        'perm' => null],
 ];
 
@@ -69,7 +69,7 @@ if ($page === 'vencimientos') {
     header('Location: index.php?page=cuadrillas&docs=alerta');
     exit;
 }
-if (!array_key_exists($page, $allowedViews) || ($page === 'inicio_ordenes' && !Auth::puedeVincularPhoenix($user))) {
+if (!array_key_exists($page, $allowedViews) || ($page === 'inicio_ordenes' && !Auth::puedeInicioOrdenes($user))) {
     $page = $isDirectSupervisorView ? 'asistencia' : 'supervision_lista';
 }
 // Turnos: quien registra su turno o quien tiene "Monitor de turnos" en Permisos. Partners no.

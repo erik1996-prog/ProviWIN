@@ -195,10 +195,17 @@ $sgs = static function (string $accion, ?array $post = null) use ($SGS, $CLAVE, 
 const SALIDA_DETENIDO = 0, SALIDA_CLAVE = 2, SALIDA_CONTRASENA = 3, SALIDA_SESION = 4, SALIDA_RED = 5;
 
 // Antes de entrar a Wincore se comprueba la clave del programa (si fue anulada, no tiene sentido iniciar sesión)
-try { $sgs('tomar'); } catch (Throwable $e) {
+try { $previo = $sgs('tomar'); } catch (Throwable $e) {
     $contrasena = '';
     $decir('El SGS no aceptó el programa: ' . $e->getMessage());
     exit($e instanceof SinRed ? SALIDA_RED : SALIDA_CLAVE);
+}
+
+// 2026-11-21: si otra laptop ya tiene el vínculo, se espera sin iniciar sesión en Wincore (el vigilante reintenta cada minuto).
+if (!empty($previo['otra_laptop'])) {
+    $contrasena = '';
+    $decir('Otra laptop ya tiene activo el vínculo con Wincore: se espera a que se desconecte.');
+    exit(SALIDA_RED);
 }
 
 // 1) Inicio de sesión, igual que la pantalla de ingreso de Wincore (index2.html)

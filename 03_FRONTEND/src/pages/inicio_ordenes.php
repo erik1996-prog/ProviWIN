@@ -6,7 +6,7 @@
 //   · Órdenes en curso: En camino o Iniciadas ahora, con su duración en vivo (Iniciada 2 h–3 h amarillo, 3 h o más rojo; En camino
 //     más de 40 min rojo; la 1ra atención se alerta si pasa las 08:10 sin iniciar).
 // Datos: api/inicio_ordenes.php (Winbo en vivo, solo GESTIÓN PROVINCIA, nada se guarda). Pantalla: assets/js/inicio_ordenes.js.
-if (!Auth::puedeVincularPhoenix(Auth::getLoggedInUser())) {
+if (!Auth::puedeInicioOrdenes(Auth::getLoggedInUser())) {
     echo '<div class="alert alert-danger m-4">Solo la cuenta principal puede ver Inicio de órdenes.</div>';
     return;
 }

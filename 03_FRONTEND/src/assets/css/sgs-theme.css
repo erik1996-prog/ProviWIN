@@ -4221,3 +4221,13 @@ body.sgs-nov-abierto { overflow: hidden; }
 .sgs-phx:hover, .sgs-phx:focus-visible { border-color: currentColor; outline: none; }
 .sgs-phx + .sgs-topbar-date { margin-left: 0; }
 @media (max-width: 575.98px) { .sgs-phx { padding: 6px 10px; font-size: 11.5px; } .sgs-phx-detalle { display: none; } }
+
+/* 75. Vínculos en la barra superior (2026-11-21, pedido del usuario): Phoenix, Bot (Telegram) y Wincore juntos a la derecha, para la
+   cuenta principal y quien tenga "Conectar desde su laptop". Bot y Wincore solo informan (no se pulsan). En celular, solo el ícono. */
+.sgs-vinculos { margin-left: auto; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.sgs-vinculos .sgs-phx { margin-left: 0; }
+.sgs-vinculos + .sgs-topbar-date { margin-left: 0; }
+.sgs-phx--info { cursor: default; }
+.sgs-phx--info:hover { border-color: transparent; }
+@media (max-width: 991.98px) { .sgs-vinculos .sgs-phx-detalle { display: none; } }
+@media (max-width: 575.98px) { .sgs-vinculos { gap: 4px; } .sgs-phx--info { padding: 6px 8px; } .sgs-phx--info .sgs-phx-nombre { display: none; } }

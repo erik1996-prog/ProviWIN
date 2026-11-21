@@ -24,6 +24,12 @@ PHOENIX (OPCIONAL)
   usuario y contraseña de Phoenix (también quedan cifrados solo en esta laptop). Desde ahí, cada día
   de 05:55 a 21:00 el programa mantiene conectada la sesión de Phoenix del SGS. No necesita la VPN.
 
+TELEGRAM (OPCIONAL)
+  También te pregunta si quieres entregar el token del bot de Telegram. Si dices que sí, pégalo
+  (queda cifrado solo en esta laptop). Cada día, desde las 05:55, el programa se lo entrega al SGS
+  para que salgan los reportes; el SGS lo guarda solo hasta las 23:59. Con la laptop apagada todo
+  el día, ese día no salen los reportes de Telegram.
+
 DESPUÉS
   No tienes que hacer nada: arranca solo al encender la laptop, sin ventanas.
   Si Wincore cierra la sesión, vuelve a entrar solo. Si se cae la VPN, reintenta cada minuto.

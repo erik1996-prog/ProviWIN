@@ -1,5 +1,5 @@
 <?php
-// 02_BACKEND/src/routes/api/inicio_ordenes.php - Inicio de órdenes (2026-11-19). Solo la cuenta principal (Auth::puedeVincularPhoenix).
+// 02_BACKEND/src/routes/api/inicio_ordenes.php - Inicio de órdenes (2026-11-19). Solo la cuenta principal (Auth::puedeInicioOrdenes).
 //   GET  tablero     → primera atención, curva, órdenes en curso y cómo va la lectura de Winbo (y despierta un turno si toca).
 //   POST actualizar  → empieza una vuelta nueva ya (después de responder).
 //   GET  grupos      → grupos de Telegram configurados y reportes que se pueden enviar.
@@ -22,7 +22,7 @@ $salir = static function (int $http, array $datos): void {
     echo json_encode($datos, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
     exit;
 };
-if (!Auth::puedeVincularPhoenix($usuario)) $salir(403, ['status' => 'error', 'message' => 'Solo la cuenta principal puede ver Inicio de órdenes.']);
+if (!Auth::puedeInicioOrdenes($usuario)) $salir(403, ['status' => 'error', 'message' => 'Solo la cuenta principal puede ver Inicio de órdenes.']);
 $post = ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST';
 $svc = new InicioOrdenesService();
 

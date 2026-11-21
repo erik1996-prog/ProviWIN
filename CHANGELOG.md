@@ -4,6 +4,27 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Vínculos desde varias laptops e indicadores Phoenix · Bot · Wincore (2026-11-21, pedido del usuario)
+- **Añadido**:
+  - Permiso **«Conectar desde su laptop»** (`vinculos.laptop`, Supervisiones). Un perfil administrador también tiene que marcarlo (`PERMISOS_EXPLICITOS`).
+  - Quien tenga el permiso crea **su propia clave** del programa (`agente_<id>.json`; la clave anterior se migra sola) y conecta Wincore, Phoenix y el bot con sus cuentas.
+  - Inicio de órdenes sigue siendo solo de la cuenta principal (`Auth::puedeInicioOrdenes`).
+- **Varias laptops**: solo una atiende Wincore a la vez.
+  - La otra recibe 409 y espera sin entrar a Wincore (`otra_laptop`); reintenta cada minuto.
+  - Cada uno apaga solo su vínculo; la cuenta principal puede apagar cualquiera.
+- **Barra superior**: junto a Phoenix aparecen los indicadores **Bot** (token del día) y **Wincore** (vínculo activo). Solo informan; en celular se ve solo el ícono.
+
+### Token del bot de Telegram entregado por la laptop (2026-11-21, pedido del usuario)
+- El programa «Vínculo Wincore» guarda el token **cifrado en la laptop**.
+- El vigilante lo entrega cada día de 05:55 a 21:00 (`telegram_estado` / `telegram_token`).
+- El SGS lo comprueba con `getMe` y lo guarda hasta las 23:59 (`config/telegram_token.php`). Si no lo tiene, usa `TELEGRAM_TOKEN` del hosting.
+- Las llamadas del programa también despiertan la lectura de Inicio de órdenes y sus reportes: salen a su hora aunque nadie tenga el SGS abierto.
+
+### Reporte «Sin foto de fachada» (2026-11-20/21, pedido del usuario; APAGADO)
+- Cada hora, de 08:30 a 20:30, lista las órdenes Iniciadas hace 5 min o más cuya tarea de fachada aún no tiene foto. La foto se detecta porque la tarea aparece en el `map` de `CargarVisitasTareasGrilla`.
+- Una orden que ya tiene su foto no se vuelve a revisar en el día.
+- Solo sale a los grupos con `"fachada": true` en `09_CONFIG/inicio_ordenes_telegram.json`. Hoy no hay ninguno: no se envía hasta que el usuario lo pida.
+
 ### Inicio de órdenes: reporte general por WhatsApp, aparte de Telegram (2026-11-20, pedido del usuario)
 - **Añadido**: al número del usuario (holainge, `INERCIA_TOKEN` en el `.env`) llegan reportes **generales** con todos los partners de GESTIÓN PROVINCIA, agrupados por partner, sin saludo ni cierre: a las **08:06** *Reporte general de primera atención* (una línea por cuadrilla que no cumple, por partner, sin resumen ni colores: «Aún en camino desde las HH:MM, no inicia» (solo las que pusieron En camino) o «Inició fuera de horario HH:MM» (desde las 08:06); las que cumplieron no salen) y a las **10:30, 12:30, 15:30 y 17:30** (los cortes de Telegram) *Reporte general de alertas* (iniciadas hace 2 h o más: 🔴 3 h o más · 🟡 2 a 3 h). Formato WhatsApp (*negrita*), partido en mensajes de menos de 4096 caracteres, solo texto. Una vez por corte (marca `08_LOGS/runtime/inicio_ordenes/whatsapp.json`), con datos leídos después de la hora del corte; un error de WhatsApp no afecta a Telegram.
 - Configuración propia: `09_CONFIG/inicio_ordenes_whatsapp.json` (números, cortes, activo). Archivos: `config/inicio_ordenes_whatsapp.php` (nuevo), `services/InicioOrdenesService.php` (`whatsappCortes`), `.env.example`. Telegram no cambia. Pruebas 41/41.

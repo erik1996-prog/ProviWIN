@@ -46,6 +46,7 @@ switch ($action) {
         if ($r === null) $salir(404, ['status' => 'error', 'message' => 'La consulta ya no existe. Vuelve a consultar.']);
         $salir(200, ['status' => 'success'] + $r);
     case 'vincular':
+        if (sgsPuenteDeOtro($uid)) $salir(409, ['status' => 'error', 'message' => 'Otra laptop ya tiene activo el vínculo con Wincore. Se activa cuando esa se desconecte.']);
         $vence = sgsPuenteActivar($uid);
         $salir(200, ['status' => 'success', 'vence' => $hora($vence), 'sondeo' => SGS_PUENTE_SONDEO]);
     case 'tomar':
@@ -57,17 +58,23 @@ switch ($action) {
         $ok = is_array($datos) && sgsPuertosGuardarRespuesta((string)($_POST['id'] ?? ''), $datos);
         $salir($ok ? 200 : 404, ['status' => $ok ? 'success' : 'error']);
     case 'desactivar':
+        // 2026-11-21: cada uno apaga el suyo; la cuenta principal puede apagar el de cualquiera.
+        if (sgsPuenteDeOtro($uid) && Auth::cuentaPrincipalId() !== $uid) $salir(409, ['status' => 'error', 'message' => 'El vínculo activo es de otra laptop.']);
         sgsPuenteDesactivar(true);
         $salir(200, ['status' => 'success']);
     // Programa "Vínculo Wincore" de la laptop (2026-11-19): la clave se muestra una sola vez; aquí solo queda su huella.
     case 'agente_estado':
-        $a = sgsAgenteEstado();
+        $a = sgsAgenteEstado($uid);
         $fecha = static fn(?int $x) => $x ? date('d/m/Y H:i', $x) : null;
         $salir(200, ['status' => 'success', 'existe' => $a['existe'], 'creada' => $fecha($a['creada']), 'uso' => $fecha($a['uso'])]);
     case 'agente_generar':
     case 'agente_anular':
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') $salir(405, ['status' => 'error', 'message' => 'Método no permitido.']);
-        if ($action === 'agente_anular') { sgsAgenteAnular(); sgsPuenteDesactivar(true); $salir(200, ['status' => 'success']); }
+        if ($action === 'agente_anular') {
+            sgsAgenteAnular($uid);
+            if (sgsPuenteEstado()['usuario_id'] === $uid) sgsPuenteDesactivar(true);   // solo si el vínculo activo era de su laptop
+            $salir(200, ['status' => 'success']);
+        }
         require_once __DIR__ . '/../../config/examen_enlaces.php'; // sgsUrlSistema()
         $clave = sgsAgenteGenerarClave($uid);
         $salir(200, ['status' => 'success', 'clave' => $clave, 'favorito' => sgsFavoritoPuente(sgsUrlSistema() . '/', $clave)]);

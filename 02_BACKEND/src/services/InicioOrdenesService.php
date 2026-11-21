@@ -37,7 +37,15 @@ class InicioOrdenesService {
     // Envíos automáticos (2026-11-19, pedido del usuario): hora del corte => reporte. A las 08:06, las cuadrillas que a las 08:05
     // seguían En camino sin iniciar su primera orden; luego, las alertas de iniciadas (2 h o más).
     public const CORTES = ['08:06' => 'primera', '10:30' => 'alertas', '12:30' => 'alertas', '14:30' => 'alertas', '16:30' => 'alertas', '18:30' => 'alertas'];   // 2026-11-20: 14:30, 16:30 y 18:30 (antes 15:30 y 17:30), pedido del usuario
-    private const VENTANA_CORTE = 3600;     // si a la hora del corte nadie entró, sale con la primera visita de la hora siguiente
+    // Sin foto de fachada (2026-11-20, pedido del usuario; EN PRUEBA, solo a los grupos con "fachada": true): cada hora a las :30,
+    // las órdenes Iniciadas hace 5 min o más cuya tarea de fachada aún no tiene foto. En Phoenix, la tarea aparece en la lista de
+    // tareas de la visita (CargarVisitasTareasGrilla, campo "map") recién cuando tiene su foto (probado el 20/11: sin foto no sale;
+    // "En curso" con una foto sí sale). Pesa ~1 a 1,8 MB por orden: la orden que ya tiene foto no se vuelve a revisar en el día.
+    public const CORTES_FACHADA = ['08:30', '09:30', '10:30', '11:30', '12:30', '13:30', '14:30', '15:30', '16:30', '17:30', '18:30', '19:30', '20:30'];
+    private const FACHADA_MINUTOS = 5;
+    private const FACHADA_SEGUNDOS = 30;     // revisión de fotos por turno; si quedan, sigue en el siguiente turno (al minuto)
+    private const FACHADA_PLAZO = 2400;      // a los 40 min del corte sale igual, con las que se alcanzaron a revisar
+    private const VENTANA_CORTE = 3600;    // si a la hora del corte nadie entró, sale con la primera visita de la hora siguiente
     private const FINALES = ['FINALIZADA', 'CANCELADA', 'ANULADA', 'CERRADA', 'RECHAZADA'];
     private const EN_CURSO = ['EN CAMINO', 'INICIADA', 'REVISION'];
     private const COLUMNAS = [['Cuadrilla', 'cuad'], ['Provincia', 'prov'], ['Localidad', 'loc'], ['Fecha Visita', 'fv'],
@@ -94,7 +102,21 @@ class InicioOrdenesService {
         // Con error, se reintenta a los 5 min, o al momento si se acaba de conectar Phoenix.
         if (!empty($p['error'])) return time() - (int)($p['turno'] ?? 0) >= self::REINTENTO_ERROR
             || (int)@filemtime(sgsPhoenixDir() . '/sesion_aqui.json') > (int)($p['turno'] ?? 0);
-        return time() - (int)($p['actualizado'] ?? 0) >= self::VUELTA || $this->cortePendiente() !== null;
+        return time() - (int)($p['actualizado'] ?? 0) >= self::VUELTA || $this->cortePendiente() !== null || $this->fachadaPendiente() !== null;
+    }
+
+    /** Corte de fachada en su hora (hasta 59 min después) que aún no salió. Solo si algún grupo lo recibe. */
+    private function fachadaPendiente(): ?array {
+        $ahora = self::ahora();
+        foreach (self::CORTES_FACHADA as $c) {
+            $t = (new DateTimeImmutable($ahora->format('Y-m-d') . " $c:00", new DateTimeZone('America/Lima')))->getTimestamp();
+            if ($ahora->getTimestamp() < $t || $ahora->getTimestamp() >= $t + self::VENTANA_CORTE) continue;
+            if (!sgsIoFachadaConfigurada()) return null;
+            $m = json_decode((string)@file_get_contents($this->dir . '/fachada.json'), true);
+            $hora = $ahora->format('Y-m-d ') . $c;
+            return (($m['hora'] ?? '') === $hora && !empty($m['enviado'])) ? null : ['corte' => $c, 'hora' => $hora, 'desde' => $t];
+        }
+        return null;
     }
 
     /** Corte de Telegram que está en su hora (desde la hora del corte y hasta 59 min después) y que aún no se envió. */
@@ -138,7 +160,7 @@ class InicioOrdenesService {
             try {
                 $this->cookie = WinboService::cookieLectura();
                 // Vuelta nueva: a pedido, cada 30 min, o al llegar un corte con datos leídos antes de su hora.
-                $corte = $this->cortePendiente();
+                $corte = $this->cortePendiente() ?? $this->fachadaPendiente();
                 if ($this->e['fase'] === 'espera' && ($forzar || time() - (int)$this->e['actualizado'] >= self::VUELTA
                         || ($corte && (int)($this->e['leidoDesde'] ?? 0) < $corte['desde']))) {
                     $this->e['fase'] = 'grilla';
@@ -159,6 +181,7 @@ class InicioOrdenesService {
             $this->guardar();
             if ($this->e['fase'] === 'espera' && !$this->e['error']) $this->telegramCortes();
             if ($this->e['fase'] === 'espera' && !$this->e['error']) $this->whatsappCortes();
+            if ($this->e['fase'] === 'espera' && !$this->e['error']) $this->fachadaCortes();
         } finally {
             flock($candado, LOCK_UN); fclose($candado);
         }
@@ -614,5 +637,82 @@ class InicioOrdenesService {
         } catch (Throwable $ex) {
             win_log_error('inicio_ordenes_whatsapp', $ex->getMessage());
         }
+    }
+
+    /**
+     * Sin foto de fachada (en prueba). Con una lectura hecha desde el corte: toma las Iniciadas hace 5 min o más, revisa en Phoenix
+     * las que aún no se sabe que tienen foto (por tandas de FACHADA_SEGUNDOS; lo que falte sigue en el siguiente turno) y, revisadas
+     * todas (o a los 40 min), manda el reporte una vez. fachada.json: fotos ya vistas del día ("con") y lo revisado en este corte.
+     */
+    private function fachadaCortes(): void {
+        try {
+            $corte = $this->fachadaPendiente();
+            if ($corte === null || (int)($this->e['leidoDesde'] ?? 0) < $corte['desde']) return;
+            $ahora = self::ahora();
+            $archivo = $this->dir . '/fachada.json';
+            $m = json_decode((string)@file_get_contents($archivo), true);
+            if (!is_array($m) || ($m['dia'] ?? '') !== $this->e['dia']) $m = ['dia' => $this->e['dia'], 'con' => []];
+            if (($m['hora'] ?? '') !== $corte['hora']) $m = ['dia' => $m['dia'], 'con' => $m['con'] ?? [], 'hora' => $corte['hora'], 'sin' => [], 'enviado' => null];
+            $cand = [];
+            foreach ($this->tablero()['enCurso'] ?? [] as $o) {
+                $id = (string)($o['ordenId'] ?? '');
+                if ($id === '' || ($o['estado'] ?? '') !== 'Iniciada' || !empty($o['revision']) || isset($m['con'][$id])) continue;
+                $min = intdiv($ahora->getTimestamp() - (new DateTimeImmutable($o['desde'], new DateTimeZone('America/Lima')))->getTimestamp(), 60);
+                if ($min >= self::FACHADA_MINUTOS) $cand[$id] = $o + ['m' => $min, 'partner' => sgsIoPartnerBase($o['proveedor'] ?? '')];
+            }
+            $faltan = array_values(array_diff(array_keys($cand), array_keys($m['sin'])));
+            $t0 = microtime(true);
+            while ($faltan && microtime(true) - $t0 < self::FACHADA_SEGUNDOS) {
+                foreach ($this->fotosFachada(array_splice($faltan, 0, self::PARALELO_HISTORIAL)) as $id => $tiene) {
+                    if ($tiene === true) $m['con'][$id] = 1;
+                    elseif ($tiene === false) $m['sin'][$id] = 1;
+                }
+            }
+            $pendientes = array_diff(array_keys($cand), array_keys($m['con']), array_keys($m['sin']));
+            if ($pendientes && $ahora->getTimestamp() - $corte['desde'] < self::FACHADA_PLAZO) {
+                @file_put_contents($archivo, json_encode($m), LOCK_EX);
+                return;
+            }
+            $lista = array_values(array_intersect_key($cand, $m['sin']));
+            $m['enviado'] = $ahora->format('H:i');                     // primero la marca: nunca sale dos veces
+            @file_put_contents($archivo, json_encode($m), LOCK_EX);
+            $res = sgsIoEnviarATodos($this->tablero(), 'fachada', $ahora, $lista);
+            $m['resultados'] = $res;
+            $m['sinRevisar'] = count($pendientes);                     // Phoenix no respondió a tiempo (no entran al reporte)
+            @file_put_contents($archivo, json_encode($m, JSON_UNESCAPED_UNICODE), LOCK_EX);
+            foreach ($res as $r) if (!$r['ok']) win_log_error('inicio_ordenes_telegram', 'No se envió el reporte de fachada', $r);
+        } catch (Throwable $ex) {
+            win_log_error('inicio_ordenes_fachada', $ex->getMessage());
+        }
+    }
+
+    /**
+     * ¿La tarea de fachada de cada orden ya tiene foto? [id => true | false | null (Phoenix no respondió: se reintenta)].
+     * Visitas de la orden → tareas de cada visita: la tarea de fachada aparece en "map" solo cuando ya tiene foto.
+     */
+    private function fotosFachada(array $ids): array {
+        $form = '/Paginas/OrdenTrabajo/Formulario.aspx/';
+        $ref = self::BASE . '/Paginas/OrdenTrabajo/grilla.aspx';
+        $res = array_fill_keys($ids, null);
+        $visitas = [];
+        foreach ($this->multi(array_map(static fn($id) => ['ruta' => $form . 'CargarVisitasGrilla', 'referer' => $ref,
+                'json' => ['OrdenId' => (string)$id, 'IdPage' => '5_Formu', 'pagiActu' => 1]], $ids)) as $i => $t) {
+            $d = $t === false ? [] : self::decodificar($t);
+            if (!array_key_exists('html', $d)) continue;
+            $res[$ids[$i]] = false;
+            preg_match_all('/seleccionarVisita5_Formu\(\s*(?:&quot;|["\'])\s*(\d+)/', html_entity_decode((string)$d['html']), $mm);
+            foreach (array_unique($mm[1]) as $v) $visitas[] = [$ids[$i], $v];
+        }
+        $fallo = [];
+        foreach ($this->multi(array_map(static fn($x) => ['ruta' => $form . 'CargarVisitasTareasGrilla', 'referer' => $ref,
+                'json' => ['OrdeVisiId' => $x[1], 'IdPage' => '5_Formu', 'EsSeguimiento' => '', 'EsCliente' => '']], $visitas)) as $i => $t) {
+            $id = $visitas[$i][0];
+            $d = $t === false ? [] : self::decodificar($t);
+            if (!$d) { $fallo[$id] = true; continue; }
+            foreach ((array)json_decode((string)($d['map'] ?? ''), true) as $tt)
+                if (is_array($tt) && preg_match(WinboService::TAREA_CASA, (string)($tt['tarea'] ?? ''))) $res[$id] = true;
+        }
+        foreach ($fallo as $id => $_) if ($res[$id] !== true) $res[$id] = null;
+        return $res;
     }
 }

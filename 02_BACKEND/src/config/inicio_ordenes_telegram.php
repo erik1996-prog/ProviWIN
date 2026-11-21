@@ -4,13 +4,15 @@
 //   · "alertas": órdenes iniciadas hace 2 h o más (🔴 3 h o más · 🟡 2 a 3 h). Sale solo en los cortes 10:30, 12:30,
 //     14:30, 16:30 y 18:30 (services/InicioOrdenesService.php).
 //   · "facilidades": cancelaciones del día por facilidades técnicas (lista fija SGS_IO_FACILIDADES).
-// Token: TELEGRAM_TOKEN del .env (nunca en otros archivos ni en logs).
+// Token: lo entrega cada día el programa «Vínculo Wincore» de la laptop (config/telegram_token.php, 2026-11-21); si no, TELEGRAM_TOKEN
+// de la configuración del hosting. Nunca en otros archivos ni en logs.
 // Grupos: 09_CONFIG/inicio_ordenes_telegram.json → {"grupos": [{"nombre", "chat_id", "partners": [...] o ["*"],
 //         "tipo": "SGI" | "SGA" | "", "menciones": {"codigo_telegram": "Nombre"}}],
 //         "partners": {"OLMA": {"menciones": {"codigo_telegram": "Nombre"}}}}
 //         ("*" = todos los partners; tipo SGA incluye TRASLADO, como en todo el sistema). Un mensaje por partner, con las
 //         menciones del grupo más las de ese partner.
 require_once __DIR__ . '/inicio_ordenes.php';      // sgsIoSinTildes, sgsIoCapitalizar
+require_once __DIR__ . '/telegram_token.php';      // sgsTelegramToken (2026-11-21: lo entrega la laptop)
 
 const SGS_IO_TELEGRAM_GRUPOS = BASE_PATH . '/09_CONFIG/inicio_ordenes_telegram.json';
 const SGS_IO_LINEA = '━━━━━━━━━━━━━━━━━━';
@@ -90,7 +92,7 @@ function sgsIoTelegramGrupos(): array {
     return is_array($d['grupos'] ?? null) ? $d['grupos'] : [];
 }
 
-function sgsIoTelegramConfigurado(): bool { return (bool)getenv('TELEGRAM_TOKEN') && (bool)sgsIoTelegramGrupos(); }
+function sgsIoTelegramConfigurado(): bool { return (bool)sgsTelegramToken() && (bool)sgsIoTelegramGrupos(); }
 
 function sgsIoPartnerBase($p): string {
     return trim((string)preg_replace('/\s+(SGA|SGI)$/u', '', mb_strtoupper((string)($p ?? ''), 'UTF-8'))) ?: 'SIN DATO';
@@ -252,6 +254,32 @@ function sgsIoArmarPrimera(array $cuads, string $nombre, array $menciones, DateT
 }
 
 
+/**
+ * Sin foto de fachada (2026-11-20, pedido del usuario; EN PRUEBA: solo a los grupos con "fachada": true en 09_CONFIG). Órdenes
+ * Iniciadas hace 5 min o más cuya tarea de fachada aún no tiene foto (la lista la arma InicioOrdenesService::fachadaCortes).
+ */
+function sgsIoArmarFachada(array $ords, string $nombre, array $menciones, DateTimeInterface $ahora): string {
+    usort($ords, static fn($a, $b) => $b['m'] <=> $a['m']);
+    $L = sgsIoMenciones($menciones);
+    array_push($L, 'Estimados, ' . sgsIoSaludo($ahora) . '.',
+        'Se envía el reporte de las órdenes <b>iniciadas sin foto de fachada</b> de las cuadrillas ' . sgsIoDeQuien($nombre) . '(5 minutos o más desde que iniciaron).',
+        '📅 ' . $ahora->format('d/m/Y') . ' · corte ' . $ahora->format('H:i'), '');
+    if (!$ords) { $L[] = '✅ Todas las órdenes iniciadas ya tienen su foto de fachada.'; return implode("\n", $L); }
+    $L[] = '📊 <b>Resumen:</b> 📷 ' . count($ords) . (count($ords) !== 1 ? ' órdenes' : ' orden') . ' sin foto de fachada';
+    $L = array_merge($L, ['', SGS_IO_LINEA, '📷 <b>SIN FOTO DE FACHADA (' . count($ords) . ')</b>'],
+        sgsIoPorZona($ords, 'orden', 'órdenes', static fn($o) => sgsIoOt($o['orden']) . ' · Iniciada hace <b>' . ($o['m'] < 60 ? $o['m'] . ' min' : sgsIoDur($o['m']))
+            . '</b> (desde las ' . substr($o['desde'], 11, 5) . ')'));
+    array_push($L, '', SGS_IO_LINEA, 'Por favor, recordar a las cuadrillas subir la foto de fachada al iniciar.');
+    return implode("\n", $L);
+}
+
+/** ¿Algún grupo recibe el reporte de fachada? (en prueba: "fachada": true en el grupo) */
+function sgsIoFachadaConfigurada(): bool {
+    if (!sgsTelegramToken()) return false;
+    foreach (sgsIoTelegramGrupos() as $g) if (!empty($g['fachada'])) return true;
+    return false;
+}
+
 /** Observación en una línea: Winbo deja '\n' escritos como texto y saltos reales. */
 function sgsIoLimpiarObs($s, int $largo = 160): string {
     $s = str_replace(['\\n', "\n"], ' ', sgsIoArreglarTildes($s));
@@ -298,7 +326,7 @@ function sgsIoTelegramEnviar($chatId, string $texto): void {
     $partes[] = $actual;
     foreach ($partes as $p) {
         for ($intento = 0; ; $intento++) {
-            $ch = curl_init('https://api.telegram.org/bot' . getenv('TELEGRAM_TOKEN') . '/sendMessage');
+            $ch = curl_init('https://api.telegram.org/bot' . sgsTelegramToken() . '/sendMessage');
             curl_setopt_array($ch, (is_file('C:/xampp/apache/bin/curl-ca-bundle.crt') ? [CURLOPT_CAINFO => 'C:/xampp/apache/bin/curl-ca-bundle.crt'] : []) + [
                 CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 10, CURLOPT_CONNECTTIMEOUT => 4,
                 CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,      // 2026-11-19: por IPv6 Telegram no respondía desde la red local
@@ -335,11 +363,16 @@ function sgsIoMencionesPartner(string $partner): array {
  * reporte, con las menciones del grupo más las del partner. Si ningún partner tiene, un solo mensaje "✅" por grupo.
  * Devuelve [['grupo', 'chat_id', 'partner', 'ordenes', 'texto'], …].
  */
-function sgsIoMensajes(array $tablero, string $reporte, DateTimeInterface $ahora): array {
-    if (!isset(SGS_IO_REPORTES[$reporte])) throw new RuntimeException('Reporte desconocido.');
+function sgsIoMensajes(array $tablero, string $reporte, DateTimeInterface $ahora, ?array $lista = null): array {
+    if (!isset(SGS_IO_REPORTES[$reporte]) && $reporte !== 'fachada') throw new RuntimeException('Reporte desconocido.');
     $gs = sgsIoTelegramGrupos();
+    // Fachada (en prueba): solo los grupos marcados; la lista ya viene revisada en Phoenix. No está en SGS_IO_REPORTES (no se
+    // envía a mano desde la pantalla, porque necesita revisar las fotos).
+    if ($reporte === 'fachada') $gs = array_values(array_filter($gs, static fn($g) => !empty($g['fachada'])));
     if (!$gs) throw new RuntimeException('No hay grupos configurados en 09_CONFIG/inicio_ordenes_telegram.json.');
-    if ($reporte === 'alertas') {
+    if ($reporte === 'fachada') {
+        $todas = $lista ?? [];
+    } elseif ($reporte === 'alertas') {
         $todas = sgsIoIniciadas2h($tablero['enCurso'] ?? [], $ahora);
     } elseif ($reporte === 'primera') {
         $todas = sgsIoPrimeraSinIniciar($tablero['cuadrillas'] ?? []);
@@ -381,16 +414,17 @@ function sgsIoMensajes(array $tablero, string $reporte, DateTimeInterface $ahora
                       'texto' => match ($reporte) {
                           'alertas' => sgsIoArmarAlertas($os, $nombre, $m, $ahora),
                           'primera' => sgsIoArmarPrimera($os, $nombre, $m, $ahora, $enCamino),
+                          'fachada' => sgsIoArmarFachada($os, $nombre, $m, $ahora),
                           default => sgsIoArmarFacilidades($os, $nombre, $m, $ahora)}];
     }
     return $out;
 }
 
 /** Envía el reporte elegido: un mensaje por partner y grupo (sgsIoMensajes). Devuelve el resultado de cada mensaje. */
-function sgsIoEnviarATodos(array $tablero, string $reporte = 'alertas', ?DateTimeInterface $ahora = null): array {
+function sgsIoEnviarATodos(array $tablero, string $reporte = 'alertas', ?DateTimeInterface $ahora = null, ?array $lista = null): array {
     $ahora = $ahora ?? new DateTimeImmutable('now', new DateTimeZone('America/Lima'));
-    if (!getenv('TELEGRAM_TOKEN')) throw new RuntimeException('Falta el token del bot (TELEGRAM_TOKEN en el .env).');
-    $mensajes = sgsIoMensajes($tablero, $reporte, $ahora);
+    if (!sgsTelegramToken()) throw new RuntimeException('Falta el token del bot: enciende el programa «Vínculo Wincore» de la laptop (entrega el token cada día).');
+    $mensajes = sgsIoMensajes($tablero, $reporte, $ahora, $lista);
     @set_time_limit(180);
     $res = [];
     foreach ($mensajes as $msj) {
@@ -399,7 +433,7 @@ function sgsIoEnviarATodos(array $tablero, string $reporte = 'alertas', ?DateTim
             sgsIoTelegramEnviar($msj['chat_id'], $msj['texto']);
             $res[] = $r + ['ok' => true];
         } catch (Throwable $ex) {
-            $res[] = $r + ['ok' => false, 'error' => mb_substr(str_replace((string)getenv('TELEGRAM_TOKEN'), '***', $ex->getMessage()), 0, 200)];
+            $res[] = $r + ['ok' => false, 'error' => mb_substr(str_replace(sgsTelegramToken(), '***', $ex->getMessage()), 0, 200)];
         }
     }
     return $res;

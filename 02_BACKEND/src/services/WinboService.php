@@ -193,7 +193,7 @@ class WinboService {
     // (las que aún no tienen foto se vuelven a buscar a los 30 min). Solo con la sesión iniciada en el SGS (o el .env): el
     // favorito solo lee la grilla.
     public const CASAS_POR_PEDIDO = 6;
-    private const TAREA_CASA = '/FACHADA|FOTO\s+(DEL\s+)?DOMICILIO/i';
+    public const TAREA_CASA ='/FACHADA|FOTO\s+(DEL\s+)?DOMICILIO/i';
     private const CASA_REINTENTO = 1800;
 
     /** Coordenadas de la foto de la fachada de cada orden: [id => ['lat' => …, 'lon' => …] o null (usar las de la orden)]. */

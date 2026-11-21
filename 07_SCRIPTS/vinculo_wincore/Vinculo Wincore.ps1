@@ -96,6 +96,32 @@ if (-not $auto -and (Test-Path $acceso)) {
     }
 }
 
+# Telegram en el mismo programa (2026-11-21, pedido del usuario): el token del bot se guarda cifrado solo en esta laptop y el
+# programa se lo entrega al SGS cada día (de 05:55 a 21:00). Se pregunta una vez; si Telegram lo rechazó, se vuelve a pedir.
+$estadoTelegram = Join-Path $local 'vinculo_telegram.estado'
+if (-not $auto -and (Test-Path $acceso)) {
+    $acc = Get-Content $acceso -Raw -Encoding UTF8 | ConvertFrom-Json
+    $rechazado = (Test-Path $estadoTelegram) -and ((Get-Content $estadoTelegram -Raw).Trim() -eq 'rechazado')
+    if ($rechazado -or (-not $acc.telegram_token -and -not $acc.telegram_no)) {
+        Write-Host ''
+        if ($rechazado) { Write-Host '  Telegram no aceptó el token guardado: escríbelo de nuevo.' -ForegroundColor Yellow; $quiere = 'S' }
+        else { $quiere = ([string](Read-Host '  ¿Entregar también el token del bot de Telegram al SGS cada día? (S/N)')).Trim().ToUpper() }
+        $nuevo = @{}
+        $acc.PSObject.Properties | ForEach-Object { $nuevo[$_.Name] = $_.Value }
+        if ($quiere -eq 'S') {
+            $tk = Read-Host '  Token del bot (de BotFather; no se ve al escribir; pégalo con clic derecho)' -AsSecureString
+            if ($tk -and $tk.Length -gt 0) {
+                $nuevo['telegram_token'] = ConvertFrom-SecureString $tk
+                $nuevo.Remove('telegram_no')
+                $tk.Dispose()
+                Remove-Item $estadoTelegram -ErrorAction SilentlyContinue
+                Write-Host '  Token guardado cifrado en esta laptop: se entregará al SGS cada día desde las 05:55.' -ForegroundColor DarkGray
+            }
+        } else { $nuevo['telegram_no'] = $true }
+        [IO.File]::WriteAllText($acceso, ($nuevo | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+    }
+}
+
 Set-Content -Path $estadoArchivo -Value '' -Encoding UTF8
 $desde = if (Test-Path $registro) { (Get-Item $registro).Length } else { 0 }
 Start-Process -FilePath (Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe') -WindowStyle Hidden `

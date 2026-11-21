@@ -70,6 +70,7 @@ class Auth {
     public const PERM_CUADRILLAS_MERGE = 'cuadrillas.merge'; // 2026-11-11: unir duplicados T1/T2 y pasar un T1 a T2
     public const PERM_ORDENES_CERCANAS = 'ordenes.cercanas';     // 2026-11-10: antes fijo por tipo de usuario
     public const PERM_PUERTOS_CTO = 'puertos.cto';               // 2026-11-11: consultar puertos de una CTO en Wincore
+    public const PERM_VINCULOS = 'vinculos.laptop';            // 2026-11-21: conectar Wincore, Phoenix y el bot desde su laptop
     public const PERM_EXAMENES_PURGE = 'examenes.purge'; // borrar exámenes de prueba (2026-11-05): solo perfiles administradores, salvo que se marque
     public const PERM_CUADRILLAS_VIEW = 'cuadrillas.view';
     public const PERM_CUADRILLAS_EDIT = 'cuadrillas.edit';
@@ -163,6 +164,10 @@ class Auth {
     public const PERMISOS_DE_CAMPO = [self::PERM_SUPERVISION_CREATE, self::PERM_ATTENDANCE_SELF, self::PERM_CLIMA_EDIT, self::PERM_OBSERVATION_RESPOND,
         self::PERM_VACACIONES_REQUEST];
 
+    /** Permisos que un perfil administrador NO tiene por defecto (2026-11-21): solo si se marcan en su perfil. Conectar Wincore,
+     *  Phoenix y el bot desde una laptop usa las cuentas de esa persona y lo ven todos los supervisores: se da a propósito. */
+    public const PERMISOS_EXPLICITOS = [self::PERM_VINCULOS];
+
     /**
      * Perfiles (2026-10-31): los permisos salen del perfil del usuario (sin perfil: el perfil base de su rol). Desde
      * 2026-11-01 no hay reservados: todos se dan por perfil, y un perfil administrador tiene todos (menos los de campo)
@@ -188,7 +193,7 @@ class Auth {
         }
         $perfil = self::$permisosPerfil[$userId];
         $tiene = $perfil === null ? $allowed
-            : ($perfil['admin'] ? !in_array($permission, self::PERMISOS_DE_CAMPO, true) : isset($perfil['permisos'][$permission]));
+            : ($perfil['admin'] && !in_array($permission, self::PERMISOS_EXPLICITOS, true) ? !in_array($permission, self::PERMISOS_DE_CAMPO, true) : isset($perfil['permisos'][$permission]));
         // 2026-10-26: sin "Ver" de la pantalla no hay editar, eliminar ni opciones en ella (aunque hubiera quedado marcado)
         if ($tiene && ($requerido = self::permisoRequerido($permission)) !== null) return self::can($requerido, $user);
         return $tiene;
@@ -271,7 +276,8 @@ class Auth {
             self::PERM_OBSERVATION_MANAGE => ['boton'=>'Observaciones de otros','group'=>'Observaciones','label'=>'Responder por el partner, evaluar y reabrir levantamientos de otros y ampliar plazos vencidos','action'=>'editar'],
             self::PERM_CLIMA_TEAMS => ['boton'=>'Enviar corte a Teams','group'=>'Clima','label'=>'Enviar ya el corte de lluvias al grupo de Teams','action'=>'editar'],
             self::PERM_ORDENES_CERCANAS => ['boton'=>'Órdenes cercanas','group'=>'Supervisiones','label'=>'Ver las órdenes de Winbo cercanas a su ubicación (solo personal de WIN)'],
-            self::PERM_PUERTOS_CTO => ['boton'=>'Consultar puertos','group'=>'Supervisiones','label'=>'Consultar los puertos de una CTO en Wincore mientras la cuenta principal tenga activo el vínculo con Wincore (solo personal de WIN)'],
+            self::PERM_PUERTOS_CTO => ['boton'=>'Consultar puertos','group'=>'Supervisiones','label'=>'Consultar los puertos de una CTO en Wincore mientras haya un vínculo con Wincore activo (solo personal de WIN)'],
+            self::PERM_VINCULOS => ['boton'=>'Conectar desde su laptop','group'=>'Supervisiones','requiere'=>false,'label'=>'Conectar Wincore, Phoenix y el bot de Telegram desde su laptop con el programa «Vínculo Wincore», con sus propias cuentas (solo personal de WIN; un perfil administrador también necesita marcarlo)','action'=>'editar'],
             // 2026-11-01: antes "reservados" (fijos del tipo Administrador); ahora se dan por perfil como los demás
             self::PERM_SUPERVISION_IMPORT => ['boton'=>'Subir pendientes','group'=>'Supervisiones','label'=>'Subir pendientes (Excel de cancelaciones), corregirlas y marcarlas con prioridad alta (con "Sus zonas y su área", solo las suyas)','action'=>'editar'],
             self::PERM_SUPERVISION_DELETE => ['group'=>'Supervisiones','label'=>'Eliminar supervisiones','action'=>'eliminar'],
@@ -616,11 +622,24 @@ class Auth {
 
     /** Activar y desactivar el vínculo con Wincore (2026-11-11): solo la cuenta principal, porque usa su sesión de Wincore. */
     public static function puedeVincularWincore(array $u): bool {
-        return self::puedeConsultarPuertos($u) && self::cuentaPrincipalId() === (int)($u['id'] ?? 0);
+        return self::puedeConsultarPuertos($u) && self::puedeVincularLaptop($u);
     }
 
     /** Activar y desactivar el vínculo con Phoenix (2026-11-13): solo la cuenta principal, porque usa su sesión de Phoenix. */
     public static function puedeVincularPhoenix(array $u): bool {
+        return self::puedeOrdenesCercanas($u) && self::puedeVincularLaptop($u);
+    }
+
+    /**
+     * Conectar desde una laptop (2026-11-21, pedido del usuario: "a veces lo voy a usar en otra laptop"): la cuenta principal y quien
+     * tenga el permiso "Conectar desde su laptop" en su perfil. Sirve para Wincore, Phoenix y el bot de Telegram.
+     */
+    public static function puedeVincularLaptop(array $u): bool {
+        return self::cuentaPrincipalId() === (int)($u['id'] ?? 0) || self::puede(self::PERM_VINCULOS, $u);
+    }
+
+    /** Inicio de órdenes (2026-11-19): sigue siendo solo de la cuenta principal (no se abre con el permiso de conectar). */
+    public static function puedeInicioOrdenes(array $u): bool {
         return self::puedeOrdenesCercanas($u) && self::cuentaPrincipalId() === (int)($u['id'] ?? 0);
     }
 
