@@ -4,6 +4,24 @@ Formato: [versión] — fecha. Tipos: Añadido, Cambiado, Seguridad, Eliminado.
 
 ## [0.10.1] — 2026-10-08 — Preparación para hosting (Linux)
 
+### Anular observaciones y penalidades; reportes sin nadie no se envían (2026-11-25, pedido del usuario)
+- **Añadido**: permiso «Anular» (`observation.void`). El supervisor de WIN anula lo que está en su bandeja y le desaparece a él y al partner. El partner no anula ni elimina. El administrador anula, elimina, ve las anuladas (filtro «Anuladas») y las restaura (`observation.delete`). Cambio de base `2026-11-21_01` (columnas `anulado*` e índices; permiso para los perfiles de supervisor de WIN).
+- **Corregido**: el checklist se busca solo por su supervisión (antes podía tomar otro). Las anuladas no cuentan en el Dashboard de partners ni pasan solas a «Penalidad Directa». Se quitó el `ALTER TABLE` que corría en las visitas.
+- **Cambiado**: si un reporte de Telegram no tiene a nadie para un grupo, a ese grupo no se le manda nada (antes iba un «✅»). Certificados de curl en una sola función (`sgsCurlCa`), que solo mira el archivo de XAMPP en Windows (en el hosting llenaba el registro de avisos).
+
+### Limpieza: todo por el programa de la laptop (2026-11-21, pedido del usuario: "que no quede código que no se use")
+- **Eliminado** (unas 1300 líneas):
+  - El favorito y la ventana del vínculo con Wincore: `puente_wincore.php`, `puente_favorito.js`, `puente_wincore.js`, `puente_reloj.js`, `sgsFavoritoPuente`, `sgsWincoreOrigen`, la CORS de `puertos_agente.php` y las acciones `vincular`, `tomar` y `responder` de `api/puertos_cto.php`.
+  - El favorito de Phoenix con su cola de pedidos y el reintento «consultando» de Órdenes cercanas: `puente_phoenix.php`, `phoenix_favorito.js`, `puente_phoenix.js`, `SgsPhoenixEnCurso`.
+  - La ventanita «Iniciar sesión en Phoenix» y su API: `phoenix_sesion.php`, `phoenix_sesion.js`, `phoenix_estado.js`, `api/puente_phoenix.php`.
+  - La entrada a Phoenix con `WINBO_USUARIO`/`WINBO_CLAVE` del `.env`.
+  - El despertar de los reportes por cualquier pantalla (`index.php`, campanita). Ahora lo despierta solo el programa de la laptop.
+- **Cambiado**:
+  - `config/puente_phoenix.php` pasa a `config/phoenix_sesion.php` (solo la sesión hasta las 23:59). `WinboService::conectado()` reemplaza a `configurado()` y `sesionLectura()`.
+  - Los tres indicadores de la barra superior (Phoenix, Bot, Wincore) salen de un solo bloque y un solo estilo, y solo informan.
+  - Consultar puertos muestra solo «Programa «Vínculo Wincore»»: crear o anular la clave y desactivar.
+  - Se quitaron las novedades 13 y 16 (del favorito).
+
 ### Vínculos desde varias laptops e indicadores Phoenix · Bot · Wincore (2026-11-21, pedido del usuario)
 - **Añadido**:
   - Permiso **«Conectar desde su laptop»** (`vinculos.laptop`, Supervisiones). Un perfil administrador también tiene que marcarlo (`PERMISOS_EXPLICITOS`).

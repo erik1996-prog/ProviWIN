@@ -1,15 +1,11 @@
 <?php
 // 02_BACKEND/src/services/WinboService.php - Lectura de órdenes de Winbo para "Órdenes cercanas" (2026-11-08).
-// Credenciales solo en .env (WINBO_*): nunca salen al navegador. La sesión se reutiliza y se renueva sola.
+// Sesión (2026-11-21): solo la que inicia el programa «Vínculo Wincore» de la laptop (config/phoenix_sesion.php), hasta las 23:59.
+// El servidor no guarda la contraseña: si Phoenix cierra la sesión, se borra y el programa vuelve a entrar solo en unos minutos.
 // Liviano: cada visita lee una sola página de Winbo y el resultado se guarda 2 minutos para todos los usuarios.
 // Grupos (2026-11-10): elegir empresa en Winbo no filtra la grilla (las tres empresas devuelven las mismas órdenes), así que
 // el grupo de cada usuario se aplica aquí con las columnas Provincia y Tipo trabajo de cada orden.
-// Vínculo con Phoenix (2026-11-13): si la cuenta principal lo activó (config/puente_phoenix.php), las páginas se piden a su pestaña
-// de Phoenix con su sesión y el servidor no usa usuario ni contraseña; si no, entra con las credenciales del .env (si las hay).
-// Sesión iniciada aquí (2026-11-19): sin vínculo activo, si la cuenta principal inició sesión en la ventanita "Iniciar sesión en
-// Phoenix", se usan esas cookies hasta la medianoche. Como no se guarda la contraseña, si Phoenix la cierra no se puede volver a
-// entrar sola: se borra y se avisa. Orden: vínculo (favorito) → sesión iniciada aquí → .env.
-require_once __DIR__ . '/../config/puente_phoenix.php';
+require_once __DIR__ . '/../config/phoenix_sesion.php';
 
 class WinboService {
     private const BASE = 'https://winbo-phx.azurewebsites.net';
@@ -23,29 +19,24 @@ class WinboService {
     private const PROVINCIAS_LIMA = ['lima', 'callao'];
 
     private string $dir, $cookie, $cols;
-    private bool $puente, $aqui;
-    private const SIN_SESION = 'Phoenix no devolvió las órdenes: la sesión de Phoenix del vínculo pudo vencer. Inténtalo en unos minutos.';
-    private const SESION_AQUI_CERRADA = 'La sesión de Phoenix se cerró antes de la medianoche. Vuelve a conectarla arriba, en el indicador «Phoenix» de la barra superior.';
+    public const SIN_SESION = 'Phoenix no está conectado. Se conecta solo con el programa «Vínculo Wincore» de la laptop (de 05:55 a 21:00).';
+    private const SESION_CERRADA = 'Phoenix cerró la sesión. El programa de la laptop la vuelve a conectar sola en unos minutos.';
 
     public function __construct() {
         $this->dir = BASE_PATH . '/08_LOGS/runtime/winbo';
         if (!is_dir($this->dir)) @mkdir($this->dir, 0775, true);
         $this->cols = $this->dir . '/columnas.json';
-        $this->puente = sgsPhoenixEstado()['activo'];
-        $this->aqui = !$this->puente && sgsPhoenixSesion()['activa'];
-        $this->cookie = $this->aqui ? sgsPhoenixSesionCookie() : $this->dir . '/sesion.cookie';
+        $this->cookie = sgsPhoenixSesionCookie();
     }
 
     /**
-     * Ventanita "Iniciar sesión en Phoenix" (2026-11-19): entra a Phoenix con el usuario y la contraseña que escribió la cuenta
-     * principal y guarda solo las cookies, hasta las 23:59:59. Empresa y área: las del .env si están; si no, GESTIÓN PROVINCIA
+     * El programa de la laptop (api/puertos_agente.php → phoenix_iniciar) entra a Phoenix con el usuario y la contraseña guardados
+     * cifrados en la laptop; aquí se guardan solo las cookies, hasta las 23:59:59. Empresa y área: las del .env si están; si no, GESTIÓN PROVINCIA
      * y la primera área. Devuelve la hora de vencimiento.
      */
     public static function iniciarSesionAqui(string $usuario, #[\SensitiveParameter] string $clave, int $usuarioId): int {
         sgsPhoenixSesionCerrar();
         $s = new self();
-        $s->aqui = true;
-        $s->cookie = sgsPhoenixSesionCookie();
         try {
             $s->entrar($usuario, $clave, getenv('WINBO_EMPRESA') ?: 'GESTIÓN PROVINCIA', (string)getenv('WINBO_AREA'));
         } catch (Throwable $e) {
@@ -75,31 +66,24 @@ class WinboService {
         return $empresas ?: ['GP'];
     }
 
-    /** Se puede consultar: con el vínculo con Phoenix activo o con el acceso del .env. */
-    public static function configurado(): bool {
-        return sgsPhoenixEstado()['activo'] || sgsPhoenixSesion()['activa'] || self::conCredenciales();
+    /** ¿Hay sesión de Phoenix para leer? (la inicia el programa de la laptop). */
+    public static function conectado(): bool {
+        return sgsPhoenixSesion()['activa'];
     }
-    /**
-     * Inicio de órdenes (2026-11-19): lee con la sesión iniciada aquí o con la del .env, nunca con el favorito (solo atiende la
-     * grilla de Órdenes cercanas). Devuelve 'aqui', 'env' o null si no hay ninguna.
-     */
-    public static function sesionLectura(): ?string {
-        return sgsPhoenixSesion()['activa'] ? 'aqui' : (self::conCredenciales() ? 'env' : null);
-    }
-    /** Cookies de esa sesión. $renovar: Phoenix la cerró; con el .env vuelve a entrar, con la iniciada aquí la borra y avisa. */
+
     /**
      * Señal de vida (2026-11-20, pedido del usuario: "la sesión de Phoenix se cierra sola al rato"): Phoenix cierra la sesión que no
-     * se usa. Cada 10 min (sgsMantenerPhoenix en config/runtime.php, desde cualquier pantalla abierta) se abre su página principal
+     * se usa. Cada 10 min (sgsMantenerPhoenix en config/runtime.php, que despierta el programa de la laptop) se abre su página principal
      * con la sesión iniciada en el SGS y se guarda la llave renovada. Si Phoenix ya la había cerrado (lleva al ingreso), se borra
-     * para que el indicador diga "sin conexión". Solo la sesión iniciada aquí (el .env vuelve a entrar solo).
+     * para que el indicador diga "sin conexión" y el programa vuelva a entrar.
      */
     public static function mantenerViva(): void {
-        if (!sgsPhoenixSesion()['activa'] || sgsPhoenixEstado()['activo']) return;
+        if (!self::conectado()) return;
         if (self::sesionAquiViva() === false) { sgsPhoenixSesionCerrar(); win_log_error('phoenix_sesion', 'Phoenix cerró la sesión iniciada en el SGS (señal de vida)'); }
     }
 
     /**
-     * ¿Sigue abierta en Phoenix la sesión iniciada aquí? Abre su página principal (y guarda la llave renovada): true = abierta,
+     * ¿Sigue abierta en Phoenix la sesión del SGS? Abre su página principal (y guarda la llave renovada): true = abierta,
      * false = Phoenix lleva al ingreso (cerrada de verdad), null = Phoenix no respondió (no se sabe: no se borra nada).
      * 2026-11-20: antes, una sola respuesta vacía o lenta de Phoenix bastaba para dar la sesión por cerrada y borrarla.
      */
@@ -107,7 +91,7 @@ class WinboService {
         $cookie = sgsPhoenixSesionCookie();
         if (!is_file($cookie)) return false;
         $ch = curl_init(self::BASE . '/default.aspx');
-        curl_setopt_array($ch, self::opcionesCa() + [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => 15,
+        curl_setopt_array($ch, sgsCurlCa() + [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => 15,
             CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => self::UA, CURLOPT_COOKIEFILE => $cookie, CURLOPT_COOKIEJAR => $cookie,
             CURLOPT_HTTPHEADER => ['Referer: ' . self::BASE . '/default.aspx']]);
         $r = curl_exec($ch);
@@ -120,18 +104,12 @@ class WinboService {
         return true;
     }
 
+    /** Cookies de la sesión para leer (Inicio de órdenes). $renovar: Phoenix no respondió bien; se confirma si la sesión sigue. */
     public static function cookieLectura(bool $renovar = false): string {
-        $modo = self::sesionLectura();
-        if ($modo === null) throw new RuntimeException('No hay sesión de Phoenix. Conéctala arriba, en el indicador «Phoenix» de la barra superior.');
+        if (!self::conectado()) throw new RuntimeException(self::SIN_SESION);
         $s = new self();
-        $s->puente = false;
-        $s->aqui = $modo === 'aqui';
-        $s->cookie = $s->aqui ? sgsPhoenixSesionCookie() : $s->dir . '/sesion.cookie';
         if ($renovar || !is_file($s->cookie)) $s->conectar();
         return $s->cookie;
-    }
-    private static function conCredenciales(): bool {
-        return getenv('WINBO_USUARIO') && getenv('WINBO_CLAVE') && getenv('WINBO_EMPRESA') && getenv('WINBO_AREA');
     }
 
     /**
@@ -145,7 +123,7 @@ class WinboService {
         if (is_array($guardada) && time() - (int)$guardada['local'] < 600) return gmdate('d/m/Y', (int)$guardada['internet'] + time() - (int)$guardada['local'] - 5 * 3600);
         foreach (['https://www.google.com', 'https://www.cloudflare.com'] as $url) {
             $ch = curl_init($url);
-            curl_setopt_array($ch, self::opcionesCa() + [CURLOPT_NOBODY => true, CURLOPT_HEADER => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 4, CURLOPT_CONNECTTIMEOUT => 3]);
+            curl_setopt_array($ch, sgsCurlCa() + [CURLOPT_NOBODY => true, CURLOPT_HEADER => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 4, CURLOPT_CONNECTTIMEOUT => 3]);
             $r = curl_exec($ch);
             curl_close($ch);
             if ($r && preg_match('/^date:\s*(.+)$/mi', (string)$r, $m) && ($t = strtotime(trim($m[1])))) {
@@ -156,11 +134,6 @@ class WinboService {
         return null;
     }
 
-    /** Certificados: en el hosting, los del sistema; en XAMPP, su lista propia. */
-    private static function opcionesCa(): array {
-        $xampp = 'C:/xampp/apache/bin/curl-ca-bundle.crt';
-        return is_file($xampp) ? [CURLOPT_CAINFO => $xampp] : [];
-    }
 
     // ── Página de órdenes con caché compartida ──────────────
     /** Primera página del día, solo con las órdenes del grupo: total, páginas y puntos. */
@@ -190,8 +163,7 @@ class WinboService {
     // Camino en Phoenix (3 pasos, varias órdenes a la vez): CargarVisitasGrilla → CargarVisitasTareasGrilla (su campo "map" trae
     // cada tarea con su id) → ConsultarTareaDeta (abrirModalUbicacionFoto5_Formu("lat","lon")). Pesa (~1,7 MB por orden: las
     // tareas traen sus fotos), así que se piden pocas a la vez, solo las que se muestran, y se guardan todo el día para todos
-    // (las que aún no tienen foto se vuelven a buscar a los 30 min). Solo con la sesión iniciada en el SGS (o el .env): el
-    // favorito solo lee la grilla.
+    // (las que aún no tienen foto se vuelven a buscar a los 30 min).
     public const CASAS_POR_PEDIDO = 6;
     public const TAREA_CASA ='/FACHADA|FOTO\s+(DEL\s+)?DOMICILIO/i';
     private const CASA_REINTENTO = 1800;
@@ -208,8 +180,7 @@ class WinboService {
             elseif ($g && time() - (int)$g['sin'] < self::CASA_REINTENTO) $res[$id] = null;
             else $buscar[] = $id;
         }
-        if (!$buscar || $this->puente || self::sesionLectura() === null) return $res + array_fill_keys($buscar, null);
-        $this->cookie = self::cookieLectura();
+        if (!$buscar || !self::conectado()) return $res + array_fill_keys($buscar, null);
         $ref = self::BASE . '/Paginas/OrdenTrabajo/grilla.aspx';
         $form = '/Paginas/OrdenTrabajo/Formulario.aspx/';
         // 1) Visitas de cada orden
@@ -257,7 +228,7 @@ class WinboService {
         $mh = curl_multi_init(); $hs = [];
         foreach ($pets as $i => [$ruta, $json]) {
             $ch = curl_init(self::BASE . $ruta);
-            curl_setopt_array($ch, self::opcionesCa() + [CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_POSTFIELDS => json_encode($json),
+            curl_setopt_array($ch, sgsCurlCa() + [CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_POSTFIELDS => json_encode($json),
                 CURLOPT_TIMEOUT => self::SEGUNDOS_WINBO, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => self::UA, CURLOPT_COOKIEFILE => $this->cookie, CURLOPT_COOKIEJAR => $this->cookie,
                 CURLOPT_ENCODING => '', CURLOPT_HTTPHEADER => ['Referer: ' . $referer, 'Origin: ' . self::BASE, 'Content-Type: application/json; charset=UTF-8',
                     'X-Requested-With: XMLHttpRequest', 'Accept: application/json, text/javascript, */*; q=0.01']]);
@@ -300,14 +271,13 @@ class WinboService {
     }
 
     // ── HTTP ─────────────────────────────────────────────────
-    private function http(string $ruta, ?array $json, string $referer, bool $guardar = false): string {
+    private function http(string $ruta, ?array $json, string $referer): string {
         $ch = curl_init(self::BASE . $ruta);
         $cab = ['Referer: ' . $referer];
-        $op = self::opcionesCa() + [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => self::SEGUNDOS_WINBO,
+        $op = sgsCurlCa() + [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => self::SEGUNDOS_WINBO,
                CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => self::UA, CURLOPT_COOKIEFILE => $this->cookie];
         // 2026-11-20: Phoenix renueva la llave de la sesión (cookies) en cada consulta. Antes solo se guardaban al iniciar sesión y la
-        // sesión caducaba sola al rato aunque se usara; ahora cada respuesta deja guardada la llave nueva. ($guardar queda por los
-        // pasos del inicio de sesión.)
+        // sesión caducaba sola al rato aunque se usara; ahora cada respuesta deja guardada la llave nueva.
         $op[CURLOPT_COOKIEJAR] = $this->cookie;
         if ($json !== null) {
             $op[CURLOPT_POST] = true;
@@ -327,13 +297,12 @@ class WinboService {
         if ($r === false) throw new RuntimeException('No se pudo conectar con Winbo. Inténtalo en unos minutos.');
         return (string)$r;
     }
-    /** Varias peticiones seguidas a Phoenix (cada paso: ruta y json, o null si es GET): por el vínculo o directo. */
+    /** Varias peticiones seguidas a Phoenix (cada paso: ruta y json, o null si es GET). */
     private function pedir(array $pasos): array {
-        if ($this->puente) return sgsPhoenixPedir($pasos);
         return array_map(fn($p) => $this->http($p['ruta'], $p['json'], self::BASE . (str_starts_with($p['ruta'], '/Paginas/OrdenTrabajo/Grilla.aspx/') ? self::URL_GRILLA : '/default.aspx')), $pasos);
     }
-    private function post(string $ruta, array $json, bool $guardar = false): string {
-        return $this->http($ruta, $json, self::BASE . '/default.aspx', $guardar);
+    private function post(string $ruta, array $json): string {
+        return $this->http($ruta, $json, self::BASE . '/default.aspx');
     }
 
     // Winbo responde {"d": base64(JSON con campos en base64)}.
@@ -372,66 +341,54 @@ class WinboService {
     }
 
     // ── Sesión ───────────────────────────────────────────────
-    /** Con candado: si varias peticiones la pierden a la vez, solo una vuelve a entrar. */
+    /**
+     * Phoenix no respondió como con sesión. Sin la contraseña el servidor no puede volver a entrar: se confirma con Phoenix y, si la
+     * cerró de verdad, se borra (el programa de la laptop vuelve a entrar solo). Si sigue abierta o no respondió, fue algo de un
+     * momento: no se borra y se reintenta luego (2026-11-20).
+     */
     private function conectar(): void {
-        // Sesión iniciada aquí (2026-11-19): sin la contraseña no se puede volver a entrar; se borra y se pide iniciar de nuevo.
-        // 2026-11-20: antes de borrarla se confirma con Phoenix; si sigue abierta (o Phoenix no respondió), fue una respuesta vacía o
-        // lenta de un momento: no se borra y se reintenta en el siguiente turno.
-        if ($this->aqui) {
-            $viva = self::sesionAquiViva();
-            if ($viva !== false) throw new RuntimeException('Phoenix no respondió bien esta vez. Se reintenta en unos minutos (la sesión sigue conectada).');
-            sgsPhoenixSesionCerrar();
-            win_log_error('phoenix_sesion', 'Phoenix cerró la sesión iniciada en el SGS (confirmado al consultar)');
-            throw new RuntimeException(self::SESION_AQUI_CERRADA);
-        }
-        $f = fopen($this->dir . '/login.lock', 'c');
-        flock($f, LOCK_EX);
-        try {
-            $marca = $this->dir . '/login.ok';         // hora del último ingreso correcto (las cookies cambian en cada consulta)
-            if (is_file($this->cookie) && is_file($marca) && time() - (int)filemtime($marca) < 20) return;  // otra petición acaba de entrar
-            $this->entrar((string)getenv('WINBO_USUARIO'), (string)getenv('WINBO_CLAVE'), (string)getenv('WINBO_EMPRESA'), (string)getenv('WINBO_AREA'));
-            @touch($marca);
-        } finally {
-            flock($f, LOCK_UN); fclose($f);
-        }
+        if (!self::conectado()) throw new RuntimeException(self::SIN_SESION);
+        if (self::sesionAquiViva() !== false) throw new RuntimeException('Phoenix no respondió bien esta vez. Se reintenta en unos minutos (la sesión sigue conectada).');
+        sgsPhoenixSesionCerrar();
+        win_log_error('phoenix_sesion', 'Phoenix cerró la sesión del SGS (confirmado al consultar)');
+        throw new RuntimeException(self::SESION_CERRADA);
     }
 
-    /** Pasos de ingreso a Phoenix (2026-11-19: separados de conectar() para usarlos también desde la ventanita). Área vacía = la primera. */
+    /** Pasos de ingreso a Phoenix. Área vacía = la primera. */
     private function entrar(string $usuario, #[\SensitiveParameter] string $clave, string $empresa, string $area): void {
         @unlink($this->cookie);
         $login = self::BASE . '/login.aspx';
-        $this->http('/login.aspx', null, $login, true);
+        $this->http('/login.aspx', null, $login);
         $r = $this->http('/login.aspx/IniciarSesion', ['CodiUsua' => $usuario, 'Contraseña' => $clave,
-            'CodiSuscrip' => getenv('WINBO_SUSCRIP') ?: 'WIN', 'Navegador' => 'Navegador Chrome version:152.0 sobre Windows', 'Query' => '', 'AutenDoblePasoCodi' => '', 'LoginInterno' => 'N'], $login, true);
+            'CodiSuscrip' => getenv('WINBO_SUSCRIP') ?: 'WIN', 'Navegador' => 'Navegador Chrome version:152.0 sobre Windows', 'Query' => '', 'AutenDoblePasoCodi' => '', 'LoginInterno' => 'N'], $login);
         $clave = '';
         if ((string)(self::decodificar($r)['codigo'] ?? '') !== '99') {
             @unlink($this->cookie);
-            throw new RuntimeException($this->aqui ? 'Phoenix no aceptó el usuario o la contraseña.' : 'Winbo rechazó el acceso configurado para este módulo.');
+            throw new RuntimeException('Phoenix no aceptó el usuario o la contraseña.');
         }
         @chmod($this->cookie, 0600);
-        $this->http('/login.aspx/VerificarTermiCondi', [], $login, true);
-        $this->post('/default.aspx/ObtenerDatosUsua', [], true);
-        $this->http('/default.aspx', null, self::BASE . '/default.aspx', true);
-        $emp = self::opciones((string)(self::decodificar($this->post('/default.aspx/cargarEmpresas', ['PaisId' => 0, 'lstEmpresa' => ''], true))['resul'] ?? ''));
-        $this->post('/default.aspx/modificarUsuarioAE', ['CodiArea' => 0, 'EmpresaId' => self::elegir($emp, $empresa, 'la empresa'), 'Tipo' => 'E'], true);
-        $this->post('/default.aspx/cargarIdiomas', [], true);
-        $are = self::opciones((string)(self::decodificar($this->post('/default.aspx/cargarAreas', ['DepartamentoId' => 0, 'lstAreas' => ''], true))['resul'] ?? ''));
+        $this->http('/login.aspx/VerificarTermiCondi', [], $login);
+        $this->post('/default.aspx/ObtenerDatosUsua', []);
+        $this->http('/default.aspx', null, self::BASE . '/default.aspx');
+        $emp = self::opciones((string)(self::decodificar($this->post('/default.aspx/cargarEmpresas', ['PaisId' => 0, 'lstEmpresa' => '']))['resul'] ?? ''));
+        $this->post('/default.aspx/modificarUsuarioAE', ['CodiArea' => 0, 'EmpresaId' => self::elegir($emp, $empresa, 'la empresa'), 'Tipo' => 'E']);
+        $this->post('/default.aspx/cargarIdiomas', []);
+        $are = self::opciones((string)(self::decodificar($this->post('/default.aspx/cargarAreas', ['DepartamentoId' => 0, 'lstAreas' => '']))['resul'] ?? ''));
         $idArea = $area === '' ? ($are[0][0] ?? null) : self::elegir($are, $area, 'el área');
         if ($idArea === null) throw new RuntimeException('Phoenix no devolvió áreas para este usuario.');
-        $this->post('/default.aspx/modificarUsuarioAE', ['CodiArea' => $idArea, 'EmpresaId' => 0, 'Tipo' => 'A'], true);
-        $this->http(self::URL_GRILLA, null, self::BASE . '/default.aspx', true);
+        $this->post('/default.aspx/modificarUsuarioAE', ['CodiArea' => $idArea, 'EmpresaId' => 0, 'Tipo' => 'A']);
+        $this->http(self::URL_GRILLA, null, self::BASE . '/default.aspx');
     }
 
     // ── Lectura de Winbo ─────────────────────────────────────
     private function codigoEstado(string $nombre): string {
-        if (!$this->puente && !is_file($this->cookie)) $this->conectar();
+        if (!is_file($this->cookie)) $this->conectar();
         for ($i = 0; $i < 2; $i++) {
             $d = json_decode($this->pedir([['ruta' => '/default.aspx/CargarComboJsonX', 'json' => ['parametro' => '', 'combo' => 'EstadoOrden', 'valor' => '', 'filtro' => '', 'minFiltroChar' => 0, 'todos' => true]]])[0], true)['d'] ?? null;
             if (is_string($d)) $d = json_decode(self::b64($d) ?? $d, true);
             $ops = [];
             foreach (is_array($d) ? $d : [] as $it) if (isset($it['id'], $it['text'])) $ops[] = [(string)$it['id'], (string)$it['text']];
             if ($ops) return self::elegir($ops, $nombre, 'el estado');
-            if ($this->puente) throw new RuntimeException(self::SIN_SESION);
             if ($i === 0) $this->conectar();             // sin opciones: la sesión cayó
         }
         throw new RuntimeException('Winbo no devolvió los estados de orden.');
@@ -452,15 +409,10 @@ class WinboService {
     }
 
     private function leerPagina(string $estado, string $fecha, int $n): array {
-        if (!$this->puente && !is_file($this->cookie)) $this->conectar();
+        if (!is_file($this->cookie)) $this->conectar();
         $d = $this->consulta($estado, $fecha, $n);
         $vacia = static fn($x) => empty($x['html']) && (string)($x['registros'] ?? '') !== '0';
-        if ($vacia($d)) {                                // la sesión cayó: vuelve a entrar y repite
-            if ($this->puente) throw new RuntimeException(self::SIN_SESION);
-            $this->conectar();
-            $d = $this->consulta($estado, $fecha, $n);
-            if ($vacia($d)) throw new RuntimeException('Winbo no devolvió las órdenes. Inténtalo en unos minutos.');
-        }
+        if ($vacia($d)) $this->conectar();             // sin órdenes ni "0 registros": la sesión pudo caer (conectar() lo confirma y avisa)
         return $this->interpretar((string)($d['html'] ?? ''), (int)($d['registros'] ?? 0));
     }
 

@@ -7,6 +7,7 @@ require_once __DIR__ . '/../../config/auth.php';
 require_once __DIR__ . '/../../config/database.php';
 require_once __DIR__ . '/../../config/uploads.php';
 require_once __DIR__ . '/../../config/notifications.php';
+require_once __DIR__ . '/../../config/observation_records.php';
 
 Auth::requireLogin();
 $user = Auth::getLoggedInUser();
@@ -39,7 +40,7 @@ if ($action === 'catalogo') {
 $pdo->exec("
     UPDATE observaciones_supervision 
     SET estado_respuesta = 'Penalidad Directa' 
-    WHERE estado_respuesta = 'Pendiente' AND fecha_limite_respuesta < NOW()
+    WHERE estado_respuesta = 'Pendiente' AND COALESCE(anulado, 0) = 0 AND fecha_limite_respuesta < NOW()
 ");
 
 // 3. Registrar Observación con Carga de Hasta 3 Fotos
@@ -345,25 +346,157 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'actualizar_plazo') {
     echo json_encode(['status'=>'success','message'=>$reabre ? 'Plazo ampliado. La observación volvió a Pendiente para que el partner responda.' : 'Fecha de levantamiento actualizada.']);exit;
 }
 
-// Eliminar una observación (solo administrador, 2026-10-11). Antes de borrarla se guarda una copia completa
-// en el registro de auditoría (08_LOGS) para poder recuperarla si fuera necesario.
+// Eliminar una observación o checklist (solo administrador, regla de negocio).
+// Supervisores UM / directos deben usar "anular". Antes de borrar se guarda auditoría.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'eliminar') {
-    if (!Auth::puede(Auth::PERM_OBSERVATION_DELETE)) {
-        http_response_code(403); echo json_encode(['status'=>'error','message'=>'No tiene permiso para eliminar observaciones.']); exit;
+    if (!Auth::puede(Auth::PERM_OBSERVATION_DELETE, $user)) {
+        http_response_code(403);
+        echo json_encode(['status'=>'error','message'=>'Solo el administrador puede eliminar permanentemente penalidades u observaciones. Los supervisores pueden anularlas.']);
+        exit;
     }
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
-    $obsId = (int)($input['observacion_id'] ?? 0);
+    $tipoRegistro = trim((string)($input['tipo_registro'] ?? ''));
+    $obsId = (int)($input['observacion_id'] ?? ($input['id'] ?? 0));
+    $supervisionId = (int)($input['supervision_id'] ?? 0);
     $motivo = trim((string)($input['motivo'] ?? ''));
-    if ($obsId <= 0 || mb_strlen($motivo) < 5) {
-        http_response_code(422); echo json_encode(['status'=>'error','message'=>'Indique el motivo de la eliminación (al menos 5 caracteres).']); exit;
+    if (($obsId <= 0 && $supervisionId <= 0) || mb_strlen($motivo) < 5) {
+        http_response_code(422);
+        echo json_encode(['status'=>'error','message'=>'Indique el motivo de la eliminación (al menos 5 caracteres).']);
+        exit;
     }
+
+    if ($tipoRegistro === 'Checklist' || ($supervisionId > 0 && $obsId <= 0)) {
+        $targetSupId = $supervisionId > 0 ? $supervisionId : $obsId;
+        $stmtChk = $pdo->prepare('SELECT * FROM checklists_tecnicos WHERE supervision_id = :sup_id LIMIT 1');
+        $stmtChk->execute([':sup_id' => $targetSupId]);
+        $copiaChk = $stmtChk->fetch();
+        if (!$copiaChk) {
+            http_response_code(404);
+            echo json_encode(['status'=>'error','message'=>'El checklist ya no existe.']);
+            exit;
+        }
+        $checklistId = (int)$copiaChk['id'];
+        $pdo->prepare('DELETE FROM checklist_respuestas WHERE checklist_id = :chk_id')->execute([':chk_id' => $checklistId]);
+        $pdo->prepare('DELETE FROM checklists_tecnicos WHERE id = :chk_id')->execute([':chk_id' => $checklistId]);
+        win_log_error('audit_checklist_deleted', 'Checklist eliminado por el administrador', [
+            'supervision_id' => (int)$copiaChk['supervision_id'],
+            'checklist_id' => $checklistId,
+            'motivo' => $motivo,
+            'copia' => $copiaChk
+        ]);
+        echo json_encode(['status'=>'success','message'=>'Checklist eliminado. Quedó una copia en el registro de auditoría.']);
+        exit;
+    }
+
     $stmt = $pdo->prepare('SELECT * FROM observaciones_supervision WHERE id = :id');
     $stmt->execute([':id' => $obsId]);
     $copia = $stmt->fetch();
-    if (!$copia) { http_response_code(404); echo json_encode(['status'=>'error','message'=>'La observación ya no existe.']); exit; }
+    if (!$copia) {
+        http_response_code(404);
+        echo json_encode(['status'=>'error','message'=>'La observación ya no existe.']);
+        exit;
+    }
     $pdo->prepare('DELETE FROM observaciones_supervision WHERE id = :id')->execute([':id' => $obsId]); // sus notificaciones se borran solas (ON DELETE CASCADE)
-    win_log_error('audit_observation_deleted', 'Observación eliminada por el administrador', ['observacion_id' => $obsId, 'motivo' => $motivo, 'copia' => $copia]);
+    win_log_error('audit_observation_deleted', 'Observación eliminada por el administrador', [
+        'observacion_id' => $obsId,
+        'motivo' => $motivo,
+        'copia' => $copia
+    ]);
     echo json_encode(['status'=>'success','message'=>'Observación eliminada. Quedó una copia en el registro de auditoría.']);
+    exit;
+}
+
+// Anular una observación o checklist (supervisores UM / UM LIMA / directos y administradores).
+// Al anularse desaparece de la bandeja del supervisor y partner; el administrador puede ver las anuladas.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'anular') {
+    // 2026-11-25 (pedido del usuario): el partner no anula ni elimina; el supervisor solo anula lo que ve en su bandeja.
+    if (!Auth::puede(Auth::PERM_OBSERVATION_VOID, $user)) {
+        http_response_code(403);
+        echo json_encode(['status'=>'error','message'=>'No tiene permiso para anular observaciones.']);
+        exit;
+    }
+    $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+    $tipoRegistro = trim((string)($input['tipo_registro'] ?? ''));
+    $id = (int)($input['id'] ?? ($input['observacion_id'] ?? ($input['supervision_id'] ?? 0)));
+    $motivo = trim((string)($input['motivo'] ?? ''));
+    if ($id <= 0 || mb_strlen($motivo) < 5) {
+        http_response_code(422);
+        echo json_encode(['status'=>'error','message'=>'Indique el motivo de la anulación (al menos 5 caracteres).']);
+        exit;
+    }
+    [$visSql, $visParams] = observationRecordsBaseQuery($user, observationRegisterFilters([]));
+    $visSql .= $tipoRegistro === 'Checklist' ? " AND registros.tipo_registro='Checklist' AND registros.supervision_id=:vis_id" : ' AND registros.observacion_id=:vis_id';
+    $vis = $pdo->prepare($visSql . ' LIMIT 1');
+    $vis->execute($visParams + [':vis_id' => $id]);
+    if (!$vis->fetch()) {
+        http_response_code(404);
+        echo json_encode(['status'=>'error','message'=>'La observación no está en su bandeja o ya fue anulada.']);
+        exit;
+    }
+
+    if ($tipoRegistro === 'Checklist') {
+        $stmtChk = $pdo->prepare('SELECT id, supervision_id, estado_respuesta FROM checklists_tecnicos WHERE supervision_id = :id LIMIT 1');
+        $stmtChk->execute([':id' => $id]);
+        $chk = $stmtChk->fetch();
+        if (!$chk) {
+            http_response_code(404);
+            echo json_encode(['status'=>'error','message'=>'El checklist no fue encontrado.']);
+            exit;
+        }
+        $upd = $pdo->prepare('UPDATE checklists_tecnicos SET anulado = 1, anulado_motivo = :motivo, anulado_por = :por, anulado_en = NOW() WHERE id = :id');
+        $upd->execute([':motivo' => $motivo, ':por' => (int)$user['id'], ':id' => (int)$chk['id']]);
+        win_log_error('audit_checklist_voided', 'Checklist anulado por supervisor o administrador', [
+            'checklist_id' => (int)$chk['id'],
+            'supervision_id' => (int)$chk['supervision_id'],
+            'anulado_por' => (int)$user['id'],
+            'motivo' => $motivo
+        ]);
+        echo json_encode(['status'=>'success','message'=>'Checklist anulado correctamente. Ha desaparecido de su bandeja y queda registrado para el administrador.']);
+        exit;
+    }
+
+    $stmtObs = $pdo->prepare('SELECT id, supervision_id, estado_respuesta FROM observaciones_supervision WHERE id = :id LIMIT 1');
+    $stmtObs->execute([':id' => $id]);
+    $obs = $stmtObs->fetch();
+    if (!$obs) {
+        http_response_code(404);
+        echo json_encode(['status'=>'error','message'=>'La observación no fue encontrada.']);
+        exit;
+    }
+    $upd = $pdo->prepare('UPDATE observaciones_supervision SET anulado = 1, anulado_motivo = :motivo, anulado_por = :por, anulado_en = NOW() WHERE id = :id');
+    $upd->execute([':motivo' => $motivo, ':por' => (int)$user['id'], ':id' => (int)$obs['id']]);
+    win_log_error('audit_observation_voided', 'Observación anulada por supervisor o administrador', [
+        'observacion_id' => (int)$obs['id'],
+        'anulado_por' => (int)$user['id'],
+        'motivo' => $motivo
+    ]);
+    echo json_encode(['status'=>'success','message'=>'Observación anulada correctamente. Ha desaparecido de su bandeja y queda registrada para el administrador.']);
+    exit;
+}
+
+// Restaurar una observación o checklist previamente anulada (solo administrador).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'restaurar') {
+    if (!Auth::puede(Auth::PERM_OBSERVATION_DELETE, $user)) {
+        http_response_code(403);
+        echo json_encode(['status'=>'error','message'=>'Solo el administrador puede restaurar observaciones anuladas.']);
+        exit;
+    }
+    $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+    $tipoRegistro = trim((string)($input['tipo_registro'] ?? ''));
+    $id = (int)($input['id'] ?? ($input['observacion_id'] ?? ($input['supervision_id'] ?? 0)));
+    if ($id <= 0) {
+        http_response_code(422);
+        echo json_encode(['status'=>'error','message'=>'Identificador no válido.']);
+        exit;
+    }
+    if ($tipoRegistro === 'Checklist') {
+        $pdo->prepare('UPDATE checklists_tecnicos SET anulado = 0, anulado_motivo = NULL, anulado_por = NULL, anulado_en = NULL WHERE supervision_id = :id')
+            ->execute([':id' => $id]);
+    } else {
+        $pdo->prepare('UPDATE observaciones_supervision SET anulado = 0, anulado_motivo = NULL, anulado_por = NULL, anulado_en = NULL WHERE id = :id')
+            ->execute([':id' => $id]);
+    }
+    echo json_encode(['status'=>'success','message'=>'Observación restaurada correctamente a su estado activo.']);
     exit;
 }
 

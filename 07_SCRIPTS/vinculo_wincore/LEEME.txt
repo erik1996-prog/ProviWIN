@@ -13,8 +13,8 @@ INSTALAR (una sola vez)
 
 PRIMERA VEZ QUE LO ABRES (con la VPN conectada)
   - Dirección de tu SGS: la misma del navegador, sin index.php.
-  - Clave del programa: en el SGS, Supervisiones > Consultar puertos > Vínculo con Wincore >
-    Crear mi favorito > copia la clave. Pégala con clic derecho.
+  - Clave del programa: en el SGS, Supervisiones > Consultar puertos > Programa «Vínculo Wincore» >
+    Crear clave del programa > copia la clave. Pégala con clic derecho.
   - Tu usuario y contraseña de Wincore (la contraseña no se ve al escribir).
   La contraseña se guarda CIFRADA solo en esta laptop: solo tu usuario de Windows puede leerla.
   Nunca sale de la laptop ni llega al SGS.

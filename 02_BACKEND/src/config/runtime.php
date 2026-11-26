@@ -20,7 +20,7 @@ function sgs_module(): string
 {
     static $map = [
         'supervision_lista' => 'SUP', 'supervision_registro' => 'SUP', 'supervisiones' => 'SUP',
-        'tecnicos' => 'SUP', 'ubigeo' => 'SUP', 'ordenes_cercanas' => 'SUP', 'inicio_ordenes' => 'SUP', 'puertos_cto' => 'SUP', 'puente_wincore' => 'SUP', 'cancelaciones_import' => 'SUP',
+        'tecnicos' => 'SUP', 'ubigeo' => 'SUP', 'ordenes_cercanas' => 'SUP', 'inicio_ordenes' => 'SUP', 'puertos_cto' => 'SUP', 'cancelaciones_import' => 'SUP',
         'admin_dashboard' => 'DSH', 'dashboard' => 'DSH',
         'timeline_supervisores' => 'TML', 'asistencia' => 'TUR',
         'registro_observaciones' => 'OBS', 'observaciones_partner' => 'OBS', 'control_observaciones' => 'OBS',
@@ -190,10 +190,9 @@ function sgs_purge_old_logs(): void
 }
 
 /**
- * Inicio de órdenes (2026-11-19; 2026-11-20 pedido del usuario): despierta la lectura de Phoenix y los reportes de Telegram y
- * WhatsApp desde CUALQUIER pantalla abierta del sistema, de cualquier usuario: la carga de cada página (index.php) y la consulta
- * de la campanita que cada pantalla visible hace cada minuto (api/notificaciones.php). Como mucho una vez por minuto para todo el
- * servidor (cada 15 s mientras hay una lectura a medias); saberlo lee solo pulso.json (unos bytes) y el trabajo corre DESPUÉS de
+ * Inicio de órdenes (2026-11-19; 2026-11-21 pedido del usuario): despierta la lectura de Phoenix y los reportes de Telegram y
+ * WhatsApp. Lo llama el programa «Vínculo Wincore» de la laptop en cada pregunta (api/puertos_agente.php); ya no las pantallas.
+ * Como mucho una vez por minuto para todo el servidor (cada 15 s mientras hay una lectura a medias); saberlo lee solo pulso.json (unos bytes) y el trabajo corre DESPUÉS de
  * responder, así nadie espera. Sin sesión de Phoenix no hace nada.
  */
 function sgsDespertarInicioOrdenes(): void
@@ -208,8 +207,8 @@ function sgsDespertarInicioOrdenes(): void
 
 /**
  * Sesión de Phoenix iniciada en el SGS (2026-11-20, pedido del usuario): señal de vida cada 10 min para que Phoenix no la cierre por
- * no usarla, aunque la laptop esté apagada (lo hace el servidor). La despierta cualquier pantalla abierta, igual que los reportes
- * (index.php y la campanita); corre después de responder. Sigue cerrándose a las 23:59.
+ * no usarla (lo hace el servidor). La despierta el programa de la laptop en cada pregunta (api/puertos_agente.php), igual que los
+ * reportes; corre después de responder. Sigue cerrándose a las 23:59.
  */
 function sgsMantenerPhoenix(): void
 {
@@ -222,4 +221,18 @@ function sgsMantenerPhoenix(): void
             catch (Throwable $e) { win_log_error('phoenix_sesion', 'Falló la señal de vida de Phoenix', ['error' => $e->getMessage()]); }
         });
     });
+}
+
+/**
+ * Certificados para curl (2026-11-21): en XAMPP (Windows) su lista propia; en el hosting, los del sistema. Solo se mira el archivo
+ * en Windows: en el hosting, revisar una ruta C:/ choca con open_basedir y llenaba el registro con un aviso por consulta.
+ */
+function sgsCurlCa(): array
+{
+    static $op = null;
+    if ($op === null) {
+        $xampp = 'C:/xampp/apache/bin/curl-ca-bundle.crt';
+        $op = PHP_OS_FAMILY === 'Windows' && is_file($xampp) ? [CURLOPT_CAINFO => $xampp] : [];
+    }
+    return $op;
 }

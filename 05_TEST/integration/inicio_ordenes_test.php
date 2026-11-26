@@ -87,7 +87,6 @@ $check('Alertas: formato aprobado', str_starts_with($tx, "📣 <a href=\"tg://us
     && str_ends_with($tx, 'Por favor, revisar estas órdenes y agilizar a las cuadrillas correspondientes.'), $tx);
 $check('Cuadrilla sin el nombre del partner ni SGI/SGA', sgsIoCuadrillaSinPartner('P 7 ALFITELL SGI ANTONIO PARDO', 'ALFITELL') === 'P 7 ANTONIO PARDO' && sgsIoCuadrillaSinPartner('P 3 OLMA TRASLADO JUAN', 'OLMA') === 'P 3 TRASLADO JUAN');
 $check('Grupo propio del partner: el encabezado no repite el partner', str_contains(sgsIoArmarAlertas([], '', [], $ahora), 'Se envía el reporte del <b>tiempo de atención</b> de las cuadrillas para la alerta correspondiente.'));
-$check('Alertas sin órdenes: aviso en verde', str_contains(sgsIoArmarAlertas([], 'OLMA', [], $ahora), "las cuadrillas de <b>OLMA</b>") && str_contains(sgsIoArmarAlertas([], 'OLMA', [], $ahora), '✅ No hay órdenes iniciadas hace más de 2 horas.'));
 $check('Grupos de Telegram en 09_CONFIG (dos de prueba, sin token)', count(sgsIoTelegramGrupos()) >= 1 && !preg_match('/\d{6,}:[A-Za-z0-9_-]{20,}/', (string)file_get_contents(SGS_IO_TELEGRAM_GRUPOS)));
 $check('Cortes automáticos: 08:06 primera orden; 10:30, 12:30, 14:30, 16:30 y 18:30 alertas', InicioOrdenesService::CORTES === ['08:06' => 'primera', '10:30' => 'alertas', '12:30' => 'alertas', '14:30' => 'alertas', '16:30' => 'alertas', '18:30' => 'alertas']);
 // Primera orden sin iniciar a las 08:05: en camino a las 08:05 y sin inicio hasta entonces (las que iniciaron después también).
@@ -113,10 +112,9 @@ $check('Grupo ALFITELL: solo sus órdenes SGI, sin repetir su nombre y con sus e
 $ms = $deGrupo($ms, 'Bot de pruebas');
 $check('Un mensaje por partner: ALFITELL SGI, OLMA SGI y OLMA SGA', array_column($ms, 'partner') === ['ALFITELL SGI', 'OLMA SGI', 'OLMA SGA']
     && array_column($ms, 'ordenes') === [2, 1, 1] && str_contains($ms[0]['texto'], 'las cuadrillas de <b>ALFITELL SGI</b>'), array_column($ms, 'partner'));
-$mp = $deGrupo(sgsIoMensajes(['cuadrillas' => [['camino' => null, 'inicio' => null, 'motivo' => '', 'proveedor' => 'ALFITELL SGI', 'grupo' => 'SGI']]], 'primera', $ahora), 'ALFITELL');
-$check('Primera orden sin nadie en camino: "las órdenes del día se encuentran agendadas"', count($mp) === 1 && str_contains($mp[0]['texto'], 'se encuentran agendadas'), $mp[0]['texto'] ?? '');
-$ms = $deGrupo(sgsIoMensajes(['enCurso' => []], 'alertas', $ahora), 'Bot de pruebas');
-$check('Sin alertas: un solo mensaje ✅ para SGI y otro para SGA', array_column($ms, 'partner') === ['SGI', 'SGA'] && str_contains($ms[0]['texto'], '✅'), array_column($ms, 'partner'));
+// 2026-11-25 (pedido del usuario): si no hay nadie en el reporte, no se manda nada a ningún grupo.
+$check('Primera orden sin nadie: no se manda ningún mensaje', sgsIoMensajes(['cuadrillas' => [['camino' => null, 'inicio' => null, 'motivo' => '', 'proveedor' => 'ALFITELL SGI', 'grupo' => 'SGI']]], 'primera', $ahora) === []);
+$check('Sin alertas: no se manda ningún mensaje', sgsIoMensajes(['enCurso' => []], 'alertas', $ahora) === []);
 // Sin foto de fachada (en prueba): solo a los grupos con "fachada": true, con la lista ya revisada en Phoenix.
 $fl = [array_merge($o('OLMA SGI', 'A SGI', '13:50:00'), ['m' => 40, 'partner' => 'OLMA', 'provincia' => 'PIURA']), $o('OLMA SGA', 'B SGA', '12:00:00') + ['m' => 150, 'partner' => 'OLMA']];
 $marcados = array_values(array_filter(sgsIoTelegramGrupos(), static fn($g) => !empty($g['fachada'])));
@@ -131,7 +129,6 @@ $tf = sgsIoArmarFachada([$fl[0]], 'SGI', [], $ahora);
 $check('Fachada: texto del reporte', str_contains($tf, 'iniciadas sin foto de fachada') && str_contains($tf, '📍 <b><u>PIURA</u></b> · 1 orden')
     && str_contains($tf, 'Iniciada hace <b>40 min</b> (desde las 13:50)') && str_contains(sgsIoArmarFachada([$fl[1]], 'SGA', [], $ahora), 'Iniciada hace <b>2 h 30 min</b>')
     && str_contains(sgsIoArmarFachada($fl, 'SGA', [], $ahora), '2 órdenes sin foto'), $tf);
-$check('Fachada sin órdenes: aviso en verde', str_contains(sgsIoArmarFachada([], 'SGI', [], $ahora), '✅ Todas las órdenes iniciadas ya tienen su foto de fachada.'));
 $check('Fachada: cada hora a las :30 de 08:30 a 20:30 y no se envía a mano', count(InicioOrdenesService::CORTES_FACHADA) === 13 && InicioOrdenesService::CORTES_FACHADA[0] === '08:30'
     && InicioOrdenesService::CORTES_FACHADA[12] === '20:30' && !isset(SGS_IO_REPORTES['fachada']));
 $check('Trabajo de cada turno acotado (sistema liviano)', InicioOrdenesService::TURNO_SEGUNDOS <= 20 && InicioOrdenesService::TURNO_SEGUNDOS_CORTE <= 45);
@@ -141,16 +138,17 @@ $check('Lectura de Winbo cada 30 minutos', InicioOrdenesService::VUELTA === 1800
 $dirIo = STORAGE_PATH . '/inicio_ordenes';
 @mkdir($dirIo, 0700, true);
 $respaldo = [];
-foreach (['pulso.json', 'telegram.json'] as $a) $respaldo[$a] = @file_get_contents("$dirIo/$a");
+foreach (['pulso.json', 'telegram.json', 'fachada.json'] as $a) $respaldo[$a] = @file_get_contents("$dirIo/$a");
 try {
     $svc = new InicioOrdenesService();
     $toca = new ReflectionMethod($svc, 'toca'); $toca->setAccessible(true);
     $corte = new ReflectionMethod($svc, 'cortePendiente'); $corte->setAccessible(true);
+    $fachada = new ReflectionMethod($svc, 'fachadaPendiente'); $fachada->setAccessible(true);
     $pulso = static fn(array $p) => file_put_contents("$dirIo/pulso.json", json_encode($p + ['dia' => date('Y-m-d'), 'fase' => 'espera', 'error' => false, 'turno' => time()]));
     @unlink("$dirIo/pulso.json");
     $check('Sin pulso: toca leer', $toca->invoke($svc) === true);
     $pulso(['actualizado' => time() - 60]);
-    $c = $corte->invoke($svc);
+    $c = $corte->invoke($svc) ?? $fachada->invoke($svc);
     $check('Leído hace 1 min: solo toca si hay un corte pendiente', $toca->invoke($svc) === ($c !== null), $c);
     $pulso(['actualizado' => time() - 1900]);
     $check('Leído hace más de 30 min: toca leer', $toca->invoke($svc) === true);
@@ -160,7 +158,8 @@ try {
     $check('Con error: espera 5 min antes de reintentar', $toca->invoke($svc) === false);
     if ($c !== null) {
         file_put_contents("$dirIo/telegram.json", json_encode(['hora' => date('Y-m-d ') . $c['corte'], 'enviado' => '00:00']));
-        $check("Corte {$c['corte']} ya enviado: no queda pendiente", $corte->invoke($svc) === null);
+        file_put_contents("$dirIo/fachada.json", json_encode(['hora' => date('Y-m-d ') . $c['corte'], 'enviado' => '00:00']));
+        $check("Corte {$c['corte']} ya enviado: no queda pendiente", ($corte->invoke($svc) ?? $fachada->invoke($svc)) === null);
     }
 } finally {
     foreach ($respaldo as $a => $txt) $txt === false ? @unlink("$dirIo/$a") : file_put_contents("$dirIo/$a", $txt);

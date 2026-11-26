@@ -33,17 +33,17 @@ try {
     $check('guardada: queda activa hasta la medianoche', $s['activa'] && $s['vence'] === $vence && $s['usuario'] === 'usuario.prueba', $s);
     $guardado = (string)file_get_contents($json);
     $check('lo guardado no tiene contraseña', !preg_match('/clave|contrase|password/i', $guardado), $guardado);
-    $check('Órdenes cercanas la cuenta como configurada', WinboService::configurado());
+    $check('Órdenes cercanas la cuenta como configurada', WinboService::conectado());
 
     $svc = new WinboService();
     $prop = static function ($o, string $p) { $r = new ReflectionProperty($o, $p); $r->setAccessible(true); return $r->getValue($o); };
-    $check('WinboService usa las cookies de la sesión iniciada aquí', $prop($svc, 'aqui') === true && $prop($svc, 'cookie') === $cookie);
+    $check('WinboService usa las cookies de la sesión del SGS', $prop($svc, 'cookie') === $cookie);
 
-    // Phoenix cerró la sesión: no vuelve a entrar (no tiene la contraseña), la borra y avisa.
+    // Phoenix cerró la sesión: el servidor no vuelve a entrar (no tiene la contraseña), la borra y avisa (el programa vuelve a entrar).
     $conectar = new ReflectionMethod($svc, 'conectar'); $conectar->setAccessible(true);
     $msg = '';
     try { $conectar->invoke($svc); } catch (RuntimeException $e) { $msg = $e->getMessage(); }
-    $check('si Phoenix la cierra antes, avisa que hay que iniciar de nuevo', str_contains($msg, 'Vuelve a conectarla'), $msg);
+    $check('si Phoenix la cierra antes, avisa que el programa la vuelve a conectar', str_contains($msg, 'vuelve a conectar'), $msg);
     $check('…y la sesión se borra', !sgsPhoenixSesion()['activa'] && !is_file($cookie) && !is_file($json));
 
     // Vencida (pasó la medianoche): se borra sola.
@@ -56,7 +56,7 @@ try {
     sgsPuertosEscribir($json, ['usuario' => 'usuario.prueba', 'usuario_id' => 1, 'desde' => time(), 'vence' => sgsPhoenixMedianoche()]);
     $check('sin cookies no está activa', !sgsPhoenixSesion()['activa']);
 
-    // Por HTTP: sin sesión del SGS no responde; la ventanita existe.
+    // Por HTTP (2026-11-21): ya no hay ventanita ni favorito; los archivos de la sesión no se publican.
     $http = function (string $url, ?array $post = null): array {
         $ch = curl_init($url);
         curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => false]);
@@ -64,12 +64,9 @@ try {
         $cuerpo = (string)curl_exec($ch);
         return [(int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE), $cuerpo];
     };
-    [$c1, $b1] = $http("$base/api/puente_phoenix.php?action=sesion_estado");
-    $check('sesion_estado sin sesión del SGS: no entrega datos', $c1 !== 200 || !str_contains($b1, '"activa"'), [$c1, substr($b1, 0, 120)]);
-    [$c2, $b2] = $http("$base/api/puente_phoenix.php?action=sesion_iniciar", ['usuario' => 'x', 'clave' => 'y']);
-    $check('sesion_iniciar sin sesión del SGS: rechazada', $c2 !== 200 || !str_contains($b2, '"success"'), [$c2, substr($b2, 0, 120)]);
+    [$c1] = $http("$base/api/puente_phoenix.php?action=sesion_estado");
     [$c3] = $http("$base/phoenix_sesion.php");
-    $check('la ventanita existe (sin sesión manda al ingreso)', in_array($c3, [200, 302], true), $c3);
+    $check('ya no existen la ventanita ni la API del favorito', $c1 === 404 && $c3 === 404, [$c1, $c3]);
     [$c4] = $http("$base/08_LOGS/runtime/phoenix/sesion_aqui.json");
     $check('los archivos de la sesión no se sirven por web', $c4 === 403 || $c4 === 404, $c4);
 } catch (Throwable $e) {

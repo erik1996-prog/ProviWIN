@@ -6,8 +6,7 @@
 //      La contraseña solo se usa para entrar y se borra: no se guarda en ningún archivo.
 //   2) Activa el vínculo en el SGS (api/puertos_agente.php, con la clave del programa) y, cada pocos segundos, toma la siguiente
 //      consulta de puertos, la hace en Wincore con su sesión y devuelve SOLO el estado de la CTO y de sus puertos (nunca datos
-//      de clientes: la MAC solo sirve para pedir la potencia y no sale de la laptop). Misma lógica que el favorito
-//      (assets/js/puente_favorito.js, función consultar).
+//      de clientes: la MAC solo sirve para pedir la potencia y no sale de la laptop).
 //   3) Se detiene con Ctrl + C o al cerrar la ventana, si se cae la VPN o la sesión de Wincore, o al vencer el vínculo (10 h).
 // 2026-11-19 (pedido del usuario): corre en segundo plano, sin ventana. El lanzador lo deja oculto y espera a que diga
 // "Vinculado" o falle; lo que pasa se anota en <registro> (nunca la contraseña). Se detiene con el acceso directo

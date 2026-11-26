@@ -19,44 +19,31 @@ $verComo = Auth::verComoActivo(); // 2026-10-28: el administrador general ve el 
         <?php if (!empty($pageDescription)): ?><p><?= htmlspecialchars($pageDescription) ?></p><?php endif; ?>
     </div>
     <?php
-    // Conexión con Phoenix (2026-11-19, pedido del usuario): un solo lugar, visible en todas las pantallas y solo para la cuenta
-    // principal, para ver si la sesión de Phoenix está conectada y conectarla o cerrarla. La usan Órdenes cercanas e Inicio de
-    // órdenes. El estado sale de archivos chicos (sin consultar a Phoenix); assets/js/phoenix_estado.js lo maneja.
-    // 2026-11-21 (pedido del usuario): junto a Phoenix, el estado del bot de Telegram y del vínculo con Wincore, para la cuenta
-    // principal y quien tenga "Conectar desde su laptop". Solo informan (se leen de archivos chicos al cargar la página).
-    $verVinculos = !$verComo && Auth::puedeVincularLaptop($user);
-    if ($verVinculos): ?>
-    <div class="sgs-vinculos">
-    <?php if (Auth::puedeVincularPhoenix($user)):
-        require_once BACKEND_PATH . '/config/puente_phoenix.php';
-        $phx = is_file(sgsPhoenixDir() . '/sesion_aqui.json') ? sgsPhoenixSesion() : ['activa' => false];
-        $phxVinculo = !$phx['activa'] && is_file(sgsPhoenixDir() . '/puente.json') && sgsPhoenixEstado()['activo'];
-    ?>
-    <button type="button" class="sgs-phx" id="sgsPhx" data-estado="<?= $phx['activa'] || $phxVinculo ? 'ok' : 'sin' ?>"
-        title="Sesión de Phoenix (la usan Órdenes cercanas e Inicio de órdenes)" aria-label="<?= $phx['activa'] || $phxVinculo ? 'Phoenix: conectado' : 'Phoenix: sin conexión' ?>">
-        <i class="bi bi-plug" aria-hidden="true"></i>
-        <span>Phoenix<span class="sgs-phx-detalle" id="sgsPhxTexto">: <?= $phx['activa'] ? 'conectado hasta las ' . date('H:i', (int)$phx['vence'])
-            : ($phxVinculo ? 'conectado por el favorito' : 'sin conexión') ?></span></span>
-    </button>
-    <?php endif;
+    // Vínculos (2026-11-19 Phoenix; 2026-11-21 Bot y Wincore, pedido del usuario): para la cuenta principal y quien tenga «Conectar
+    // desde su laptop», el estado de lo que conecta el programa «Vínculo Wincore». Solo informan; salen de archivos chicos al cargar.
+    if (!$verComo && Auth::puedeVincularLaptop($user)):
+        $hasta = static fn(int $t) => 'activo hasta las ' . date('H:i', $t);
+        $vinculos = [];                                      // [nombre, ícono, para qué, estado (null = sin conexión)]
+        if (Auth::puedeVincularPhoenix($user)) {
+            require_once BACKEND_PATH . '/config/phoenix_sesion.php';
+            $p = sgsPhoenixSesion();
+            $vinculos[] = ['Phoenix', 'bi-plug', 'Sesión de Phoenix (la usan Órdenes cercanas e Inicio de órdenes)', $p['activa'] ? $hasta($p['vence']) : null];
+        }
         require_once BACKEND_PATH . '/config/telegram_token.php';
-        $bot = sgsTelegramTokenEstado();
-        $botTexto = $bot['activo'] ? 'activo hasta las ' . date('H:i', (int)$bot['vence']) : (getenv('TELEGRAM_TOKEN') ? 'activo (hosting)' : 'sin conexión');
+        $b = sgsTelegramTokenEstado();
+        $vinculos[] = ['Bot', 'bi-robot', 'Bot de Telegram de los reportes', $b['activo'] ? $hasta($b['vence']) : (getenv('TELEGRAM_TOKEN') ? 'activo (hosting)' : null)];
+        if (Auth::puedeVincularWincore($user)) {
+            require_once BACKEND_PATH . '/config/puertos_cto.php';
+            $w = sgsPuenteEstado();
+            $vinculos[] = ['Wincore', 'bi-hdd-network', 'Vínculo con Wincore (Consultar puertos)', $w['activo'] ? $hasta($w['vence']) : null];
+        }
     ?>
-    <span class="sgs-phx sgs-phx--info" data-estado="<?= $botTexto !== 'sin conexión' ? 'ok' : 'sin' ?>" role="status"
-        title="Bot de Telegram de los reportes (lo entrega cada día el programa de la laptop)" aria-label="Bot: <?= htmlspecialchars($botTexto) ?>">
-        <i class="bi bi-robot" aria-hidden="true"></i><span class="sgs-phx-nombre">Bot<span class="sgs-phx-detalle">: <?= htmlspecialchars($botTexto) ?></span></span>
-    </span>
-    <?php if (Auth::puedeVincularWincore($user)):
-        require_once BACKEND_PATH . '/config/puertos_cto.php';
-        $wc = sgsPuenteEstado();
-        $wcTexto = $wc['activo'] ? 'activo hasta las ' . date('H:i', (int)$wc['vence']) : 'sin conexión';
-    ?>
-    <span class="sgs-phx sgs-phx--info" data-estado="<?= $wc['activo'] ? 'ok' : 'sin' ?>" role="status"
-        title="Vínculo con Wincore (Consultar puertos)" aria-label="Wincore: <?= htmlspecialchars($wcTexto) ?>">
-        <i class="bi bi-hdd-network" aria-hidden="true"></i><span class="sgs-phx-nombre">Wincore<span class="sgs-phx-detalle">: <?= htmlspecialchars($wcTexto) ?></span></span>
-    </span>
-    <?php endif; ?>
+    <div class="sgs-vinculos">
+        <?php foreach ($vinculos as [$nombre, $icono, $para, $estado]): $texto = $estado ?? 'sin conexión'; ?>
+        <span class="sgs-phx" data-estado="<?= $estado ? 'ok' : 'sin' ?>" role="status" title="<?= htmlspecialchars($para) ?>" aria-label="<?= htmlspecialchars("$nombre: $texto") ?>">
+            <i class="bi <?= $icono ?>" aria-hidden="true"></i><span class="sgs-phx-nombre"><?= $nombre ?><span class="sgs-phx-detalle">: <?= htmlspecialchars($texto) ?></span></span>
+        </span>
+        <?php endforeach; ?>
     </div>
     <?php endif; ?>
     <div class="sgs-topbar-date d-none d-md-flex"><i class="bi bi-calendar3"></i><span><?= htmlspecialchars(date("d/m/Y")) ?></span></div>

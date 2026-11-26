@@ -1,11 +1,11 @@
 <?php
 // 05_TEST/integration/puertos_cto_test.php - (2026-11-11) Consultar puertos de una CTO con el vínculo con Wincore.
 //   - Solo quien tiene "Consultar puertos" (perfil administrador; el supervisor aún no) ve el botón y usa la API.
-//   - Solo la cuenta principal activa, atiende y desactiva el vínculo.
+//   - El vínculo lo activa y atiende el programa «Vínculo Wincore» con su clave (api/puertos_agente.php; 2026-11-21 sin favorito).
 //   - Recorrido completo: consulta pendiente → la ventana del vínculo la toma → responde → el que consultó la recibe una vez,
 //     sin datos de clientes aunque Wincore los mande.
-// Por HTTP contra la API real. Wincore no se llama: la prueba hace de ventana del vínculo. Crea usuarios DNI 99999979-80 y una
-// sesión de la cuenta principal (sin su contraseña); lo BORRA todo al final y deja el vínculo como estaba.
+// Por HTTP contra la API real. Wincore no se llama: la prueba hace de programa de la laptop con una clave de prueba de la cuenta
+// principal. Crea usuarios DNI 99999979-80; lo BORRA todo al final y deja el vínculo y la clave de la cuenta principal como estaban.
 // Uso (solo CLI): php 05_TEST/integration/puertos_cto_test.php [url_base=http://localhost/ProviWIN]
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 $base = rtrim($argv[1] ?? 'http://localhost/ProviWIN', '/');
@@ -17,17 +17,15 @@ require BACKEND_PATH . '/services/UsuarioService.php';
 $pdo = Database::getConnection();
 $dnis = ['99999979', '99999980'];
 $frascos = [];
-$sesionPrincipal = STORAGE_PATH . '/sesiones/sess_sgspuertos' . bin2hex(random_bytes(10));
 $puente = sgsPuertosDir() . '/puente.json';
 $puenteAntes = @file_get_contents($puente);
-$limpiar = function () use ($pdo, $dnis, &$frascos, $sesionPrincipal) {
+$limpiar = function () use ($pdo, $dnis, &$frascos) {
     $us = $pdo->query("SELECT id FROM usuarios WHERE dni IN ('" . implode("','", $dnis) . "')")->fetchAll(PDO::FETCH_COLUMN);
     if ($us) { $in = implode(',', array_map('intval', $us));
         foreach (['notificaciones', 'usuario_departamentos_acceso'] as $t) $pdo->exec("DELETE FROM $t WHERE usuario_id IN ($in)");
         $pdo->exec("DELETE FROM usuarios WHERE id IN ($in)"); }
     foreach (['pc.admin', 'pc.sup'] as $u) foreach (['::1', '127.0.0.1'] as $ip) $pdo->prepare('DELETE FROM login_attempts WHERE fingerprint = :f')->execute([':f' => hash('sha256', "$ip|$u")]);
     foreach ($frascos as $f) @unlink($f);
-    @unlink($sesionPrincipal);
 };
 $limpiar();
 $ok = 0; $fail = 0;
@@ -66,16 +64,16 @@ try {
         preg_match('/<meta name="csrf-token" content="([^"]+)"/', $pagina($fr), $m);
         return [$cliente($fr, $m[1] ?? ''), $fr];
     };
-    // Sesión de la cuenta principal fabricada en la carpeta de sesiones (como carga_100_usuarios.php)
-    $p = $pdo->query("SELECT u.*, pa.nombre_partner FROM usuarios u LEFT JOIN partners pa ON pa.id = u.partner_id WHERE u.id = $principalId")->fetch();
-    $datos = ['user_id' => (int)$p['id'], 'user_dni' => $p['dni'], 'user_usuario' => $p['usuario'], 'user_nombre' => $p['nombre_completo'] ?? '',
-        'user_rol' => $p['rol'], 'user_partner_id' => $p['partner_id'], 'user_partner_nombre' => $p['nombre_partner'], 'csrf_token' => 'prueba-puertos'];
-    $ser = ''; foreach ($datos as $k => $v) $ser .= $k . '|' . serialize($v);
-    file_put_contents($sesionPrincipal, $ser);
-    $frP = tempnam(sys_get_temp_dir(), 'sgsp'); $frascos[] = $frP;
-    $url = parse_url($base);
-    file_put_contents($frP, implode("\t", [$url['host'], 'FALSE', '/', 'FALSE', '0', 'SGS_SESSID', substr(basename($sesionPrincipal), 5)]) . "\n");
-    $principal = $cliente($frP, 'prueba-puertos');
+    // El programa de la laptop de la cuenta principal: su clave se guarda aquí y se devuelve como estaba al final.
+    $claveAntes = @file_get_contents(sgsAgenteArchivo($principalId));
+    $claveP = sgsAgenteGenerarClave($principalId);
+    $principal = function (string $accion, ?array $post = null, string $extra = '') use ($base, $claveP) {
+        $ch = curl_init("$base/api/puertos_agente.php?action=$accion$extra");
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => ['X-SGS-Clave: ' . $claveP]]);
+        if ($post !== null) curl_setopt_array($ch, [CURLOPT_POST => true, CURLOPT_POSTFIELDS => $post]);
+        $cuerpo = (string)curl_exec($ch);
+        return [curl_getinfo($ch, CURLINFO_RESPONSE_CODE), json_decode($cuerpo, true) ?? []];
+    };
 
     [$admin, $frA] = $sesion('pc.admin');
     [$sup, $frS] = $sesion('pc.sup');
@@ -86,10 +84,10 @@ try {
     $check('el supervisor aún no lo ve (se habilita en Permisos)', !str_contains($pagina($frS), 'modalPuertosCto'));
     [$c, $r] = $sup('estado');
     $check('el supervisor sin permiso no usa la API', $c === 403, [$c, $r]);
+    [$c, $r] = $admin('agente_generar', []);
+    $check('un administrador sin «Conectar desde su laptop» no crea clave del programa', $c === 403, [$c, $r]);
     [$c, $r] = $admin('vincular', []);
-    $check('un administrador que no es la cuenta principal no activa el vínculo', $c === 403, [$c, $r]);
-    [$c, $r] = $admin('tomar');
-    $check('ni atiende consultas como ventana del vínculo', $c === 403, [$c, $r]);
+    $check('el navegador ya no activa el vínculo (solo el programa)', $c === 400, [$c, $r]);
 
     // Sin vínculo
     [$c, $r] = $admin('estado');
@@ -168,16 +166,12 @@ try {
     [$c2, $r2] = $admin('estado');
     $check('Desactivar apaga el vínculo para todos', $c === 200 && $r2['activo'] === false, [$r, $r2]);
 
-    // Favorito
-    $fav = sgsFavoritoPuente('https://sgs.ejemplo/ProviWIN/', 'sgsw_' . str_repeat('a', 48));
-    $js = rawurldecode(substr($fav, 11));
-    $check('el favorito lleva la dirección del SGS, la de Wincore y la clave', str_starts_with($fav, 'javascript:') && str_contains($js, "'https://sgs.ejemplo/ProviWIN/'") && str_contains($js, "'sgsw_" . str_repeat('a', 48) . "'") && !str_contains($js, '__CLAVE__')
-        && str_contains($js, "'" . sgsWincoreOrigen() . "'") && !str_contains($js, '__SGS__') && !str_contains($js, '// '), substr($js, 0, 200));
 } catch (Throwable $e) {
     $check('sin excepciones', false, $e->getMessage());
 } finally {
     sgsPuenteDesactivar();
     if ($puenteAntes !== false) file_put_contents($puente, $puenteAntes);
+    if (isset($principalId)) { if (!empty($claveAntes)) file_put_contents(sgsAgenteArchivo($principalId), $claveAntes); else @unlink(sgsAgenteArchivo($principalId)); }
     $limpiar();
 }
 echo "\n$ok correctas, $fail con error\n";

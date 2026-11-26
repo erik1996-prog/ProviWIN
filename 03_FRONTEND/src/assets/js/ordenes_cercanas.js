@@ -17,21 +17,13 @@
     $('ocReintentar').classList.toggle('d-none', listo || A.preparando);
   };
 
-  // Con el vínculo con Phoenix (2026-11-13) el servidor no espera: responde "consultando" y aquí se repite la misma petición
-  // cada 2 s hasta tener las órdenes (máximo 90 s), sin dejar procesos del hosting ocupados.
-  const REPETIR_MS = 2000, MAX_MS = 90000;
   async function api(q) {
-    const inicio = Date.now();
-    for (;;) {
-      let r;
-      try { r = await fetch('api/ordenes_cercanas.php?' + q, { headers: { Accept: 'application/json' } }); }
-      catch { throw new Error('No se pudo conectar con el servidor.'); }
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok || d.status !== 'success') throw new Error(d.message || 'No se pudo completar la consulta.');
-      if (!d.consultando) return d;
-      if (Date.now() - inicio > MAX_MS) throw new Error('Phoenix está tardando en responder. Inténtalo en unos minutos.');
-      await new Promise(ok => setTimeout(ok, REPETIR_MS));
-    }
+    let r;
+    try { r = await fetch('api/ordenes_cercanas.php?' + q, { headers: { Accept: 'application/json' } }); }
+    catch { throw new Error('No se pudo conectar con el servidor.'); }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || d.status !== 'success') throw new Error(d.message || 'No se pudo completar la consulta.');
+    return d;
   }
 
   // Escucha el GPS unos segundos y se queda con la lectura más precisa.
@@ -200,8 +192,4 @@
   modal.addEventListener('show.bs.modal', () => { if (!(A.fecha && A.yo)) preparar(); });
   modal.addEventListener('hidden.bs.modal', () => { A.turno++; A.escaneando = false; botones(); });
 
-  // Sesión de Phoenix (2026-11-19): se conecta desde el indicador "Phoenix" de la barra superior (phoenix_estado.js). Si Phoenix
-  // la cerró antes de la medianoche, el aviso sale en la lista y el indicador se actualiza para ofrecer conectarla de nuevo.
-  new MutationObserver(() => { if (/sesión de Phoenix se cerró/i.test($('ocAvance').textContent)) window.sgsPhoenixRevisar?.(); })
-    .observe($('ocAvance'), { childList: true, characterData: true, subtree: true });
 })();

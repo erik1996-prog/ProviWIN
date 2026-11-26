@@ -38,7 +38,56 @@ if(observationFilters){
 }
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
 const obsEscape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
-function openChecklistDetail(row){let detail;try{detail=JSON.parse(row.dataset.detail||'{}')}catch(error){return}const canRespond=row.dataset.canRespond==='1',canReview=row.dataset.canReview==='1';const form=document.getElementById('formChecklistResponse');form.reset();form.dataset.detail=JSON.stringify(detail);document.getElementById('checklistSupervisionId').value=detail.supervision_id||'';document.getElementById('checklistDetailCrew').textContent=`${detail.codigo||'Sin código'} · ${detail.cuadrilla||'Sin cuadrilla'}`;document.getElementById('checklistDetailMeta').innerHTML=`<div class="row g-2"><div class="col-md-3"><strong>Código:</strong> ${obsEscape(detail.codigo||'Sin código')}</div><div class="col-md-3"><strong>Partner:</strong> ${obsEscape(detail.partner)}</div><div class="col-md-3"><strong>Ingreso:</strong> ${obsEscape(detail.fecha)}</div><div class="col-md-3"><strong>Fecha límite:</strong> ${obsEscape(detail.plazo)}</div><div class="col-md-3"><strong>Estado:</strong> ${obsEscape(detail.estado)}</div><div class="col-md-4"><strong>Supervisor:</strong> ${obsEscape(detail.supervisor||'Sin asignar')}</div><div class="col-md-5"><strong>Ubicación:</strong> ${obsEscape(detail.ubicacion||'No registrada')}</div></div>`;document.getElementById('checklistGeneralOriginal').innerHTML=detail.comentario_general?`<div class="p-3 border rounded bg-light"><strong>Comentario general de la cuadrilla</strong><div>${obsEscape(detail.comentario_general)}</div></div>`:'';document.getElementById('checklistDetailItems').innerHTML=(detail.items||[]).map((item,index)=>`<div class="col-lg-6"><div class="card h-100 border shadow-sm"><div class="card-body"><div class="d-flex gap-3 mb-3">${item.foto?`<button type="button" class="btn p-0 border-0 bg-transparent checklist-zoom" data-photo="${obsEscape(item.foto)}" data-title="Evidencia original"><img src="${obsEscape(item.foto)}" class="checklist-detail-photo" alt="Evidencia"></button>`:''}<div><span class="badge bg-warning text-dark mb-2">Observación ${index+1}</span><h6 class="fw-bold">${obsEscape(item.titulo)}</h6><p class="small mb-0">${obsEscape(item.observacion)}</p></div></div>${canRespond?`<div class="border-top pt-3"><label class="form-label fw-bold small">Foto del levantamiento *</label><input class="form-control form-control-sm mb-2" type="file" name="foto_item_${Number(item.id)}" accept="image/jpeg,image/png,image/webp" required><label class="form-label fw-bold small">Comentario del levantamiento *</label><textarea class="form-control form-control-sm" name="comentario_item[${Number(item.id)}]" rows="3" required></textarea></div>`:(item.descargo_foto||item.descargo_comentario?`<div class="border-top pt-3"><strong class="small text-success">Levantamiento presentado</strong>${item.descargo_foto?`<button type="button" class="btn p-0 border-0 bg-transparent checklist-zoom d-block my-2" data-photo="${obsEscape(item.descargo_foto)}" data-title="Foto del levantamiento"><img src="${obsEscape(item.descargo_foto)}" class="checklist-detail-photo"></button>`:''}<p class="small mb-0">${obsEscape(item.descargo_comentario)}</p></div>`:'')}</div></div></div>`).join('');document.getElementById('checklistResponseArea').classList.toggle('d-none',!canRespond);document.getElementById('checklistSubmitButton').classList.toggle('d-none',!canRespond);document.getElementById('checklistReviewArea').classList.toggle('d-none',!canReview);document.getElementById('checklistApproveButton').classList.toggle('d-none',!canReview);document.getElementById('checklistRejectButton').classList.toggle('d-none',!canReview);document.getElementById('checklistPartnerGeneral').textContent=detail.respuesta_general||'';document.getElementById('checklistReviewComment').value=detail.evaluacion||'';bootstrap.Modal.getOrCreateInstance(document.getElementById('modalChecklistDetail')).show()}
+function openChecklistDetail(row){
+    let detail;
+    try{detail=JSON.parse(row.dataset.detail||'{}')}catch(error){return}
+    const canRespond=row.dataset.canRespond==='1',canReview=row.dataset.canReview==='1';
+    const form=document.getElementById('formChecklistResponse');
+    form.reset();
+    form.dataset.detail=JSON.stringify(detail);
+    document.getElementById('checklistSupervisionId').value=detail.supervision_id||'';
+    document.getElementById('checklistDetailCrew').textContent=`${detail.codigo||'Sin código'} · Cuadrilla / T1: ${detail.tecnico1||detail.cuadrilla||'Sin cuadrilla'}`;
+    document.getElementById('checklistDetailMeta').innerHTML=`
+      <div class="row g-2 align-items-center">
+        <div class="col-md-3"><strong>Código:</strong> ${obsEscape(detail.codigo||'Sin código')}</div>
+        <div class="col-md-3"><strong>Partner:</strong> ${obsEscape(detail.partner||'Sin partner')}</div>
+        <div class="col-md-3"><strong>Técnico T1:</strong> <span class="badge bg-light text-dark border px-2 py-1"><i class="bi bi-person-fill me-1 text-primary"></i>${obsEscape(detail.tecnico1||detail.cuadrilla||'Sin asignar')}${detail.tecnico1_dni ? ` (${obsEscape(detail.tecnico1_dni)})` : ''}</span></div>
+        ${detail.tecnico2 ? `<div class="col-md-3"><strong>Técnico T2:</strong> ${obsEscape(detail.tecnico2)}</div>` : ''}
+        <div class="col-md-3"><strong>Ingreso:</strong> ${obsEscape(detail.fecha)}</div>
+        <div class="col-md-3"><strong>Fecha límite:</strong> ${obsEscape(detail.plazo||'No aplica')}</div>
+        <div class="col-md-3"><strong>Estado:</strong> ${obsEscape(detail.estado)}</div>
+        <div class="col-md-3"><strong>Supervisor:</strong> ${obsEscape(detail.supervisor||'Sin asignar')}</div>
+        <div class="col-md-6"><strong>Ubicación:</strong> ${obsEscape(detail.ubicacion||'No registrada')}</div>
+      </div>
+      ${detail.anulado ? `
+        <div class="alert alert-secondary mt-3 mb-0 d-flex align-items-center gap-2">
+          <i class="bi bi-slash-circle-fill text-danger fs-5"></i>
+          <div>
+            <strong>Observación / Checklist anulado</strong>
+            ${detail.anulado_por ? ` por <strong>${obsEscape(detail.anulado_por)}</strong>` : ''}
+            ${detail.anulado_en ? ` el ${obsEscape(detail.anulado_en)}` : ''}
+            ${detail.anulado_motivo ? `<div class="small mt-1 text-muted">Motivo: ${obsEscape(detail.anulado_motivo)}</div>` : ''}
+          </div>
+        </div>
+      ` : ''}
+    `;
+    document.getElementById('checklistGeneralOriginal').innerHTML=detail.comentario_general?`<div class="p-3 border rounded bg-light"><strong>Comentario general de la cuadrilla</strong><div>${obsEscape(detail.comentario_general)}</div></div>`:'';
+    document.getElementById('checklistDetailItems').innerHTML=(detail.items||[]).map((item,index)=>`<div class="col-lg-6"><div class="card h-100 border shadow-sm"><div class="card-body"><div class="d-flex gap-3 mb-3">${item.foto?`<button type="button" class="btn p-0 border-0 bg-transparent checklist-zoom" data-photo="${obsEscape(item.foto)}" data-title="Evidencia original"><img src="${obsEscape(item.foto)}" class="checklist-detail-photo" alt="Evidencia"></button>`:''}<div><span class="badge bg-warning text-dark mb-2">Observación ${index+1}</span><h6 class="fw-bold">${obsEscape(item.titulo)}</h6><p class="small mb-0">${obsEscape(item.observacion)}</p></div></div>${canRespond?`<div class="border-top pt-3"><label class="form-label fw-bold small">Foto del levantamiento *</label><input class="form-control form-control-sm mb-2" type="file" name="foto_item_${Number(item.id)}" accept="image/jpeg,image/png,image/webp" required><label class="form-label fw-bold small">Comentario del levantamiento *</label><textarea class="form-control form-control-sm" name="comentario_item[${Number(item.id)}]" rows="3" required></textarea></div>`:(item.descargo_foto||item.descargo_comentario?`<div class="border-top pt-3"><strong class="small text-success">Levantamiento presentado</strong>${item.descargo_foto?`<button type="button" class="btn p-0 border-0 bg-transparent checklist-zoom d-block my-2" data-photo="${obsEscape(item.descargo_foto)}" data-title="Foto del levantamiento"><img src="${obsEscape(item.descargo_foto)}" class="checklist-detail-photo"></button>`:''}<p class="small mb-0">${obsEscape(item.descargo_comentario)}</p></div>`:'')}</div></div></div>`).join('');
+    document.getElementById('checklistResponseArea').classList.toggle('d-none',!canRespond);
+    document.getElementById('checklistSubmitButton').classList.toggle('d-none',!canRespond);
+    document.getElementById('checklistReviewArea').classList.toggle('d-none',!canReview);
+    document.getElementById('checklistApproveButton').classList.toggle('d-none',!canReview);
+    document.getElementById('checklistRejectButton').classList.toggle('d-none',!canReview);
+    const chkEliminarBtn = document.getElementById('checklistEliminarButton');
+    const chkAnularBtn = document.getElementById('checklistAnularButton');
+    const chkRestaurarBtn = document.getElementById('checklistRestaurarButton');
+    if (chkEliminarBtn) chkEliminarBtn.classList.toggle('d-none', !detail.puede_eliminar);
+    if (chkAnularBtn) chkAnularBtn.classList.toggle('d-none', !detail.puede_anular);
+    if (chkRestaurarBtn) chkRestaurarBtn.classList.toggle('d-none', !detail.puede_restaurar);
+    document.getElementById('checklistPartnerGeneral').textContent=detail.respuesta_general||'';
+    document.getElementById('checklistReviewComment').value=detail.evaluacion||'';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('modalChecklistDetail')).show();
+}
 function appendChecklistSupervisor(row){try{const detail=JSON.parse(row.dataset.detail||'{}');const meta=document.getElementById('checklistDetailMeta');if(detail.respondido_por)meta.insertAdjacentHTML('beforeend',`<div class="mt-2"><strong>Respondido por (Partner):</strong> ${obsEscape(detail.respondido_por)}${detail.fecha_respuesta?` · ${obsEscape(detail.fecha_respuesta)}`:''}</div>`)}catch(error){}}
 const checklistReopenButton=document.createElement('button');checklistReopenButton.type='button';checklistReopenButton.className='btn btn-warning d-none';checklistReopenButton.innerHTML='<i class="bi bi-unlock me-1"></i>Reabrir observación';document.getElementById('checklistSubmitButton')?.before(checklistReopenButton);
 function prepareChecklistActions(row){let detail={};try{detail=JSON.parse(row.dataset.detail||'{}')}catch(error){}document.getElementById('checklistEvaluationResult')?.remove();if(detail.evaluacion){const result=document.createElement('div');result.id='checklistEvaluationResult';result.className=`alert ${detail.estado==='Penalizado'?'alert-danger':'alert-success'} mt-3 mb-0`;result.innerHTML=`<strong class="d-block mb-1">${detail.estado==='Penalizado'?'Motivo de no validación':'Resultado de la validación'}</strong><span>${obsEscape(detail.evaluacion)}</span>`;document.getElementById('checklistGeneralOriginal')?.after(result)}checklistReopenButton.classList.toggle('d-none',row.dataset.canReopen!=='1');const review=document.getElementById('checklistReviewComment'),reject=document.getElementById('checklistRejectButton');if(review){review.value='';review.classList.add('d-none');if(review.previousElementSibling)review.previousElementSibling.textContent='Se validan descargos'}if(reject)reject.dataset.awaitingReason='0';if(row.dataset.canRespond==='1'){(detail.items||[]).forEach(item=>{const textarea=document.querySelector(`[name="comentario_item[${Number(item.id)}]"]`),input=document.querySelector(`[name="foto_item_${Number(item.id)}"]`);if(textarea)textarea.value=item.descargo_comentario||'';if(input&&item.descargo_foto){input.required=false;const preview=document.createElement('button');preview.type='button';preview.className='btn btn-sm btn-outline-secondary checklist-zoom mb-2';preview.dataset.photo=item.descargo_foto;preview.dataset.title='Descargo anterior';preview.innerHTML='<i class="bi bi-image me-1"></i>Ver foto anterior';input.after(preview)}})}}
@@ -101,11 +150,23 @@ document.querySelectorAll('.btn-detalle-flujo').forEach(button => button.addEven
   flowActual = d;
   document.getElementById('flowCodigoVentana').textContent = `Pedido o ticket ${d.codigo || '—'}`;
   const vencido = d.estado === 'Pendiente' && d.plazo_iso && new Date(d.plazo_iso) < new Date();
-  document.getElementById('flowEstado').innerHTML = `<span class="badge ${flowEstadoClase(d.estado)}">${obsEscape(d.estado)}</span>`
-    + (d.plazo ? `<span class="${vencido ? 'text-danger fw-semibold' : 'text-muted'}"><i class="bi bi-alarm me-1"></i>Plazo para regularizar: <strong>${obsEscape(d.plazo)}</strong></span>` : '');
+  const bannerAnulado = d.anulado ? `
+    <div class="alert alert-secondary mb-3 d-flex align-items-center gap-2">
+      <i class="bi bi-slash-circle-fill text-danger fs-5"></i>
+      <div>
+        <strong>Observación anulada</strong>
+        ${d.anulado_por ? ` por <strong>${obsEscape(d.anulado_por)}</strong>` : ''}
+        ${d.anulado_en ? ` el ${obsEscape(d.anulado_en)}` : ''}
+        ${d.anulado_motivo ? `<div class="small mt-1 text-muted">Motivo: ${obsEscape(d.anulado_motivo)}</div>` : ''}
+      </div>
+    </div>` : '';
+  document.getElementById('flowEstado').innerHTML = bannerAnulado + `<span class="badge ${d.anulado ? 'bg-secondary' : flowEstadoClase(d.estado)}">${obsEscape(d.anulado ? 'Anulada' : d.estado)}</span>`
+    + (!d.anulado && d.plazo ? `<span class="${vencido ? 'text-danger fw-semibold' : 'text-muted'}"><i class="bi bi-alarm me-1"></i>Plazo para regularizar: <strong>${obsEscape(d.plazo)}</strong></span>` : '');
   const dato = (etiqueta, valor) => `<div><dt>${etiqueta}</dt><dd>${obsEscape(valor || '—')}</dd></div>`;
-  document.getElementById('flowDatos').innerHTML = dato('Pedido o ticket', d.codigo) + dato('Fecha de ingreso', d.fecha) + dato('Plazo para regularizar', d.plazo || 'No aplica')
-    + dato('Partner', d.partner) + dato('Cuadrilla', d.cuadrilla) + dato('Departamento', [d.departamento, d.zona].filter(Boolean).join(' · ')) + dato('Supervisor', d.supervisor);
+  document.getElementById('flowDatos').innerHTML = dato('Pedido o ticket', d.codigo) + dato('Fecha de ingreso', d.fecha) + dato('Plazo para regularizar', d.anulado ? 'Anulada' : (d.plazo || 'No aplica'))
+    + dato('Partner', d.partner) + dato('Técnico T1', d.tecnico1 ? `${d.tecnico1}${d.tecnico1_dni ? ` (${d.tecnico1_dni})` : ''}` : (d.cuadrilla || 'Sin asignar'))
+    + (d.tecnico2 ? dato('Técnico T2', d.tecnico2) : '')
+    + dato('Departamento', [d.departamento, d.zona].filter(Boolean).join(' · ')) + dato('Supervisor', d.supervisor);
   document.getElementById('flowTitulo').textContent = d.titulo || 'Observación registrada';
   const grav = document.getElementById('flowGravedad');
   grav.textContent = d.gravedad || 'Sin gravedad';
@@ -115,15 +176,23 @@ document.querySelectorAll('.btn-detalle-flujo').forEach(button => button.addEven
   const paso = (icono, titulo, cuando, cuerpo, hecho) => `<li class="${hecho ? 'is-hecho' : ''}"><i class="bi ${icono}"></i><div><strong>${titulo}</strong>${cuando ? `<small class="text-muted ms-2">${obsEscape(cuando)}</small>` : ''}<div class="mt-1">${cuerpo}</div></div></li>`;
   document.getElementById('flowSeguimiento').innerHTML =
     paso('bi-flag', 'Observación registrada', d.fecha, `Por ${obsEscape(d.supervisor)}`, true)
+    + (d.anulado ? paso('bi-slash-circle', 'Observación anulada', d.anulado_en, `Por ${obsEscape(d.anulado_por || 'Supervisor')}${d.anulado_motivo ? `<div class="text-danger mt-1">Motivo: ${obsEscape(d.anulado_motivo)}</div>` : ''}`, true) : '')
     + paso('bi-chat-left-text', 'Respuesta del partner', d.fecha_respuesta,
         d.respuesta || (d.descargos || []).length
           ? `${d.respondido_por ? `<small class="d-block text-muted mb-1">Respondió: ${obsEscape(d.respondido_por)}</small>` : ''}<p class="mb-2">${obsEscape(d.respuesta || 'Sin comentario')}</p><div class="sgs-obs-fotos">${flowFotos(d.descargos || [], 'Levantamiento')}</div>`
           : '<span class="text-muted">Todavía no existe un descargo.</span>', Boolean(d.respuesta))
     + paso('bi-shield-check', 'Evaluación WIN', d.fecha_evaluacion, obsEscape(d.evaluacion || 'Todavía no existe una evaluación.'), Boolean(d.evaluacion));
-  document.getElementById('flowEliminar').classList.toggle('d-none', !d.puede_eliminar);
-  document.getElementById('flowAmpliar').classList.toggle('d-none', !d.puede_ampliar);
-  document.getElementById('flowResponder').classList.toggle('d-none', !d.puede_responder);
-  document.getElementById('flowAcciones').classList.toggle('d-none', !d.puede_eliminar && !d.puede_ampliar && !d.puede_responder);
+  const btnEliminar = document.getElementById('flowEliminar');
+  const btnAnular = document.getElementById('flowAnular');
+  const btnRestaurar = document.getElementById('flowRestaurar');
+  const btnAmpliar = document.getElementById('flowAmpliar');
+  const btnResponder = document.getElementById('flowResponder');
+  if (btnEliminar) btnEliminar.classList.toggle('d-none', !d.puede_eliminar);
+  if (btnAnular) btnAnular.classList.toggle('d-none', !d.puede_anular);
+  if (btnRestaurar) btnRestaurar.classList.toggle('d-none', !d.puede_restaurar);
+  if (btnAmpliar) btnAmpliar.classList.toggle('d-none', !d.puede_ampliar);
+  if (btnResponder) btnResponder.classList.toggle('d-none', !d.puede_responder);
+  document.getElementById('flowAcciones').classList.toggle('d-none', !d.puede_eliminar && !d.puede_anular && !d.puede_restaurar && !d.puede_ampliar && !d.puede_responder);
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFlowDetail')).show();
 }));
 document.getElementById('flowResponder')?.addEventListener('click', () => {
@@ -138,26 +207,122 @@ document.getElementById('flowAmpliar')?.addEventListener('click', () => {
   document.getElementById('plazoFecha').value = flowActual.plazo_iso;
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalPlazo')).show();
 });
+document.getElementById('flowAnular')?.addEventListener('click', () => {
+  if (!flowActual) return;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFlowDetail')).hide();
+  document.getElementById('anularTipoRegistro').value = 'Hallazgo';
+  document.getElementById('anularId').value = flowActual.id;
+  document.getElementById('anularObsCodigo').textContent = flowActual.codigo || '';
+  document.getElementById('anularObsMotivo').value = '';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAnularObs')).show();
+});
+document.getElementById('flowRestaurar')?.addEventListener('click', async () => {
+  if (!flowActual) return;
+  if (!confirm(`¿Restaurar la observación del pedido ${flowActual.codigo || ''}?`)) return;
+  const btn = document.getElementById('flowRestaurar');
+  btn.disabled = true;
+  try {
+    const response = await fetch('api/observaciones.php?action=restaurar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      body: JSON.stringify({ tipo_registro: 'Hallazgo', id: flowActual.id })
+    });
+    const result = await response.json();
+    window.showToast(result.message || 'Restaurada.', result.status === 'success' ? 'success' : 'error');
+    if (result.status === 'success') location.reload();
+  } catch (error) { window.showToast('No se pudo restaurar la observación.', 'error'); }
+  finally { btn.disabled = false; }
+});
 document.getElementById('flowEliminar')?.addEventListener('click', () => {
   if (!flowActual) return;
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalFlowDetail')).hide();
+  document.getElementById('eliminarTipoRegistro').value = 'Hallazgo';
+  document.getElementById('eliminarId').value = flowActual.id;
   document.getElementById('eliminarObsCodigo').textContent = flowActual.codigo || '';
+  document.getElementById('eliminarObsMotivo').value = '';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEliminarObs')).show();
+});
+document.getElementById('checklistAnularButton')?.addEventListener('click', () => {
+  const form = document.getElementById('formChecklistResponse');
+  let detail = {};
+  try { detail = JSON.parse(form.dataset.detail || '{}'); } catch(e) {}
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalChecklistDetail')).hide();
+  document.getElementById('anularTipoRegistro').value = 'Checklist';
+  document.getElementById('anularId').value = detail.supervision_id || '';
+  document.getElementById('anularObsCodigo').textContent = detail.codigo || '';
+  document.getElementById('anularObsMotivo').value = '';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAnularObs')).show();
+});
+document.getElementById('checklistRestaurarButton')?.addEventListener('click', async () => {
+  const form = document.getElementById('formChecklistResponse');
+  let detail = {};
+  try { detail = JSON.parse(form.dataset.detail || '{}'); } catch(e) {}
+  if (!confirm(`¿Restaurar el checklist del pedido ${detail.codigo || ''}?`)) return;
+  const btn = document.getElementById('checklistRestaurarButton');
+  btn.disabled = true;
+  try {
+    const response = await fetch('api/observaciones.php?action=restaurar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      body: JSON.stringify({ tipo_registro: 'Checklist', id: detail.supervision_id })
+    });
+    const result = await response.json();
+    window.showToast(result.message || 'Restaurado.', result.status === 'success' ? 'success' : 'error');
+    if (result.status === 'success') location.reload();
+  } catch (error) { window.showToast('No se pudo restaurar el checklist.', 'error'); }
+  finally { btn.disabled = false; }
+});
+document.getElementById('checklistEliminarButton')?.addEventListener('click', () => {
+  const form = document.getElementById('formChecklistResponse');
+  let detail = {};
+  try { detail = JSON.parse(form.dataset.detail || '{}'); } catch(e) {}
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalChecklistDetail')).hide();
+  document.getElementById('eliminarTipoRegistro').value = 'Checklist';
+  document.getElementById('eliminarId').value = detail.supervision_id || '';
+  document.getElementById('eliminarObsCodigo').textContent = detail.codigo || '';
   document.getElementById('eliminarObsMotivo').value = '';
   bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEliminarObs')).show();
 });
 document.getElementById('formEliminarObs')?.addEventListener('submit', async event => {
   event.preventDefault();
-  if (!flowActual) return;
+  const id = Number(document.getElementById('eliminarId').value);
+  const tipo = document.getElementById('eliminarTipoRegistro').value;
   const motivo = document.getElementById('eliminarObsMotivo').value.trim();
+  if (!id) return;
   if (motivo.length < 5) { window.showToast('Escribe un motivo de al menos 5 caracteres.', 'error'); return; }
   const boton = document.getElementById('eliminarObsConfirmar');
   boton.disabled = true;
   try {
-    const response = await fetch('api/observaciones.php?action=eliminar', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken }, body: JSON.stringify({ observacion_id: flowActual.id, motivo }) });
+    const response = await fetch('api/observaciones.php?action=eliminar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      body: JSON.stringify({ tipo_registro: tipo, id, motivo })
+    });
     const result = await response.json();
     window.showToast(result.message || 'Listo.', result.status === 'success' ? 'success' : 'error');
     if (result.status === 'success') location.reload();
   } catch (error) { window.showToast('No se pudo eliminar la observación.', 'error'); }
+  finally { boton.disabled = false; }
+});
+document.getElementById('formAnularObs')?.addEventListener('submit', async event => {
+  event.preventDefault();
+  const id = Number(document.getElementById('anularId').value);
+  const tipo = document.getElementById('anularTipoRegistro').value;
+  const motivo = document.getElementById('anularObsMotivo').value.trim();
+  if (!id) return;
+  if (motivo.length < 5) { window.showToast('Escribe un motivo de al menos 5 caracteres.', 'error'); return; }
+  const boton = document.getElementById('anularObsConfirmar');
+  boton.disabled = true;
+  try {
+    const response = await fetch('api/observaciones.php?action=anular', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+      body: JSON.stringify({ tipo_registro: tipo, id, motivo })
+    });
+    const result = await response.json();
+    window.showToast(result.message || 'Listo.', result.status === 'success' ? 'success' : 'error');
+    if (result.status === 'success') location.reload();
+  } catch (error) { window.showToast('No se pudo anular la observación.', 'error'); }
   finally { boton.disabled = false; }
 });
 document.getElementById('modalFlowDetail')?.addEventListener('click',event=>{const button=event.target.closest('.flow-original-photo');if(!button)return;document.getElementById('observationPhotoImage').src=button.dataset.photo;document.getElementById('observationPhotoTitle').textContent=button.dataset.title||'Evidencia original';bootstrap.Modal.getOrCreateInstance(document.getElementById('modalObservationPhoto')).show();});

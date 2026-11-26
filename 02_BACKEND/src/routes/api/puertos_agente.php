@@ -1,7 +1,7 @@
 <?php
 // 02_BACKEND/src/routes/api/puertos_agente.php - Programa "Vínculo Wincore" de la laptop (2026-11-19). Lógica: config/puertos_cto.php.
-// Sin sesión del navegador: el programa se identifica con la clave que generó la cuenta principal (cabecera X-SGS-Clave).
-// Mismas acciones y misma cola que la ventana del vínculo: vincular, tomar (GET), responder (POST id, datos), desactivar.
+// Sin sesión del navegador: el programa se identifica con la clave de su dueño (cabecera X-SGS-Clave).
+// Acciones: vincular, tomar, responder (id, datos), desactivar; phoenix_estado/iniciar y telegram_estado/token (2026-11-20/21).
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 define('WIN_JSON_RESPONSE', true);
@@ -10,20 +10,8 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/auth.php';
 require_once __DIR__ . '/../../config/puertos_cto.php';
 // Sin sesión del SGS (se identifica con la clave): la que abrió config.php se descarta para no dejar un archivo de sesión por
-// cada pregunta (la ventanita pregunta cada pocos segundos y no guarda cookies).
+// cada pregunta (el programa pregunta cada pocos segundos y no guarda cookies).
 if (session_status() === PHP_SESSION_ACTIVE) session_destroy();
-
-// Ventanita «Vínculo Wincore» del favorito (2026-11-20): corre en Wincore y llama aquí directo. Solo a Wincore se le permite
-// (CORS); la clave va en la cabecera X-SGS-Clave y no se usan cookies.
-$origen = (string)($_SERVER['HTTP_ORIGIN'] ?? '');
-if ($origen !== '' && $origen === sgsWincoreOrigen()) {
-    header('Access-Control-Allow-Origin: ' . $origen);
-    header('Vary: Origin');
-    header('Access-Control-Allow-Headers: X-SGS-Clave');
-    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-    header('Access-Control-Max-Age: 600');
-}
-if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') { http_response_code(204); exit; }
 
 $salir = static function (int $http, array $datos): void {
     http_response_code($http);
@@ -71,16 +59,16 @@ switch ((string)($_GET['action'] ?? '')) {
         $salir($ok ? 200 : 404, ['status' => $ok ? 'success' : 'error']);
     case 'desactivar':
         if (!$post) break;
-        if (!sgsPuenteDeOtro($uid)) sgsPuenteDesactivar(!empty($_POST['usuario']));   // el programa al detenerse o la ventanita con su botón (solo el suyo)
+        if (!sgsPuenteDeOtro($uid)) sgsPuenteDesactivar(!empty($_POST['usuario']));   // el programa al detenerse (solo el suyo)
         $salir(200, ['status' => 'success']);
 
     // Phoenix desde el mismo programa (2026-11-20, pedido del usuario): el vigilante de la laptop pregunta si la sesión de Phoenix
     // iniciada en el SGS está activa y, si no (pasó la medianoche o Phoenix la cerró), la inicia con el usuario y la contraseña
     // de Phoenix guardados cifrados en la laptop. Aquí la contraseña solo se usa para entrar (WinboService::iniciarSesionAqui):
-    // no se guarda ni se escribe en registros; queda solo la sesión, como con la ventanita del indicador.
+    // no se guarda ni se escribe en registros; queda solo la sesión.
     case 'phoenix_estado':
     case 'phoenix_iniciar':
-        require_once __DIR__ . '/../../config/puente_phoenix.php';
+        require_once __DIR__ . '/../../config/phoenix_sesion.php';
         if (!Auth::puedeVincularPhoenix(['id' => (int)$usuario['id'], 'rol' => $usuario['rol'], 'is_win_directo' => true])) $salir(403, ['status' => 'error', 'message' => 'Esta cuenta no puede conectar Phoenix.']);
         if ($_GET['action'] === 'phoenix_estado') {
             $s = sgsPhoenixSesion();

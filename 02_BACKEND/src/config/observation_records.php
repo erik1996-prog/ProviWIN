@@ -10,7 +10,7 @@ function observationRegisterFilters(array $source): array {
         'fecha_hasta' => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($source['fecha_hasta'] ?? '')) ? $source['fecha_hasta'] : ''
         ,'tipo_registro' => in_array((string)($source['tipo_registro'] ?? ''), ['Checklist','Campo','Hallazgo'], true) ? (string)$source['tipo_registro'] : ''
         ,'supervision_id' => max(0, (int)($source['supervision_id'] ?? 0))
-        ,'estado' => in_array((string)($source['estado'] ?? ''), ['Pendiente','En revisión','Validado','Penalizado','Reabierto'], true) ? (string)$source['estado'] : ''
+        ,'estado' => in_array((string)($source['estado'] ?? ''), ['Pendiente','En revisión','Validado','Penalizado','Reabierto','Anulada'], true) ? (string)$source['estado'] : ''
     ];
 }
 
@@ -43,18 +43,25 @@ function observationRegisterScope(array $user): array {
 function observationRecordsBaseQuery(array $user, array $filters): array {
     $sql = "SELECT registros.* FROM (
       SELECT o.id registro_id,o.id observacion_id,'Hallazgo' tipo_registro,s.id supervision_id,s.supervisor_id,s.asignado_por,o.creado_por,
-        s.codigo_supervision,s.ticket_codigo,s.tecnico1_nombre cuadrilla,s.departamento,s.provincia,s.distrito,
+        s.codigo_supervision,s.ticket_codigo,s.tecnico1_nombre cuadrilla,
+        s.tecnico1_nombre,s.tecnico1_dni,s.tecnico2_nombre,s.tecnico2_dni,
+        s.departamento,s.provincia,s.distrito,
         p.id partner_id,p.nombre_partner,u.nombre_completo supervisor_nombre,o.fecha_registro,
         COALESCE(sub.descripcion_subopcion,c.nombre_categoria,'Observación registrada') titulo,
         o.detalle_observacion comentario,o.gravedad estado_item,o.foto_1,o.foto_comentario_1,o.foto_2,o.foto_comentario_2,o.foto_3,o.foto_comentario_3,
         o.fecha_limite_respuesta,o.estado_respuesta,o.respuesta_partner,o.fecha_respuesta_partner,o.respondido_por_partner,ur.nombre_completo respondido_por_nombre,
         o.descargo_foto_1,o.descargo_comentario_1,o.descargo_foto_2,o.descargo_comentario_2,o.descargo_foto_3,o.descargo_comentario_3,o.sustentacion_evaluacion,o.fecha_evaluacion,
-        NULL comentario_general,NULL firma_supervisor,s.clasificacion_supervision
+        NULL comentario_general,NULL firma_supervisor,s.clasificacion_supervision,
+        COALESCE(o.anulado, 0) anulado,o.anulado_motivo,o.anulado_por,o.anulado_en,uanul.nombre_completo anulado_por_nombre
       FROM observaciones_supervision o JOIN supervisiones s ON s.id=o.supervision_id
       LEFT JOIN partners p ON p.id=s.partner_id LEFT JOIN usuarios u ON u.id=s.supervisor_id LEFT JOIN usuarios ur ON ur.id=o.respondido_por_partner
+      LEFT JOIN usuarios uanul ON uanul.id=o.anulado_por
       LEFT JOIN categorias_observacion c ON c.id=o.categoria_id LEFT JOIN subopciones_observacion sub ON sub.id=o.subopcion_id
       UNION ALL
       SELECT cr.id,NULL,'Checklist',s.id,s.supervisor_id,s.asignado_por,ct.supervisor_id,s.codigo_supervision,s.ticket_codigo,COALESCE(NULLIF(ct.tecnico_nombre,''),s.tecnico1_nombre),
+        COALESCE(NULLIF(ct.tecnico_nombre,''),s.tecnico1_nombre) tecnico1_nombre,
+        COALESCE(NULLIF(ct.tecnico_dni,''),s.tecnico1_dni) tecnico1_dni,
+        s.tecnico2_nombre,s.tecnico2_dni,
         s.departamento,s.provincia,s.distrito,p.id,p.nombre_partner,u.nombre_completo,ct.fecha_registro,
         cr.criterio,COALESCE(cr.observacion,''),cr.estado,cr.foto_evidencia,NULL,NULL,NULL,NULL,NULL,
         COALESCE(ct.fecha_limite_respuesta, CASE WEEKDAY(ct.fecha_registro)
@@ -65,9 +72,11 @@ function observationRecordsBaseQuery(array $user, array $filters): array {
           WHEN 4 THEN DATE_ADD(ct.fecha_registro, INTERVAL 4 DAY)
           WHEN 5 THEN DATE_ADD(ct.fecha_registro, INTERVAL 4 DAY)
           ELSE DATE_ADD(ct.fecha_registro, INTERVAL 3 DAY)
-        END),ct.estado_respuesta,ct.respuesta_general_partner,ct.fecha_respuesta_partner,ct.respondido_por_partner,ur.nombre_completo,cr.descargo_foto,cr.descargo_comentario,NULL,NULL,NULL,NULL,ct.sustentacion_evaluacion,ct.fecha_evaluacion,ct.observacion_general,ct.firma_supervisor,s.clasificacion_supervision
+        END),ct.estado_respuesta,ct.respuesta_general_partner,ct.fecha_respuesta_partner,ct.respondido_por_partner,ur.nombre_completo,cr.descargo_foto,cr.descargo_comentario,NULL,NULL,NULL,NULL,ct.sustentacion_evaluacion,ct.fecha_evaluacion,ct.observacion_general,ct.firma_supervisor,s.clasificacion_supervision,
+        COALESCE(ct.anulado, 0),ct.anulado_motivo,ct.anulado_por,ct.anulado_en,uanul.nombre_completo
       FROM checklist_respuestas cr JOIN checklists_tecnicos ct ON ct.id=cr.checklist_id JOIN supervisiones s ON s.id=ct.supervision_id
       LEFT JOIN partners p ON p.id=s.partner_id LEFT JOIN usuarios u ON u.id=ct.supervisor_id LEFT JOIN usuarios ur ON ur.id=ct.respondido_por_partner
+      LEFT JOIN usuarios uanul ON uanul.id=ct.anulado_por
       WHERE (cr.observacion IS NOT NULL AND TRIM(cr.observacion)<>'') OR cr.foto_evidencia IS NOT NULL
     ) registros WHERE 1=1";
     [$scopeSql,$params] = observationRegisterScope($user);
@@ -92,7 +101,20 @@ function observationRecordsBaseQuery(array $user, array $filters): array {
         $params[':tipo_registro']=$filters['tipo_registro'];
     }
     if ($filters['supervision_id']) { $sql.=' AND registros.supervision_id=:supervision_id'; $params[':supervision_id']=$filters['supervision_id']; }
-    if ($filters['estado']!=='') {
+
+    // Anuladas (2026-11-25, pedido del usuario): desaparecen de la bandeja del supervisor y del partner. Solo quien puede eliminar
+    // observaciones (el administrador) las ve, con el estado «Anulada».
+    if (!Auth::puede(Auth::PERM_OBSERVATION_DELETE, $user)) {
+        $sql .= ' AND registros.anulado = 0';
+    } else {
+        if (($filters['estado'] ?? '') === 'Anulada') {
+            $sql .= ' AND registros.anulado = 1';
+        } elseif (($filters['estado'] ?? '') !== '') {
+            $sql .= ' AND registros.anulado = 0';
+        }
+    }
+
+    if (($filters['estado'] ?? '') !== '' && ($filters['estado'] ?? '') !== 'Anulada') {
         $stateMap = [
             'Pendiente' => ['Pendiente'],
             'En revisión' => ['En revisión'],
@@ -100,14 +122,16 @@ function observationRecordsBaseQuery(array $user, array $filters): array {
             'Penalizado' => ['Penalizado','Levantamiento rechazado','Penalidad Directa','Apelación Rechazada'],
             'Reabierto' => ['Reabierto'],
         ];
-        $stateValues = $stateMap[$filters['estado']];
-        $stateParams = [];
-        foreach ($stateValues as $index => $stateValue) {
-            $key = ':estado_respuesta_' . $index;
-            $stateParams[] = $key;
-            $params[$key] = $stateValue;
+        $stateValues = $stateMap[$filters['estado']] ?? [];
+        if ($stateValues) {
+            $stateParams = [];
+            foreach ($stateValues as $index => $stateValue) {
+                $key = ':estado_respuesta_' . $index;
+                $stateParams[] = $key;
+                $params[$key] = $stateValue;
+            }
+            $sql .= ' AND registros.estado_respuesta IN (' . implode(',', $stateParams) . ')';
         }
-        $sql .= ' AND registros.estado_respuesta IN (' . implode(',', $stateParams) . ')';
     }
     return [$sql, $params];
 }

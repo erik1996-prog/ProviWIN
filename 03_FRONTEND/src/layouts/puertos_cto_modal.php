@@ -24,26 +24,20 @@ $puedeVincular = Auth::puedeVincularWincore($effectiveViewUser);
         <p class="text-muted small mb-2" id="pcAvance" role="status"></p>
         <div id="pcResultado"></div>
         <?php if ($puedeVincular): ?>
-        <details class="pc-vinculo mt-3" id="pcVinculo" data-wincore="<?= htmlspecialchars(sgsWincoreOrigen(), ENT_QUOTES, 'UTF-8') ?>">
-          <summary><i class="bi bi-link-45deg me-1"></i>Vínculo con Wincore <small class="text-muted">(solo tú, en tu laptop con la VPN)</small></summary>
-          <ol class="small mt-2 mb-2 ps-3 pc-pasos">
-            <li class="mb-2"><strong>VPN:</strong> <span class="sgs-gps-estado d-inline-block" id="pcVpn" role="status">Sin revisar</span>
-              <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" id="pcVpnRevisar">Revisar</button></li>
-            <li class="mb-2"><strong>Wincore:</strong> <a class="btn btn-outline-secondary btn-sm ms-1" id="pcAbrirWincore" href="<?= htmlspecialchars(sgsWincoreOrigen(), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1"></i>Abrir Wincore</a> e inicia sesión.</li>
-            <li><strong>Favorito «Vincular SGS»</strong> (se arma una sola vez):
-              <span class="d-block text-muted" id="pcAgenteEstado" role="status">Revisando…</span>
-              <div class="alert alert-warning py-2 px-3 mt-2 mb-2 d-none" id="pcAgenteClave">
-                <strong>Arrastra este botón a la barra de favoritos de Chrome</strong> (Ctrl + Mayús + B para verla). Solo aparece ahora:
-                <div class="mt-2"><a class="btn btn-win btn-sm" id="pcFavorito" href="#"><i class="bi bi-link-45deg me-1"></i>Vincular SGS</a></div>
-                <div class="mt-2 text-muted">¿Usas el programa «Vínculo Wincore»? Pega esta clave en él:</div>
-                <div class="d-flex gap-2 mt-1"><input class="form-control form-control-sm" id="pcAgenteTexto" readonly aria-label="Clave del programa">
-                  <button type="button" class="btn btn-outline-secondary btn-sm" id="pcAgenteCopiar"><i class="bi bi-clipboard me-1"></i>Copiar</button></div>
-              </div>
-              <div class="mt-1"><button type="button" class="btn btn-outline-secondary btn-sm" id="pcAgenteGenerar"><i class="bi bi-key me-1"></i>Crear mi favorito</button>
-                <button type="button" class="btn btn-outline-danger btn-sm d-none" id="pcAgenteAnular"><i class="bi bi-x-circle me-1"></i>Anular favorito</button></div></li>
-          </ol>
-          <p class="small text-muted mb-2">En Wincore pulsa el favorito: se abre la ventanita <strong>«Vínculo Wincore»</strong>. Minimízala y no la cierres; puedes seguir usando Wincore en tu otra ventana sin que se corte. Tu sesión de Wincore no sale de tu laptop y a los supervisores solo les llega el estado de los puertos.</p>
-          <button type="button" class="btn btn-outline-danger btn-sm" id="pcDesactivar" disabled><i class="bi bi-power me-1"></i>Desactivar vínculo</button>
+        <details class="pc-vinculo mt-3" id="pcVinculo">
+          <summary><i class="bi bi-pc-display me-1"></i>Programa «Vínculo Wincore» <small class="text-muted">(en tu laptop con la VPN)</small></summary>
+          <p class="small text-muted mt-2 mb-2">El programa de tu laptop atiende las consultas de puertos y conecta Phoenix y el bot solo, cada día. Se identifica con tu clave: créala una vez y pégala en el programa.</p>
+          <span class="d-block small text-muted mb-2" id="pcAgenteEstado" role="status">Revisando…</span>
+          <div class="alert alert-warning py-2 px-3 small mb-2 d-none" id="pcAgenteClave">
+            <strong>Copia tu clave y pégala en el programa.</strong> Solo se muestra ahora:
+            <div class="d-flex gap-2 mt-2"><input class="form-control form-control-sm" id="pcAgenteTexto" readonly aria-label="Clave del programa">
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="pcAgenteCopiar"><i class="bi bi-clipboard me-1"></i>Copiar</button></div>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="pcAgenteGenerar"><i class="bi bi-key me-1"></i>Crear clave del programa</button>
+            <button type="button" class="btn btn-outline-danger btn-sm d-none" id="pcAgenteAnular"><i class="bi bi-x-circle me-1"></i>Anular clave</button>
+            <button type="button" class="btn btn-outline-danger btn-sm" id="pcDesactivar" disabled><i class="bi bi-power me-1"></i>Desactivar vínculo</button>
+          </div>
         </details>
         <?php endif; ?>
       </div>

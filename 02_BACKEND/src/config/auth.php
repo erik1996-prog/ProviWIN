@@ -84,6 +84,7 @@ class Auth {
     public const PERM_PARTNERS_EDIT = 'partners.edit';
     public const PERM_PARTNERS_DELETE = 'partners.delete';
     public const PERM_OBSERVATION_DELETE = 'observation.delete';
+    public const PERM_OBSERVATION_VOID = 'observation.void';     // 2026-11-25: anular observaciones y penalidades (desaparecen de su bandeja)
 
     /** Orden de los roles (2026-10-27): un líder solo asigna roles por debajo del suyo. */
     public const NIVEL_ROL = ['Administrador' => 5, 'Gerente' => 4, 'Coordinador' => 3, 'Jefe de operaciones' => 2, 'Supervisor' => 1];
@@ -110,7 +111,7 @@ class Auth {
             self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
             self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_IMPORT, self::PERM_CUADRILLAS_DELETE, self::PERM_CUADRILLAS_CREATE_T2,
             self::PERM_VACACIONES_VIEW, self::PERM_VACACIONES_APPROVE,
-            self::PERM_PARTNERS_VIEW, self::PERM_PARTNERS_EDIT, self::PERM_PARTNERS_DELETE, self::PERM_OBSERVATION_DELETE,
+            self::PERM_PARTNERS_VIEW, self::PERM_PARTNERS_EDIT, self::PERM_PARTNERS_DELETE, self::PERM_OBSERVATION_DELETE, self::PERM_OBSERVATION_VOID,
             self::PERM_TURNOS_MONITOR, self::PERM_ORDENES_CERCANAS, self::PERM_PUERTOS_CTO,
         ],
         self::ROLE_GERENTE => [
@@ -151,7 +152,7 @@ class Auth {
             self::PERM_PENDIENTES_VIEW, self::PERM_CLIMA_VIEW, self::PERM_CLIMA_EDIT,
             self::PERM_EXAMENES_VIEW, self::PERM_EXAMENES_EDIT, self::PERM_EXAMENES_DELETE,
             self::PERM_CUADRILLAS_VIEW, self::PERM_CUADRILLAS_EDIT, self::PERM_CUADRILLAS_CREATE_T2,
-            self::PERM_VACACIONES_VIEW, self::PERM_VACACIONES_REQUEST,
+            self::PERM_VACACIONES_VIEW, self::PERM_VACACIONES_REQUEST, self::PERM_OBSERVATION_VOID,
         ],
         self::ROLE_JEFE_OPERACIONES => [self::PERM_SUPERVISION_VIEW, self::PERM_OBSERVATION_VIEW, self::PERM_OBSERVATION_FILTER_DATE, self::PERM_USERS_VIEW],
     ];
@@ -237,7 +238,8 @@ class Auth {
             self::PERM_OBSERVATION_FILTER_DATE => ['boton'=>'Fechas','group'=>'Observaciones','label'=>'Rango de fechas'],
             self::PERM_OBSERVATION_FILTER_ADVANCED => ['boton'=>'Filtros','group'=>'Observaciones','label'=>'Partner, técnico, zona y estado'],
             self::PERM_OBSERVATION_REVIEW => ['group'=>'Control y recurrencia','label'=>'Ver Control y recurrencia: observaciones repetidas por técnico, partner y zona','action'=>'ver'],
-            self::PERM_OBSERVATION_DELETE => ['group'=>'Observaciones','label'=>'Eliminar observaciones','action'=>'eliminar'],
+            self::PERM_OBSERVATION_DELETE => ['group'=>'Observaciones','label'=>'Eliminar observaciones y penalidades (definitivo), ver las anuladas y restaurarlas','action'=>'eliminar'],
+            self::PERM_OBSERVATION_VOID => ['boton'=>'Anular','group'=>'Observaciones','label'=>'Anular observaciones y penalidades de su bandeja: desaparecen para él y el partner (solo personal de WIN)','action'=>'editar'],
             self::PERM_USERS_VIEW => ['group'=>'Usuarios y perfiles','label'=>'Ver usuarios (solo consulta; el partner ve solo a su partner y sus zonas)','action'=>'ver'],
             self::PERM_STAFF_MANAGE => ['boton'=>'Datos personales','group'=>'Usuarios y perfiles','label'=>'Agregar y editar personal (solo datos personales; sin acceso, rol ni activar)','action'=>'editar'],
             self::PERM_USERS_TEAM => ['boton'=>'Su equipo','group'=>'Usuarios y perfiles','label'=>'Registrar, editar y dar de baja a sus supervisores (directos o de partner; sus zonas, su área y sus permisos)','action'=>'editar'],

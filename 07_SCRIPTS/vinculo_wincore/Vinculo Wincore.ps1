@@ -1,6 +1,6 @@
 ﻿# 07_SCRIPTS/vinculo_wincore/Vinculo Wincore.ps1 - Abre el programa "Vínculo Wincore" (2026-11-19; 2026-11-20 siempre conectado).
 # Lo llama "Vinculo Wincore.cmd" (con "auto" desde el inicio de Windows: sin preguntas).
-# La primera vez pide la dirección del SGS, la clave del programa (Consultar puertos → Vínculo con Wincore → Crear favorito) y el
+# La primera vez pide la dirección del SGS, la clave del programa (Consultar puertos → Programa «Vínculo Wincore» → Crear clave del programa) y el
 # usuario y la contraseña de Wincore. La contraseña se guarda CIFRADA solo en esta laptop (cifrado de Windows: solo este usuario
 # de Windows puede leerla) para que el programa vuelva a entrar solo si Wincore cierra la sesión. Nunca sale de la laptop.
 # Arranca el vigilante (vigilante.ps1) oculto, espera a que diga "Vinculado" (o el motivo si no pudo) y se cierra sola.
@@ -51,7 +51,7 @@ if ($faltaConfig) {
     if ($estado -eq 'clave') { Write-Host '  La clave del programa fue anulada o cambió: pega la nueva.' -ForegroundColor Yellow }
     else { Write-Host '  Primera vez: configura el programa.' -ForegroundColor Cyan }
     $sgs = if ($datos -and $datos.sgs -and $estado -eq 'clave') { "$($datos.sgs)" } else { ([string](Read-Host '  Dirección del SGS (la del navegador, sin index.php)')).Trim().TrimEnd('/') }
-    $clave = ([string](Read-Host '  Clave del programa (Consultar puertos → Vínculo con Wincore → Crear mi favorito → la clave)')).Trim()
+    $clave = ([string](Read-Host '  Clave del programa (Consultar puertos → Programa «Vínculo Wincore» → Crear clave del programa)')).Trim()
     if (-not $sgs -or -not $clave) { Write-Host '  Faltan datos.' -ForegroundColor Red; Salir 1 }
     [IO.File]::WriteAllText($config, (@{ sgs = $sgs; clave = $clave } | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
     Write-Host '  Configuración guardada.'

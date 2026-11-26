@@ -128,13 +128,13 @@ function sgsObservacionesPartners(PDO $pdo, array $f): array {
                  WHEN o.estado_respuesta IN ('Respondido','En revisión') THEN 'revision' ELSE 'pendiente' END grupo
         FROM observaciones_supervision o JOIN supervisiones s ON s.id = o.supervision_id JOIN partners p ON p.id = s.partner_id
         LEFT JOIN categorias_observacion c ON c.id = o.categoria_id LEFT JOIN subopciones_observacion sub ON sub.id = o.subopcion_id
-        WHERE " . $filtro('o.fecha_registro', '1') . "
+        WHERE o.anulado = 0 AND " . $filtro('o.fecha_registro', '1') . "
         UNION ALL
         SELECT p.id, p.nombre_partner, 'Checklist', NULL, cr.criterio, ct.fecha_registro, ct.fecha_limite_respuesta, ct.fecha_respuesta_partner,
             CASE ct.estado_respuesta WHEN 'Validado' THEN 'validada' WHEN 'Penalizado' THEN 'penalizada' WHEN 'En revisión' THEN 'revision' ELSE 'pendiente' END
         FROM checklist_respuestas cr JOIN checklists_tecnicos ct ON ct.id = cr.checklist_id JOIN supervisiones s ON s.id = ct.supervision_id
         JOIN partners p ON p.id = s.partner_id
-        WHERE ((cr.observacion IS NOT NULL AND TRIM(cr.observacion) <> '') OR cr.foto_evidencia IS NOT NULL) AND " . $filtro('ct.fecha_registro', '2');
+        WHERE ct.anulado = 0 AND ((cr.observacion IS NOT NULL AND TRIM(cr.observacion) <> '') OR cr.foto_evidencia IS NOT NULL) AND " . $filtro('ct.fecha_registro', '2');
 
     $metricas = "COUNT(*) total,
         SUM(r.respuesta IS NOT NULL) respondidas,

@@ -10,7 +10,7 @@
 // (30 min, pedido del usuario para no consultar Phoenix tan seguido) y, además, una vuelta nueva al llegar cada corte de Telegram:
 // el reporte sale recién cuando terminó esa lectura, nunca con datos de antes del corte. Despertar liviano: pulso.json (chico).
 // Tiempo real, nada permanente: el trabajo del día vive en 08_LOGS/runtime/inicio_ordenes/ y se borra al cambiar de día.
-// Sesión: la iniciada aquí (hasta las 23:59) o la del .env (WinboService::cookieLectura). El favorito no sirve: solo lee la grilla.
+// Sesión: la que inicia el programa «Vínculo Wincore» de la laptop, hasta las 23:59 (WinboService::cookieLectura).
 // Telegram: los reportes salen solo en los CORTES del día (08:06 primera orden; luego alertas), una vez cada uno (config/inicio_ordenes_telegram.php).
 require_once __DIR__ . '/../config/inicio_ordenes.php';
 require_once __DIR__ . '/../config/inicio_ordenes_telegram.php';
@@ -51,7 +51,7 @@ class InicioOrdenesService {
     private const COLUMNAS = [['Cuadrilla', 'cuad'], ['Provincia', 'prov'], ['Localidad', 'loc'], ['Fecha Visita', 'fv'],
                               ['Región / Zona', 'rz'], ['Proveedeor', 'partner'], ['Código De Seguimiento Cliente', 'orden']];
 
-    public const SIN_SESION = 'No hay sesión de Phoenix. Conéctala arriba, en el indicador «Phoenix» de la barra superior (dura hasta las 23:59).';
+    public const SIN_SESION = WinboService::SIN_SESION;
 
     private string $dir;
     private string $cookie = '';
@@ -74,7 +74,7 @@ class InicioOrdenesService {
         if (PHP_SAPI === 'cli' || $programado) return;
         $h = (int)self::ahora()->format('G');
         if (!$forzar && ($h < self::LECTURA_DESDE || $h >= self::LECTURA_HASTA)) return;
-        if (WinboService::sesionLectura() === null) return;
+        if (!WinboService::conectado()) return;
         if (!$forzar && !(new self())->toca()) return;        // nada que hacer: ni lectura ni corte pendiente
         $programado = true;
         register_shutdown_function(static function () use ($forzar): void {
@@ -87,7 +87,7 @@ class InicioOrdenesService {
         });
     }
 
-    public static function sinSesion(): bool { return WinboService::sesionLectura() === null; }
+    public static function sinSesion(): bool { return !WinboService::conectado(); }
 
     /** ¿Hay una lectura a medias (grilla o historiales)? Lee solo pulso.json. */
     public static function leyendo(): bool {
@@ -241,7 +241,7 @@ class InicioOrdenesService {
                 // 2026-11-19: antes de darla por cerrada (y borrar la sesión iniciada aquí) se espera y se repite una vez.
                 if ($vacias === 1) { sleep(2); continue; }
                 if ($vacias > 2) throw new RuntimeException('Winbo no devolvió las órdenes. Se reintenta en unos minutos.');
-                $this->cookie = WinboService::cookieLectura(true);          // .env: vuelve a entrar · sesión de aquí: avisa
+                $this->cookie = WinboService::cookieLectura(true);          // confirma si Phoenix cerró la sesión y avisa
                 continue;
             }
             try {
@@ -506,7 +506,7 @@ class InicioOrdenesService {
         foreach ($pets as $i => $p) {
             $ch = curl_init(self::BASE . $p['ruta']);
             $cab = ['Referer: ' . $p['referer']];
-            $op = (is_file('C:/xampp/apache/bin/curl-ca-bundle.crt') ? [CURLOPT_CAINFO => 'C:/xampp/apache/bin/curl-ca-bundle.crt'] : []) + [
+            $op = sgsCurlCa() + [
                 CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_TIMEOUT => self::SEGUNDOS_WINBO,
                 CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_USERAGENT => self::UA, CURLOPT_COOKIEFILE => $this->cookie, CURLOPT_COOKIEJAR => $this->cookie, CURLOPT_ENCODING => ''];   // guarda la llave renovada (2026-11-20)
             if ($p['json'] !== null) {
@@ -575,10 +575,9 @@ class InicioOrdenesService {
         if ($this->e['fase'] === 'grilla' && $c) $avance = 'Leyendo la grilla' . ($c['paginas'] ? ': ' . count($c['vistos']) . ' de ' . $c['total'] . ' órdenes' : '');
         if ($this->e['fase'] === 'historial' && $c) $avance = 'Leyendo historiales: ' . ($c['pedidos'] - count($c['pedir'])) . ' de ' . $c['pedidos'];
         $s = sgsPhoenixSesion();
-        $modo = WinboService::sesionLectura();
         $tg = json_decode((string)@file_get_contents($this->dir . '/telegram.json'), true);
         $h = (int)self::ahora()->format('G');
-        return ['sesion' => $modo, 'sesionVence' => $modo === 'aqui' ? date('H:i', (int)$s['vence']) : null,
+        return ['sesion' => $s['activa'], 'sesionVence' => $s['activa'] ? date('H:i', (int)$s['vence']) : null,
                 'actualizado' => $this->e['actualizado'] ? date('H:i:s', (int)$this->e['actualizado']) : null,
                 'proxima' => $this->e['actualizado'] ? date('H:i', (int)$this->e['actualizado'] + self::VUELTA) : null,
                 'avance' => $avance, 'error' => $this->e['error'], 'aviso' => $this->e['aviso'], 'ordenes' => count($this->e['ordenes']),
@@ -675,10 +674,15 @@ class InicioOrdenesService {
             }
             $lista = array_values(array_intersect_key($cand, $m['sin']));
             $m['enviado'] = $ahora->format('H:i');                     // primero la marca: nunca sale dos veces
+            $m['sinRevisar'] = count($pendientes);                     // Phoenix no respondió a tiempo (no entran al reporte)
+            if (!$lista) {
+                $m['resultados'] = [];
+                @file_put_contents($archivo, json_encode($m, JSON_UNESCAPED_UNICODE), LOCK_EX);
+                return;
+            }
             @file_put_contents($archivo, json_encode($m), LOCK_EX);
             $res = sgsIoEnviarATodos($this->tablero(), 'fachada', $ahora, $lista);
             $m['resultados'] = $res;
-            $m['sinRevisar'] = count($pendientes);                     // Phoenix no respondió a tiempo (no entran al reporte)
             @file_put_contents($archivo, json_encode($m, JSON_UNESCAPED_UNICODE), LOCK_EX);
             foreach ($res as $r) if (!$r['ok']) win_log_error('inicio_ordenes_telegram', 'No se envió el reporte de fachada', $r);
         } catch (Throwable $ex) {

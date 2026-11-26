@@ -1,25 +1,20 @@
 <?php
 // 02_BACKEND/src/config/puertos_cto.php - Consulta de puertos de una CTO en Wincore (2026-11-11, pedido del usuario).
-// Wincore solo se alcanza con la VPN y con la sesión de la cuenta principal, así que el servidor NO llama a Wincore: la laptop
-// de la cuenta principal hace de puente. En Wincore pulsa el favorito "Vincular SGS", que abre la ventana del vínculo del
-// SGS (puente_wincore.php); las dos ventanas se hablan con postMessage y la pestaña de Wincore hace las consultas con su
-// propia sesión. La cookie y el token de Wincore nunca salen de la laptop, y los datos de clientes tampoco (solo puertos).
+// Wincore solo se alcanza con la VPN, así que el servidor NO llama a Wincore: el programa «Vínculo Wincore» de una laptop con
+// permiso (07_SCRIPTS/vinculo_wincore, api/puertos_agente.php) inicia sesión en Wincore y atiende las consultas. La sesión de
+// Wincore nunca sale de la laptop, y los datos de clientes tampoco (solo puertos). 2026-11-21: sin favorito ni ventana del navegador.
 //   1) El supervisor pide una CTO → queda una consulta "pendiente" (un archivo cuyo nombre empieza con la hora: orden de llegada).
-//   2) La ventana del vínculo pregunta cada SGS_PUENTE_SONDEO segundos y recibe UNA consulta a la vez ("tomada"): la siguiente
+//   2) El programa pregunta cada SGS_PUENTE_SONDEO segundos y recibe UNA consulta a la vez ("tomada"): la siguiente
 //      sale recién cuando Wincore respondió la anterior (2026-11-11, pedido del usuario: no saturar Wincore ni su sesión).
 //   3) El resultado queda "lista" y el supervisor lo recoge; mientras tanto ve cuántas consultas hay antes que la suya.
-// El vínculo dura SGS_PUENTE_HORAS desde que se activa; se apaga antes con "Desactivar" o si la ventana deja de responder.
+// El vínculo dura SGS_PUENTE_HORAS desde que se activa (el programa lo renueva solo); se apaga con "Desactivar" o si el programa
+// deja de preguntar.
 // Sistema liviano: sin base de datos, archivos chicos en 08_LOGS/runtime/puertos que se borran solos a los 10 minutos.
 const SGS_PUENTE_HORAS = 10;
-const SGS_PUENTE_SONDEO = 5;          // segundos entre preguntas de la ventana del vínculo (2026-11-13: de 3 a 5, hosting más liviano)
+const SGS_PUENTE_SONDEO = 5;          // segundos entre preguntas del programa de la laptop (2026-11-13: de 3 a 5, hosting más liviano)
 const SGS_PUENTE_SIN_PULSO = 20;      // sin preguntas en este tiempo, el vínculo se considera apagado
 const SGS_PUERTOS_ESPERA = 40;        // segundos que tiene Wincore para responder desde que toma la consulta
 const SGS_PUERTOS_COLA = 15;          // consultas en espera como máximo; con más se pide intentar en un minuto
-
-/** Origen de Wincore (se puede cambiar con WINCORE_ORIGEN en .env, p. ej. para pruebas locales). */
-function sgsWincoreOrigen(): string {
-    return rtrim((string)(getenv('WINCORE_ORIGEN') ?: 'https://wincore.win.pe'), '/');
-}
 
 function sgsPuertosDir(string $sub = ''): string {
     $dir = STORAGE_PATH . '/puertos' . ($sub !== '' ? '/' . $sub : '');
@@ -60,7 +55,7 @@ function sgsPuenteActivar(int $usuarioId): int {
 
 /** Apaga el vínculo y descarta lo que esperaba respuesta (el supervisor ve "no está activa"). */
 /**
- * $porUsuario (2026-11-20): lo apagó la persona (Desactivar en el SGS o en la ventanita, Detener el programa, Anular la clave). Se
+ * $porUsuario (2026-11-20): lo apagó la persona (Desactivar en el SGS, Detener el programa, Anular la clave). Se
  * deja una marca para que el programa Vínculo Wincore no vuelva a entrar solo; si en cambio el vínculo solo venció, sí vuelve.
  */
 function sgsPuenteDesactivar(bool $porUsuario = false): void {
@@ -192,23 +187,9 @@ function sgsPuertosGuardarRespuesta(string $id, array $r): bool {
     return true;
 }
 
-/**
- * Favorito "Vincular SGS" (javascript:) para la barra de Chrome, con la dirección de este SGS, la de Wincore y la clave del
- * programa (2026-11-20: la ventanita «Vínculo Wincore» habla directo con api/puertos_agente.php). Se arma solo al generar la
- * clave, porque la clave no se guarda: generar otra deja sin efecto el favorito anterior.
- */
-function sgsFavoritoPuente(string $urlSgs, string $clave): string {
-    $js = (string)file_get_contents(FRONTEND_PATH . '/assets/js/puente_favorito.js');
-    $js = preg_replace('#^\s*//.*$#m', '', $js);          // sin comentarios de línea
-    $js = preg_replace('/\s*\n\s*/', "\n", trim($js));
-    $js = strtr($js, ['__SGS__' => $urlSgs, '__WINCORE__' => sgsWincoreOrigen(), '__CLAVE__' => $clave]);
-    return 'javascript:' . rawurlencode($js);
-}
-
 // ── Programa "Vínculo Wincore" de la laptop (2026-11-19, pedido del usuario) ─────────────────────────────────────────────
-// Otra forma del vínculo, sin Chrome ni favorito: un programa en la laptop de la cuenta principal (07_SCRIPTS/vinculo_wincore)
-// inicia sesión en Wincore con la VPN (la contraseña no se guarda) y atiende la misma cola de consultas por api/puertos_agente.php.
-// Se identifica ante el SGS con una clave que genera la cuenta principal en Consultar puertos (se muestra una sola vez; aquí
+// Programa en la laptop (07_SCRIPTS/vinculo_wincore): inicia sesión en Wincore con la VPN y atiende la cola de consultas por
+// api/puertos_agente.php. Se identifica ante el SGS con una clave que cada persona con permiso genera en Consultar puertos (se muestra una sola vez; aquí
 // solo se guarda su huella sha256) y que puede anular cuando quiera. Una clave por persona: generar otra anula la anterior.
 // 2026-11-21 (pedido del usuario): cada persona con el permiso "Conectar desde su laptop" tiene su propia clave (agente_<id>.json);
 // la clave de antes (agente.json, de la cuenta principal) se pasa sola a su archivo y sigue sirviendo.

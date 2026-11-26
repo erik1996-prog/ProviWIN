@@ -33,7 +33,7 @@ function sgsTelegramTokenValido(string $token): bool {
 /** Pregunta a Telegram de quién es el token (getMe, no envía nada). Nombre del bot, o null si Telegram lo rechazó. */
 function sgsTelegramBotDe(#[\SensitiveParameter] string $token): ?string {
     $ch = curl_init('https://api.telegram.org/bot' . $token . '/getMe');
-    curl_setopt_array($ch, (is_file('C:/xampp/apache/bin/curl-ca-bundle.crt') ? [CURLOPT_CAINFO => 'C:/xampp/apache/bin/curl-ca-bundle.crt'] : []) + [
+    curl_setopt_array($ch, sgsCurlCa() + [
         CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 10, CURLOPT_CONNECTTIMEOUT => 4, CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4]);
     $crudo = curl_exec($ch);
     unset($ch);

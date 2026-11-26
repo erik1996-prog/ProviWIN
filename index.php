@@ -25,9 +25,6 @@ win_run_periodic_task('cierre-turnos', 300, static fn() => sgsCerrarTurnosVencid
 // Envíos programados del corte de lluvias (2026-10-26): salen también con las visitas (sin cron en cPanel), revisando
 // cada 5 minutos como mucho y después de mandar la página (sgsEnviarCortesTrasLaVisita).
 win_run_periodic_task('corte-lluvias', 300, static function (): void { require_once BACKEND_PATH . '/config/lluvias_corte.php'; sgsEnviarCortesTrasLaVisita(); });
-// Inicio de órdenes: lectura de Phoenix y reportes, despertados por cualquier pantalla (sgsDespertarInicioOrdenes, config/runtime.php).
-sgsDespertarInicioOrdenes();   // config/runtime.php: también la despierta la campanita de cada pantalla
-sgsMantenerPhoenix();          // señal de vida a la sesión de Phoenix cada 10 min (config/runtime.php)
 // Respaldos (2026-10-16): ya no se hacen en las visitas; los hace la tarea programada (07_SCRIPTS/respaldar.php automatico).
 // Cada usuario trabaja con su propia cuenta y rol (la "vista provisional" se retiró el 2026-10-06).
 $rol = $user['rol'] ?? '';
@@ -208,7 +205,6 @@ $needsLeaflet = $page === 'admin_dashboard'
     $novedades = !empty($_SESSION['novedades_al_ingresar']) && !Auth::verComoActivo() ? sgsNovedadesPendientes(Database::getConnection(), $user) : [];
     unset($_SESSION['novedades_al_ingresar']);
     if ($novedades): require FRONTEND_PATH . '/layouts/novedades.php'; ?><script src="<?= $assets ?>/js/novedades.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
-    <?php if (!Auth::verComoActivo() && Auth::puedeVincularPhoenix($user)): // indicador Phoenix de la barra superior (topbar.php) ?><script src="<?= $assets ?>/js/phoenix_estado.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script><?php endif; ?>
     <script src="<?= $assets ?>/js/error-monitor.js?v=<?= rawurlencode(ASSET_VERSION) ?>"></script>
 </body>
 </html>

@@ -34,7 +34,7 @@
     else { texto = e.enHorario ? 'Esperando la primera lectura' : `Fuera del horario de lectura (${e.horario})`; }
     p.textContent = texto; p.dataset.tipo = tipo; p.title = e.error || '';
     let msg = '', clase = 'alert-warning';
-    if (!e.sesion) msg = 'No hay sesión de Phoenix: esta pantalla no puede leer las órdenes. Conéctala arriba, en el indicador <b>Phoenix</b> de la barra superior (dura hasta las 23:59).';
+    if (!e.sesion) msg = 'No hay sesión de Phoenix: esta pantalla no puede leer las órdenes. Se conecta sola con el programa <b>Vínculo Wincore</b> de la laptop (de 05:55 a 21:00).';
     else if (e.error) { msg = esc(e.error); clase = 'alert-danger'; }
     else if (e.aviso) msg = esc(e.aviso);
     a.className = `alert ${clase}` + (msg ? '' : ' d-none');
@@ -220,6 +220,7 @@
       const fd = new FormData(); fd.append('reporte', op.dataset.r);
       const r = await api('enviar', fd);
       const ok = r.resultados.filter((x) => x.ok), mal = r.resultados.filter((x) => !x.ok);
+      if (!r.resultados.length) { aviso(`"${op.dataset.t}": no hay nadie en el reporte, no se envió nada.`, 'success'); return; }   // 2026-11-25
       aviso(`"${op.dataset.t}": ${ok.length} de ${r.resultados.length} mensaje(s) enviados.` + (mal.length ? ' No se pudo: ' + mal.map((x) => `${x.partner} (${x.error})`).join('; ') : ''), mal.length ? 'error' : 'success');
     } catch (x) { aviso(x.message, 'error'); }
     finally { b.disabled = false; }
@@ -252,5 +253,4 @@
   setInterval(() => { if (!document.hidden) cargar(); }, 60000);
   setInterval(() => { if (!document.hidden) pintarCurso(); }, 15000);   // la duración avanza en vivo (sin consultar)
   document.addEventListener('visibilitychange', () => { if (!document.hidden) cargar(); });
-  document.addEventListener('sgs:phoenix', cargar);       // se conectó o cerró Phoenix desde el indicador de arriba
 })();

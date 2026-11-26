@@ -201,7 +201,6 @@ function sgsIoArmarAlertas(array $ords, string $nombre, array $menciones, DateTi
     $L = sgsIoMenciones($menciones);
     array_push($L, "Estimados, $saludo.", 'Se envía el reporte del <b>tiempo de atención</b> de las cuadrillas ' . sgsIoDeQuien($nombre) . 'para la alerta correspondiente.',
         '📅 ' . $ahora->format('d/m/Y') . ' · corte ' . $ahora->format('H:i'), '');
-    if (!$ords) { $L[] = '✅ No hay órdenes iniciadas hace más de 2 horas.'; return implode("\n", $L); }
     $L[] = '📊 <b>Resumen:</b> 🔴 ' . count($crit) . ' crítica' . (count($crit) !== 1 ? 's' : '') . ' · 🟡 ' . count($aler) . ' en alerta';
     $detalle = static fn($o) => sgsIoOt($o['orden']) . ' · Iniciada hace <b>' . sgsIoDur($o['m']) . '</b> (desde las ' . substr($o['desde'], 11, 5) . ')';
     $seccion = static fn(array $lista, string $cab, string $sub) => array_merge(['', SGS_IO_LINEA, $cab, "<i>$sub</i>"], sgsIoPorZona($lista, 'orden', 'órdenes', $detalle));
@@ -231,7 +230,7 @@ function sgsIoPrimeraSinIniciar(array $cuadrillas): array {
 }
 
 /** Texto HTML del reporte de primera orden sin iniciar (08:06), agrupado por zona como el de alertas. */
-function sgsIoArmarPrimera(array $cuads, string $nombre, array $menciones, DateTimeInterface $ahora, ?int $enCamino = null): string {
+function sgsIoArmarPrimera(array $cuads, string $nombre, array $menciones, DateTimeInterface $ahora): string {
     $L = sgsIoMenciones($menciones);
     // 2026-11-20 (pedido del usuario): si la lectura terminó después de las 08:05 y alguna ya inició, el encabezado lo dice.
     $tarde = (bool)array_filter($cuads, static fn($c) => !empty($c['inicio']));
@@ -240,8 +239,6 @@ function sgsIoArmarPrimera(array $cuads, string $nombre, array $menciones, DateT
             . ($tarde ? ' o la iniciaron <b>después de las 08:05</b>.' : ', siendo las 08:05.'),
         '📅 ' . $ahora->format('d/m/Y') . ' · corte ' . $ahora->format('H:i'), '');
     // 2026-11-20 (pedido del usuario): si ninguna cuadrilla salió todavía, se dice que las órdenes siguen agendadas.
-    if (!$cuads && $enCamino === 0) { $L[] = '🕗 Aún no hay cuadrillas en camino: las órdenes del día se encuentran agendadas.'; return implode("\n", $L); }
-    if (!$cuads) { $L[] = '✅ Todas las cuadrillas en camino iniciaron su primera orden hasta las 08:05.'; return implode("\n", $L); }
     $nTarde = count(array_filter($cuads, static fn($c) => !empty($c['inicio'])));
     $nSin = count($cuads) - $nTarde;
     $L[] = '📊 <b>Resumen:</b> 🚚 ' . $nSin . ' cuadrilla' . ($nSin !== 1 ? 's' : '') . ' en camino sin iniciar'
@@ -264,7 +261,6 @@ function sgsIoArmarFachada(array $ords, string $nombre, array $menciones, DateTi
     array_push($L, 'Estimados, ' . sgsIoSaludo($ahora) . '.',
         'Se envía el reporte de las órdenes <b>iniciadas sin foto de fachada</b> de las cuadrillas ' . sgsIoDeQuien($nombre) . '(5 minutos o más desde que iniciaron).',
         '📅 ' . $ahora->format('d/m/Y') . ' · corte ' . $ahora->format('H:i'), '');
-    if (!$ords) { $L[] = '✅ Todas las órdenes iniciadas ya tienen su foto de fachada.'; return implode("\n", $L); }
     $L[] = '📊 <b>Resumen:</b> 📷 ' . count($ords) . (count($ords) !== 1 ? ' órdenes' : ' orden') . ' sin foto de fachada';
     $L = array_merge($L, ['', SGS_IO_LINEA, '📷 <b>SIN FOTO DE FACHADA (' . count($ords) . ')</b>'],
         sgsIoPorZona($ords, 'orden', 'órdenes', static fn($o) => sgsIoOt($o['orden']) . ' · Iniciada hace <b>' . ($o['m'] < 60 ? $o['m'] . ' min' : sgsIoDur($o['m']))
@@ -293,7 +289,6 @@ function sgsIoArmarFacilidades(array $canc, string $nombre, array $menciones, Da
     $L = sgsIoMenciones($menciones);
     array_push($L, "Estimados, $saludo.", 'Se envía el reporte de <b>facilidades técnicas</b> del día de las cuadrillas ' . rtrim(sgsIoDeQuien($nombre)) . '.',
         '📅 ' . $ahora->format('d/m/Y') . ' · corte ' . $ahora->format('H:i'), '');
-    if (!$canc) { $L[] = '✅ Hoy no hay órdenes canceladas por facilidades técnicas.'; return implode("\n", $L); }
     $L[] = '📊 <b>Resumen:</b> 🚧 ' . count($canc) . ' ' . (count($canc) !== 1 ? 'órdenes' : 'orden') . ' sin facilidades técnicas';
     foreach (sgsIoMasComunes(array_column($canc, 'categoria')) as [$cat, $n]) $L[] = '• ' . sgsIoE($cat) . ": $n";
     array_push($L, '', SGS_IO_LINEA, '🚧 <b>DETALLE (' . count($canc) . ')</b>', '');
@@ -327,7 +322,7 @@ function sgsIoTelegramEnviar($chatId, string $texto): void {
     foreach ($partes as $p) {
         for ($intento = 0; ; $intento++) {
             $ch = curl_init('https://api.telegram.org/bot' . sgsTelegramToken() . '/sendMessage');
-            curl_setopt_array($ch, (is_file('C:/xampp/apache/bin/curl-ca-bundle.crt') ? [CURLOPT_CAINFO => 'C:/xampp/apache/bin/curl-ca-bundle.crt'] : []) + [
+            curl_setopt_array($ch, sgsCurlCa() + [
                 CURLOPT_POST => true, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 10, CURLOPT_CONNECTTIMEOUT => 4,
                 CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,      // 2026-11-19: por IPv6 Telegram no respondía desde la red local
                 CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
@@ -360,7 +355,8 @@ function sgsIoMencionesPartner(string $partner): array {
 /**
  * Mensajes del reporte elegido para cada grupo configurado (filtrado por sus partners y tipo SGI/SGA). Un mensaje por partner
  * (2026-11-19, pedido del usuario): "OLMA SGI", "OLMA SGA", "ALFITELL SGI"… solo de los partners que tienen órdenes en el
- * reporte, con las menciones del grupo más las del partner. Si ningún partner tiene, un solo mensaje "✅" por grupo.
+ * reporte, con las menciones del grupo más las del partner. 2026-11-25 (pedido del usuario): si ningún partner del grupo tiene
+ * órdenes en el reporte, a ese grupo NO se le manda nada (antes iba un mensaje "✅").
  * Devuelve [['grupo', 'chat_id', 'partner', 'ordenes', 'texto'], …].
  */
 function sgsIoMensajes(array $tablero, string $reporte, DateTimeInterface $ahora, ?array $lista = null): array {
@@ -396,24 +392,13 @@ function sgsIoMensajes(array $tablero, string $reporte, DateTimeInterface $ahora
         // Grupo propio de un partner: el encabezado no repite su nombre ("las cuadrillas SGI"); grupo con varios: "de OLMA SGI".
         $propio = !in_array('*', $ps, true);
         $nombreDe = static fn(string $p) => $propio ? (in_array($tipo, ['SGI', 'SGA'], true) ? $tipo : '') : sgsIoNombreReporte([$p], $tipo);
-        $mensajes = $porPartner ? [] : [[$propio ? $nombreDe('') : sgsIoNombreReporte($ps, $tipo), [], $menc]];      // sin órdenes: uno solo para el grupo
+        $mensajes = [];
         foreach ($porPartner as $p => $os) $mensajes[] = [$nombreDe((string)$p), $os, $menc + sgsIoMencionesPartner((string)$p)];
-        // Primera orden: cuántas cuadrillas del grupo ya salieron (En camino hasta las 08:05) para distinguir "todas iniciaron" de "aún agendadas".
-        $enCamino = null;
-        if ($reporte === 'primera') {
-            $enCamino = 0;
-            foreach ($tablero['cuadrillas'] ?? [] as $c) {
-                if (!$c['camino'] || strcmp($c['camino'], SGS_IO_HORA_PRIMERA) > 0) continue;
-                if (!in_array('*', $ps, true) && !in_array(sgsIoPartnerBase($c['proveedor'] ?? ''), $ps, true)) continue;
-                if (in_array($tipo, ['SGI', 'SGA'], true) && ($c['grupo'] ?? '') !== $tipo) continue;
-                $enCamino++;
-            }
-        }
         foreach ($mensajes as [$nombre, $os, $m])
             $out[] = ['grupo' => (string)($g['nombre'] ?? ''), 'chat_id' => $g['chat_id'] ?? null, 'partner' => $nombre, 'ordenes' => count($os),
                       'texto' => match ($reporte) {
                           'alertas' => sgsIoArmarAlertas($os, $nombre, $m, $ahora),
-                          'primera' => sgsIoArmarPrimera($os, $nombre, $m, $ahora, $enCamino),
+                          'primera' => sgsIoArmarPrimera($os, $nombre, $m, $ahora),
                           'fachada' => sgsIoArmarFachada($os, $nombre, $m, $ahora),
                           default => sgsIoArmarFacilidades($os, $nombre, $m, $ahora)}];
     }

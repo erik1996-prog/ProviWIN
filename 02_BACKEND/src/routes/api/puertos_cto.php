@@ -1,8 +1,8 @@
 <?php
 // 02_BACKEND/src/routes/api/puertos_cto.php - Consulta de puertos de una CTO (2026-11-11). Lógica: config/puertos_cto.php.
 //   Quien tiene "Consultar puertos": estado (GET), consultar (POST codigo), resultado (GET id).
-//   Solo la cuenta principal, desde la ventana del vínculo: vincular, tomar (GET), responder (POST id, datos), desactivar.
-//   Solo la cuenta principal (2026-11-19): agente_estado, agente_generar y agente_anular (clave del programa Vínculo Wincore).
+//   Quien puede conectar desde su laptop: desactivar, agente_estado, agente_generar y agente_anular (su clave del programa Vínculo
+//   Wincore). El vínculo lo activa y atiende ese programa (api/puertos_agente.php); 2026-11-21: sin favorito ni ventana del navegador.
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
@@ -24,7 +24,7 @@ $salir = static function (int $http, array $datos): void {
 $hora = static fn(?int $t) => $t ? date('H:i', $t) : null;
 
 $action = (string)($_GET['action'] ?? '');
-$vinculo = in_array($action, ['vincular', 'tomar', 'responder', 'desactivar', 'agente_estado', 'agente_generar', 'agente_anular'], true);
+$vinculo = in_array($action, ['desactivar', 'agente_estado', 'agente_generar', 'agente_anular'], true);
 if ($vinculo ? !Auth::puedeVincularWincore($usuario) : !Auth::puedeConsultarPuertos($usuario)) {
     $salir(403, ['status' => 'error', 'message' => 'Sin acceso a la consulta de puertos.']);
 }
@@ -45,18 +45,6 @@ switch ($action) {
         $r = sgsPuertosResultado($uid, (string)($_GET['id'] ?? ''));
         if ($r === null) $salir(404, ['status' => 'error', 'message' => 'La consulta ya no existe. Vuelve a consultar.']);
         $salir(200, ['status' => 'success'] + $r);
-    case 'vincular':
-        if (sgsPuenteDeOtro($uid)) $salir(409, ['status' => 'error', 'message' => 'Otra laptop ya tiene activo el vínculo con Wincore. Se activa cuando esa se desconecte.']);
-        $vence = sgsPuenteActivar($uid);
-        $salir(200, ['status' => 'success', 'vence' => $hora($vence), 'sondeo' => SGS_PUENTE_SONDEO]);
-    case 'tomar':
-        $t = sgsPuenteTomar($uid);
-        if ($t === null) $salir(200, ['status' => 'success', 'activo' => false]);
-        $salir(200, ['status' => 'success', 'activo' => true, 'vence' => $hora($t['vence']), 'consulta' => $t['consulta'], 'en_espera' => $t['en_espera']]);
-    case 'responder':
-        $datos = json_decode((string)($_POST['datos'] ?? ''), true);
-        $ok = is_array($datos) && sgsPuertosGuardarRespuesta((string)($_POST['id'] ?? ''), $datos);
-        $salir($ok ? 200 : 404, ['status' => $ok ? 'success' : 'error']);
     case 'desactivar':
         // 2026-11-21: cada uno apaga el suyo; la cuenta principal puede apagar el de cualquiera.
         if (sgsPuenteDeOtro($uid) && Auth::cuentaPrincipalId() !== $uid) $salir(409, ['status' => 'error', 'message' => 'El vínculo activo es de otra laptop.']);
@@ -75,8 +63,6 @@ switch ($action) {
             if (sgsPuenteEstado()['usuario_id'] === $uid) sgsPuenteDesactivar(true);   // solo si el vínculo activo era de su laptop
             $salir(200, ['status' => 'success']);
         }
-        require_once __DIR__ . '/../../config/examen_enlaces.php'; // sgsUrlSistema()
-        $clave = sgsAgenteGenerarClave($uid);
-        $salir(200, ['status' => 'success', 'clave' => $clave, 'favorito' => sgsFavoritoPuente(sgsUrlSistema() . '/', $clave)]);
+        $salir(200, ['status' => 'success', 'clave' => sgsAgenteGenerarClave($uid)]);
 }
 $salir(400, ['status' => 'error', 'message' => 'Acción no válida.']);

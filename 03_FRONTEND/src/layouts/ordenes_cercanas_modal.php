@@ -1,10 +1,6 @@
 <?php // 03_FRONTEND/src/layouts/ordenes_cercanas_modal.php - Ventana "Órdenes cercanas" de Supervisiones (2026-11-08).
-// 2026-11-13: la cuenta principal ve aquí cómo vincular Phoenix (config/puente_phoenix.php).
-// 2026-11-19: la sesión de Phoenix (ventanita phoenix_sesion.php, hasta las 23:59) se conecta desde el indicador "Phoenix" de la barra
-// superior (topbar.php), común con Inicio de órdenes; el favorito queda como otra forma.
-require_once BACKEND_PATH . '/config/puente_phoenix.php';
-require_once BACKEND_PATH . '/config/examen_enlaces.php'; // sgsUrlSistema()
-$puedeVincularPhoenix = Auth::puedeVincularPhoenix($effectiveViewUser);
+// La sesión de Phoenix la conecta solo el programa «Vínculo Wincore» de la laptop (2026-11-21; su estado se ve arriba, en el
+// indicador Phoenix de la barra superior).
 ?>
 <div class="modal fade" id="modalOrdenesCercanas" tabindex="-1" aria-labelledby="ocTitulo" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg modal-fullscreen-sm-down">
@@ -44,20 +40,6 @@ $puedeVincularPhoenix = Auth::puedeVincularPhoenix($effectiveViewUser);
         </div>
         <p class="text-muted small mb-2" id="ocAvance" role="status"></p>
         <div id="ocLista"></div>
-        <?php if ($puedeVincularPhoenix): ?>
-        <details class="pc-vinculo mt-3">
-          <summary><i class="bi bi-link-45deg me-1"></i>Vínculo con Phoenix <small class="text-muted">(solo tú)</small></summary>
-          <p class="small mt-2 mb-3"><i class="bi bi-plug me-1" aria-hidden="true"></i>La sesión de Phoenix se conecta arriba, en el indicador <strong>Phoenix</strong> de la barra superior (dura hasta las 23:59 y la usa también Inicio de órdenes).</p>
-          <p class="small text-muted mb-1">Otra forma (con la laptop abierta):</p>
-          <ol class="small mt-2 mb-2 ps-3">
-            <li>Una sola vez: muestra la barra de favoritos de Chrome (Ctrl + Mayús + B) y <strong>arrastra</strong> a ella este botón:
-              <a class="btn btn-outline-secondary btn-sm ms-1" href="<?= htmlspecialchars(sgsFavoritoPhoenix(sgsUrlSistema() . '/'), ENT_QUOTES, 'UTF-8') ?>"><i class="bi bi-link-45deg me-1"></i>Vincular SGS – Phoenix</a></li>
-            <li>Entra a Phoenix e inicia sesión.</li>
-            <li>Pulsa el favorito <strong>Vincular SGS – Phoenix</strong>: se abre una ventana del SGS junto a Phoenix y el vínculo se activa por <?= SGS_PUENTE_HORAS ?> horas. Deja las dos abiertas (puedes minimizarlas).</li>
-          </ol>
-          <p class="small text-muted mb-0">Mientras el vínculo esté activo, Órdenes cercanas lee las órdenes con tu sesión de Phoenix y el SGS no usa tu contraseña. Si recargas Phoenix, vuelve a pulsar el favorito. Para apagarlo, usa Desactivar en la ventana del vínculo.</p>
-        </details>
-        <?php endif; ?>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary d-none" id="ocReintentar"><i class="bi bi-arrow-clockwise me-1"></i>Reintentar</button>
